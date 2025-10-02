@@ -2,7 +2,7 @@
 
 
 class CascadeFlowError(Exception):
-    """Base exception for all CascadeFlow errors."""
+    """Base exception for CascadeFlow."""
     pass
 
 
@@ -12,9 +12,9 @@ class ConfigError(CascadeFlowError):
 
 
 class ProviderError(CascadeFlowError):
-    """Provider-related error."""
+    """Provider error."""
 
-    def __init__(self, message: str, provider: str, original_error: Exception = None):
+    def __init__(self, message: str, provider: str = None, original_error: Exception = None):
         super().__init__(message)
         self.provider = provider
         self.original_error = original_error
@@ -23,7 +23,7 @@ class ProviderError(CascadeFlowError):
 class ModelError(CascadeFlowError):
     """Model execution error."""
 
-    def __init__(self, message: str, model: str, provider: str = None):
+    def __init__(self, message: str, model: str = None, provider: str = None):
         super().__init__(message)
         self.model = model
         self.provider = provider
@@ -32,10 +32,8 @@ class ModelError(CascadeFlowError):
 class BudgetExceededError(CascadeFlowError):
     """Budget limit exceeded."""
 
-    def __init__(self, message: str, current: float, limit: float, remaining: float = 0.0):
+    def __init__(self, message: str, remaining: float = 0.0):
         super().__init__(message)
-        self.current = current
-        self.limit = limit
         self.remaining = remaining
 
 
@@ -49,15 +47,11 @@ class RateLimitError(CascadeFlowError):
 
 class QualityThresholdError(CascadeFlowError):
     """Quality threshold not met."""
-
-    def __init__(self, message: str, confidence: float, threshold: float):
-        super().__init__(message)
-        self.confidence = confidence
-        self.threshold = threshold
+    pass
 
 
 class RoutingError(CascadeFlowError):
-    """Routing decision error."""
+    """Routing error."""
     pass
 
 

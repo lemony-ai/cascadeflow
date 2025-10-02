@@ -1,16 +1,21 @@
 """
-Comprehensive test script for CascadeFlow.
+Comprehensive test script for CascadeFlow Day 4.
 
-Tests everything before git commit:
-- Configuration classes
-- All providers
-- Examples
+Tests everything before proceeding to Day 4.2:
+- All imports and configuration
+- All providers (with real API calls)
+- CascadeAgent functionality
+- All example files
 - Unit tests
+- Integration tests
 """
 
 import asyncio
 import os
 import sys
+import subprocess
+import py_compile
+import glob
 from dotenv import load_dotenv
 
 # Load environment
@@ -36,12 +41,12 @@ class TestRunner:
         print(f"❌ {message}")
         if error:
             print(f"   Error: {error}")
-            self.errors.append((message, error))
+            self.errors.append((message, str(error)))
         self.failed += 1
 
     def skip(self, message):
         """Print skip message."""
-        print(f"⚠️ {message}")
+        print(f"⚠️  {message}")
         self.skipped += 1
 
     def info(self, message):
@@ -51,22 +56,23 @@ class TestRunner:
     def section(self, title):
         """Print section header."""
         print(f"\n{'=' * 70}")
-        print(f"{title}")
+        print(f"  {title}")
         print(f"{'=' * 70}\n")
 
     def summary(self):
         """Print test summary."""
         print(f"\n{'=' * 70}")
-        print(f"TEST SUMMARY")
+        print(f"  TEST SUMMARY")
         print(f"{'=' * 70}")
-        print(f"✅ Passed: {self.passed}")
-        print(f"❌ Failed: {self.failed}")
-        print(f"⚠️ Skipped: {self.skipped}")
-        print(f"Total: {self.passed + self.failed + self.skipped}")
+        print(f"✅ Passed:  {self.passed}")
+        print(f"❌ Failed:  {self.failed}")
+        print(f"⚠️  Skipped: {self.skipped}")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"   Total:   {self.passed + self.failed + self.skipped}")
 
         if self.errors:
             print(f"\n{'=' * 70}")
-            print(f"ERRORS")
+            print(f"  ERRORS DETAIL")
             print(f"{'=' * 70}")
             for msg, err in self.errors:
                 print(f"\n❌ {msg}")
@@ -74,71 +80,57 @@ class TestRunner:
 
         print(f"\n{'=' * 70}")
         if self.failed == 0:
-            print(f"🎉 ALL TESTS PASSED!")
-            print(f"✅ Ready to commit to git")
+            print(f"  🎉 ALL TESTS PASSED!")
+            print(f"  ✅ Ready for Day 4.2: Speculative Cascades")
         else:
-            print(f"⚠️ {self.failed} TESTS FAILED")
-            print(f"❌ Fix issues before committing")
+            print(f"  ⚠️  {self.failed} TEST(S) FAILED")
+            print(f"  ❌ Fix issues before proceeding")
         print(f"{'=' * 70}\n")
 
         return self.failed == 0
 
 
+# ============================================================================
+# SECTION 1: IMPORTS
+# ============================================================================
+
 async def test_imports(runner):
     """Test all imports."""
-    runner.section("TEST 1: IMPORTS")
+    runner.section("1. IMPORTS")
 
     try:
-        from cascadeflow import ModelConfig, CascadeConfig, UserTier
-        runner.success("Core config imports")
+        from cascadeflow import (
+            ModelConfig, CascadeConfig, UserTier,
+            CascadeAgent, CascadeResult,
+            ModelResponse, BaseProvider,
+            setup_logging, format_cost, estimate_tokens,
+            CascadeFlowError, BudgetExceededError,
+            ProviderError, ModelError, QualityThresholdError
+        )
+        runner.success("Core imports")
     except Exception as e:
-        runner.fail("Core config imports", e)
+        runner.fail("Core imports", e)
         return
 
     try:
-        from cascadeflow.providers import BaseProvider, ModelResponse
-        runner.success("Base provider imports")
-    except Exception as e:
-        runner.fail("Base provider imports", e)
-
-    try:
-        from cascadeflow.providers import OpenAIProvider
-        runner.success("OpenAI provider import")
-    except Exception as e:
-        runner.fail("OpenAI provider import", e)
-
-    try:
-        from cascadeflow.providers import AnthropicProvider
-        runner.success("Anthropic provider import")
-    except Exception as e:
-        runner.fail("Anthropic provider import", e)
-
-    try:
-        from cascadeflow.providers import OllamaProvider
-        runner.success("Ollama provider import")
-    except Exception as e:
-        runner.fail("Ollama provider import", e)
-
-    try:
-        from cascadeflow.providers import GroqProvider
-        runner.success("Groq provider import")
-    except Exception as e:
-        runner.fail("Groq provider import", e)
-
-    try:
-        from cascadeflow.exceptions import (
-            CascadeFlowError, BudgetExceededError,
-            ProviderError, ModelError
+        from cascadeflow.providers import (
+            OpenAIProvider, AnthropicProvider,
+            OllamaProvider, GroqProvider
         )
-        runner.success("Exception imports")
+        runner.success("Provider imports")
     except Exception as e:
-        runner.fail("Exception imports", e)
+        runner.fail("Provider imports", e)
 
+
+# ============================================================================
+# SECTION 2: CONFIGURATION CLASSES
+# ============================================================================
 
 async def test_config_classes(runner):
     """Test configuration classes."""
-    runner.section("TEST 2: CONFIGURATION CLASSES")
+    runner.section("2. CONFIGURATION CLASSES")
 
+    # ModelConfig
     try:
         from cascadeflow import ModelConfig
 
@@ -150,10 +142,25 @@ async def test_config_classes(runner):
         assert model.name == "gpt-3.5-turbo"
         assert model.provider == "openai"
         assert model.cost == 0.002
-        runner.success("ModelConfig creation")
+        runner.success("ModelConfig: basic creation")
     except Exception as e:
-        runner.fail("ModelConfig creation", e)
+        runner.fail("ModelConfig: basic creation", e)
 
+    try:
+        model = ModelConfig(
+            name="codellama",
+            provider="ollama",
+            cost=0.0,
+            domains=["code"],
+            keywords=["programming"]
+        )
+        assert "code" in model.domains
+        assert "programming" in model.keywords
+        runner.success("ModelConfig: with domains/keywords")
+    except Exception as e:
+        runner.fail("ModelConfig: with domains/keywords", e)
+
+    # CascadeConfig
     try:
         from cascadeflow import CascadeConfig
 
@@ -165,10 +172,11 @@ async def test_config_classes(runner):
         assert config.quality_threshold == 0.85
         assert config.max_budget == 0.10
         assert config.use_speculative == True
-        runner.success("CascadeConfig creation")
+        runner.success("CascadeConfig: creation")
     except Exception as e:
-        runner.fail("CascadeConfig creation", e)
+        runner.fail("CascadeConfig: creation", e)
 
+    # UserTier
     try:
         from cascadeflow import UserTier
 
@@ -178,15 +186,86 @@ async def test_config_classes(runner):
             quality_threshold=0.9
         )
         assert tier.name == "premium"
-        assert tier.max_budget == 0.10
-        runner.success("UserTier creation")
+        config_dict = tier.to_cascade_config()
+        assert config_dict["max_budget"] == 0.10
+        runner.success("UserTier: creation and conversion")
     except Exception as e:
-        runner.fail("UserTier creation", e)
+        runner.fail("UserTier: creation and conversion", e)
 
+
+# ============================================================================
+# SECTION 3: UTILITY FUNCTIONS
+# ============================================================================
+
+async def test_utilities(runner):
+    """Test utility functions."""
+    runner.section("3. UTILITY FUNCTIONS")
+
+    try:
+        from cascadeflow import format_cost
+
+        result = format_cost(0.002)
+        assert result == "$0.0020", f"Expected '$0.0020', got '{result}'"
+
+        result = format_cost(1.5)
+        assert result == "$1.5000", f"Expected '$1.5000', got '{result}'"
+
+        runner.success("format_cost()")
+    except Exception as e:
+        runner.fail("format_cost()", e)
+
+    try:
+        from cascadeflow import estimate_tokens
+
+        tokens = estimate_tokens("This is a test")
+        assert tokens > 0
+        runner.success("estimate_tokens()")
+    except Exception as e:
+        runner.fail("estimate_tokens()", e)
+
+    try:
+        from cascadeflow import setup_logging
+        setup_logging("INFO")
+        runner.success("setup_logging()")
+    except Exception as e:
+        runner.fail("setup_logging()", e)
+
+
+# ============================================================================
+# SECTION 4: API KEY CONFIGURATION
+# ============================================================================
+
+async def test_api_keys(runner):
+    """Check API key configuration."""
+    runner.section("4. API KEY CONFIGURATION")
+
+    keys = {
+        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+        "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
+        "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
+        "HF_TOKEN": os.getenv("HF_TOKEN"),
+        "TOGETHER_API_KEY": os.getenv("TOGETHER_API_KEY"),
+    }
+
+    configured = 0
+    for key_name, key_value in keys.items():
+        if key_value:
+            runner.success(f"{key_name} ({key_value[:10]}...)")
+            configured += 1
+        else:
+            runner.info(f"{key_name} not set (optional)")
+
+    if configured == 0:
+        runner.info("⚠️  No API keys configured - integration tests will be skipped")
+
+
+# ============================================================================
+# SECTION 5: PROVIDER INITIALIZATION
+# ============================================================================
 
 async def test_provider_initialization(runner):
     """Test provider initialization."""
-    runner.section("TEST 3: PROVIDER INITIALIZATION")
+    runner.section("5. PROVIDER INITIALIZATION")
 
     # OpenAI
     if os.getenv("OPENAI_API_KEY"):
@@ -194,8 +273,9 @@ async def test_provider_initialization(runner):
             from cascadeflow.providers import OpenAIProvider
             provider = OpenAIProvider()
             assert provider.api_key is not None
+            assert provider.base_url is not None
             await provider.client.aclose()
-            runner.success("OpenAI provider initialization")
+            runner.success("OpenAI provider initialized")
         except Exception as e:
             runner.fail("OpenAI provider initialization", e)
     else:
@@ -208,7 +288,7 @@ async def test_provider_initialization(runner):
             provider = AnthropicProvider()
             assert provider.api_key is not None
             await provider.client.aclose()
-            runner.success("Anthropic provider initialization")
+            runner.success("Anthropic provider initialized")
         except Exception as e:
             runner.fail("Anthropic provider initialization", e)
     else:
@@ -221,7 +301,7 @@ async def test_provider_initialization(runner):
             provider = GroqProvider()
             assert provider.api_key is not None
             await provider.client.aclose()
-            runner.success("Groq provider initialization")
+            runner.success("Groq provider initialized")
         except Exception as e:
             runner.fail("Groq provider initialization", e)
     else:
@@ -231,168 +311,491 @@ async def test_provider_initialization(runner):
     try:
         from cascadeflow.providers import OllamaProvider
         provider = OllamaProvider()
+        assert provider.base_url is not None
         await provider.client.aclose()
-        runner.success("Ollama provider initialization")
+        runner.success("Ollama provider initialized")
     except Exception as e:
         runner.fail("Ollama provider initialization", e)
 
 
-async def test_groq_api(runner):
-    """Test Groq API with real call."""
-    runner.section("TEST 4: GROQ API (REAL CALL)")
-
-    if not os.getenv("GROQ_API_KEY"):
-        runner.skip("Groq API test (no API key)")
-        return
-
-    try:
-        from cascadeflow.providers import GroqProvider
-
-        provider = GroqProvider()
-
-        result = await provider.complete(
-            prompt="Say 'CascadeFlow test successful!' in one sentence.",
-            model="llama-3.1-8b-instant",
-            max_tokens=50
-        )
-
-        assert result.content is not None
-        assert len(result.content) > 0
-        assert result.model == "llama-3.1-8b-instant"
-        assert result.provider == "groq"
-        assert result.cost == 0.0
-        assert result.tokens_used > 0
-
-        runner.success(f"Groq API call (model: llama-3.1-8b-instant)")
-        runner.info(f"Response: {result.content[:60]}...")
-
-        await provider.client.aclose()
-
-    except Exception as e:
-        runner.fail("Groq API call", e)
-
+# ============================================================================
+# SECTION 6: OLLAMA CONNECTION
+# ============================================================================
 
 async def test_ollama_connection(runner):
     """Test Ollama connection."""
-    runner.section("TEST 5: OLLAMA CONNECTION")
+    runner.section("6. OLLAMA CONNECTION")
 
     try:
         import httpx
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:11434/api/version", timeout=2.0)
+            response = await client.get(
+                "http://localhost:11434/api/version",
+                timeout=2.0
+            )
             if response.status_code == 200:
-                version_data = response.json()
-                runner.success(f"Ollama is running (version: {version_data.get('version', 'unknown')})")
+                version = response.json().get("version", "unknown")
+                runner.success(f"Ollama running (v{version})")
 
-                # Check available models
-                tags_response = await client.get("http://localhost:11434/api/tags", timeout=2.0)
-                if tags_response.status_code == 200:
-                    models = tags_response.json().get("models", [])
+                # Check models
+                tags = await client.get("http://localhost:11434/api/tags", timeout=2.0)
+                if tags.status_code == 200:
+                    models = tags.json().get("models", [])
                     if models:
                         model_names = [m["name"] for m in models[:3]]
-                        runner.info(f"Available models: {', '.join(model_names)}")
+                        runner.info(f"Models: {', '.join(model_names)}")
+                        runner.success(f"Ollama has {len(models)} model(s)")
                     else:
-                        runner.skip("Ollama running but no models installed")
+                        runner.skip("Ollama running but no models")
             else:
-                runner.skip("Ollama not responding correctly")
+                runner.skip("Ollama not responding")
     except Exception as e:
-        runner.skip(f"Ollama not available: {e}")
+        runner.skip(f"Ollama not available ({e})")
 
+
+# ============================================================================
+# SECTION 7: REAL API CALLS
+# ============================================================================
+
+async def test_real_api_calls(runner):
+    """Test real API calls to providers."""
+    runner.section("7. REAL API CALLS")
+
+    # Test OpenAI
+    if os.getenv("OPENAI_API_KEY"):
+        try:
+            from cascadeflow.providers import OpenAIProvider
+
+            provider = OpenAIProvider()
+            result = await provider.complete(
+                prompt="Say 'test' and nothing else",
+                model="gpt-3.5-turbo",
+                max_tokens=10
+            )
+
+            assert result.content is not None
+            assert result.cost > 0
+            assert result.provider == "openai"
+
+            runner.success(f"OpenAI API call (${result.cost:.6f})")
+            runner.info(f"Response: {result.content[:50]}")
+
+            await provider.client.aclose()
+        except Exception as e:
+            runner.fail("OpenAI API call", e)
+    else:
+        runner.skip("OpenAI API call (no key)")
+
+    # Test Groq
+    if os.getenv("GROQ_API_KEY"):
+        try:
+            from cascadeflow.providers import GroqProvider
+
+            provider = GroqProvider()
+            result = await provider.complete(
+                prompt="Say 'test' and nothing else",
+                model="llama-3.1-8b-instant",
+                max_tokens=10
+            )
+
+            assert result.content is not None
+            assert result.cost == 0.0  # Free
+            assert result.provider == "groq"
+
+            runner.success(f"Groq API call (FREE)")
+            runner.info(f"Response: {result.content[:50]}")
+
+            await provider.client.aclose()
+        except Exception as e:
+            runner.fail("Groq API call", e)
+    else:
+        runner.skip("Groq API call (no key)")
+
+    # Test Anthropic
+    if os.getenv("ANTHROPIC_API_KEY"):
+        try:
+            from cascadeflow.providers import AnthropicProvider
+
+            provider = AnthropicProvider()
+            result = await provider.complete(
+                prompt="Say 'test' and nothing else",
+                model="claude-3-haiku-20240307",
+                max_tokens=10
+            )
+
+            assert result.content is not None
+            assert result.provider == "anthropic"
+
+            runner.success(f"Anthropic API call (${result.cost:.6f})")
+            runner.info(f"Response: {result.content[:50]}")
+
+            await provider.client.aclose()
+        except Exception as e:
+            runner.fail("Anthropic API call", e)
+    else:
+        runner.skip("Anthropic API call (no key)")
+
+
+# ============================================================================
+# SECTION 8: CASCADE AGENT
+# ============================================================================
+
+async def test_cascade_agent(runner):
+    """Test CascadeAgent functionality."""
+    runner.section("8. CASCADE AGENT")
+
+    if not os.getenv("OPENAI_API_KEY"):
+        runner.skip("CascadeAgent tests (no OpenAI key)")
+        return
+
+    # Basic initialization
+    try:
+        from cascadeflow import CascadeAgent, ModelConfig
+
+        models = [
+            ModelConfig(name="gpt-3.5-turbo", provider="openai", cost=0.002),
+            ModelConfig(name="gpt-4", provider="openai", cost=0.03),
+        ]
+
+        agent = CascadeAgent(models)
+        assert len(agent.models) == 2
+        assert agent.config is not None
+
+        runner.success("CascadeAgent: initialization")
+    except Exception as e:
+        runner.fail("CascadeAgent: initialization", e)
+        return
+
+    # Test run
+    try:
+        result = await agent.run("What is 2+2?")
+
+        assert result.content is not None
+        assert result.model_used in ["gpt-3.5-turbo", "gpt-4"]
+        assert result.total_cost > 0
+        assert result.confidence > 0
+
+        runner.success(f"CascadeAgent: run() - used {result.model_used}")
+        runner.info(f"Cost: ${result.total_cost:.6f}, Cascaded: {result.cascaded}")
+    except Exception as e:
+        runner.fail("CascadeAgent: run()", e)
+
+    # Test with user tiers
+    try:
+        from cascadeflow import UserTier
+
+        tiers = {
+            "free": UserTier(name="free", max_budget=0.001, quality_threshold=0.6),
+            "premium": UserTier(name="premium", max_budget=0.10, quality_threshold=0.9),
+        }
+
+        agent_with_tiers = CascadeAgent(models, tiers=tiers)
+        result = await agent_with_tiers.run("Test", user_tier="free")
+
+        assert result.user_tier == "free"
+        runner.success("CascadeAgent: user tiers")
+    except Exception as e:
+        runner.fail("CascadeAgent: user tiers", e)
+
+    # Test stats
+    try:
+        stats = agent.get_stats()
+        assert "total_queries" in stats
+        assert "total_cost" in stats
+        runner.success("CascadeAgent: get_stats()")
+    except Exception as e:
+        runner.fail("CascadeAgent: get_stats()", e)
+
+
+# ============================================================================
+# SECTION 9: SMART DEFAULT
+# ============================================================================
+
+async def test_smart_default(runner):
+    """Test smart_default() provider detection."""
+    runner.section("9. SMART DEFAULT")
+
+    try:
+        from cascadeflow import CascadeAgent
+
+        agent = CascadeAgent.smart_default()
+
+        assert len(agent.models) > 0
+        runner.success(f"smart_default() detected {len(agent.models)} model(s)")
+
+        for model in agent.models:
+            runner.info(f"  - {model.name} ({model.provider})")
+
+    except Exception as e:
+        # This might fail if no providers configured
+        if "No providers detected" in str(e):
+            runner.skip("smart_default() (no providers configured)")
+        else:
+            runner.fail("smart_default()", e)
+
+
+# ============================================================================
+# SECTION 10: UNIT TESTS (PYTEST)
+# ============================================================================
 
 async def test_unit_tests(runner):
     """Run pytest unit tests."""
-    runner.section("TEST 6: UNIT TESTS (pytest)")
+    runner.section("10. UNIT TESTS (pytest)")
 
     try:
-        import subprocess
         result = subprocess.run(
-            ["pytest", "tests/", "-v", "--tb=short"],
+            ["pytest", "tests/", "-v", "--tb=short", "-x"],
             capture_output=True,
             text=True,
             timeout=60
         )
 
         if result.returncode == 0:
-            # Count passed tests
             output = result.stdout
             if "passed" in output:
-                runner.success("All pytest tests passed")
-                runner.info(output.split('\n')[-2])  # Summary line
+                # Extract number of passed tests
+                for line in output.split('\n'):
+                    if "passed" in line:
+                        runner.success(f"pytest: {line.strip()}")
+                        break
             else:
-                runner.success("Pytest completed")
+                runner.success("pytest: all tests passed")
         else:
-            runner.fail("Some pytest tests failed")
-            # Show last few lines of output
+            runner.fail("pytest: some tests failed")
+            # Show failure details
             lines = result.stdout.split('\n')
-            for line in lines[-10:]:
-                if line.strip():
+            for line in lines[-15:]:
+                if line.strip() and ("FAILED" in line or "ERROR" in line):
                     print(f"   {line}")
 
     except subprocess.TimeoutExpired:
-        runner.fail("Pytest tests timed out")
+        runner.fail("pytest: tests timed out (>60s)")
     except FileNotFoundError:
         runner.skip("pytest not installed")
     except Exception as e:
-        runner.fail("Running pytest", e)
+        runner.fail("pytest execution", e)
 
 
-async def check_example_syntax(runner):
+# ============================================================================
+# SECTION 11: EXAMPLE FILE SYNTAX
+# ============================================================================
+
+async def test_example_syntax(runner):
     """Check example files for syntax errors."""
-    runner.section("TEST 7: EXAMPLE FILES SYNTAX")
-
-    import py_compile
-    import glob
+    runner.section("11. EXAMPLE FILES (syntax)")
 
     example_files = glob.glob("examples/*.py")
 
-    for filepath in example_files:
+    if not example_files:
+        runner.skip("No example files found")
+        return
+
+    for filepath in sorted(example_files):
         filename = os.path.basename(filepath)
+
+        # Skip test files
+        if filename.startswith("test_"):
+            continue
+
         try:
             py_compile.compile(filepath, doraise=True)
-            runner.success(f"Syntax OK: {filename}")
+            runner.success(f"Syntax: {filename}")
         except Exception as e:
-            runner.fail(f"Syntax error in {filename}", e)
+            runner.fail(f"Syntax: {filename}", e)
 
 
-async def test_api_keys(runner):
-    """Check which API keys are configured."""
-    runner.section("TEST 8: API KEY CONFIGURATION")
+# ============================================================================
+# SECTION 12: EXAMPLE EXECUTION
+# ============================================================================
 
-    keys = {
-        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-        "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
-        "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
-        "HF_TOKEN": os.getenv("HF_TOKEN"),
-    }
+async def test_example_execution(runner):
+    """Test that key examples actually run."""
+    runner.section("12. EXAMPLE FILES (execution)")
 
-    for key_name, key_value in keys.items():
-        if key_value:
-            runner.success(f"{key_name} is set ({key_value[:10]}...)")
+    # Only test if we have API keys
+    has_keys = bool(os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY"))
+
+    if not has_keys:
+        runner.skip("Example execution (no API keys)")
+        return
+
+    # Test basic_cascade.py
+    try:
+        result = subprocess.run(
+            ["python", "examples/basic_cascade.py"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode == 0 and "Success!" in result.stdout:
+            runner.success("basic_cascade.py execution")
         else:
-            runner.info(f"{key_name} is NOT set (optional)")
+            runner.fail("basic_cascade.py execution",
+                        result.stderr or "No 'Success!' in output")
+    except subprocess.TimeoutExpired:
+        runner.fail("basic_cascade.py", "Timeout")
+    except FileNotFoundError:
+        runner.skip("basic_cascade.py not found")
+    except Exception as e:
+        runner.fail("basic_cascade.py", e)
 
+    # Test smart_default_test.py
+    try:
+        result = subprocess.run(
+            ["python", "examples/smart_default_test.py"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode == 0 and "Success!" in result.stdout:
+            runner.success("smart_default_test.py execution")
+        else:
+            runner.fail("smart_default_test.py execution",
+                        result.stderr or "No 'Success!' in output")
+    except subprocess.TimeoutExpired:
+        runner.fail("smart_default_test.py", "Timeout")
+    except FileNotFoundError:
+        runner.skip("smart_default_test.py not found")
+    except Exception as e:
+        runner.fail("smart_default_test.py", e)
+
+
+# ============================================================================
+# SECTION 13: EXCEPTION HANDLING
+# ============================================================================
+
+async def test_exceptions(runner):
+    """Test exception handling."""
+    runner.section("13. EXCEPTION HANDLING")
+
+    try:
+        from cascadeflow import BudgetExceededError
+
+        error = BudgetExceededError("Test", remaining=0.5)
+        assert error.remaining == 0.5
+        runner.success("BudgetExceededError")
+    except Exception as e:
+        runner.fail("BudgetExceededError", e)
+
+    try:
+        from cascadeflow import QualityThresholdError
+
+        error = QualityThresholdError("Test")
+        assert "Test" in str(error)
+        runner.success("QualityThresholdError")
+    except Exception as e:
+        runner.fail("QualityThresholdError", e)
+
+    try:
+        from cascadeflow import ProviderError
+
+        error = ProviderError("Test", provider="openai")
+        assert error.provider == "openai"
+        runner.success("ProviderError")
+    except Exception as e:
+        runner.fail("ProviderError", e)
+
+
+# ============================================================================
+# SECTION 14: INTEGRATION TEST
+# ============================================================================
+
+async def test_full_integration(runner):
+    """Test full end-to-end integration."""
+    runner.section("14. FULL INTEGRATION")
+
+    # Need at least one provider
+    if not (os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY")):
+        runner.skip("Full integration (no API keys)")
+        return
+
+    try:
+        from cascadeflow import CascadeAgent, ModelConfig, UserTier
+
+        # Build model list
+        models = []
+
+        if os.getenv("GROQ_API_KEY"):
+            models.append(ModelConfig(
+                name="llama-3.1-8b-instant",
+                provider="groq",
+                cost=0.0
+            ))
+
+        if os.getenv("OPENAI_API_KEY"):
+            models.append(ModelConfig(
+                name="gpt-3.5-turbo",
+                provider="openai",
+                cost=0.002
+            ))
+
+        # Create tiers
+        tiers = {
+            "free": UserTier(name="free", max_budget=0.001, quality_threshold=0.6),
+            "pro": UserTier(name="pro", max_budget=0.01, quality_threshold=0.8),
+        }
+
+        # Create agent
+        agent = CascadeAgent(models, tiers=tiers)
+
+        # Run queries
+        queries = [
+            ("What is 2+2?", "free"),
+            ("Explain AI briefly", "pro"),
+        ]
+
+        for query, tier in queries:
+            result = await agent.run(query, user_tier=tier)
+            assert result.content is not None
+            assert result.user_tier == tier
+
+        # Check stats
+        stats = agent.get_stats()
+        assert stats["total_queries"] == 2
+
+        runner.success("Full integration test passed")
+        runner.info(f"Total cost: ${stats['total_cost']:.6f}")
+
+    except Exception as e:
+        runner.fail("Full integration test", e)
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
 
 async def main():
     """Run all tests."""
     print("""
 ╔══════════════════════════════════════════════════════════════════╗
 ║                                                                  ║
-║          🌊 CascadeFlow - Pre-Commit Test Suite 🌊             ║
+║          🌊 CascadeFlow - Day 4 Validation Suite 🌊             ║
+║                                                                  ║
+║  Complete test suite before proceeding to Day 4.2               ║
+║  (Speculative Cascades Implementation)                          ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
     """)
 
     runner = TestRunner()
 
-    # Run all tests
+    # Run all test sections
     await test_imports(runner)
     await test_config_classes(runner)
+    await test_utilities(runner)
     await test_api_keys(runner)
     await test_provider_initialization(runner)
     await test_ollama_connection(runner)
-    await test_groq_api(runner)
+    await test_real_api_calls(runner)
+    await test_cascade_agent(runner)
+    await test_smart_default(runner)
+    await test_exceptions(runner)
     await test_unit_tests(runner)
-    await check_example_syntax(runner)
+    await test_example_syntax(runner)
+    await test_example_execution(runner)
+    await test_full_integration(runner)
 
     # Show summary
     success = runner.summary()

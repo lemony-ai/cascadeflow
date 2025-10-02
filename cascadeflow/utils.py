@@ -43,26 +43,23 @@ def setup_logging(level: Optional[str] = None) -> None:
 
 def format_cost(cost: float) -> str:
     """
-    Format cost in USD with appropriate precision.
+    Format cost in USD with 4 decimal places.
 
     Args:
         cost: Cost in USD
 
     Returns:
-        Formatted string like "$0.0042" or "$0.00"
+        Formatted string like "$0.0042"
 
     Example:
         >>> format_cost(0.00425)
         '$0.0043'
+        >>> format_cost(1.5)
+        '$1.5000'
         >>> format_cost(0.0)
-        '$0.00'
+        '$0.0000'
     """
-    if cost == 0:
-        return "$0.00"
-    elif cost < 0.01:
-        return f"${cost:.4f}"
-    else:
-        return f"${cost:.2f}"
+    return f"${cost:.4f}"
 
 
 def estimate_tokens(text: str) -> int:

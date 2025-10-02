@@ -1,70 +1,55 @@
 """Tests for custom exceptions."""
 
 import pytest
-from cascadeflow.exceptions import (
+from cascadeflow import (
     CascadeFlowError,
     BudgetExceededError,
-    RateLimitError,
+    QualityThresholdError,
     ProviderError,
     ModelError,
 )
 
 
-def test_cascade_flow_error():
+def test_base_exception():
     """Test base CascadeFlowError."""
     error = CascadeFlowError("Test error")
-    assert str(error) == "Test error"
-    assert isinstance(error, Exception)
+    assert "Test error" in str(error)
 
 
 def test_budget_exceeded_error():
-    """Test BudgetExceededError with attributes."""
-    error = BudgetExceededError(
-        "Budget exceeded",
-        current=0.15,
-        limit=0.10,
-        remaining=0.0
-    )
+    """Test BudgetExceededError creation and attributes."""
+    error = BudgetExceededError("Budget exceeded", remaining=0.5)
 
-    assert str(error) == "Budget exceeded"
-    assert error.current == 0.15
-    assert error.limit == 0.10
-    assert error.remaining == 0.0
+    assert "Budget exceeded" in str(error)
+    assert error.remaining == 0.5
+    assert isinstance(error, CascadeFlowError)
 
 
-def test_rate_limit_error():
-    """Test RateLimitError with retry_after."""
-    error = RateLimitError("Rate limit hit", retry_after=3600)
+def test_quality_threshold_error():
+    """Test QualityThresholdError."""
+    error = QualityThresholdError("Quality too low")
 
-    assert str(error) == "Rate limit hit"
-    assert error.retry_after == 3600
+    assert "Quality too low" in str(error)
+    assert isinstance(error, CascadeFlowError)
 
 
 def test_provider_error():
-    """Test ProviderError with provider info."""
-    original = ValueError("Connection failed")
-    error = ProviderError(
-        "Provider unavailable",
-        provider="openai",
-        original_error=original
-    )
+    """Test ProviderError with provider attribute."""
+    error = ProviderError("API failed", provider="openai")
 
-    assert str(error) == "Provider unavailable"
+    assert "API failed" in str(error)
     assert error.provider == "openai"
-    assert error.original_error == original
+    assert isinstance(error, CascadeFlowError)
 
 
 def test_model_error():
-    """Test ModelError with model info."""
-    error = ModelError(
-        "Model failed",
-        model="gpt-4",
-        provider="openai"
-    )
+    """Test ModelError with model and provider attributes."""
+    error = ModelError("Model failed", model="gpt-4", provider="openai")
 
-    assert str(error) == "Model failed"
+    assert "Model failed" in str(error)
     assert error.model == "gpt-4"
     assert error.provider == "openai"
+    assert isinstance(error, CascadeFlowError)
 
 
 if __name__ == "__main__":

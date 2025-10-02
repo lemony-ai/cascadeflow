@@ -104,8 +104,8 @@ class BaseProvider(ABC):
         """
         Calculate confidence score for a response.
 
-        Simple heuristic: longer responses = higher confidence.
-        Override in subclasses for better scoring.
+        Improved heuristic that handles short correct answers better.
+        Override in subclasses for provider-specific scoring.
 
         Args:
             response: Model response text
@@ -114,8 +114,10 @@ class BaseProvider(ABC):
         Returns:
             Confidence score (0-1)
         """
-        if not response or len(response.strip()) < 10:
+        if not response or len(response.strip()) < 2:
             return 0.1
+
+        response_lower = response.lower().strip()
 
         # Check for uncertainty markers
         uncertainty_phrases = [
@@ -124,20 +126,28 @@ class BaseProvider(ABC):
             "i cannot",
             "unclear",
             "uncertain",
-            "not confident"
+            "not confident",
+            "i apologize",
+            "i don't have",
+            "not able to",
         ]
 
-        response_lower = response.lower()
         if any(phrase in response_lower for phrase in uncertainty_phrases):
             return 0.3
 
-        # Length-based scoring (simple heuristic)
-        length = len(response)
-        if length < 50:
-            return 0.4
-        elif length < 200:
-            return 0.6
-        elif length < 500:
-            return 0.8
+        # Improved length-based scoring
+        # Short answers can still be correct (e.g., "4" for "What is 2+2?")
+        length = len(response.strip())
+
+        if length < 20:
+            # Very short - could be correct simple answer
+            return 0.7  # Increased from 0.4
+        elif length < 100:
+            # Short but complete
+            return 0.8  # Increased from 0.6
+        elif length < 300:
+            # Medium length - good detail
+            return 0.85  # Increased from 0.8
         else:
+            # Long, detailed response
             return 0.9

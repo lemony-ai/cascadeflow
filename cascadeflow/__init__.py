@@ -35,6 +35,10 @@ from .config import ModelConfig, CascadeConfig, UserTier
 # Provider interfaces
 from .providers import ModelResponse, BaseProvider, PROVIDER_REGISTRY
 
+# Main agent and result
+from .agent import CascadeAgent
+from .result import CascadeResult
+
 # Utilities
 from .utils import setup_logging, format_cost, estimate_tokens
 
@@ -51,17 +55,20 @@ from .exceptions import (
     ValidationError,
 )
 
-# Main agent (will be implemented on Day 4)
-# from .agent import CascadeAgent
-
 __all__ = [
-    # Version
+    # Version info
     "__version__",
+    "__author__",
+    "__license__",
 
     # Configuration
     "ModelConfig",
     "CascadeConfig",
     "UserTier",
+
+    # Main agent and result
+    "CascadeAgent",
+    "CascadeResult",
 
     # Providers
     "ModelResponse",
@@ -83,7 +90,4 @@ __all__ = [
     "QualityThresholdError",
     "RoutingError",
     "ValidationError",
-
-    # Main agent (coming Day 4)
-    # "CascadeAgent",
 ]
