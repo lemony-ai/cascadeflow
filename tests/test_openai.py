@@ -137,20 +137,57 @@ class TestOpenAIProvider:
             with pytest.raises(ProviderError, match="rate limit"):
                 await openai_provider.complete("Test", "gpt-3.5-turbo")
 
-    def test_estimate_cost_gpt35(self, openai_provider):
-        """Test cost estimation for GPT-3.5."""
-        cost = openai_provider.estimate_cost(1000, "gpt-3.5-turbo")
-        assert cost == 0.002  # $0.002 per 1K tokens
+    def test_estimate_cost_gpt35_accurate(self, openai_provider):
+        """Test accurate cost estimation for GPT-3.5 with input/output split."""
+        # 10 input tokens, 20 output tokens
+        cost = openai_provider.estimate_cost(
+            tokens=30,
+            model="gpt-3.5-turbo",
+            prompt_tokens=10,
+            completion_tokens=20
+        )
+        # Expected: (10/1000 * 0.0005) + (20/1000 * 0.0015) = 0.000005 + 0.00003 = 0.000035
+        assert abs(cost - 0.000035) < 0.0000001
 
-    def test_estimate_cost_gpt4(self, openai_provider):
-        """Test cost estimation for GPT-4."""
-        cost = openai_provider.estimate_cost(1000, "gpt-4")
-        assert cost == 0.03  # $0.03 per 1K tokens
+    def test_estimate_cost_gpt4_accurate(self, openai_provider):
+        """Test accurate cost estimation for GPT-4 with input/output split."""
+        # 100 input tokens, 200 output tokens
+        cost = openai_provider.estimate_cost(
+            tokens=300,
+            model="gpt-4",
+            prompt_tokens=100,
+            completion_tokens=200
+        )
+        # Expected: (100/1000 * 0.030) + (200/1000 * 0.060) = 0.003 + 0.012 = 0.015
+        assert abs(cost - 0.015) < 0.0000001
+
+    def test_estimate_cost_gpt4o_mini(self, openai_provider):
+        """Test cost estimation for GPT-4o-mini."""
+        cost = openai_provider.estimate_cost(
+            tokens=1000,
+            model="gpt-4o-mini",
+            prompt_tokens=500,
+            completion_tokens=500
+        )
+        # Expected: (500/1000 * 0.00015) + (500/1000 * 0.0006) = 0.000075 + 0.0003 = 0.000375
+        assert abs(cost - 0.000375) < 0.0000001
+
+    def test_estimate_cost_fallback(self, openai_provider):
+        """Test cost estimation fallback without split."""
+        cost = openai_provider.estimate_cost(1000, "gpt-3.5-turbo")
+        # Should use blended rate: 0.3 * 0.0005 + 0.7 * 0.0015 = 0.00015 + 0.00105 = 0.0012
+        assert abs(cost - 0.0012) < 0.0000001
 
     def test_estimate_cost_unknown_model(self, openai_provider):
-        """Test cost estimation for unknown model."""
-        cost = openai_provider.estimate_cost(1000, "unknown-model")
-        assert cost == 0.03  # Defaults to GPT-4 pricing
+        """Test cost estimation for unknown model defaults to GPT-4."""
+        cost = openai_provider.estimate_cost(
+            tokens=1000,
+            model="unknown-model",
+            prompt_tokens=500,
+            completion_tokens=500
+        )
+        # Should default to GPT-4: (500/1000 * 0.030) + (500/1000 * 0.060) = 0.045
+        assert abs(cost - 0.045) < 0.0000001
 
     def test_calculate_confidence_stop(self, openai_provider):
         """Test confidence calculation with stop finish_reason."""

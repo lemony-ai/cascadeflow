@@ -14,7 +14,7 @@ class OpenAIProvider(BaseProvider):
     """
     OpenAI provider for GPT models.
 
-    Supports: GPT-3.5, GPT-4, GPT-4 Turbo, etc.
+    Supports: GPT-3.5, GPT-4, GPT-4 Turbo, GPT-4o, etc.
 
     Example:
         >>> provider = OpenAIProvider(api_key="sk-...")
@@ -112,13 +112,20 @@ class OpenAIProvider(BaseProvider):
 
             # Extract response
             content = data["choices"][0]["message"]["content"]
+            prompt_tokens = data["usage"]["prompt_tokens"]
+            completion_tokens = data["usage"]["completion_tokens"]
             tokens_used = data["usage"]["total_tokens"]
 
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
 
-            # Calculate cost
-            cost = self.estimate_cost(tokens_used, model)
+            # Calculate accurate cost using input/output split
+            cost = self.estimate_cost(
+                tokens_used,
+                model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens
+            )
 
             # Calculate confidence
             confidence = self.calculate_confidence(
@@ -136,8 +143,8 @@ class OpenAIProvider(BaseProvider):
                 latency_ms=latency_ms,
                 metadata={
                     "finish_reason": data["choices"][0]["finish_reason"],
-                    "prompt_tokens": data["usage"]["prompt_tokens"],
-                    "completion_tokens": data["usage"]["completion_tokens"],
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
                 }
             )
 
@@ -173,34 +180,72 @@ class OpenAIProvider(BaseProvider):
                 provider="openai"
             )
 
-    def estimate_cost(self, tokens: int, model: str) -> float:
+    def estimate_cost(
+            self,
+            tokens: int,
+            model: str,
+            prompt_tokens: Optional[int] = None,
+            completion_tokens: Optional[int] = None
+    ) -> float:
         """
-        Estimate cost for OpenAI model.
+        Estimate cost for OpenAI model with accurate input/output pricing.
 
         Args:
-            tokens: Total tokens (prompt + completion)
+            tokens: Total tokens (fallback if split not available)
             model: Model name
+            prompt_tokens: Input tokens (if available)
+            completion_tokens: Output tokens (if available)
 
         Returns:
             Estimated cost in USD
         """
-        # OpenAI pricing (as of 2024)
-        # These are approximate; update with latest pricing
-        rates = {
-            "gpt-3.5-turbo": 0.002,      # $0.002 per 1K tokens
-            "gpt-4": 0.03,                # $0.03 per 1K tokens
-            "gpt-4-turbo": 0.01,          # $0.01 per 1K tokens
-            "gpt-4o": 0.005,              # $0.005 per 1K tokens
-            "gpt-4o-mini": 0.00015,       # $0.00015 per 1K tokens
+        # OpenAI pricing per 1K tokens (as of January 2025)
+        # Source: https://openai.com/api/pricing/
+        # IMPORTANT: Order matters! Check specific models before generic ones
+        pricing = {
+            "gpt-4o-mini": {           # Must be before "gpt-4o"
+                "input": 0.00015,      # $0.15 per 1M tokens
+                "output": 0.0006       # $0.60 per 1M tokens
+            },
+            "gpt-4o": {
+                "input": 0.0025,       # $2.50 per 1M tokens
+                "output": 0.010        # $10.00 per 1M tokens
+            },
+            "gpt-4-turbo": {
+                "input": 0.010,        # $10.00 per 1M tokens
+                "output": 0.030        # $30.00 per 1M tokens
+            },
+            "gpt-4": {
+                "input": 0.030,        # $30.00 per 1M tokens
+                "output": 0.060        # $60.00 per 1M tokens
+            },
+            "gpt-3.5-turbo": {
+                "input": 0.0005,       # $0.50 per 1M tokens
+                "output": 0.0015       # $1.50 per 1M tokens
+            },
         }
 
-        # Find matching rate
-        for model_prefix, rate in rates.items():
-            if model.startswith(model_prefix):
-                return (tokens / 1000) * rate
+        # Find model pricing (order matters - specific before generic)
+        model_pricing = None
+        for prefix, rates in pricing.items():
+            if model.startswith(prefix):
+                model_pricing = rates
+                break
 
         # Default to GPT-4 pricing if unknown
-        return (tokens / 1000) * 0.03
+        if not model_pricing:
+            model_pricing = {"input": 0.030, "output": 0.060}
+
+        # Calculate accurate cost if we have the split
+        if prompt_tokens is not None and completion_tokens is not None:
+            input_cost = (prompt_tokens / 1000) * model_pricing["input"]
+            output_cost = (completion_tokens / 1000) * model_pricing["output"]
+            return input_cost + output_cost
+
+        # Fallback: estimate with blended rate
+        # Assume typical ratio: 30% input, 70% output
+        blended_rate = (model_pricing["input"] * 0.3) + (model_pricing["output"] * 0.7)
+        return (tokens / 1000) * blended_rate
 
     def calculate_confidence(
             self,
