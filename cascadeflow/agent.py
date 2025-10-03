@@ -329,20 +329,28 @@ class CascadeAgent:
             logger.debug("Ollama not detected")
 
         # Check vLLM (self-hosted)
+        # In cascadeflow/agent.py, in smart_default() method, add after Ollama detection:
+
+        # Check vLLM (self-hosted)
         try:
             import httpx
             response = httpx.get("http://localhost:8000/v1/models", timeout=2.0)
             if response.status_code == 200:
-                models.append(ModelConfig(
-                    name="meta-llama/Llama-3-70B-Instruct",
-                    provider="vllm",
-                    base_url="http://localhost:8000/v1",
-                    cost=0.0,
-                    keywords=["moderate", "detailed"]
-                ))
-                logger.info("✓ Detected vLLM (self-hosted)")
+                data = response.json()
+                if data.get("data"):
+                    # Use first available model
+                    vllm_model = data["data"][0]["id"]
+                    models.append(ModelConfig(
+                        name=vllm_model,
+                        provider="vllm",
+                        base_url="http://localhost:8000/v1",
+                        cost=0.0,
+                        keywords=["moderate", "detailed"]
+                    ))
+                    logger.info("✓ Detected vLLM (self-hosted)")
         except:
             logger.debug("vLLM not detected")
+
 
         # Check Groq
         if os.getenv("GROQ_API_KEY"):

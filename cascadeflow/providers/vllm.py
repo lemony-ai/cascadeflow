@@ -1,4 +1,4 @@
-"""Together.ai provider implementation."""
+"""vLLM provider for high-performance local inference."""
 
 import os
 import time
@@ -10,49 +10,59 @@ from .base import BaseProvider, ModelResponse
 from ..exceptions import ProviderError, ModelError
 
 
-class TogetherProvider(BaseProvider):
+class VLLMProvider(BaseProvider):
     """
-    Together.ai provider.
+    vLLM provider for high-performance inference.
 
-    Supports 50+ optimized open-source models.
-    OpenAI-compatible API.
+    vLLM is an OpenAI-compatible server with:
+    - PagedAttention for efficient memory usage
+    - Continuous batching for high throughput
+    - 24x faster than standard serving
+
+    Requires vLLM server running locally or remotely.
 
     Example:
-        >>> provider = TogetherProvider(api_key="...")
+        >>> provider = VLLMProvider(base_url="http://localhost:8000/v1")
         >>> response = await provider.complete(
         ...     prompt="What is AI?",
-        ...     model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+        ...     model="meta-llama/Llama-3-8B-Instruct"
         ... )
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(
+            self,
+            api_key: Optional[str] = None,
+            base_url: Optional[str] = None
+    ):
         """
-        Initialize Together.ai provider.
+        Initialize vLLM provider.
 
         Args:
-            api_key: Together.ai API key. If None, reads from TOGETHER_API_KEY env var.
+            api_key: Optional API key (usually not needed for local vLLM)
+            base_url: vLLM server URL (default: http://localhost:8000/v1)
         """
         super().__init__(api_key)
-        self.base_url = "https://api.together.xyz/v1"
+
+        # Default to local vLLM server
+        self.base_url = base_url or os.getenv(
+            "VLLM_BASE_URL",
+            "http://localhost:8000/v1"
+        )
+
+        # vLLM is OpenAI-compatible, so we use similar headers
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
 
         # Initialize HTTP client
         self.client = httpx.AsyncClient(
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            },
-            timeout=60.0
+            headers=headers,
+            timeout=120.0  # vLLM can be slower for large models
         )
 
     def _load_api_key(self) -> Optional[str]:
-        """Load API key from environment."""
-        api_key = os.getenv("TOGETHER_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "Together.ai API key not found. Please set TOGETHER_API_KEY environment "
-                "variable or pass api_key parameter."
-            )
-        return api_key
+        """Load API key from environment (optional for vLLM)."""
+        return os.getenv("VLLM_API_KEY")
 
     async def complete(
             self,
@@ -64,15 +74,17 @@ class TogetherProvider(BaseProvider):
             **kwargs
     ) -> ModelResponse:
         """
-        Complete a prompt using Together.ai API.
+        Complete a prompt using vLLM server.
+
+        vLLM uses OpenAI-compatible API format.
 
         Args:
             prompt: User prompt
-            model: Model name (e.g., 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo')
+            model: Model name (must match what's loaded in vLLM)
             max_tokens: Maximum tokens to generate
-            temperature: Sampling temperature (0-1)
+            temperature: Sampling temperature
             system_prompt: Optional system prompt
-            **kwargs: Additional Together.ai parameters
+            **kwargs: Additional parameters
 
         Returns:
             ModelResponse with standardized format
@@ -83,7 +95,7 @@ class TogetherProvider(BaseProvider):
         """
         start_time = time.time()
 
-        # Build messages (OpenAI-compatible)
+        # Build messages (OpenAI format)
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -108,15 +120,15 @@ class TogetherProvider(BaseProvider):
 
             data = response.json()
 
-            # Extract response (OpenAI-compatible format)
+            # Extract response (OpenAI format)
             content = data["choices"][0]["message"]["content"]
             tokens_used = data["usage"]["total_tokens"]
 
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
 
-            # Calculate cost
-            cost = self.estimate_cost(tokens_used, model)
+            # vLLM is self-hosted, so cost is 0
+            cost = 0.0
 
             # Calculate confidence
             confidence = self.calculate_confidence(content, data)
@@ -124,7 +136,7 @@ class TogetherProvider(BaseProvider):
             return ModelResponse(
                 content=content,
                 model=model,
-                provider="together",
+                provider="vllm",
                 cost=cost,
                 tokens_used=tokens_used,
                 confidence=confidence,
@@ -133,94 +145,75 @@ class TogetherProvider(BaseProvider):
                     "finish_reason": data["choices"][0]["finish_reason"],
                     "prompt_tokens": data["usage"]["prompt_tokens"],
                     "completion_tokens": data["usage"]["completion_tokens"],
+                    "base_url": self.base_url,
                 }
             )
 
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
-                raise ProviderError(
-                    "Invalid Together.ai API key",
-                    provider="together",
-                    original_error=e
+            if e.response.status_code == 404:
+                raise ModelError(
+                    f"Model '{model}' not found in vLLM server. "
+                    f"Available models can be checked at {self.base_url}/models",
+                    model=model,
+                    provider="vllm"
                 )
-            elif e.response.status_code == 429:
+            elif e.response.status_code == 503:
                 raise ProviderError(
-                    "Together.ai rate limit exceeded",
-                    provider="together",
+                    "vLLM server is overloaded or unavailable",
+                    provider="vllm",
                     original_error=e
                 )
             else:
                 raise ProviderError(
-                    f"Together.ai API error: {e.response.status_code}",
-                    provider="together",
+                    f"vLLM API error: {e.response.status_code}",
+                    provider="vllm",
                     original_error=e
                 )
         except httpx.RequestError as e:
             raise ProviderError(
-                "Failed to connect to Together.ai API",
-                provider="together",
+                f"Failed to connect to vLLM server at {self.base_url}",
+                provider="vllm",
                 original_error=e
             )
         except (KeyError, IndexError) as e:
             raise ModelError(
-                f"Failed to parse Together.ai response: {e}",
+                f"Failed to parse vLLM response: {e}",
                 model=model,
-                provider="together"
+                provider="vllm"
             )
 
     def estimate_cost(self, tokens: int, model: str) -> float:
         """
-        Estimate cost for Together.ai models.
+        Estimate cost for vLLM model.
+
+        vLLM is self-hosted, so cost is always 0.
 
         Args:
             tokens: Total tokens
             model: Model name
 
         Returns:
-            Estimated cost in USD
+            Cost (always 0.0 for self-hosted)
         """
-        # Together.ai pricing (approximate, check their pricing page)
-        # Varies by model size
+        return 0.0
 
-        # Rough estimates:
-        if "405B" in model or "70B" in model:
-            # Large models: ~$0.0008/1K tokens
-            return (tokens / 1000) * 0.0008
-        elif "13B" in model or "8B" in model:
-            # Medium models: ~$0.0002/1K tokens
-            return (tokens / 1000) * 0.0002
-        else:
-            # Small models: ~$0.0001/1K tokens
-            return (tokens / 1000) * 0.0001
-
-    def calculate_confidence(
-            self,
-            response: str,
-            metadata: Optional[Dict[str, Any]] = None
-    ) -> float:
+    async def list_models(self) -> list:
         """
-        Calculate confidence score for Together.ai response.
-
-        Args:
-            response: Model response text
-            metadata: Response metadata from API
+        List available models on vLLM server.
 
         Returns:
-            Confidence score (0-1)
+            List of model names
         """
-        # Start with base confidence
-        confidence = super().calculate_confidence(response)
-
-        if metadata:
-            # Adjust based on finish_reason
-            finish_reason = metadata.get("choices", [{}])[0].get("finish_reason")
-
-            if finish_reason == "stop":
-                confidence = min(1.0, confidence + 0.1)
-            elif finish_reason == "length":
-                confidence = max(0.5, confidence - 0.1)
-
-        return confidence
+        try:
+            response = await self.client.get(f"{self.base_url}/models")
+            response.raise_for_status()
+            data = response.json()
+            return [model["id"] for model in data.get("data", [])]
+        except Exception as e:
+            raise ProviderError(
+                f"Failed to list models from vLLM server: {e}",
+                provider="vllm"
+            )
 
     async def __aenter__(self):
         """Async context manager entry."""

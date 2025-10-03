@@ -12,3 +12,13 @@ numpy>=1.24.0
 
 # Async support
 asyncio>=3.4.3
+
+# Existing dependencies
+httpx>=0.27.0
+pydantic>=2.0.0
+pyyaml>=6.0
+rich>=13.0.0
+python-dotenv>=1.0.0
+
+# HuggingFace support (NEW)
+huggingface_hub>=0.20.0
