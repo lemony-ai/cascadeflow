@@ -2,6 +2,7 @@
 Enhanced CascadeAgent with full intelligence layer integration.
 
 Integrates:
+- Semantic routing (with graceful fallback)
 - Complexity detection
 - Domain detection and scoring
 - Speculative cascades with flexible deferral
@@ -33,6 +34,7 @@ from .speculative import (
 from .callbacks import CallbackManager, CallbackEvent
 from .caching import ResponseCache
 from .streaming import StreamManager
+from .routing import SemanticRouter  # ✅ NEW: Semantic routing
 from .result import CascadeResult
 from .providers import PROVIDER_REGISTRY
 from .exceptions import (
@@ -52,6 +54,7 @@ class CascadeAgent:
     Enhanced CascadeAgent with full intelligent orchestration.
 
     Features:
+    - Semantic routing with embedding-based similarity (default, optional)
     - Per-prompt domain detection and routing
     - 2.0x domain boost for specialists
     - 1.5x size boost for small models on simple tasks
@@ -66,9 +69,10 @@ class CascadeAgent:
         >>> # Auto-detect models
         >>> models = CascadePresets.auto_detect_models()
         >>>
-        >>> # Create agent
+        >>> # Create agent with semantic routing
         >>> agent = CascadeAgent(
         ...     models=models,
+        ...     routing_strategy="semantic",  # default
         ...     enable_caching=True,
         ...     verbose=True
         ... )
@@ -90,6 +94,7 @@ class CascadeAgent:
             config: Optional[CascadeConfig] = None,
             tiers: Optional[Dict[str, UserTier]] = None,
             workflows: Optional[Dict[str, WorkflowProfile]] = None,
+            routing_strategy: str = "semantic",  # ✅ NEW: Routing strategy
             enable_caching: bool = False,
             cache_size: int = 1000,
             enable_callbacks: bool = True,
@@ -103,6 +108,7 @@ class CascadeAgent:
             config: Global cascade configuration
             tiers: User tier configurations (uses defaults if None)
             workflows: Workflow profiles (optional)
+            routing_strategy: "semantic" (default), "keyword", or "hybrid"
             enable_caching: Enable response caching
             cache_size: Max cache entries
             enable_callbacks: Enable callback system
@@ -124,6 +130,28 @@ class CascadeAgent:
         self.complexity_detector = ComplexityDetector()
         self.execution_planner = LatencyAwareExecutionPlanner()
 
+        # ✅ NEW: Semantic routing with graceful fallback
+        self.routing_strategy = routing_strategy
+        self.semantic_router = None
+
+        if routing_strategy in ["semantic", "hybrid"]:
+            try:
+                self.semantic_router = SemanticRouter()
+                if self.semantic_router.is_available():
+                    # Precompute embeddings for all models
+                    self.semantic_router.precompute_model_embeddings(models)
+                    logger.info(f"✓ Semantic routing enabled (strategy: {routing_strategy})")
+                else:
+                    logger.info("⚠️ Semantic routing unavailable, using keyword routing")
+                    self.routing_strategy = "keyword"
+            except Exception as e:
+                logger.warning(f"Failed to initialize semantic routing: {e}")
+                logger.info("Falling back to keyword routing")
+                self.routing_strategy = "keyword"
+                self.semantic_router = None
+        else:
+            logger.info(f"Using {routing_strategy} routing")
+
         # Initialize supporting features
         self.callback_manager = CallbackManager() if enable_callbacks else None
         self.cache = ResponseCache(max_size=cache_size) if enable_caching else None
@@ -143,10 +171,12 @@ class CascadeAgent:
             "total_cost": 0.0,
             "total_cascades": 0,
             "model_usage": {},
+            "routing_strategy": self.routing_strategy,  # ✅ NEW: Track routing strategy
         }
 
         logger.info(
             f"CascadeAgent initialized with {len(models)} models, "
+            f"routing={self.routing_strategy}, "
             f"caching={'enabled' if enable_caching else 'disabled'}"
         )
 
@@ -254,11 +284,12 @@ class CascadeAgent:
         **EVERY PROMPT IS INDIVIDUALLY ANALYZED**
 
         For EACH query:
-        1. Detects domains (code? math? general?)
-        2. Detects complexity (trivial? expert?)
-        3. Scores ALL models with domain boost
-        4. Selects optimal execution strategy
-        5. Respects all constraints
+        1. Semantic routing (if enabled) + keyword fallback
+        2. Detects domains (code? math? general?)
+        3. Detects complexity (trivial? expert?)
+        4. Scores ALL models with domain boost
+        5. Selects optimal execution strategy
+        6. Respects all constraints
 
         Args:
             query: User query/prompt
@@ -403,6 +434,30 @@ class CascadeAgent:
                 force_models
             )
 
+            # ✅ NEW: 4.5. Get semantic routing hints (if available)
+            semantic_hints = None
+            if self.semantic_router and self.semantic_router.is_available():
+                try:
+                    semantic_matches = self.semantic_router.route(
+                        query=query,
+                        models=available_models,
+                        top_k=3,
+                        similarity_threshold=0.3
+                    )
+                    if semantic_matches:
+                        semantic_hints = {
+                            model.name: similarity
+                            for model, similarity in semantic_matches
+                        }
+                        if self.verbose:
+                            top_match = semantic_matches[0]
+                            logger.info(
+                                f"🎯 Semantic routing: {top_match[0].name} "
+                                f"(similarity: {top_match[1]:.3f})"
+                            )
+                except Exception as e:
+                    logger.debug(f"Semantic routing failed: {e}")
+
             # 5. Create execution plan
             plan = await self.execution_planner.create_plan(
                 query=query,
@@ -414,7 +469,8 @@ class CascadeAgent:
                 max_latency_ms=max_latency_ms,
                 max_budget=max_budget,
                 quality_threshold=quality_threshold,
-                query_domains=query_domains
+                query_domains=query_domains,
+                semantic_hints=semantic_hints  # ✅ NEW: Pass semantic hints
             )
 
             if self.callback_manager:
@@ -460,7 +516,7 @@ class CascadeAgent:
 
             # 8. Update statistics
             self.stats["total_queries"] += 1
-            self.stats["total_cost"] += result.total_cost  # ✅ Fixed: was result.cost
+            self.stats["total_cost"] += result.total_cost
             if result.cascaded:
                 self.stats["total_cascades"] += 1
             self.stats["model_usage"][result.model_used] = \
@@ -473,7 +529,7 @@ class CascadeAgent:
                     query=query,
                     data={
                         "success": True,
-                        "cost": result.total_cost,  # ✅ Fixed: was result.cost
+                        "cost": result.total_cost,
                         "latency_ms": result.latency_ms,
                         "model": result.model_used
                     },
@@ -721,8 +777,8 @@ class CascadeAgent:
             model_used=spec_result.model_used,
             provider=verifier.provider,
             total_cost=spec_result.total_cost,
-            total_tokens=spec_result.tokens_drafted + spec_result.tokens_verified,  # ✅ Fixed: added total_tokens
-            confidence=spec_result.draft_confidence if spec_result.draft_accepted else spec_result.verifier_confidence,  # ✅ Fixed: added confidence
+            total_tokens=spec_result.tokens_drafted + spec_result.tokens_verified,
+            confidence=spec_result.draft_confidence if spec_result.draft_accepted else spec_result.verifier_confidence,
             latency_ms=spec_result.latency_ms,
             strategy="speculative",
             metadata={
@@ -770,11 +826,15 @@ class CascadeAgent:
         return winner
 
     @classmethod
-    def smart_default(cls, tiers: Optional[Dict[str, UserTier]] = None) -> "CascadeAgent":
+    def smart_default(cls, tiers: Optional[Dict[str, UserTier]] = None, **kwargs) -> "CascadeAgent":
         """
         Create CascadeAgent with smart defaults.
 
         Auto-detects available providers and creates optimal cascade.
+
+        Args:
+            tiers: Optional custom tiers
+            **kwargs: Additional arguments for CascadeAgent (e.g., routing_strategy)
         """
         models = []
 
@@ -875,7 +935,13 @@ class CascadeAgent:
 
         logger.info(f"Created smart cascade with {len(models)} models")
 
-        return cls(models=models, tiers=tiers, verbose=True, enable_caching=True)
+        return cls(
+            models=models,
+            tiers=tiers,
+            verbose=True,
+            enable_caching=True,
+            **kwargs  # ✅ NEW: Pass through additional kwargs
+        )
 
     def add_tier(self, name: str, tier: UserTier):
         """Add or update a user tier."""
@@ -915,5 +981,9 @@ class CascadeAgent:
                 key: cascade.get_stats()
                 for key, cascade in self.speculative_cascades.items()
             }
+
+        # ✅ NEW: Add semantic routing stats
+        if self.semantic_router:
+            stats["semantic_routing"] = self.semantic_router.get_stats()
 
         return stats

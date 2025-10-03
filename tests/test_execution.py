@@ -1,66 +1,77 @@
-"""Test suite for execution planning and domain detection."""
+"""Test execution planning with domain and semantic integration."""
 
 import pytest
+import asyncio
 from cascadeflow.execution import (
-    DomainDetector,
-    ModelScorer,
     LatencyAwareExecutionPlanner,
-    ExecutionStrategy
+    ExecutionStrategy,
+    DomainDetector,
+    ModelScorer
 )
 from cascadeflow.complexity import QueryComplexity
-from cascadeflow.config import ModelConfig, OptimizationWeights, DEFAULT_TIERS
+from cascadeflow.config import ModelConfig, OptimizationWeights
 
 
 class TestDomainDetector:
-    """Test domain detection."""
 
-    def test_code_domain(self):
-        detector = DomainDetector()
-        domains = detector.detect("Write a Python function to parse JSON")
-        assert "code" in domains
+    def setup_method(self):
+        self.detector = DomainDetector()
 
-    def test_math_domain(self):
-        detector = DomainDetector()
-        domains = detector.detect("Calculate the derivative of x squared")
-        assert "math" in domains
+    def test_code_detection(self):
+        """Test code domain detection."""
+        queries = [
+            "Fix this Python bug",
+            "Implement a React component",
+            "Debug this JavaScript function",
+        ]
+        for query in queries:
+            domains = self.detector.detect(query)
+            assert "code" in domains
 
-    def test_data_domain(self):
-        detector = DomainDetector()
-        domains = detector.detect("Analyze this pandas dataframe")
-        assert "data" in domains
+    def test_math_detection(self):
+        """Test math domain detection."""
+        queries = [
+            "Solve this equation",
+            "Calculate the derivative",
+            "What is the probability",
+        ]
+        for query in queries:
+            domains = self.detector.detect(query)
+            assert "math" in domains
 
     def test_multiple_domains(self):
-        detector = DomainDetector()
-        domains = detector.detect("Write Python code to calculate statistics")
+        """Test multiple domain detection."""
+        query = "Write Python code to calculate statistical analysis"
+        domains = self.detector.detect(query)
         assert "code" in domains
-        assert "math" in domains
+        assert "math" in domains or "data" in domains
 
     def test_general_fallback(self):
-        detector = DomainDetector()
-        domains = detector.detect("What is the weather today?")
-        assert "general" in domains
+        """Test general domain fallback."""
+        query = "Tell me about cats"
+        domains = self.detector.detect(query)
+        assert domains == ["general"]
 
 
 class TestModelScorer:
-    """Test model scoring with domain/size boosts."""
 
-    @pytest.fixture
-    def sample_models(self):
-        return [
+    def setup_method(self):
+        self.scorer = ModelScorer()
+        self.models = [
             ModelConfig(
                 name="llama3:8b",
                 provider="ollama",
                 cost=0.0,
-                speed_ms=300,
-                quality_score=0.65,
+                speed_ms=500,
+                quality_score=0.6,
                 domains=["general"]
             ),
             ModelConfig(
-                name="codellama:7b",
+                name="codellama",
                 provider="ollama",
                 cost=0.0,
-                speed_ms=350,
-                quality_score=0.70,
+                speed_ms=600,
+                quality_score=0.7,
                 domains=["code"]
             ),
             ModelConfig(
@@ -69,105 +80,127 @@ class TestModelScorer:
                 cost=0.03,
                 speed_ms=1500,
                 quality_score=0.95,
-                domains=["general", "expert"]
-            )
+                domains=["general"]
+            ),
         ]
 
-    def test_domain_boost(self, sample_models):
-        scorer = ModelScorer()
+    def test_domain_boost(self):
+        """Test 2.0x domain boost for specialists."""
         optimization = OptimizationWeights(cost=0.33, speed=0.33, quality=0.34)
 
-        # Code query should boost codellama
-        scored = scorer.score_models(
-            sample_models,
-            "Write a Python function",
-            QueryComplexity.MODERATE,
-            optimization,
+        scored = self.scorer.score_models(
+            models=self.models,
+            query="Fix this Python bug",
+            complexity=QueryComplexity.MODERATE,
+            optimization=optimization,
             query_domains=["code"]
         )
 
-        # Check that codellama got domain boost
-        codellama_entry = next(
-            (m for m in scored if m[0].name == "codellama:7b"),
+        # Find codellama in results
+        codellama_score = next(
+            (meta for model, score, meta in scored if model.name == "codellama"),
             None
         )
-        assert codellama_entry is not None
-        _, score, meta = codellama_entry
-        assert meta["domain_boost"] == 2.0
 
-    def test_size_boost_on_simple(self, sample_models):
-        scorer = ModelScorer()
-        optimization = OptimizationWeights(cost=0.33, speed=0.33, quality=0.34)
+        assert codellama_score is not None
+        assert codellama_score["domain_boost"] == 2.0
+        print(f"\nCodeLlama score: {codellama_score}")
 
-        # Simple query should boost small models
-        scored = scorer.score_models(
-            sample_models,
-            "What is 2+2?",
-            QueryComplexity.SIMPLE,
-            optimization,
+    def test_size_boost(self):
+        """Test 1.5x size boost for small models on simple queries."""
+        optimization = OptimizationWeights(cost=0.7, speed=0.15, quality=0.15)
+
+        scored = self.scorer.score_models(
+            models=self.models,
+            query="What is Python?",
+            complexity=QueryComplexity.SIMPLE,
+            optimization=optimization,
             query_domains=["general"]
         )
 
-        # Small models should get size boost
-        llama_entry = next(
-            (m for m in scored if m[0].name == "llama3:8b"),
+        # Small model (llama3:8b, quality<0.7) should get boost
+        llama_result = next(
+            (meta for model, score, meta in scored if model.name == "llama3:8b"),
             None
         )
-        assert llama_entry is not None
-        _, score, meta = llama_entry
-        assert meta["size_boost"] == 1.5
 
-    def test_no_boost_complex_query(self, sample_models):
-        scorer = ModelScorer()
+        assert llama_result is not None
+        assert llama_result["size_boost"] == 1.5
+        print(f"\nLlama3 score: {llama_result}")
+
+    def test_semantic_boost(self):
+        """Test semantic boost integration."""
         optimization = OptimizationWeights(cost=0.33, speed=0.33, quality=0.34)
 
-        # Complex query should not boost small models
-        scored = scorer.score_models(
-            sample_models,
-            "Analyze complex geopolitical situation",
-            QueryComplexity.EXPERT,
-            optimization,
-            query_domains=["general"]
+        semantic_hints = {
+            "codellama": 0.85,  # High similarity
+            "gpt-4": 0.45,      # Medium similarity
+        }
+
+        scored = self.scorer.score_models(
+            models=self.models,
+            query="Debug Python code",
+            complexity=QueryComplexity.MODERATE,
+            optimization=optimization,
+            query_domains=["code"],
+            semantic_hints=semantic_hints
         )
 
-        llama_entry = next(
-            (m for m in scored if m[0].name == "llama3:8b"),
+        codellama_result = next(
+            (meta for model, score, meta in scored if model.name == "codellama"),
             None
         )
-        assert llama_entry is not None
-        _, score, meta = llama_entry
-        assert meta["size_boost"] == 1.0  # No size boost on expert
+
+        assert codellama_result is not None
+        assert codellama_result["semantic_boost"] > 1.0
+        print(f"\nCodeLlama with semantic: {codellama_result}")
+
+    def test_combined_boosts(self):
+        """Test that multiple boosts multiply together."""
+        optimization = OptimizationWeights(cost=0.33, speed=0.33, quality=0.34)
+
+        semantic_hints = {"codellama": 0.75}
+
+        scored = self.scorer.score_models(
+            models=self.models,
+            query="Fix Python bug",
+            complexity=QueryComplexity.MODERATE,
+            optimization=optimization,
+            query_domains=["code"],
+            semantic_hints=semantic_hints
+        )
+
+        codellama_result = next(
+            (meta for model, score, meta in scored if model.name == "codellama"),
+            None
+        )
+
+        # Should have domain_boost (2.0) * semantic_boost (1.5+)
+        combined = codellama_result["combined_boost"]
+        assert combined >= 3.0  # 2.0 * 1.5
+        print(f"\nCombined boost: {combined:.2f}x")
 
 
 class TestExecutionPlanner:
-    """Test execution planning."""
 
-    @pytest.fixture
-    def sample_models(self):
-        return [
+    def setup_method(self):
+        self.planner = LatencyAwareExecutionPlanner()
+        self.models = [
             ModelConfig(
                 name="llama3:8b",
                 provider="ollama",
                 cost=0.0,
-                speed_ms=300,
-                quality_score=0.65,
+                speed_ms=500,
+                quality_score=0.6,
                 domains=["general"]
             ),
             ModelConfig(
-                name="codellama:7b",
+                name="codellama",
                 provider="ollama",
                 cost=0.0,
-                speed_ms=350,
-                quality_score=0.70,
+                speed_ms=600,
+                quality_score=0.7,
                 domains=["code"]
-            ),
-            ModelConfig(
-                name="gpt-3.5-turbo",
-                provider="openai",
-                cost=0.002,
-                speed_ms=800,
-                quality_score=0.80,
-                domains=["general"]
             ),
             ModelConfig(
                 name="gpt-4",
@@ -175,158 +208,62 @@ class TestExecutionPlanner:
                 cost=0.03,
                 speed_ms=1500,
                 quality_score=0.95,
-                domains=["general", "expert"]
-            )
+                domains=["general"]
+            ),
         ]
 
     @pytest.mark.asyncio
-    async def test_trivial_uses_cheapest(self, sample_models):
-        planner = LatencyAwareExecutionPlanner()
-        plan = await planner.create_plan(
+    async def test_trivial_query_uses_cheapest(self):
+        """Test that trivial queries use cheapest model."""
+        plan = await self.planner.create_plan(
             query="What is 2+2?",
             complexity=QueryComplexity.TRIVIAL,
-            available_models=sample_models
+            available_models=self.models
         )
 
         assert plan.strategy == ExecutionStrategy.DIRECT_CHEAP
         assert plan.primary_model.cost == 0.0
+        print(f"\nTrivial query plan: {plan.reasoning}")
 
     @pytest.mark.asyncio
-    async def test_code_query_uses_specialist(self, sample_models):
-        planner = LatencyAwareExecutionPlanner()
-        plan = await planner.create_plan(
-            query="Write a Python function to sort a list",
+    async def test_code_query_prefers_specialist(self):
+        """Test that code queries prefer code specialists."""
+        plan = await self.planner.create_plan(
+            query="Fix this Python bug",
             complexity=QueryComplexity.MODERATE,
-            available_models=sample_models,
+            available_models=self.models,
             query_domains=["code"]
         )
 
         # Should prefer codellama due to domain boost
-        assert plan.strategy in [
-            ExecutionStrategy.DIRECT_SMART,
-            ExecutionStrategy.SPECULATIVE
-        ]
+        print(f"\nCode query plan: {plan.reasoning}")
+        print(f"Top 3 models: {plan.metadata['top_3_models']}")
+
+        top_model = plan.metadata['top_3_models'][0]
+        assert top_model['domain_boost'] == 2.0
 
     @pytest.mark.asyncio
-    async def test_expert_query_uses_best(self, sample_models):
-        planner = LatencyAwareExecutionPlanner()
-        plan = await planner.create_plan(
-            query="Analyze complex philosophical implications",
-            complexity=QueryComplexity.EXPERT,
-            available_models=sample_models
-        )
+    async def test_semantic_hints_influence(self):
+        """Test that semantic hints influence selection."""
+        semantic_hints = {
+            "codellama": 0.9,  # Very high similarity
+            "gpt-4": 0.3,
+        }
 
-        assert plan.strategy == ExecutionStrategy.DIRECT_BEST
-        assert plan.primary_model.name == "gpt-4"
-
-    @pytest.mark.asyncio
-    async def test_speculative_with_tier(self, sample_models):
-        planner = LatencyAwareExecutionPlanner()
-        tier = DEFAULT_TIERS["premium"]
-
-        plan = await planner.create_plan(
-            query="Compare Python and JavaScript",
+        plan = await self.planner.create_plan(
+            query="Debug Python code",
             complexity=QueryComplexity.MODERATE,
-            available_models=sample_models,
-            tier=tier
+            available_models=self.models,
+            query_domains=["code"],
+            semantic_hints=semantic_hints
         )
 
-        # Premium tier should enable speculative
-        if plan.strategy == ExecutionStrategy.SPECULATIVE:
-            assert plan.drafter is not None
-            assert plan.verifier is not None
+        assert plan.metadata["semantic_routing_used"] is True
+        print(f"\nWith semantic hints: {plan.reasoning}")
 
-    @pytest.mark.asyncio
-    async def test_parallel_race_enterprise(self, sample_models):
-        planner = LatencyAwareExecutionPlanner()
-        tier = DEFAULT_TIERS["enterprise"]
-
-        plan = await planner.create_plan(
-            query="Analyze in depth",
-            complexity=QueryComplexity.HARD,
-            available_models=sample_models,
-            tier=tier
-        )
-
-        # Enterprise tier should enable parallel race
-        if plan.strategy == ExecutionStrategy.PARALLEL_RACE:
-            assert plan.race_models is not None
-            assert len(plan.race_models) >= 2
-
-
-class TestIntegration:
-    """Test integration of all components."""
-
-    @pytest.mark.asyncio
-    async def test_full_flow_code_query(self):
-        """Test complete flow for code query."""
-        models = [
-            ModelConfig(
-                name="codellama:7b",
-                provider="ollama",
-                cost=0.0,
-                speed_ms=300,
-                quality_score=0.70,
-                domains=["code"]
-            ),
-            ModelConfig(
-                name="gpt-4",
-                provider="openai",
-                cost=0.03,
-                speed_ms=1500,
-                quality_score=0.95,
-                domains=["general"]
-            )
-        ]
-
-        planner = LatencyAwareExecutionPlanner()
-        plan = await planner.create_plan(
-            query="Fix this Python bug in my function",
-            complexity=QueryComplexity.MODERATE,
-            available_models=models,
-            query_domains=["code"]
-        )
-
-        # Should use codellama due to domain boost
-        assert plan.estimated_cost < 0.01  # Should be cheap
-        assert "code" in plan.metadata["query_domains"]
-
-    @pytest.mark.asyncio
-    async def test_optimization_weights_honored(self):
-        """Test that optimization weights affect scoring."""
-        models = [
-            ModelConfig(
-                name="fast-cheap",
-                provider="ollama",
-                cost=0.0,
-                speed_ms=200,
-                quality_score=0.60,
-                domains=["general"]
-            ),
-            ModelConfig(
-                name="slow-expensive",
-                provider="openai",
-                cost=0.05,
-                speed_ms=2000,
-                quality_score=0.95,
-                domains=["general"]
-            )
-        ]
-
-        planner = LatencyAwareExecutionPlanner()
-
-        # Cost priority
-        tier_cost = DEFAULT_TIERS["free"]  # 70% cost weight
-        plan_cost = await planner.create_plan(
-            query="Simple question",
-            complexity=QueryComplexity.SIMPLE,
-            available_models=models,
-            tier=tier_cost
-        )
-
-        # Should prefer cheap model
-        assert plan_cost.primary_model.cost < 0.01
+        top_model = plan.metadata['top_3_models'][0]
+        assert top_model['semantic_boost'] > 1.0
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

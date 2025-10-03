@@ -3,9 +3,10 @@ Execution planning with domain detection and intelligent model scoring.
 
 This is the core intelligence layer that:
 1. Detects query domains (code, math, data, etc.)
-2. Scores models with domain/size boosts
-3. Selects optimal execution strategy
-4. Validates constraints
+2. Scores models with domain/size/semantic boosts
+3. Uses semantic routing hints (if available)
+4. Selects optimal execution strategy
+5. Validates constraints
 """
 
 from typing import List, Optional, Dict, Tuple
@@ -108,7 +109,7 @@ class DomainDetector:
 
 
 class ModelScorer:
-    """Score models using multi-factor optimization with domain/size boosts."""
+    """Score models using multi-factor optimization with domain/size/semantic boosts."""
 
     def __init__(self):
         self.domain_detector = DomainDetector()
@@ -119,17 +120,31 @@ class ModelScorer:
             query: str,
             complexity: QueryComplexity,
             optimization: OptimizationWeights,
-            query_domains: Optional[List[str]] = None
+            query_domains: Optional[List[str]] = None,
+            semantic_hints: Optional[Dict[str, float]] = None
     ) -> List[Tuple[ModelConfig, float, Dict]]:
-        """Score all models for the query."""
+        """
+        Score all models for the query.
+
+        Args:
+            models: Available models
+            query: User query
+            complexity: Detected complexity
+            optimization: Optimization weights
+            query_domains: Detected domains (auto-detected if None)
+            semantic_hints: Semantic similarity scores {model_name: similarity}
+        """
         if query_domains is None:
             query_domains = self.domain_detector.detect(query)
 
         logger.debug(f"Query domains: {query_domains}")
+        if semantic_hints:
+            logger.debug(f"Semantic hints available for {len(semantic_hints)} models")
 
         scored = []
 
         for model in models:
+            # Base multi-factor score
             cost_norm = self._normalize_cost(model.cost, models)
             speed_norm = self._normalize_speed(model.speed_ms, models)
             quality_norm = 1.0 - self._normalize_quality(
@@ -142,11 +157,13 @@ class ModelScorer:
                     optimization.quality * quality_norm
             )
 
+            # Domain boost (2.0x if matches)
             domain_boost = 1.0
             if any(d in model.domains for d in query_domains):
                 domain_boost = 2.0
                 logger.debug(f"  {model.name}: DOMAIN MATCH → 2.0x boost")
 
+            # Size boost (1.5x for small models on simple queries)
             size_boost = 1.0
             is_small = model.quality_score < 0.7
             is_simple = complexity in [
@@ -157,12 +174,36 @@ class ModelScorer:
                 size_boost = 1.5
                 logger.debug(f"  {model.name}: SMALL+SIMPLE → 1.5x boost")
 
-            final_score = base_score / (domain_boost * size_boost)
+            # Semantic boost (1.5x-2.0x based on similarity)
+            semantic_boost = 1.0
+            semantic_similarity = 0.0
+            if semantic_hints and model.name in semantic_hints:
+                semantic_similarity = semantic_hints[model.name]
+                # Scale similarity (0.3-1.0) to boost (1.0-2.0)
+                if semantic_similarity >= 0.7:
+                    semantic_boost = 1.8
+                elif semantic_similarity >= 0.5:
+                    semantic_boost = 1.5
+                elif semantic_similarity >= 0.3:
+                    semantic_boost = 1.2
+
+                if semantic_boost > 1.0:
+                    logger.debug(
+                        f"  {model.name}: SEMANTIC MATCH "
+                        f"(sim={semantic_similarity:.3f}) → {semantic_boost:.1f}x boost"
+                    )
+
+            # Apply all boosts
+            combined_boost = domain_boost * size_boost * semantic_boost
+            final_score = base_score / combined_boost
 
             metadata = {
                 "base_score": base_score,
                 "domain_boost": domain_boost,
                 "size_boost": size_boost,
+                "semantic_boost": semantic_boost,
+                "semantic_similarity": semantic_similarity,
+                "combined_boost": combined_boost,
                 "final_score": final_score,
                 "cost_norm": cost_norm,
                 "speed_norm": speed_norm,
@@ -171,6 +212,7 @@ class ModelScorer:
 
             scored.append((model, final_score, metadata))
 
+        # Sort by score (lower is better)
         scored.sort(key=lambda x: x[1])
 
         return scored
@@ -238,9 +280,26 @@ class LatencyAwareExecutionPlanner:
             max_latency_ms: Optional[int] = None,
             max_budget: Optional[float] = None,
             quality_threshold: Optional[float] = None,
-            query_domains: Optional[List[str]] = None
+            query_domains: Optional[List[str]] = None,
+            semantic_hints: Optional[Dict[str, float]] = None
     ) -> ExecutionPlan:
-        """Create execution plan for query."""
+        """
+        Create execution plan for query.
+
+        Args:
+            query: User query
+            complexity: Detected complexity level
+            available_models: Models to choose from
+            tier: User tier (optional)
+            workflow: Workflow profile (optional)
+            force_models: Force specific models (optional)
+            max_latency_ms: Maximum latency constraint
+            max_budget: Maximum cost constraint
+            quality_threshold: Minimum quality required
+            query_domains: Detected domains (optional)
+            semantic_hints: Semantic similarity scores (optional)
+        """
+        # Get optimization weights
         if workflow and workflow.optimization_override:
             optimization = workflow.optimization_override
         elif tier:
@@ -253,24 +312,35 @@ class LatencyAwareExecutionPlanner:
                 quality=0.34
             )
 
+        # Score models with all signals
         scored_models = self.scorer.score_models(
             available_models,
             query,
             complexity,
             optimization,
-            query_domains
+            query_domains,
+            semantic_hints
         )
+
+        # Capture auto-detected domains for metadata
+        if query_domains is None:
+            query_domains = self.scorer.domain_detector.detect(query)
 
         if not scored_models:
             raise ValueError("No models available after scoring")
 
         best_model, best_score, best_meta = scored_models[0]
 
-        logger.info(
+        # Enhanced logging with semantic info
+        log_msg = (
             f"Top model: {best_model.name} "
             f"(score: {best_score:.3f}, "
-            f"domain_boost: {best_meta['domain_boost']:.1f}x)"
+            f"domain_boost: {best_meta['domain_boost']:.1f}x"
         )
+        if best_meta.get('semantic_boost', 1.0) > 1.0:
+            log_msg += f", semantic_boost: {best_meta['semantic_boost']:.1f}x"
+        log_msg += ")"
+        logger.info(log_msg)
 
         # Initialize variables
         drafter = None
@@ -288,8 +358,11 @@ class LatencyAwareExecutionPlanner:
             primary = best_model
             reasoning = (
                 f"Simple query → best scored model "
-                f"(domain_boost: {best_meta['domain_boost']:.1f}x)"
+                f"(domain_boost: {best_meta['domain_boost']:.1f}x"
             )
+            if best_meta.get('semantic_boost', 1.0) > 1.0:
+                reasoning += f", semantic_boost: {best_meta['semantic_boost']:.1f}x"
+            reasoning += ")"
 
         elif complexity == QueryComplexity.MODERATE:
             if (tier and tier.enable_speculative and
@@ -358,7 +431,8 @@ class LatencyAwareExecutionPlanner:
             reasoning=reasoning,
             metadata={
                 "complexity": complexity.value,
-                "query_domains": query_domains or [],
+                "query_domains": query_domains,
+                "semantic_routing_used": semantic_hints is not None,
                 "optimization": {
                     "cost": optimization.cost,
                     "speed": optimization.speed,
