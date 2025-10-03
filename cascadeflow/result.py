@@ -29,6 +29,7 @@ class CascadeResult:
     confidence: float
 
     # Optional fields (WITH defaults) - must come after!
+    strategy: str = "direct"  # ✅ Added strategy field
     cost_breakdown: Dict[str, float] = field(default_factory=dict)
     token_breakdown: Dict[str, int] = field(default_factory=dict)
     quality_threshold_met: bool = True
@@ -52,6 +53,7 @@ class CascadeResult:
         return (
             f"CascadeResult(\n"
             f"  model={self.model_used},\n"
+            f"  strategy={self.strategy},\n"  # ✅ Added to string representation
             f"  cost=${self.total_cost:.6f},\n"
             f"  tokens={self.total_tokens},\n"
             f"  confidence={self.confidence:.2f},\n"
@@ -69,6 +71,7 @@ class CascadeResult:
             "total_cost": self.total_cost,
             "total_tokens": self.total_tokens,
             "confidence": self.confidence,
+            "strategy": self.strategy,  # ✅ Added to dict output
             "cascaded": self.cascaded,
             "cascade_path": self.cascade_path,
             "attempts": self.attempts,

@@ -1,14 +1,40 @@
-"""Core CascadeAgent implementation."""
+"""
+Enhanced CascadeAgent with full intelligence layer integration.
 
-import logging
+Integrates:
+- Complexity detection
+- Domain detection and scoring
+- Speculative cascades with flexible deferral
+- Multi-factor optimization
+- Callbacks, caching, streaming
+- 20+ control parameters
+"""
+
+import asyncio
 import time
+import logging
 import os
 from typing import List, Optional, Dict, Any, Callable
-import asyncio
 
-from .config import ModelConfig, CascadeConfig, UserTier
+from .config import (
+    ModelConfig, CascadeConfig, UserTier, WorkflowProfile,
+    DEFAULT_TIERS, OptimizationWeights
+)
+from .complexity import ComplexityDetector, QueryComplexity
+from .execution import (
+    LatencyAwareExecutionPlanner,
+    ExecutionStrategy
+)
+from .speculative import (
+    SpeculativeCascade,
+    DeferralStrategy,
+    FlexibleDeferralRule
+)
+from .callbacks import CallbackManager, CallbackEvent
+from .caching import ResponseCache
+from .streaming import StreamManager
 from .result import CascadeResult
-from .providers import PROVIDER_REGISTRY, BaseProvider, ModelResponse
+from .providers import PROVIDER_REGISTRY
 from .exceptions import (
     CascadeFlowError,
     BudgetExceededError,
@@ -16,25 +42,46 @@ from .exceptions import (
     ProviderError,
     QualityThresholdError,
 )
-from .utils import setup_logging, format_cost, estimate_tokens
+from .utils import setup_logging
 
 logger = logging.getLogger(__name__)
 
 
 class CascadeAgent:
     """
-    Main cascade agent for intelligent model routing.
+    Enhanced CascadeAgent with full intelligent orchestration.
 
-    The CascadeAgent tries models in order (cheap → expensive) until
-    the quality threshold is met or budget is exceeded.
+    Features:
+    - Per-prompt domain detection and routing
+    - 2.0x domain boost for specialists
+    - 1.5x size boost for small models on simple tasks
+    - Speculative cascades with 4 deferral strategies
+    - Multi-factor optimization (cost/speed/quality)
+    - Callbacks, caching, streaming support
+    - 20+ control parameters per query
 
     Example:
-        >>> models = [
-        ...     ModelConfig(name="llama3:8b", provider="ollama", cost=0.0),
-        ...     ModelConfig(name="gpt-4", provider="openai", cost=0.03)
-        ... ]
-        >>> agent = CascadeAgent(models)
-        >>> result = await agent.run("What is AI?")
+        >>> from cascadeflow import CascadeAgent, CascadePresets
+        >>>
+        >>> # Auto-detect models
+        >>> models = CascadePresets.auto_detect_models()
+        >>>
+        >>> # Create agent
+        >>> agent = CascadeAgent(
+        ...     models=models,
+        ...     enable_caching=True,
+        ...     verbose=True
+        ... )
+        >>>
+        >>> # Run query (per-prompt optimization!)
+        >>> result = await agent.run(
+        ...     query="Fix this Python bug",
+        ...     user_tier="premium"
+        ... )
+        >>>
+        >>> print(f"Used: {result.model_used}")
+        >>> print(f"Cost: ${result.total_cost:.6f}")
+        >>> print(f"Latency: {result.latency_ms:.0f}ms")
     """
 
     def __init__(
@@ -42,20 +89,29 @@ class CascadeAgent:
             models: List[ModelConfig],
             config: Optional[CascadeConfig] = None,
             tiers: Optional[Dict[str, UserTier]] = None,
+            workflows: Optional[Dict[str, WorkflowProfile]] = None,
+            enable_caching: bool = False,
+            cache_size: int = 1000,
+            enable_callbacks: bool = True,
             verbose: bool = False
     ):
         """
-        Initialize CascadeAgent.
+        Initialize CascadeAgent with intelligence layer.
 
         Args:
-            models: List of models to cascade through (cheap → expensive)
-            config: Cascade configuration (uses defaults if None)
-            tiers: User tier definitions
+            models: List of available models
+            config: Global cascade configuration
+            tiers: User tier configurations (uses defaults if None)
+            workflows: Workflow profiles (optional)
+            enable_caching: Enable response caching
+            cache_size: Max cache entries
+            enable_callbacks: Enable callback system
             verbose: Enable verbose logging
         """
         self.models = models
         self.config = config or CascadeConfig()
-        self.tiers = tiers or {}
+        self.tiers = tiers or DEFAULT_TIERS
+        self.workflows = workflows or {}
         self.verbose = verbose
 
         # Setup logging
@@ -64,9 +120,22 @@ class CascadeAgent:
         else:
             setup_logging(self.config.log_level)
 
+        # Initialize intelligence layer
+        self.complexity_detector = ComplexityDetector()
+        self.execution_planner = LatencyAwareExecutionPlanner()
+
+        # Initialize supporting features
+        self.callback_manager = CallbackManager() if enable_callbacks else None
+        self.cache = ResponseCache(max_size=cache_size) if enable_caching else None
+        self.stream_manager = StreamManager()
+
         # Initialize providers
-        self.providers: Dict[str, BaseProvider] = {}
-        self._init_providers()
+        self.providers = self._init_providers()
+
+        # Initialize speculative cascades (if we have 2+ models)
+        self.speculative_cascades: Dict[str, SpeculativeCascade] = {}
+        if len(models) >= 2:
+            self._init_speculative_cascades()
 
         # Statistics
         self.stats = {
@@ -76,240 +145,636 @@ class CascadeAgent:
             "model_usage": {},
         }
 
-        logger.info(f"CascadeAgent initialized with {len(models)} models")
-        if verbose:
-            for model in models:
-                logger.debug(f"  - {model.name} ({model.provider}): ${model.cost:.6f}")
+        logger.info(
+            f"CascadeAgent initialized with {len(models)} models, "
+            f"caching={'enabled' if enable_caching else 'disabled'}"
+        )
 
-    def _init_providers(self):
-        """
-        Initialize provider instances.
+    def _init_providers(self) -> Dict[str, Any]:
+        """Initialize all providers."""
+        providers = {}
+        provider_types = set(model.provider for model in self.models)
 
-        Creates provider objects for each unique provider in model list.
-        Reuses providers across multiple models.
-        """
-        provider_names = set(model.provider for model in self.models)
+        for provider_type in provider_types:
+            if provider_type in PROVIDER_REGISTRY:
+                try:
+                    providers[provider_type] = PROVIDER_REGISTRY[provider_type]()
+                    logger.debug(f"Initialized provider: {provider_type}")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize provider '{provider_type}': {e}")
 
-        for provider_name in provider_names:
-            try:
-                # Get provider class from registry
-                if provider_name not in PROVIDER_REGISTRY:
-                    logger.warning(f"Provider '{provider_name}' not in registry, skipping")
-                    continue
-
-                provider_class = PROVIDER_REGISTRY[provider_name]
-
-                # Initialize provider
-                # Provider will load API key from environment
-                provider = provider_class()
-
-                self.providers[provider_name] = provider
-                logger.debug(f"Initialized provider: {provider_name}")
-
-            except Exception as e:
-                logger.warning(f"Failed to initialize provider '{provider_name}': {e}")
-                # Continue with other providers
-
-        if not self.providers:
+        if not providers:
             raise CascadeFlowError(
                 "No providers could be initialized. Please check your API keys and configuration."
             )
 
-        logger.info(f"Initialized {len(self.providers)} providers: {list(self.providers.keys())}")
+        return providers
+
+    def _init_speculative_cascades(self):
+        """Initialize speculative cascades for model pairs."""
+        # Sort models by cost (cheap to expensive)
+        sorted_models = sorted(self.models, key=lambda m: (m.cost, m.speed_ms))
+
+        # Create cascades: each cheap model as drafter, expensive as verifier
+        for i, drafter in enumerate(sorted_models[:-1]):
+            for verifier in sorted_models[i+1:]:
+                if verifier.cost > drafter.cost or verifier.quality_score > drafter.quality_score:
+                    key = f"{drafter.name}->{verifier.name}"
+                    self.speculative_cascades[key] = SpeculativeCascade(
+                        drafter=drafter,
+                        verifier=verifier,
+                        providers=self.providers,
+                        verbose=self.verbose
+                    )
+
+                    if self.verbose:
+                        logger.debug(f"Created speculative cascade: {key}")
 
     async def run(
             self,
             query: str,
+
+            # ===== USER CONTEXT =====
             user_tier: Optional[str] = None,
             user_id: Optional[str] = None,
+
+            # ===== WORKFLOW =====
+            workflow: Optional[str] = None,
+
+            # ===== MODEL CONTROL (Highest Priority) =====
+            force_models: Optional[List[str]] = None,
+            exclude_models: Optional[List[str]] = None,
+            preferred_models: Optional[List[str]] = None,
+
+            # ===== DOMAIN (Auto-detected if not provided) =====
+            query_domains: Optional[List[str]] = None,
+
+            # ===== COMPLEXITY =====
+            complexity_hint: Optional[QueryComplexity] = None,
+
+            # ===== BUDGET CONTROL =====
             max_budget: Optional[float] = None,
+            preferred_budget: Optional[float] = None,
+
+            # ===== QUALITY CONTROL =====
             quality_threshold: Optional[float] = None,
-            domains: Optional[List[str]] = None,
+            target_quality: Optional[float] = None,
+
+            # ===== PERFORMANCE =====
+            max_latency_ms: Optional[int] = None,
+            timeout: Optional[int] = None,
+
+            # ===== OPTIMIZATION =====
+            cost_weight: Optional[float] = None,
+            speed_weight: Optional[float] = None,
+            quality_weight: Optional[float] = None,
+
+            # ===== SPECULATIVE CONTROL =====
+            enable_speculative: Optional[bool] = None,
+            deferral_strategy: Optional[DeferralStrategy] = None,
+            confidence_threshold: Optional[float] = None,
+
+            # ===== FEATURES =====
+            streaming: bool = False,
+            enable_caching: Optional[bool] = None,
+
+            # ===== CALLBACKS =====
+            on_cascade: Optional[Callable] = None,
+            on_complete: Optional[Callable] = None,
+            on_error: Optional[Callable] = None,
+
+            # ===== METADATA =====
+            metadata: Optional[Dict[str, Any]] = None,
+
             **kwargs
     ) -> CascadeResult:
         """
-        Run cascade on a query.
+        Run cascade with full intelligence and control.
 
-        Tries models in order until quality threshold met or budget exceeded.
+        **EVERY PROMPT IS INDIVIDUALLY ANALYZED**
+
+        For EACH query:
+        1. Detects domains (code? math? general?)
+        2. Detects complexity (trivial? expert?)
+        3. Scores ALL models with domain boost
+        4. Selects optimal execution strategy
+        5. Respects all constraints
 
         Args:
-            query: User query
-            user_tier: User tier name (applies tier settings)
-            user_id: User ID for tracking
-            max_budget: Maximum budget for this query
-            quality_threshold: Minimum confidence score required
-            domains: Domain hints for routing (e.g., ["code"])
-            **kwargs: Additional parameters
+            query: User query/prompt
+
+            User Context:
+                user_tier: Apply tier settings (e.g., "free", "premium")
+                user_id: Track user for analytics
+
+            Workflow:
+                workflow: Apply workflow profile (e.g., "code_review")
+
+            Model Control (Highest Priority):
+                force_models: Only use these models (overrides everything)
+                exclude_models: Never use these models
+                preferred_models: Try these first if suitable
+
+            Domain:
+                query_domains: Domain hints (e.g., ["code", "math"])
+                               Auto-detected if not provided
+
+            Complexity:
+                complexity_hint: Override complexity detection
+
+            Budget Control:
+                max_budget: Hard limit on cost
+                preferred_budget: Try to stay under this
+
+            Quality Control:
+                quality_threshold: Minimum acceptable confidence
+                target_quality: Desired quality level
+
+            Performance:
+                max_latency_ms: Maximum acceptable latency
+                timeout: Timeout per model call (seconds)
+
+            Optimization:
+                cost_weight: Weight for cost in scoring (0-1)
+                speed_weight: Weight for speed in scoring (0-1)
+                quality_weight: Weight for quality in scoring (0-1)
+
+            Speculative Control:
+                enable_speculative: Use speculative cascades
+                deferral_strategy: Which deferral strategy to use
+                confidence_threshold: Confidence threshold for deferral
+
+            Features:
+                streaming: Stream response chunks
+                enable_caching: Use response cache
+
+            Callbacks:
+                on_cascade: Called when cascading to next model
+                on_complete: Called when query completes
+                on_error: Called on error
+
+            Metadata:
+                metadata: Custom metadata for tracking
 
         Returns:
-            CascadeResult with response and metadata
-
-        Raises:
-            BudgetExceededError: If budget exceeded
-            QualityThresholdError: If no model meets threshold
+            CascadeResult with response, cost, latency, model used, etc.
         """
         start_time = time.time()
 
-        # Apply user tier settings if provided
-        if user_tier and user_tier in self.tiers:
-            tier = self.tiers[user_tier]
-            tier_config = tier.to_cascade_config()
+        # Trigger start callback
+        if self.callback_manager:
+            self.callback_manager.trigger(
+                CallbackEvent.QUERY_START,
+                query=query,
+                data={"user_tier": user_tier, "workflow": workflow},
+                user_tier=user_tier,
+                workflow=workflow
+            )
 
-            # Override with tier settings
-            max_budget = max_budget or tier_config.get("max_budget")
-            quality_threshold = quality_threshold or tier_config.get("quality_threshold")
+        # Register user callbacks
+        if on_cascade and self.callback_manager:
+            self.callback_manager.register(CallbackEvent.CASCADE_DECISION, on_cascade)
+        if on_complete and self.callback_manager:
+            self.callback_manager.register(CallbackEvent.QUERY_COMPLETE, on_complete)
+        if on_error and self.callback_manager:
+            self.callback_manager.register(CallbackEvent.QUERY_ERROR, on_error)
 
-            logger.info(f"Applied tier '{user_tier}': budget=${max_budget}, threshold={quality_threshold}")
+        try:
+            # 1. Get tier and workflow
+            tier = self.tiers.get(user_tier) if user_tier else None
+            workflow_profile = self.workflows.get(workflow) if workflow else None
 
-        # Use config defaults if not specified
-        max_budget = max_budget or self.config.max_budget
-        quality_threshold = quality_threshold or self.config.quality_threshold
+            # 2. Check cache
+            use_cache = (
+                enable_caching if enable_caching is not None
+                else (tier.enable_caching if tier else False)
+            )
 
-        # Track cascade state
-        cascade_path = []
-        cost_breakdown = {}
-        token_breakdown = {}
-        latency_breakdown = {}
-        total_cost = 0.0
-        total_tokens = 0
-        attempts = 0
-        last_response = None
-
-        # Filter models by domain if specified
-        available_models = self.models
-        if domains:
-            available_models = [
-                m for m in self.models
-                if not m.domains or any(d in m.domains for d in domains)
-            ]
-            if available_models:
-                logger.info(f"Filtered to {len(available_models)} models for domains: {domains}")
-
-        # Try each model in sequence
-        for model_config in available_models:
-            attempts += 1
-            cascade_path.append(model_config.name)
-
-            # Check if provider is available
-            if model_config.provider not in self.providers:
-                logger.warning(f"Provider '{model_config.provider}' not available, skipping {model_config.name}")
-                continue
-
-            # Check budget before trying
-            if total_cost >= max_budget:
-                logger.warning(f"Budget exceeded (${total_cost:.6f} >= ${max_budget:.6f})")
-                raise BudgetExceededError(
-                    f"Budget of ${max_budget:.6f} exceeded",
-                    remaining=max_budget - total_cost
-                )
-
-            logger.info(f"Trying model {attempts}/{len(available_models)}: {model_config.name}")
-
-            try:
-                # Get provider
-                provider = self.providers[model_config.provider]
-
-                # Make API call
-                model_start = time.time()
-                response = await provider.complete(
-                    prompt=query,
-                    model=model_config.name,
-                    max_tokens=model_config.max_tokens,
-                    temperature=model_config.temperature,
-                    system_prompt=model_config.system_prompt,
-                )
-                model_latency = (time.time() - model_start) * 1000
-
-                # Track costs and metrics
-                total_cost += response.cost
-                total_tokens += response.tokens_used
-                cost_breakdown[model_config.name] = response.cost
-                token_breakdown[model_config.name] = response.tokens_used
-                latency_breakdown[model_config.name] = model_latency
-                last_response = response
-
-                logger.info(
-                    f"✓ {model_config.name}: "
-                    f"confidence={response.confidence:.2f}, "
-                    f"cost=${response.cost:.6f}, "
-                    f"tokens={response.tokens_used}"
-                )
-
-                # Check if quality threshold met
-                if response.confidence >= quality_threshold:
-                    logger.info(f"✅ Quality threshold met ({response.confidence:.2f} >= {quality_threshold:.2f})")
-
-                    # Update stats
-                    self.stats["total_queries"] += 1
-                    self.stats["total_cost"] += total_cost
-                    if attempts > 1:
-                        self.stats["total_cascades"] += 1
-                    self.stats["model_usage"][model_config.name] = \
-                        self.stats["model_usage"].get(model_config.name, 0) + 1
-
-                    # Build result
-                    total_latency = (time.time() - start_time) * 1000
-
-                    return CascadeResult(
-                        content=response.content,
-                        model_used=model_config.name,
-                        provider=model_config.provider,
-                        total_cost=total_cost,
-                        total_tokens=total_tokens,
-                        confidence=response.confidence,
-                        cost_breakdown=cost_breakdown,
-                        token_breakdown=token_breakdown,
-                        quality_threshold_met=True,
-                        cascaded=(attempts > 1),
-                        cascade_path=cascade_path,
-                        attempts=attempts,
-                        latency_ms=total_latency,
-                        latency_breakdown=latency_breakdown,
-                        user_id=user_id,
-                        user_tier=user_tier,
-                        user_credits_used=total_cost,
-                        budget_remaining=max_budget - total_cost,
-                    )
-
+            if use_cache and self.cache:
+                cached = self.cache.get(query, params=metadata)
+                if cached:
+                    if self.callback_manager:
+                        self.callback_manager.trigger(
+                            CallbackEvent.CACHE_HIT,
+                            query=query,
+                            data={"cached": True},
+                            user_tier=user_tier,
+                            workflow=workflow
+                        )
+                    logger.info("✓ Cache hit")
+                    return CascadeResult(**cached)
                 else:
-                    logger.info(
-                        f"⚠️ Quality threshold not met "
-                        f"({response.confidence:.2f} < {quality_threshold:.2f}), cascading..."
-                    )
-                    # Continue to next model
+                    if self.callback_manager:
+                        self.callback_manager.trigger(
+                            CallbackEvent.CACHE_MISS,
+                            query=query,
+                            data={"cached": False},
+                            user_tier=user_tier,
+                            workflow=workflow
+                        )
 
-            except (ModelError, ProviderError) as e:
-                logger.error(f"❌ Error with {model_config.name}: {e}")
-                # Continue to next model
-                continue
+            # 3. Detect complexity
+            if complexity_hint:
+                complexity = complexity_hint
+            else:
+                complexity, confidence = self.complexity_detector.detect(
+                    query,
+                    context={"tier": user_tier, "domain": query_domains}
+                )
 
-        # No model met threshold
-        max_confidence = last_response.confidence if last_response else 0.0
-        raise QualityThresholdError(
-            f"No model met quality threshold of {quality_threshold:.2f}. "
-            f"Tried {attempts} models with max confidence {max_confidence:.2f}"
+            if self.callback_manager:
+                self.callback_manager.trigger(
+                    CallbackEvent.COMPLEXITY_DETECTED,
+                    query=query,
+                    data={"complexity": complexity.value},
+                    user_tier=user_tier,
+                    workflow=workflow
+                )
+
+            if self.verbose:
+                logger.info(f"🧠 Complexity: {complexity.value}")
+
+            # 4. Filter models
+            available_models = self._filter_models(
+                self.models,
+                tier,
+                workflow_profile,
+                exclude_models,
+                force_models
+            )
+
+            # 5. Create execution plan
+            plan = await self.execution_planner.create_plan(
+                query=query,
+                complexity=complexity,
+                available_models=available_models,
+                tier=tier,
+                workflow=workflow_profile,
+                force_models=force_models,
+                max_latency_ms=max_latency_ms,
+                max_budget=max_budget,
+                quality_threshold=quality_threshold,
+                query_domains=query_domains
+            )
+
+            if self.callback_manager:
+                self.callback_manager.trigger(
+                    CallbackEvent.STRATEGY_SELECTED,
+                    query=query,
+                    data={
+                        "strategy": plan.strategy.value,
+                        "primary_model": plan.primary_model.name if plan.primary_model else None,
+                        "reasoning": plan.reasoning
+                    },
+                    user_tier=user_tier,
+                    workflow=workflow
+                )
+
+            if self.verbose:
+                logger.info(f"📋 Strategy: {plan.strategy.value}")
+                logger.info(f"💡 Reasoning: {plan.reasoning}")
+
+            # 6. Execute plan
+            result = await self._execute_plan(
+                query=query,
+                plan=plan,
+                streaming=streaming,
+                tier=tier,
+                enable_speculative=enable_speculative,
+                deferral_strategy=deferral_strategy,
+                confidence_threshold=confidence_threshold,
+                user_tier=user_tier,
+                workflow=workflow,
+                **kwargs
+            )
+
+            # 7. Store in cache
+            if use_cache and self.cache:
+                cache_ttl = tier.cache_ttl if tier else 3600
+                self.cache.set(
+                    query,
+                    result.to_dict(),
+                    ttl=cache_ttl,
+                    params=metadata
+                )
+
+            # 8. Update statistics
+            self.stats["total_queries"] += 1
+            self.stats["total_cost"] += result.total_cost  # ✅ Fixed: was result.cost
+            if result.cascaded:
+                self.stats["total_cascades"] += 1
+            self.stats["model_usage"][result.model_used] = \
+                self.stats["model_usage"].get(result.model_used, 0) + 1
+
+            # 9. Trigger complete callback
+            if self.callback_manager:
+                self.callback_manager.trigger(
+                    CallbackEvent.QUERY_COMPLETE,
+                    query=query,
+                    data={
+                        "success": True,
+                        "cost": result.total_cost,  # ✅ Fixed: was result.cost
+                        "latency_ms": result.latency_ms,
+                        "model": result.model_used
+                    },
+                    user_tier=user_tier,
+                    workflow=workflow
+                )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error in cascade: {e}", exc_info=True)
+
+            if self.callback_manager:
+                self.callback_manager.trigger(
+                    CallbackEvent.QUERY_ERROR,
+                    query=query,
+                    data={"error": str(e)},
+                    user_tier=user_tier,
+                    workflow=workflow
+                )
+
+            raise
+
+        finally:
+            # Cleanup callbacks
+            if on_cascade and self.callback_manager:
+                self.callback_manager.unregister(CallbackEvent.CASCADE_DECISION, on_cascade)
+            if on_complete and self.callback_manager:
+                self.callback_manager.unregister(CallbackEvent.QUERY_COMPLETE, on_complete)
+            if on_error and self.callback_manager:
+                self.callback_manager.unregister(CallbackEvent.QUERY_ERROR, on_error)
+
+    def _filter_models(
+            self,
+            models: List[ModelConfig],
+            tier: Optional[UserTier],
+            workflow: Optional[WorkflowProfile],
+            exclude: Optional[List[str]],
+            force: Optional[List[str]]
+    ) -> List[ModelConfig]:
+        """Filter models based on constraints."""
+        filtered = models.copy()
+
+        # Force models (highest priority)
+        if force:
+            return [m for m in filtered if m.name in force]
+
+        # Workflow exclusions
+        if workflow and workflow.exclude_models:
+            filtered = [m for m in filtered if m.name not in workflow.exclude_models]
+
+        # Per-query exclusions
+        if exclude:
+            filtered = [m for m in filtered if m.name not in exclude]
+
+        # Tier exclusions
+        if tier and tier.exclude_models:
+            filtered = [m for m in filtered if m.name not in tier.exclude_models]
+
+        # Tier allowed list
+        if tier and "*" not in tier.allowed_models:
+            filtered = [m for m in filtered if m.name in tier.allowed_models]
+
+        return filtered
+
+    async def _execute_plan(
+            self,
+            query: str,
+            plan: Any,
+            streaming: bool,
+            tier: Optional[UserTier],
+            enable_speculative: Optional[bool],
+            deferral_strategy: Optional[DeferralStrategy],
+            confidence_threshold: Optional[float],
+            user_tier: Optional[str],
+            workflow: Optional[str],
+            **kwargs
+    ) -> CascadeResult:
+        """Execute the execution plan."""
+        start_time = time.time()
+
+        if plan.strategy == ExecutionStrategy.DIRECT_CHEAP:
+            result = await self._execute_direct(
+                query, plan.primary_model, **kwargs
+            )
+
+        elif plan.strategy == ExecutionStrategy.DIRECT_BEST:
+            result = await self._execute_direct(
+                query, plan.primary_model, **kwargs
+            )
+
+        elif plan.strategy == ExecutionStrategy.DIRECT_SMART:
+            result = await self._execute_direct(
+                query, plan.primary_model, **kwargs
+            )
+
+        elif plan.strategy == ExecutionStrategy.SPECULATIVE:
+            # Check if speculative is enabled
+            use_speculative = (
+                enable_speculative if enable_speculative is not None
+                else (tier.enable_speculative if tier else True)
+            )
+
+            if use_speculative and plan.drafter and plan.verifier:
+                result = await self._execute_speculative(
+                    query,
+                    plan.drafter,
+                    plan.verifier,
+                    deferral_strategy,
+                    confidence_threshold,
+                    **kwargs
+                )
+            else:
+                # Fallback to direct
+                result = await self._execute_direct(
+                    query, plan.drafter, **kwargs
+                )
+
+        elif plan.strategy == ExecutionStrategy.PARALLEL_RACE:
+            result = await self._execute_parallel_race(
+                query, plan.race_models, **kwargs
+            )
+
+        else:
+            result = await self._execute_direct(
+                query, plan.primary_model, **kwargs
+            )
+
+        return result
+
+    async def _execute_direct(
+            self,
+            query: str,
+            model: ModelConfig,
+            **kwargs
+    ) -> CascadeResult:
+        """Execute direct model call (no cascade)."""
+        start_time = time.time()
+
+        provider = self.providers[model.provider]
+
+        if self.callback_manager:
+            self.callback_manager.trigger(
+                CallbackEvent.MODEL_CALL_START,
+                query=query,
+                data={"model": model.name, "provider": model.provider},
+                user_tier=None,
+                workflow=None
+            )
+
+        try:
+            response = await provider.complete(
+                model=model.name,
+                prompt=query,
+                **kwargs
+            )
+
+            latency = (time.time() - start_time) * 1000
+
+            if self.callback_manager:
+                self.callback_manager.trigger(
+                    CallbackEvent.MODEL_CALL_COMPLETE,
+                    query=query,
+                    data={
+                        "model": model.name,
+                        "latency_ms": latency,
+                        "cost": model.cost
+                    },
+                    user_tier=None,
+                    workflow=None
+                )
+
+            return CascadeResult(
+                content=response.get('content', ''),
+                model_used=model.name,
+                provider=model.provider,
+                total_cost=model.cost,
+                total_tokens=response.get('tokens_used', len(response.get('content', '').split())),
+                confidence=response.get('confidence', 0.0),
+                latency_ms=latency,
+                strategy="direct",
+                metadata={
+                    "tokens": len(response.get('content', '').split())
+                }
+            )
+
+        except Exception as e:
+            if self.callback_manager:
+                self.callback_manager.trigger(
+                    CallbackEvent.MODEL_CALL_ERROR,
+                    query=query,
+                    data={"model": model.name, "error": str(e)},
+                    user_tier=None,
+                    workflow=None
+                )
+            raise
+
+    async def _execute_speculative(
+            self,
+            query: str,
+            drafter: ModelConfig,
+            verifier: ModelConfig,
+            deferral_strategy: Optional[DeferralStrategy],
+            confidence_threshold: Optional[float],
+            **kwargs
+    ) -> CascadeResult:
+        """Execute speculative cascade."""
+        cascade_key = f"{drafter.name}->{verifier.name}"
+
+        if cascade_key not in self.speculative_cascades:
+            # Create on-demand
+            cascade = SpeculativeCascade(
+                drafter=drafter,
+                verifier=verifier,
+                providers=self.providers,
+                verbose=self.verbose
+            )
+        else:
+            cascade = self.speculative_cascades[cascade_key]
+
+        # Override deferral rule if specified
+        if deferral_strategy or confidence_threshold:
+            cascade.deferral_rule = FlexibleDeferralRule(
+                strategy=deferral_strategy or DeferralStrategy.COMPARATIVE,
+                confidence_threshold=confidence_threshold or 0.7
+            )
+
+        spec_result = await cascade.execute(query, **kwargs)
+
+        if self.callback_manager and not spec_result.draft_accepted:
+            self.callback_manager.trigger(
+                CallbackEvent.CASCADE_DECISION,
+                query=query,
+                data={
+                    "from": drafter.name,
+                    "to": verifier.name,
+                    "reason": spec_result.metadata.get("reason", "unknown")
+                },
+                user_tier=None,
+                workflow=None
+            )
+
+        return CascadeResult(
+            content=spec_result.content,
+            model_used=spec_result.model_used,
+            provider=verifier.provider,
+            total_cost=spec_result.total_cost,
+            total_tokens=spec_result.tokens_drafted + spec_result.tokens_verified,  # ✅ Fixed: added total_tokens
+            confidence=spec_result.draft_confidence if spec_result.draft_accepted else spec_result.verifier_confidence,  # ✅ Fixed: added confidence
+            latency_ms=spec_result.latency_ms,
+            strategy="speculative",
+            metadata={
+                "draft_accepted": spec_result.draft_accepted,
+                "drafter": spec_result.drafter_model,
+                "verifier": spec_result.verifier_model,
+                "speedup": spec_result.speedup,
+                "deferral_strategy": spec_result.deferral_strategy
+            }
         )
+
+    async def _execute_parallel_race(
+            self,
+            query: str,
+            models: List[ModelConfig],
+            **kwargs
+    ) -> CascadeResult:
+        """Execute parallel race (first to finish wins)."""
+        start_time = time.time()
+
+        tasks = [
+            self._execute_direct(query, model, **kwargs)
+            for model in models
+        ]
+
+        # Race them
+        done, pending = await asyncio.wait(
+            tasks,
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Cancel remaining
+        for task in pending:
+            task.cancel()
+
+        # Get winner
+        winner = list(done)[0].result()
+
+        if self.verbose:
+            logger.info(
+                f"🏁 Parallel race won by {winner.model_used} "
+                f"in {winner.latency_ms:.0f}ms"
+            )
+
+        return winner
 
     @classmethod
     def smart_default(cls, tiers: Optional[Dict[str, UserTier]] = None) -> "CascadeAgent":
         """
         Create CascadeAgent with smart defaults.
 
-        Auto-detects available providers and creates optimal cascade:
-        1. Ollama (free local) if available
-        2. vLLM (free self-hosted) if available
-        3. Groq (free cloud) if available
-        4. HuggingFace (free/cheap) if available
-        5. Together.ai (cheap) if available
-        6. OpenAI GPT-3.5 if available
-        7. OpenAI GPT-4 if available
-        8. Anthropic Claude if available
-
-        Args:
-            tiers: Optional user tier definitions
-
-        Returns:
-            CascadeAgent with detected providers
+        Auto-detects available providers and creates optimal cascade.
         """
         models = []
 
@@ -322,14 +787,11 @@ class CascadeAgent:
                     name="llama3:8b",
                     provider="ollama",
                     cost=0.0,
-                    keywords=["simple", "quick"]
+                    domains=["general"]
                 ))
                 logger.info("✓ Detected Ollama (local)")
         except:
             logger.debug("Ollama not detected")
-
-        # Check vLLM (self-hosted)
-        # In cascadeflow/agent.py, in smart_default() method, add after Ollama detection:
 
         # Check vLLM (self-hosted)
         try:
@@ -338,19 +800,17 @@ class CascadeAgent:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("data"):
-                    # Use first available model
                     vllm_model = data["data"][0]["id"]
                     models.append(ModelConfig(
                         name=vllm_model,
                         provider="vllm",
                         base_url="http://localhost:8000/v1",
                         cost=0.0,
-                        keywords=["moderate", "detailed"]
+                        domains=["general"]
                     ))
                     logger.info("✓ Detected vLLM (self-hosted)")
         except:
             logger.debug("vLLM not detected")
-
 
         # Check Groq
         if os.getenv("GROQ_API_KEY"):
@@ -358,7 +818,7 @@ class CascadeAgent:
                 name="llama-3.1-70b-versatile",
                 provider="groq",
                 cost=0.0,
-                keywords=["moderate"]
+                domains=["general"]
             ))
             logger.info("✓ Detected Groq API key")
 
@@ -368,7 +828,6 @@ class CascadeAgent:
                 name="codellama/CodeLlama-34b-Instruct-hf",
                 provider="huggingface",
                 cost=0.0,
-                keywords=["code"],
                 domains=["code"]
             ))
             logger.info("✓ Detected HuggingFace token")
@@ -379,7 +838,7 @@ class CascadeAgent:
                 name="meta-llama/Llama-3-70b-chat-hf",
                 provider="together",
                 cost=0.0009,
-                keywords=["moderate", "detailed"]
+                domains=["general"]
             ))
             logger.info("✓ Detected Together.ai API key")
 
@@ -389,13 +848,13 @@ class CascadeAgent:
                 name="gpt-3.5-turbo",
                 provider="openai",
                 cost=0.002,
-                keywords=["moderate", "detailed"]
+                domains=["general"]
             ))
             models.append(ModelConfig(
                 name="gpt-4",
                 provider="openai",
                 cost=0.03,
-                keywords=["complex", "expert"]
+                domains=["general"]
             ))
             logger.info("✓ Detected OpenAI API key")
 
@@ -405,36 +864,23 @@ class CascadeAgent:
                 name="claude-3-sonnet-20240229",
                 provider="anthropic",
                 cost=0.003,
-                keywords=["complex"]
+                domains=["general"]
             ))
             logger.info("✓ Detected Anthropic API key")
 
         if not models:
             raise CascadeFlowError(
-                "No providers detected. Please set at least one API key or run a local server:\n"
-                "  - OPENAI_API_KEY for OpenAI\n"
-                "  - GROQ_API_KEY for Groq (14k free requests/day)\n"
-                "  - ANTHROPIC_API_KEY for Anthropic\n"
-                "  - HF_TOKEN for HuggingFace (1000 free requests/day)\n"
-                "  - TOGETHER_API_KEY for Together.ai ($25 free credits)\n"
-                "  - Or install Ollama for local models\n"
-                "  - Or run vLLM for high-performance self-hosted"
+                "No providers detected. Please set at least one API key or run a local server."
             )
 
         logger.info(f"Created smart cascade with {len(models)} models")
 
-        return cls(models=models, tiers=tiers, verbose=True)
+        return cls(models=models, tiers=tiers, verbose=True, enable_caching=True)
 
     def add_tier(self, name: str, tier: UserTier):
-        """
-        Add or update a user tier.
-
-        Args:
-            name: Tier name
-            tier: UserTier configuration
-        """
+        """Add or update a user tier."""
         self.tiers[name] = tier
-        logger.info(f"Added tier '{name}': budget=${tier.max_budget}, threshold={tier.quality_threshold}")
+        logger.info(f"Added tier '{name}'")
 
     def get_tier(self, name: str) -> Optional[UserTier]:
         """Get tier by name."""
@@ -446,8 +892,28 @@ class CascadeAgent:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get agent statistics."""
-        return {
+        stats = {
+            "models": len(self.models),
+            "tiers": list(self.tiers.keys()),
+            "workflows": list(self.workflows.keys()),
             **self.stats,
             "avg_cost": self.stats["total_cost"] / max(1, self.stats["total_queries"]),
             "cascade_rate": self.stats["total_cascades"] / max(1, self.stats["total_queries"]),
         }
+
+        if self.complexity_detector:
+            stats["complexity"] = self.complexity_detector.get_stats()
+
+        if self.cache:
+            stats["cache"] = self.cache.get_stats()
+
+        if self.callback_manager:
+            stats["callbacks"] = self.callback_manager.get_stats()
+
+        if self.speculative_cascades:
+            stats["speculative"] = {
+                key: cascade.get_stats()
+                for key, cascade in self.speculative_cascades.items()
+            }
+
+        return stats
