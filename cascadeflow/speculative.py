@@ -1,20 +1,21 @@
 """
-Speculative Cascades Implementation.
+Speculative Cascades Implementation - FULL TOKEN-LEVEL VERSION
 
 Based on Google Research (Sept 2025):
 "Faster Cascades via Speculative Decoding"
 https://arxiv.org/abs/2405.19261
 
-Key innovation: Flexible deferral rules that can accept good answers
-from small models even when they don't exactly match large model output.
+Key innovation: Token-by-token flexible deferral during generation.
+Not after generation completes - DURING token generation.
 """
 
 import asyncio
-from typing import Optional, Dict, Any
-from dataclasses import dataclass
+from typing import Optional, Dict, Any, List, Tuple
+from dataclasses import dataclass, field
 from enum import Enum
 import logging
 import time
+import math
 
 from .config import ModelConfig
 
@@ -24,13 +25,43 @@ logger = logging.getLogger(__name__)
 class DeferralStrategy(Enum):
     """
     Deferral strategies from Google's research.
-
-    Each strategy answers: "Should we defer to the large model?"
+    Each strategy answers: "Should we defer THIS TOKEN to the large model?"
     """
-    CONFIDENCE_THRESHOLD = "confidence"     # Simple: draft confidence >= threshold?
-    COMPARATIVE = "comparative"             # Recommended: large model significantly better?
-    COST_BENEFIT = "cost_benefit"           # Worth the cost of deferring?
-    TOKEN_LIST = "token_list"               # Draft token in large model's top-K?
+    CONFIDENCE_THRESHOLD = "confidence"
+    COMPARATIVE = "comparative"
+    COST_BENEFIT = "cost_benefit"
+    TOKEN_LIST = "token_list"
+
+
+@dataclass
+class TokenPrediction:
+    """Single token prediction with probability."""
+    token: str
+    logprob: float
+    probability: float  # exp(logprob)
+    token_id: Optional[int] = None
+
+
+@dataclass
+class DraftToken:
+    """Token drafted by small model."""
+    token: str
+    logprob: float
+    probability: float
+    position: int
+    alternatives: List[TokenPrediction] = field(default_factory=list)
+
+
+@dataclass
+class VerificationResult:
+    """Result of token verification."""
+    accepted_tokens: List[str]
+    deferred_at: Optional[int]  # Position where we deferred
+    total_drafted: int
+    total_accepted: int
+    total_deferred: int
+    acceptance_rate: float
+    deferral_reason: Optional[str] = None
 
 
 @dataclass
@@ -44,12 +75,15 @@ class SpeculativeResult:
     tokens_drafted: int
     tokens_verified: int
     tokens_deferred: int
+    tokens_accepted: int
     draft_confidence: float
     verifier_confidence: float
     total_cost: float
     latency_ms: float
     speedup: float
     deferral_strategy: str
+    acceptance_rate: float
+    chunks_processed: int
     metadata: dict
 
 
@@ -57,137 +91,544 @@ class FlexibleDeferralRule:
     """
     Flexible deferral rules from Google's paper.
 
-    Instead of strict token matching (speculative decoding),
-    we intelligently decide when to defer based on:
-    - Confidence levels
-    - Quality differences
-    - Cost-benefit analysis
+    KEY: Per-token decisions, not all-or-nothing.
     """
 
     def __init__(
             self,
-            strategy: DeferralStrategy = DeferralStrategy.COMPARATIVE,
+            strategy: DeferralStrategy = DeferralStrategy.TOKEN_LIST,
             confidence_threshold: float = 0.7,
-            comparative_delta: float = 0.2,
-            cost_benefit_ratio: float = 2.0,
-            top_k: int = 5
+            comparative_delta: float = 0.15,
+            cost_benefit_threshold: float = 0.5,
+            top_k: int = 10,
+            min_probability: float = 0.01
     ):
-        """
-        Initialize deferral rule.
-
-        Args:
-            strategy: Deferral strategy to use
-            confidence_threshold: Min confidence to accept (CONFIDENCE_THRESHOLD)
-            comparative_delta: Min quality gap to defer (COMPARATIVE)
-            cost_benefit_ratio: Min benefit/cost ratio to defer (COST_BENEFIT)
-            top_k: Number of top tokens to check (TOKEN_LIST)
-        """
         self.strategy = strategy
         self.confidence_threshold = confidence_threshold
         self.comparative_delta = comparative_delta
-        self.cost_benefit_ratio = cost_benefit_ratio
+        self.cost_benefit_threshold = cost_benefit_threshold
         self.top_k = top_k
+        self.min_probability = min_probability
 
-    def should_defer(
+        self.decision_log = []
+
+    def should_defer_token(
             self,
-            draft_confidence: float,
-            verifier_confidence: Optional[float] = None,
-            drafter_cost: float = 0.0,
-            verifier_cost: float = 0.0,
-            draft_tokens: Optional[list] = None,
-            verifier_top_tokens: Optional[list] = None
-    ) -> bool:
+            draft_token: str,
+            draft_logprob: float,
+            verifier_top_k: List[TokenPrediction],
+            position: int
+    ) -> Tuple[bool, str]:
         """
-        Decide whether to defer to verifier.
-
-        This is the KEY innovation from Google's paper:
-        Flexible decision-making instead of strict matching.
-
-        Args:
-            draft_confidence: Confidence of draft response
-            verifier_confidence: Confidence of verifier (if available)
-            drafter_cost: Cost of drafter
-            verifier_cost: Cost of verifier
-            draft_tokens: Tokens from draft (for TOKEN_LIST)
-            verifier_top_tokens: Top-K tokens from verifier (for TOKEN_LIST)
+        Decide whether to defer THIS SPECIFIC TOKEN.
 
         Returns:
-            True if should defer to verifier, False to accept draft
+            (should_defer, reason)
         """
+        draft_prob = math.exp(draft_logprob)
 
         if self.strategy == DeferralStrategy.CONFIDENCE_THRESHOLD:
             # Simple: Is draft confident enough?
-            return draft_confidence < self.confidence_threshold
+            should_defer = draft_prob < self.confidence_threshold
+            reason = f"draft_prob={draft_prob:.3f} < threshold={self.confidence_threshold}"
 
         elif self.strategy == DeferralStrategy.COMPARATIVE:
-            # Recommended: Is verifier significantly better?
-            if verifier_confidence is None:
-                # Can't compare, use confidence threshold
-                return draft_confidence < self.confidence_threshold
-
-            confidence_gap = verifier_confidence - draft_confidence
+            # Is verifier significantly more confident?
+            verifier_best_prob = verifier_top_k[0].probability
+            confidence_gap = verifier_best_prob - draft_prob
             should_defer = confidence_gap > self.comparative_delta
-
-            logger.debug(
-                f"Comparative: draft={draft_confidence:.2f}, "
-                f"verifier={verifier_confidence:.2f}, "
-                f"gap={confidence_gap:.2f}, "
-                f"defer={should_defer}"
-            )
-            return should_defer
+            reason = f"gap={confidence_gap:.3f} > delta={self.comparative_delta}"
 
         elif self.strategy == DeferralStrategy.COST_BENEFIT:
-            # Economic: Is quality boost worth the cost?
-            if verifier_confidence is None:
-                return draft_confidence < self.confidence_threshold
+            # Is quality gain worth rejecting draft?
+            verifier_best_prob = verifier_top_k[0].probability
 
-            quality_gain = verifier_confidence - draft_confidence
-            cost_ratio = verifier_cost / (drafter_cost + 0.0001)
-            benefit_cost = quality_gain / cost_ratio if cost_ratio > 0 else quality_gain
+            # Find draft token in verifier predictions
+            draft_verifier_prob = None
+            for pred in verifier_top_k:
+                if pred.token == draft_token:
+                    draft_verifier_prob = pred.probability
+                    break
 
-            should_defer = benefit_cost < self.cost_benefit_ratio
+            if draft_verifier_prob is None:
+                # Draft not in top-k, use minimum
+                draft_verifier_prob = self.min_probability
 
-            logger.debug(
-                f"Cost-Benefit: quality_gain={quality_gain:.2f}, "
-                f"cost_ratio={cost_ratio:.2f}, "
-                f"benefit/cost={benefit_cost:.2f}, "
-                f"defer={should_defer}"
-            )
-            return should_defer
+            quality_gain = verifier_best_prob - draft_verifier_prob
+            rejection_cost = draft_prob  # Higher draft confidence = higher cost
+
+            if rejection_cost > 0:
+                benefit_ratio = quality_gain / rejection_cost
+            else:
+                benefit_ratio = float('inf')
+
+            # Defer if benefit ratio HIGH (worth the cost)
+            should_defer = benefit_ratio >= self.cost_benefit_threshold
+            reason = f"benefit_ratio={benefit_ratio:.3f} >= threshold={self.cost_benefit_threshold}"
 
         elif self.strategy == DeferralStrategy.TOKEN_LIST:
-            # Token-specific: Is draft in verifier's top-K?
-            if not draft_tokens or not verifier_top_tokens:
-                return draft_confidence < self.confidence_threshold
+            # Most flexible: Defer if draft NOT in verifier's top-K
+            approved_tokens = set()
+            for pred in verifier_top_k[:self.top_k]:
+                if pred.probability >= self.min_probability:
+                    approved_tokens.add(pred.token)
 
-            # Check if draft tokens are in verifier's top-K
-            draft_in_top_k = any(
-                token in verifier_top_tokens[:self.top_k]
-                for token in draft_tokens[-5:]  # Check last 5 tokens
-            )
-
-            should_defer = not draft_in_top_k
-
-            logger.debug(
-                f"Token-List: draft_in_top_{self.top_k}={draft_in_top_k}, "
-                f"defer={should_defer}"
-            )
-            return should_defer
+            should_defer = draft_token not in approved_tokens
+            reason = f"draft '{draft_token}' {'not ' if should_defer else ''}in top-{self.top_k}"
 
         else:
-            # Default: use confidence threshold
-            return draft_confidence < self.confidence_threshold
+            # Default
+            should_defer = draft_prob < self.confidence_threshold
+            reason = "default_confidence"
+
+        # Log decision
+        self.decision_log.append({
+            'position': position,
+            'strategy': self.strategy.value,
+            'draft_token': draft_token,
+            'draft_prob': draft_prob,
+            'deferred': should_defer,
+            'reason': reason
+        })
+
+        return should_defer, reason
+
+
+class ProviderCapabilities:
+    """Detect provider capabilities for logprobs support."""
+
+    LOGPROBS_SUPPORT = {
+        'openai': True,
+        'anthropic': True,
+        'groq': True,
+        'together': True,
+        'vllm': True,
+        'openrouter': True,
+        'ollama': False,
+        'replicate': False,
+    }
+
+    @classmethod
+    def supports_logprobs(cls, provider: str) -> bool:
+        return cls.LOGPROBS_SUPPORT.get(provider.lower(), False)
+
+    @classmethod
+    def get_fallback_strategy(cls, drafter_provider: str, verifier_provider: str) -> DeferralStrategy:
+        """Get best strategy based on provider capabilities."""
+        drafter_support = cls.supports_logprobs(drafter_provider)
+        verifier_support = cls.supports_logprobs(verifier_provider)
+
+        if drafter_support and verifier_support:
+            return DeferralStrategy.TOKEN_LIST  # Most powerful
+        elif verifier_support:
+            return DeferralStrategy.COMPARATIVE
+        else:
+            return DeferralStrategy.CONFIDENCE_THRESHOLD
+
+
+class TokenLevelSpeculativeCascade:
+    """
+    TRUE Speculative Cascade with token-by-token decisions.
+
+    This is the CORE innovation from Google's paper:
+    - Draft tokens one-by-one
+    - Verify each token against verifier's predictions
+    - Flexible deferral per token
+    - Continue from defer point
+    """
+
+    def __init__(
+            self,
+            drafter: ModelConfig,
+            verifier: ModelConfig,
+            providers: dict,
+            deferral_rule: Optional[FlexibleDeferralRule] = None,
+            chunk_size: int = 10,
+            verbose: bool = False
+    ):
+        self.drafter = drafter
+        self.verifier = verifier
+        self.providers = providers
+        self.chunk_size = chunk_size
+        self.verbose = verbose
+
+        # Auto-select best strategy based on provider capabilities
+        if deferral_rule is None:
+            strategy = ProviderCapabilities.get_fallback_strategy(
+                drafter.provider,
+                verifier.provider
+            )
+            self.deferral_rule = FlexibleDeferralRule(strategy=strategy)
+        else:
+            self.deferral_rule = deferral_rule
+
+        self.stats = {
+            "total_executions": 0,
+            "tokens_drafted": 0,
+            "tokens_accepted": 0,
+            "tokens_deferred": 0,
+            "chunks_processed": 0,
+            "total_speedup": 0.0,
+            "total_cost_saved": 0.0
+        }
+
+    async def execute(
+            self,
+            query: str,
+            max_tokens: int = 100,
+            temperature: float = 0.7,
+            **kwargs
+    ) -> SpeculativeResult:
+        """
+        Execute chunked speculative cascade.
+
+        From paper: "The process efficiently repeats, drafting and
+        verifying the next chunk until the answer is complete."
+        """
+        self.stats["total_executions"] += 1
+        start_time = time.time()
+
+        output_tokens = []
+        context = query
+        chunks_processed = 0
+        total_cost = 0.0
+
+        if self.verbose:
+            logger.info(f"Starting token-level cascade: {self.drafter.name} → {self.verifier.name}")
+
+        while len(output_tokens) < max_tokens:
+            chunks_processed += 1
+
+            # PHASE 1: Draft next chunk
+            draft_chunk = await self._draft_chunk(
+                context,
+                num_tokens=min(self.chunk_size, max_tokens - len(output_tokens)),
+                temperature=temperature
+            )
+
+            if not draft_chunk:
+                break
+
+            # PHASE 2: Verify chunk token-by-token
+            verification = await self._verify_chunk_tokenwise(
+                draft_chunk,
+                context
+            )
+
+            # PHASE 3: Append accepted tokens
+            output_tokens.extend(verification.accepted_tokens)
+            context += ''.join(verification.accepted_tokens)
+
+            # Track stats
+            self.stats["tokens_drafted"] += verification.total_drafted
+            self.stats["tokens_accepted"] += verification.total_accepted
+            self.stats["tokens_deferred"] += verification.total_deferred
+
+            # Cost: drafter for draft + verifier for verification
+            total_cost += self.drafter.cost * (verification.total_drafted / 1000)
+            total_cost += self.verifier.cost * (verification.total_accepted / 1000)
+
+            if self.verbose:
+                logger.info(
+                    f"Chunk {chunks_processed}: "
+                    f"drafted={verification.total_drafted}, "
+                    f"accepted={verification.total_accepted}, "
+                    f"rate={verification.acceptance_rate:.1%}"
+                )
+
+            # PHASE 4: Check if we deferred
+            if verification.deferred_at is not None:
+                # Continue rest with verifier
+                remaining_tokens = max_tokens - len(output_tokens)
+                if remaining_tokens > 0:
+                    completion = await self._complete_with_verifier(
+                        context,
+                        remaining_tokens,
+                        temperature
+                    )
+                    output_tokens.extend(completion)
+                    total_cost += self.verifier.cost * (len(completion) / 1000)
+                    self.stats["tokens_deferred"] += len(completion)
+                break
+
+            # Check stopping conditions
+            if self._is_complete(output_tokens):
+                break
+
+        self.stats["chunks_processed"] += chunks_processed
+
+        latency = (time.time() - start_time) * 1000
+
+        # Calculate speedup
+        # Sequential would be: all tokens from verifier
+        sequential_cost = self.verifier.cost * (len(output_tokens) / 1000)
+        cost_saved = sequential_cost - total_cost
+
+        sequential_latency = self.verifier.speed_ms * (len(output_tokens) / 100)
+        speedup = sequential_latency / latency if latency > 0 else 1.0
+
+        self.stats["total_speedup"] += speedup
+        self.stats["total_cost_saved"] += cost_saved
+
+        acceptance_rate = (
+            self.stats["tokens_accepted"] / self.stats["tokens_drafted"]
+            if self.stats["tokens_drafted"] > 0 else 0
+        )
+
+        if self.verbose:
+            logger.info(
+                f"Complete: {len(output_tokens)} tokens, "
+                f"acceptance={acceptance_rate:.1%}, "
+                f"speedup={speedup:.2f}x, "
+                f"saved=${cost_saved:.4f}"
+            )
+
+        return SpeculativeResult(
+            content=''.join(output_tokens),
+            model_used=f"{self.drafter.name}+{self.verifier.name}",
+            drafter_model=self.drafter.name,
+            verifier_model=self.verifier.name,
+            draft_accepted=(self.stats["tokens_accepted"] > 0),
+            tokens_drafted=self.stats["tokens_drafted"],
+            tokens_verified=len(output_tokens),
+            tokens_deferred=self.stats["tokens_deferred"],
+            tokens_accepted=self.stats["tokens_accepted"],
+            draft_confidence=0.0,  # Not applicable for token-level
+            verifier_confidence=0.0,
+            total_cost=total_cost,
+            latency_ms=latency,
+            speedup=speedup,
+            deferral_strategy=self.deferral_rule.strategy.value,
+            acceptance_rate=acceptance_rate,
+            chunks_processed=chunks_processed,
+            metadata={
+                "cost_saved": cost_saved,
+                "sequential_cost": sequential_cost,
+                "deferral_decisions": len(self.deferral_rule.decision_log)
+            }
+        )
+
+    async def _draft_chunk(
+            self,
+            context: str,
+            num_tokens: int,
+            temperature: float
+    ) -> List[DraftToken]:
+        """
+        Draft next chunk of tokens with logprobs.
+        """
+        provider = self.providers[self.drafter.provider]
+
+        try:
+            # Check if provider supports logprobs
+            supports_logprobs = ProviderCapabilities.supports_logprobs(
+                self.drafter.provider
+            )
+
+            result = await provider.complete(
+                model=self.drafter.name,
+                prompt=context,
+                max_tokens=num_tokens,
+                temperature=temperature,
+                logprobs=supports_logprobs,
+                top_logprobs=5 if supports_logprobs else None
+            )
+
+            # Parse response
+            draft_tokens = []
+            tokens = result.get('tokens', [])
+            logprobs = result.get('logprobs', [])
+
+            # If no logprobs, estimate from confidence
+            if not logprobs:
+                confidence = result.get('confidence', 0.8)
+                logprobs = [math.log(confidence)] * len(tokens)
+
+            for i, token in enumerate(tokens):
+                logprob = logprobs[i] if i < len(logprobs) else math.log(0.5)
+                draft_tokens.append(DraftToken(
+                    token=token,
+                    logprob=logprob,
+                    probability=math.exp(logprob),
+                    position=i
+                ))
+
+            return draft_tokens
+
+        except Exception as e:
+            logger.error(f"Draft error: {e}")
+            return []
+
+    async def _verify_chunk_tokenwise(
+            self,
+            draft_chunk: List[DraftToken],
+            context: str
+    ) -> VerificationResult:
+        """
+        Verify draft chunk token-by-token.
+
+        This is the CORE of speculative cascading:
+        Check each token individually, not the whole chunk.
+        """
+        accepted_tokens = []
+        deferred_at = None
+        current_context = context
+
+        for draft in draft_chunk:
+            # Get verifier's predictions for this position
+            verifier_top_k = await self._get_verifier_predictions(
+                current_context,
+                top_k=20
+            )
+
+            # Apply flexible deferral rule
+            should_defer, reason = self.deferral_rule.should_defer_token(
+                draft_token=draft.token,
+                draft_logprob=draft.logprob,
+                verifier_top_k=verifier_top_k,
+                position=draft.position
+            )
+
+            if should_defer:
+                # Defer: use verifier's best token
+                best_token = verifier_top_k[0].token
+                accepted_tokens.append(best_token)
+                deferred_at = draft.position
+
+                if self.verbose:
+                    logger.debug(
+                        f"Deferred at position {draft.position}: "
+                        f"'{draft.token}' → '{best_token}' ({reason})"
+                    )
+                break
+            else:
+                # Accept: use draft token
+                accepted_tokens.append(draft.token)
+                current_context += draft.token
+
+        total_accepted = len([t for t in accepted_tokens if t])
+        total_deferred = 1 if deferred_at is not None else 0
+
+        return VerificationResult(
+            accepted_tokens=accepted_tokens,
+            deferred_at=deferred_at,
+            total_drafted=len(draft_chunk),
+            total_accepted=total_accepted - total_deferred,
+            total_deferred=total_deferred,
+            acceptance_rate=(total_accepted - total_deferred) / len(draft_chunk)
+        )
+
+    async def _get_verifier_predictions(
+            self,
+            context: str,
+            top_k: int = 20
+    ) -> List[TokenPrediction]:
+        """
+        Get verifier's top-k predictions for next token.
+        """
+        provider = self.providers[self.verifier.provider]
+
+        try:
+            supports_logprobs = ProviderCapabilities.supports_logprobs(
+                self.verifier.provider
+            )
+
+            result = await provider.complete(
+                model=self.verifier.name,
+                prompt=context,
+                max_tokens=1,  # Just next token
+                temperature=0.0,  # Deterministic for verification
+                logprobs=supports_logprobs,
+                top_logprobs=top_k if supports_logprobs else None
+            )
+
+            predictions = []
+
+            # Parse top logprobs
+            top_logprobs = result.get('top_logprobs', [])
+            if top_logprobs and len(top_logprobs) > 0:
+                for token, logprob in top_logprobs[0].items():
+                    predictions.append(TokenPrediction(
+                        token=token,
+                        logprob=logprob,
+                        probability=math.exp(logprob)
+                    ))
+            else:
+                # Fallback: just the generated token
+                token = result.get('tokens', [''])[0]
+                predictions.append(TokenPrediction(
+                    token=token,
+                    logprob=math.log(0.9),
+                    probability=0.9
+                ))
+
+            # Sort by probability
+            predictions.sort(key=lambda p: p.probability, reverse=True)
+            return predictions
+
+        except Exception as e:
+            logger.error(f"Verifier prediction error: {e}")
+            return [TokenPrediction(token='', logprob=math.log(0.5), probability=0.5)]
+
+    async def _complete_with_verifier(
+            self,
+            context: str,
+            num_tokens: int,
+            temperature: float
+    ) -> List[str]:
+        """
+        Complete remaining tokens with verifier only.
+        Called after deferring.
+        """
+        provider = self.providers[self.verifier.provider]
+
+        try:
+            result = await provider.complete(
+                model=self.verifier.name,
+                prompt=context,
+                max_tokens=num_tokens,
+                temperature=temperature
+            )
+
+            return result.get('tokens', [])
+
+        except Exception as e:
+            logger.error(f"Verifier completion error: {e}")
+            return []
+
+    def _is_complete(self, tokens: List[str]) -> bool:
+        """Check if generation is complete."""
+        if not tokens:
+            return False
+
+        # Check for end tokens
+        text = ''.join(tokens)
+        end_markers = ['\n\n', '. ', '? ', '! ', '</s>', '<|endoftext|>']
+
+        return any(text.endswith(marker) for marker in end_markers)
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cascade statistics."""
+        if self.stats["total_executions"] == 0:
+            return self.stats
+
+        return {
+            **self.stats,
+            "avg_acceptance_rate": (
+                self.stats["tokens_accepted"] / self.stats["tokens_drafted"]
+                if self.stats["tokens_drafted"] > 0 else 0
+            ),
+            "avg_speedup": self.stats["total_speedup"] / self.stats["total_executions"],
+            "avg_chunks": self.stats["chunks_processed"] / self.stats["total_executions"],
+            "total_cost_saved": self.stats["total_cost_saved"]
+        }
 
 
 class SpeculativeCascade:
     """
-    Speculative Cascade with flexible deferral (Google's research).
+    LEGACY: Full-output speculative cascade (for backwards compatibility).
 
-    Key difference from standard speculative decoding:
-    - Can accept good answers that don't exactly match
-    - Multiple deferral strategies
-    - Better cost-quality tradeoffs
-    - Parallel execution (2-3x speedup)
+    Use TokenLevelSpeculativeCascade for true speculative cascading.
     """
 
     def __init__(
@@ -198,258 +639,19 @@ class SpeculativeCascade:
             deferral_rule: Optional[FlexibleDeferralRule] = None,
             verbose: bool = False
     ):
-        """
-        Initialize speculative cascade.
-
-        Args:
-            drafter: Small/fast model for drafting
-            verifier: Large/slow model for verification
-            providers: Provider instances dict
-            deferral_rule: Deferral rule (defaults to COMPARATIVE)
-            verbose: Enable verbose logging
-        """
-        self.drafter = drafter
-        self.verifier = verifier
-        self.providers = providers
-        self.deferral_rule = deferral_rule or FlexibleDeferralRule(
-            strategy=DeferralStrategy.COMPARATIVE
-        )
-        self.verbose = verbose
-
-        self.stats = {
-            "total_executions": 0,
-            "drafts_accepted": 0,
-            "drafts_deferred": 0,
-            "total_speedup": 0.0,
-            "total_cost_saved": 0.0
-        }
-
-    async def execute(
-            self,
-            query: str,
-            max_tokens: int = 4096,
-            temperature: float = 0.7,
-            **kwargs
-    ) -> SpeculativeResult:
-        """
-        Execute speculative cascade with flexible deferral.
-
-        Algorithm (from Google's paper):
-        1. Start draft and verify in PARALLEL
-        2. Draft generates tokens quickly
-        3. Verifier evaluates draft in parallel
-        4. Flexible deferral rule decides: accept or defer?
-        5. If accept: use draft (fast + cheap!)
-        6. If defer: use verifier (already running!)
-
-        Result: 2-3x faster than sequential
-
-        Args:
-            query: User query
-            max_tokens: Max tokens to generate
-            temperature: Sampling temperature
-            **kwargs: Additional parameters
-
-        Returns:
-            SpeculativeResult with outcome and metrics
-        """
-        self.stats["total_executions"] += 1
-        start_time = time.time()
-
-        # PHASE 1: Start both models in parallel
-        if self.verbose:
-            logger.info(
-                f"Starting speculative cascade: "
-                f"{self.drafter.name} → {self.verifier.name}"
-            )
-
-        draft_task = asyncio.create_task(
-            self._draft_response(query, max_tokens, temperature, **kwargs)
-        )
-        verify_task = asyncio.create_task(
-            self._verify_response(query, max_tokens, temperature, **kwargs)
+        # Delegate to token-level version
+        self.token_cascade = TokenLevelSpeculativeCascade(
+            drafter=drafter,
+            verifier=verifier,
+            providers=providers,
+            deferral_rule=deferral_rule,
+            verbose=verbose
         )
 
-        # PHASE 2: Wait for draft (it's faster)
-        draft_result = await draft_task
-
-        if self.verbose:
-            logger.info(
-                f"Draft complete: {len(draft_result.get('content', ''))} chars, "
-                f"confidence: {draft_result.get('confidence', 0):.2f}"
-            )
-
-        # PHASE 3: Get verifier result (should be ready or nearly ready)
-        verify_result = await verify_task
-
-        if self.verbose:
-            logger.info(
-                f"Verifier complete: {len(verify_result.get('content', ''))} chars, "
-                f"confidence: {verify_result.get('confidence', 0):.2f}"
-            )
-
-        # PHASE 4: Apply flexible deferral rule
-        should_defer = self.deferral_rule.should_defer(
-            draft_confidence=draft_result.get('confidence', 0.0),
-            verifier_confidence=verify_result.get('confidence', 0.0),
-            drafter_cost=self.drafter.cost,
-            verifier_cost=self.verifier.cost,
-            draft_tokens=draft_result.get('tokens', []),
-            verifier_top_tokens=verify_result.get('top_tokens', [])
-        )
-
-        latency = (time.time() - start_time) * 1000
-
-        # Calculate what sequential would have cost
-        sequential_latency = self.drafter.speed_ms + self.verifier.speed_ms
-        speedup = sequential_latency / latency if latency > 0 else 1.0
-
-        if not should_defer:
-            # Accept draft!
-            self.stats["drafts_accepted"] += 1
-            self.stats["total_speedup"] += speedup
-            self.stats["total_cost_saved"] += self.verifier.cost
-
-            if self.verbose:
-                logger.info(
-                    f"✓ Draft ACCEPTED! "
-                    f"Latency: {latency:.0f}ms, "
-                    f"Cost: ${self.drafter.cost:.6f}, "
-                    f"Speedup: {speedup:.2f}x"
-                )
-
-            return SpeculativeResult(
-                content=draft_result['content'],
-                model_used=self.drafter.name,
-                drafter_model=self.drafter.name,
-                verifier_model=self.verifier.name,
-                draft_accepted=True,
-                tokens_drafted=len(draft_result.get('tokens', [])),
-                tokens_verified=0,
-                tokens_deferred=0,
-                draft_confidence=draft_result.get('confidence', 0.0),
-                verifier_confidence=verify_result.get('confidence', 0.0),
-                total_cost=self.drafter.cost,
-                latency_ms=latency,
-                speedup=speedup,
-                deferral_strategy=self.deferral_rule.strategy.value,
-                metadata={
-                    "reason": "draft_accepted",
-                    "cost_saved": self.verifier.cost
-                }
-            )
-
-        else:
-            # Defer to verifier
-            self.stats["drafts_deferred"] += 1
-            self.stats["total_speedup"] += speedup
-            total_cost = self.drafter.cost + self.verifier.cost
-
-            if self.verbose:
-                logger.info(
-                    f"→ Draft DEFERRED. Using verifier. "
-                    f"Latency: {latency:.0f}ms, "
-                    f"Cost: ${total_cost:.6f}, "
-                    f"Speedup: {speedup:.2f}x"
-                )
-
-            return SpeculativeResult(
-                content=verify_result['content'],
-                model_used=self.verifier.name,
-                drafter_model=self.drafter.name,
-                verifier_model=self.verifier.name,
-                draft_accepted=False,
-                tokens_drafted=len(draft_result.get('tokens', [])),
-                tokens_verified=len(verify_result.get('tokens', [])),
-                tokens_deferred=len(verify_result.get('tokens', [])),
-                draft_confidence=draft_result.get('confidence', 0.0),
-                verifier_confidence=verify_result.get('confidence', 0.0),
-                total_cost=total_cost,
-                latency_ms=latency,
-                speedup=speedup,
-                deferral_strategy=self.deferral_rule.strategy.value,
-                metadata={
-                    "reason": "draft_deferred",
-                    "confidence_gap": verify_result.get('confidence', 0.0) - draft_result.get('confidence', 0.0)
-                }
-            )
-
-    async def _draft_response(
-            self,
-            query: str,
-            max_tokens: int,
-            temperature: float,
-            **kwargs
-    ) -> Dict[str, Any]:
-        """Get draft from small model."""
-        provider = self.providers[self.drafter.provider]
-
-        try:
-            result = await provider.complete(
-                model=self.drafter.name,
-                prompt=query,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs
-            )
-
-            return {
-                'content': result.get('content', ''),
-                'tokens': result.get('tokens', []),
-                'confidence': result.get('confidence', 0.8),
-                'top_tokens': result.get('top_tokens', [])
-            }
-        except Exception as e:
-            logger.error(f"Draft error: {e}")
-            return {
-                'content': '',
-                'tokens': [],
-                'confidence': 0.0,
-                'top_tokens': []
-            }
-
-    async def _verify_response(
-            self,
-            query: str,
-            max_tokens: int,
-            temperature: float,
-            **kwargs
-    ) -> Dict[str, Any]:
-        """Get verification from large model."""
-        provider = self.providers[self.verifier.provider]
-
-        try:
-            result = await provider.complete(
-                model=self.verifier.name,
-                prompt=query,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs
-            )
-
-            return {
-                'content': result.get('content', ''),
-                'tokens': result.get('tokens', []),
-                'confidence': result.get('confidence', 0.9),
-                'top_tokens': result.get('top_tokens', [])
-            }
-        except Exception as e:
-            logger.error(f"Verify error: {e}")
-            return {
-                'content': '',
-                'tokens': [],
-                'confidence': 0.0,
-                'top_tokens': []
-            }
+    async def execute(self, query: str, max_tokens: int = 4096, **kwargs) -> SpeculativeResult:
+        """Execute via token-level cascade."""
+        return await self.token_cascade.execute(query, max_tokens, **kwargs)
 
     def get_stats(self) -> Dict[str, Any]:
-        """Get cascade statistics."""
-        if self.stats["total_executions"] == 0:
-            return self.stats
-
-        return {
-            **self.stats,
-            "acceptance_rate": self.stats["drafts_accepted"] / self.stats["total_executions"],
-            "avg_speedup": self.stats["total_speedup"] / self.stats["total_executions"],
-            "total_cost_saved": self.stats["total_cost_saved"]
-        }
+        """Get statistics."""
+        return self.token_cascade.get_stats()

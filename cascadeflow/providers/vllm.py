@@ -2,6 +2,7 @@
 
 import os
 import time
+import math
 from typing import Optional, Dict, Any
 
 import httpx
@@ -18,6 +19,7 @@ class VLLMProvider(BaseProvider):
     - PagedAttention for efficient memory usage
     - Continuous batching for high throughput
     - 24x faster than standard serving
+    - Full logprobs support
 
     Requires vLLM server running locally or remotely.
 
@@ -26,6 +28,14 @@ class VLLMProvider(BaseProvider):
         >>> response = await provider.complete(
         ...     prompt="What is AI?",
         ...     model="meta-llama/Llama-3-8B-Instruct"
+        ... )
+
+        >>> # With logprobs
+        >>> response = await provider.complete(
+        ...     prompt="What is AI?",
+        ...     model="meta-llama/Llama-3-8B-Instruct",
+        ...     logprobs=True,
+        ...     top_logprobs=10
         ... )
     """
 
@@ -64,6 +74,10 @@ class VLLMProvider(BaseProvider):
         """Load API key from environment (optional for vLLM)."""
         return os.getenv("VLLM_API_KEY")
 
+    def _check_logprobs_support(self) -> bool:
+        """vLLM supports logprobs (OpenAI-compatible)."""
+        return True
+
     async def complete(
             self,
             prompt: str,
@@ -85,15 +99,21 @@ class VLLMProvider(BaseProvider):
             temperature: Sampling temperature
             system_prompt: Optional system prompt
             **kwargs: Additional parameters
+                     NEW: logprobs (bool) - Enable logprobs
+                          top_logprobs (int) - Get top-k alternatives (1-20)
 
         Returns:
-            ModelResponse with standardized format
+            ModelResponse with standardized format (enhanced with logprobs)
 
         Raises:
             ProviderError: If API call fails
             ModelError: If model execution fails
         """
         start_time = time.time()
+
+        # Extract logprobs parameters
+        logprobs_enabled = kwargs.pop('logprobs', False)
+        top_logprobs = kwargs.pop('top_logprobs', None)
 
         # Build messages (OpenAI format)
         messages = []
@@ -110,6 +130,12 @@ class VLLMProvider(BaseProvider):
             **kwargs
         }
 
+        # Add logprobs if requested (OpenAI-compatible)
+        if logprobs_enabled:
+            payload["logprobs"] = True
+            if top_logprobs:
+                payload["top_logprobs"] = min(top_logprobs, 20)
+
         try:
             # Make API request
             response = await self.client.post(
@@ -121,7 +147,8 @@ class VLLMProvider(BaseProvider):
             data = response.json()
 
             # Extract response (OpenAI format)
-            content = data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
             tokens_used = data["usage"]["total_tokens"]
 
             # Calculate latency
@@ -133,7 +160,8 @@ class VLLMProvider(BaseProvider):
             # Calculate confidence
             confidence = self.calculate_confidence(content, data)
 
-            return ModelResponse(
+            # Build base response
+            model_response = ModelResponse(
                 content=content,
                 model=model,
                 provider="vllm",
@@ -142,12 +170,62 @@ class VLLMProvider(BaseProvider):
                 confidence=confidence,
                 latency_ms=latency_ms,
                 metadata={
-                    "finish_reason": data["choices"][0]["finish_reason"],
+                    "finish_reason": choice["finish_reason"],
                     "prompt_tokens": data["usage"]["prompt_tokens"],
                     "completion_tokens": data["usage"]["completion_tokens"],
                     "base_url": self.base_url,
                 }
             )
+
+            # Parse logprobs if available (OpenAI-compatible format)
+            if logprobs_enabled and "logprobs" in choice and choice["logprobs"]:
+                logprobs_data = choice["logprobs"]
+
+                if "content" in logprobs_data and logprobs_data["content"]:
+                    tokens = []
+                    logprobs_list = []
+                    top_logprobs_list = []
+
+                    for token_data in logprobs_data["content"]:
+                        # Extract token
+                        tokens.append(token_data["token"])
+
+                        # Extract logprob
+                        logprobs_list.append(token_data["logprob"])
+
+                        # Extract top alternatives
+                        if "top_logprobs" in token_data and token_data["top_logprobs"]:
+                            top_k = {}
+                            for alt in token_data["top_logprobs"]:
+                                top_k[alt["token"]] = alt["logprob"]
+                            top_logprobs_list.append(top_k)
+                        else:
+                            top_logprobs_list.append({})
+
+                    # Add to response
+                    model_response.tokens = tokens
+                    model_response.logprobs = logprobs_list
+                    model_response.top_logprobs = top_logprobs_list
+
+                    # Update confidence based on actual probabilities
+                    if logprobs_list:
+                        avg_prob = sum(math.exp(lp) for lp in logprobs_list) / len(logprobs_list)
+                        # Blend with heuristic confidence
+                        model_response.confidence = (confidence + avg_prob) / 2
+
+                    # Add metadata
+                    model_response.metadata["has_logprobs"] = True
+                    model_response.metadata["estimated"] = False
+            else:
+                # No logprobs available - add estimated values
+                if logprobs_enabled:
+                    model_response = self.add_logprobs_fallback(
+                        model_response,
+                        temperature,
+                        base_confidence=0.80  # vLLM local models are good
+                    )
+
+            return model_response
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:

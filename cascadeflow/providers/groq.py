@@ -1,4 +1,4 @@
-"""Groq provider implementation."""
+"""Groq provider implementation with logprobs support."""
 
 import os
 import time
@@ -14,16 +14,33 @@ class GroqProvider(BaseProvider):
     """
     Groq provider for fast LLM inference.
 
-    Supports: Llama 3.1, Mixtral, Gemma models
+    Supports: Llama 3.1, Llama 3.2, Mixtral, Gemma models
     Free tier: 14,400 requests per day
+    Logprobs: Uses fallback estimation (Groq doesn't support native logprobs)
+
+    NOTE: Despite using OpenAI-compatible API, Groq does NOT support
+    logprobs with their models. We use fallback estimation instead.
 
     Example:
         >>> provider = GroqProvider(api_key="gsk_...")
+        >>>
+        >>> # Basic completion
         >>> response = await provider.complete(
         ...     prompt="What is AI?",
         ...     model="llama-3.1-8b-instant"
         ... )
         >>> print(response.content)
+        >>>
+        >>> # With logprobs (estimated, not real)
+        >>> response = await provider.complete(
+        ...     prompt="The capital of France is",
+        ...     model="llama-3.1-8b-instant",
+        ...     logprobs=True,
+        ...     top_logprobs=5
+        ... )
+        >>> print(f"Tokens: {response.tokens}")
+        >>> print(f"Logprobs: {response.logprobs} (estimated)")
+        >>> print(f"Confidence: {response.confidence}")
     """
 
     def __init__(self, api_key: Optional[str] = None):
@@ -51,9 +68,22 @@ class GroqProvider(BaseProvider):
         if not api_key:
             raise ValueError(
                 "Groq API key not found. Please set GROQ_API_KEY environment "
-                "variable or pass api_key parameter."
+                "variable or pass api_key parameter. Get free key at: "
+                "https://console.groq.com"
             )
         return api_key
+
+    def supports_logprobs(self) -> bool:
+        """
+        Check if provider supports native logprobs.
+
+        NOTE: Despite using OpenAI-compatible API, Groq does NOT support
+        logprobs with their models. We use fallback estimation instead.
+
+        Returns:
+            False - Groq does not support native logprobs (uses fallback)
+        """
+        return False
 
     async def complete(
             self,
@@ -67,7 +97,8 @@ class GroqProvider(BaseProvider):
         """
         Complete a prompt using Groq API.
 
-        Groq uses OpenAI-compatible API format.
+        Groq uses OpenAI-compatible API format but does NOT support logprobs.
+        When logprobs are requested, we use fallback estimation instead.
 
         Args:
             prompt: User prompt
@@ -75,16 +106,33 @@ class GroqProvider(BaseProvider):
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0-2)
             system_prompt: Optional system prompt
-            **kwargs: Additional Groq parameters
+            **kwargs: Additional parameters including:
+                - logprobs (bool): Include log probabilities (estimated)
+                - top_logprobs (int): Number of top logprobs to return
 
         Returns:
-            ModelResponse with standardized format
+            ModelResponse with standardized format (with estimated logprobs if requested)
 
         Raises:
             ProviderError: If API call fails
             ModelError: If model execution fails
+
+        Example:
+            >>> # Request logprobs (will use fallback estimation)
+            >>> result = await provider.complete(
+            ...     prompt="Hello",
+            ...     model="llama-3.1-8b-instant",
+            ...     logprobs=True,
+            ...     top_logprobs=5
+            ... )
+            >>> print(f"Tokens: {result.tokens}")
+            >>> print(f"Estimated logprobs: {result.logprobs}")
         """
         start_time = time.time()
+
+        # Extract logprobs parameters (but don't send to API - Groq doesn't support them)
+        request_logprobs = kwargs.pop('logprobs', False)
+        top_logprobs_count = kwargs.pop('top_logprobs', 5)
 
         # Build messages (OpenAI format)
         messages = []
@@ -93,6 +141,7 @@ class GroqProvider(BaseProvider):
         messages.append({"role": "user", "content": prompt})
 
         # Build request payload
+        # NOTE: We do NOT add logprobs to payload - Groq doesn't support it
         payload = {
             "model": model,
             "messages": messages,
@@ -112,7 +161,8 @@ class GroqProvider(BaseProvider):
             data = response.json()
 
             # Extract response (OpenAI format)
-            content = data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
             tokens_used = data["usage"]["total_tokens"]
 
             # Calculate latency
@@ -121,10 +171,18 @@ class GroqProvider(BaseProvider):
             # Calculate cost (Groq is free tier)
             cost = self.estimate_cost(tokens_used, model)
 
+            # Build metadata
+            metadata = {
+                "finish_reason": choice["finish_reason"],
+                "prompt_tokens": data["usage"]["prompt_tokens"],
+                "completion_tokens": data["usage"]["completion_tokens"],
+            }
+
             # Calculate confidence
             confidence = self.calculate_confidence(content, data)
 
-            return ModelResponse(
+            # Create base response
+            response_obj = ModelResponse(
                 content=content,
                 model=model,
                 provider="groq",
@@ -132,17 +190,22 @@ class GroqProvider(BaseProvider):
                 tokens_used=tokens_used,
                 confidence=confidence,
                 latency_ms=latency_ms,
-                metadata={
-                    "finish_reason": data["choices"][0]["finish_reason"],
-                    "prompt_tokens": data["usage"]["prompt_tokens"],
-                    "completion_tokens": data["usage"]["completion_tokens"],
-                }
+                metadata=metadata
             )
+
+            # Add logprobs via fallback if requested
+            if request_logprobs:
+                response_obj = self.add_logprobs_fallback(
+                    response=response_obj,
+                    temperature=temperature
+                )
+
+            return response_obj
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
                 raise ProviderError(
-                    "Invalid Groq API key",
+                    "Invalid Groq API key. Get free key at: https://console.groq.com",
                     provider="groq",
                     original_error=e
                 )
@@ -176,7 +239,7 @@ class GroqProvider(BaseProvider):
                 )
         except httpx.RequestError as e:
             raise ProviderError(
-                "Failed to connect to Groq API",
+                "Failed to connect to Groq API. Check your internet connection.",
                 provider="groq",
                 original_error=e
             )
@@ -209,6 +272,7 @@ class GroqProvider(BaseProvider):
             "llama-3.2-3b-preview": 0.0,
             "llama-3.2-11b-vision-preview": 0.0,
             "llama-3.2-90b-vision-preview": 0.0,
+            "llama-guard-3-8b": 0.0,
             "mixtral-8x7b-32768": 0.0,
             "gemma-7b-it": 0.0,
             "gemma2-9b-it": 0.0,

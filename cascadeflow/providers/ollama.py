@@ -21,6 +21,7 @@ class OllamaProvider(BaseProvider):
     - Unlimited requests (no rate limits)
     - Privacy (runs locally)
     - Fast (no network latency)
+    - Works with speculative cascading (automatic logprobs estimation)
 
     Requirements:
     - Ollama installed: https://ollama.com/download
@@ -34,6 +35,14 @@ class OllamaProvider(BaseProvider):
         ... )
         >>> print(response.content)
         >>> print(f"Cost: ${response.cost}")  # Always $0.00!
+
+        >>> # With logprobs (automatically estimated)
+        >>> response = await provider.complete(
+        ...     prompt="What is AI?",
+        ...     model="llama3:8b",
+        ...     logprobs=True  # Works via automatic fallback!
+        ... )
+        >>> print(response.logprobs)  # Estimated from temperature
     """
 
     def __init__(
@@ -56,6 +65,10 @@ class OllamaProvider(BaseProvider):
             timeout=120.0  # Longer timeout for local inference
         )
 
+    def _check_logprobs_support(self) -> bool:
+        """Ollama does NOT support logprobs - uses automatic fallback."""
+        return False
+
     async def complete(
             self,
             prompt: str,
@@ -75,15 +88,20 @@ class OllamaProvider(BaseProvider):
             temperature: Sampling temperature (0-2)
             system_prompt: Optional system prompt
             **kwargs: Additional Ollama parameters
+                     NEW: logprobs (bool) - Enable estimated logprobs (automatic fallback)
 
         Returns:
-            ModelResponse with standardized format
+            ModelResponse with standardized format (with estimated logprobs if requested)
 
         Raises:
             ProviderError: If Ollama server not reachable
             ModelError: If model not found or execution fails
         """
         start_time = time.time()
+
+        # Extract logprobs parameter (for automatic fallback)
+        logprobs_enabled = kwargs.pop('logprobs', False)
+        kwargs.pop('top_logprobs', None)  # Not used, but remove if present
 
         # Build request payload (Ollama format)
         payload = {
@@ -131,7 +149,8 @@ class OllamaProvider(BaseProvider):
             # Calculate confidence
             confidence = self.calculate_confidence(content, data)
 
-            return ModelResponse(
+            # Build base response
+            model_response = ModelResponse(
                 content=content,
                 model=model,
                 provider="ollama",
@@ -147,6 +166,17 @@ class OllamaProvider(BaseProvider):
                     "eval_count": data.get("eval_count"),
                 }
             )
+
+            # Add estimated logprobs if requested
+            # Ollama doesn't support real logprobs, so we ALWAYS use fallback
+            if logprobs_enabled:
+                model_response = self.add_logprobs_fallback(
+                    model_response,
+                    temperature,
+                    base_confidence=0.75  # Local models slightly lower than API models
+                )
+
+            return model_response
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:

@@ -4,6 +4,8 @@ Supports:
 1. Serverless Inference API (free tier) - UNRELIABLE but free
 2. Inference Endpoints (paid, dedicated instances) - RELIABLE, production
 3. Inference Providers (pay-per-use, third-party) - RELIABLE, alternative
+
+LOGPROBS SUPPORT: Uses fallback estimation (HuggingFace doesn't support native logprobs)
 """
 
 import os
@@ -89,6 +91,8 @@ class HuggingFaceProvider(BaseProvider):
        - Reliability: Provider-dependent (usually good)
        - Use for: Alternative to OpenAI/Together.ai
 
+    **Logprobs Support:** Uses fallback estimation (no native API support)
+
     Examples:
         >>> # Serverless (free tier) - NOT RECOMMENDED
         >>> provider = HuggingFaceProvider.serverless()
@@ -99,10 +103,15 @@ class HuggingFaceProvider(BaseProvider):
         ...     endpoint_url="https://xyz.endpoints.huggingface.cloud"
         ... )
 
-        >>> # Inference Providers (pay-per-use) - GOOD alternative
-        >>> provider = HuggingFaceProvider.inference_providers(
-        ...     provider_name="replicate"
+        >>> # With logprobs (estimated)
+        >>> result = await provider.complete(
+        ...     prompt="Hello",
+        ...     model="distilgpt2",
+        ...     logprobs=True,
+        ...     top_logprobs=5
         ... )
+        >>> print(f"Confidence: {result.confidence}")
+        >>> print(f"Estimated: {result.metadata['estimated']}")
     """
 
     def __init__(
@@ -249,6 +258,18 @@ class HuggingFaceProvider(BaseProvider):
             verbose=verbose
         )
 
+    def supports_logprobs(self) -> bool:
+        """
+        Check if provider supports native logprobs.
+
+        HuggingFace does NOT support native logprobs in any of its APIs.
+        We use fallback estimation instead.
+
+        Returns:
+            False - Always uses fallback estimation
+        """
+        return False
+
     def _detect_endpoint_type(
             self,
             base_url: Optional[str]
@@ -331,16 +352,31 @@ class HuggingFaceProvider(BaseProvider):
             system_prompt: Optional system prompt
             max_retries: Max retry attempts for 500/503 errors
             retry_delay: Delay between retries in seconds
-            **kwargs: Additional parameters
+            **kwargs: Additional parameters (including logprobs, top_logprobs)
 
         Returns:
-            ModelResponse with standardized format
+            ModelResponse with standardized format (with logprobs if requested)
 
         Raises:
             ProviderError: If API call fails
             ModelError: If model execution fails
+
+        Example:
+            >>> result = await provider.complete(
+            ...     prompt="Hello",
+            ...     model="distilgpt2",
+            ...     logprobs=True,      # Request logprobs
+            ...     top_logprobs=5      # Get top 5 alternatives
+            ... )
+            >>> print(f"Tokens: {result.tokens}")
+            >>> print(f"Logprobs: {result.logprobs}")
+            >>> print(f"Estimated: {result.metadata['estimated']}")
         """
         start_time = time.time()
+
+        # Extract logprobs parameters
+        request_logprobs = kwargs.pop('logprobs', False)
+        top_logprobs_count = kwargs.pop('top_logprobs', 5)
 
         # Build prompt
         full_prompt = prompt
@@ -363,6 +399,8 @@ class HuggingFaceProvider(BaseProvider):
             print(f"🔍 Requesting: {url}")
             print(f"   Model: {model}")
             print(f"   Endpoint type: {self.endpoint_type.value}")
+            if request_logprobs:
+                print(f"   Logprobs: requested (will use fallback estimation)")
 
         last_error = None
 
@@ -387,10 +425,19 @@ class HuggingFaceProvider(BaseProvider):
                 cost = self.estimate_cost(tokens_used, model)
                 confidence = self.calculate_confidence(content)
 
+                # Build metadata
+                metadata = {
+                    "endpoint_type": self.endpoint_type.value,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "attempts": attempt + 1,
+                }
+
                 if self.verbose:
                     print(f"✅ Success! ({latency_ms:.0f}ms)")
 
-                return ModelResponse(
+                # Create base response
+                response_obj = ModelResponse(
                     content=content,
                     model=model,
                     provider="huggingface",
@@ -398,13 +445,21 @@ class HuggingFaceProvider(BaseProvider):
                     tokens_used=tokens_used,
                     confidence=confidence,
                     latency_ms=latency_ms,
-                    metadata={
-                        "endpoint_type": self.endpoint_type.value,
-                        "prompt_tokens": prompt_tokens,
-                        "completion_tokens": completion_tokens,
-                        "attempts": attempt + 1,
-                    }
+                    metadata=metadata
                 )
+
+                # Add logprobs via fallback if requested
+                if request_logprobs:
+                    if self.verbose:
+                        print(f"   Adding fallback logprobs (HuggingFace doesn't support native logprobs)")
+
+                    response_obj = self.add_logprobs_fallback(
+                        response=response_obj,
+                        temperature=temperature,
+                        top_k=top_logprobs_count
+                    )
+
+                return response_obj
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 401:

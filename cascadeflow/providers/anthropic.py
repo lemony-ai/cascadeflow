@@ -20,9 +20,11 @@ class AnthropicProvider(BaseProvider):
         >>> provider = AnthropicProvider(api_key="sk-ant-...")
         >>> response = await provider.complete(
         ...     prompt="What is AI?",
-        ...     model="claude-3-sonnet-20240229"
+        ...     model="claude-3-sonnet-20240229",
+        ...     logprobs=True  # Will use automatic fallback estimation
         ... )
         >>> print(response.content)
+        >>> print(f"Confidence: {response.confidence:.2f}")
     """
 
     def __init__(self, api_key: Optional[str] = None):
@@ -58,6 +60,16 @@ class AnthropicProvider(BaseProvider):
         """Load API key from environment."""
         return os.getenv("ANTHROPIC_API_KEY")
 
+    def supports_logprobs(self) -> bool:
+        """
+        Check if provider supports logprobs natively.
+
+        Returns:
+            False - Anthropic does not support logprobs natively.
+                    Will use automatic fallback estimation instead.
+        """
+        return self._check_logprobs_support()
+
     async def complete(
             self,
             prompt: str,
@@ -76,16 +88,22 @@ class AnthropicProvider(BaseProvider):
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0-1)
             system_prompt: Optional system prompt
-            **kwargs: Additional Anthropic parameters
+            **kwargs: Additional parameters including:
+                - logprobs (bool): Request logprobs (will use fallback estimation)
+                - top_logprobs (int): Number of top alternative tokens (1-20)
 
         Returns:
-            ModelResponse with standardized format
+            ModelResponse with standardized format including estimated logprobs if requested
 
         Raises:
             ProviderError: If API call fails
             ModelError: If model execution fails
         """
         start_time = time.time()
+
+        # Extract logprobs parameters (Anthropic doesn't support them natively)
+        logprobs_requested = kwargs.pop('logprobs', False)
+        top_logprobs = kwargs.pop('top_logprobs', None)
 
         # Build request payload (Anthropic format is different from OpenAI)
         payload = {
@@ -133,7 +151,8 @@ class AnthropicProvider(BaseProvider):
                 {"stop_reason": data.get("stop_reason")}
             )
 
-            return ModelResponse(
+            # Create base response
+            model_response = ModelResponse(
                 content=content,
                 model=model,
                 provider="anthropic",
@@ -146,6 +165,16 @@ class AnthropicProvider(BaseProvider):
                     "id": data.get("id"),
                 }
             )
+
+            # Add logprobs using fallback estimation if requested
+            # Anthropic doesn't support logprobs natively, so we estimate them
+            if logprobs_requested:
+                model_response = self.add_logprobs_fallback(
+                    response=model_response,
+                    temperature=temperature
+                )
+
+            return model_response
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
