@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CascadeFlow Browser Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+          Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 700px;
+        width: 100%;
+        padding: 40px;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 28px;
+      }
+
+      .subtitle {
+        color: #666;
+        margin-bottom: 30px;
+        font-size: 14px;
+      }
+
+      .input-group {
+        margin-bottom: 20px;
+      }
+
+      textarea {
+        width: 100%;
+        padding: 16px;
+        border: 2px solid #e1e8ed;
+        border-radius: 8px;
+        font-size: 16px;
+        font-family: inherit;
+        resize: vertical;
+        min-height: 120px;
+        transition: border-color 0.3s;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 16px 32px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .result {
+        margin-top: 30px;
+        padding: 20px;
+        background: #f7f9fc;
+        border-radius: 8px;
+        display: none;
+      }
+
+      .result.show {
+        display: block;
+      }
+
+      .result h2 {
+        color: #333;
+        font-size: 18px;
+        margin-bottom: 15px;
+      }
+
+      .result-content {
+        color: #555;
+        line-height: 1.6;
+        margin-bottom: 20px;
+        white-space: pre-wrap;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+      }
+
+      .metric {
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        border-left: 4px solid #667eea;
+      }
+
+      .metric-label {
+        color: #888;
+        font-size: 12px;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .metric-value {
+        color: #333;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .savings {
+        border-left-color: #10b981;
+      }
+
+      .error {
+        background: #fee;
+        color: #c33;
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 20px;
+        display: none;
+      }
+
+      .error.show {
+        display: block;
+      }
+
+      .loading {
+        text-align: center;
+        padding: 20px;
+        display: none;
+      }
+
+      .loading.show {
+        display: block;
+      }
+
+      .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 8px;
+      }
+
+      .badge-success {
+        background: #d1fae5;
+        color: #065f46;
+      }
+
+      .badge-warning {
+        background: #fef3c7;
+        color: #92400e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🚀 CascadeFlow Browser Demo</h1>
+      <p class="subtitle">
+        Smart AI model cascading for 40-85% cost savings • Powered by Vercel Edge Functions
+      </p>
+
+      <div class="input-group">
+        <textarea
+          id="query"
+          placeholder="Ask anything... (e.g., 'Explain quantum computing in simple terms')"
+        ></textarea>
+      </div>
+
+      <button id="submit" onclick="runCascade()">Generate Response</button>
+
+      <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; color: #666">Processing with CascadeFlow...</p>
+      </div>
+
+      <div id="error" class="error"></div>
+
+      <div id="result" class="result">
+        <h2>
+          Response
+          <span id="status-badge" class="badge"></span>
+        </h2>
+        <div id="result-content" class="result-content"></div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Model Used</div>
+            <div id="model" class="metric-value">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Total Cost</div>
+            <div id="cost" class="metric-value">-</div>
+          </div>
+          <div class="metric savings">
+            <div class="metric-label">Cost Savings</div>
+            <div id="savings" class="metric-value">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Latency</div>
+            <div id="latency" class="metric-value">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      async function runCascade() {
+        const query = document.getElementById('query').value.trim();
+        const submitBtn = document.getElementById('submit');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const error = document.getElementById('error');
+
+        if (!query) {
+          showError('Please enter a query');
+          return;
+        }
+
+        // Reset UI
+        submitBtn.disabled = true;
+        loading.classList.add('show');
+        result.classList.remove('show');
+        error.classList.remove('show');
+
+        try {
+          const startTime = Date.now();
+
+          // Call edge function
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const elapsed = Date.now() - startTime;
+
+          // Display results
+          displayResult(data, elapsed);
+        } catch (err) {
+          showError(err.message || 'Failed to process request');
+        } finally {
+          submitBtn.disabled = false;
+          loading.classList.remove('show');
+        }
+      }
+
+      function displayResult(data, elapsed) {
+        const result = document.getElementById('result');
+        const statusBadge = document.getElementById('status-badge');
+
+        // Show result
+        result.classList.add('show');
+
+        // Set content
+        document.getElementById('result-content').textContent = data.content;
+
+        // Set metrics
+        document.getElementById('model').textContent = data.modelUsed || '-';
+        document.getElementById('cost').textContent = `$${(data.totalCost || 0).toFixed(6)}`;
+        document.getElementById('savings').textContent = `${(data.savingsPercentage || 0).toFixed(
+          1
+        )}%`;
+        document.getElementById('latency').textContent = `${elapsed}ms`;
+
+        // Set status badge
+        if (data.draftAccepted) {
+          statusBadge.textContent = 'Draft Accepted';
+          statusBadge.className = 'badge badge-success';
+        } else {
+          statusBadge.textContent = 'Escalated to Verifier';
+          statusBadge.className = 'badge badge-warning';
+        }
+      }
+
+      function showError(message) {
+        const error = document.getElementById('error');
+        error.textContent = '❌ Error: ' + message;
+        error.classList.add('show');
+      }
+
+      // Allow Enter to submit (with Shift+Enter for newline)
+      document.getElementById('query').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          runCascade();
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "cascadeflow-vercel-edge-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CascadeFlow Vercel Edge Function example",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "dependencies": {
+    "@cascadeflow/core": "workspace:*",
+    "openai": "^4.73.1"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  }
+}

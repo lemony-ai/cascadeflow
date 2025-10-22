@@ -66,10 +66,18 @@ Think of it as "smart speculative execution" for AI models that saves you thousa
 
 ## 📦 Stack & Requirements
 
-**Core Stack:**
-- **Python**: 3.9+
+**Language Support:**
+- **Python**: 3.9+ (Production ready)
+- **TypeScript/JavaScript**: Node.js 18+ (MVP - OpenAI provider)
+
+**Python Stack:**
 - **Dependencies**: `pydantic`, `httpx`, `aiohttp`
 - **Optional**: Provider SDKs (OpenAI, Anthropic, etc.)
+
+**TypeScript/JavaScript Stack:**
+- **Dependencies**: Zero (peer dependencies only)
+- **Optional**: `openai` for OpenAI provider
+- **Runs**: Node.js, Deno, Bun, browsers, edge workers
 
 **System Requirements:**
 - **RAM**: 2GB minimum (4GB+ recommended)
@@ -86,6 +94,7 @@ Think of it as "smart speculative execution" for AI models that saves you thousa
 
 ### Installation
 
+**Python:**
 ```bash
 # Basic installation
 pip install cascadeflow
@@ -97,8 +106,21 @@ pip install cascadeflow[openai]
 pip install cascadeflow[all]
 ```
 
+**TypeScript/JavaScript:**
+```bash
+# npm
+npm install @cascadeflow/core
+
+# pnpm
+pnpm add @cascadeflow/core
+
+# yarn
+yarn add @cascadeflow/core
+```
+
 ### Your First Cascade
 
+**Python:**
 ```python
 from cascadeflow import CascadeAgent, ModelConfig
 import asyncio
@@ -121,6 +143,25 @@ async def main():
 
 # Execute
 asyncio.run(main())
+```
+
+**TypeScript/JavaScript:**
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
+
+// Define your cascade: cheap → expensive
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },  // Try first: 83x cheaper
+    { name: 'gpt-5', provider: 'openai', cost: 0.0125 }          // Fallback: Best quality
+  ]
+});
+
+// Run query
+const result = await agent.run("What's the capital of France?");
+console.log(`Answer: ${result.content}`);
+console.log(`Cost: $${result.totalCost.toFixed(6)}`);
+console.log(`Model: ${result.modelUsed}`);
 ```
 
 **Result**: Tries gpt-4o-mini first (speculatively), validates quality, escalates to gpt-5 only if needed. Same quality, 40-85% lower costs, 2-10x faster responses.

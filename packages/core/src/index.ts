@@ -60,6 +60,7 @@ export type {
 export { providerRegistry } from './providers/base';
 export type { Provider, ProviderRequest } from './providers/base';
 export { OpenAIProvider } from './providers/openai';
+export { BrowserOpenAIProvider } from './providers/browser-openai';
 
 // Version
 export const VERSION = '1.0.0';
