@@ -27,102 +27,129 @@ Example:
     >>> print(f"Used {result.model_used} - Cost: ${result.cost:.6f}")
 """
 
-__version__ = "0.4.2"  # Updated for Day 4.2
-__author__ = "Your Name"
+__version__ = "0.1.0"  # Updated for MVP cascade
+__author__ = "Sascha Buehrle"
 __license__ = "MIT"
 
 # ==================== CORE CONFIGURATION ====================
 
-# Original config classes
-from .config import (
-    ModelConfig,
-    CascadeConfig,
-    UserTier,
-    # Day 4.2 additions
-    WorkflowProfile,
-    LatencyProfile,
-    OptimizationWeights,
-    DEFAULT_TIERS,
-    EXAMPLE_WORKFLOWS
+# Visual feedback for streaming (Phase 3)
+from cascadeflow.interface.visual_consumer import (
+    SilentConsumer,  # NEW: Silent consumer (no visual)
+    TerminalVisualConsumer,  # NEW: Terminal consumer with visual feedback
+    VisualIndicator,  # NEW: Visual indicator (pulsing dot)
 )
-
-# ==================== MAIN AGENT & RESULT ====================
-
-from .agent import CascadeAgent
-from .result import CascadeResult
-
-# ==================== INTELLIGENCE LAYER (Day 4.2) ====================
 
 # Complexity detection
-from .complexity import (
-    ComplexityDetector,
-    QueryComplexity
-)
-
-# Execution planning with domain detection
-from .execution import (
-    DomainDetector,
-    ModelScorer,
-    LatencyAwareExecutionPlanner,
-    ExecutionStrategy,
-    ExecutionPlan
-)
-
-# Speculative cascades (Google's research)
-from .speculative import (
-    SpeculativeCascade,
-    DeferralStrategy,
-    FlexibleDeferralRule,
-    SpeculativeResult
-)
-
-# ==================== SUPPORTING FEATURES (Day 4.2) ====================
+from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
 # Callbacks for monitoring
-from .callbacks import (
-    CallbackManager,
-    CallbackEvent,
-    CallbackData
+from cascadeflow.telemetry.callbacks import CallbackData, CallbackEvent, CallbackManager
+
+# ==================== BACKWARD COMPATIBILITY (MUST BE EARLY) ====================
+# Set up backward compatibility BEFORE importing agent/providers
+# This allows old imports like: from cascadeflow.exceptions import ...
+from . import schema, core
+import sys
+sys.modules['cascadeflow.exceptions'] = schema.exceptions
+sys.modules['cascadeflow.result'] = schema.result
+sys.modules['cascadeflow.config'] = schema.config
+sys.modules['cascadeflow.execution'] = core.execution
+sys.modules['cascadeflow.speculative'] = core.cascade  # Old name
+sys.modules['cascadeflow.cascade'] = core.cascade      # New name (optional)
+
+from .agent import CascadeAgent
+
+# Response caching (now in utils/)
+from .utils import ResponseCache
+
+# Original config classes
+from .schema.config import (
+    DEFAULT_TIERS,
+    EXAMPLE_WORKFLOWS,
+    CascadeConfig,
+    LatencyProfile,
+    ModelConfig,
+    OptimizationWeights,
+    UserTier,
+    WorkflowProfile,
 )
-
-# Response caching
-from .caching import ResponseCache
-
-# Streaming support
-from .streaming import StreamManager
-
-# Smart presets for easy setup
-from .presets import CascadePresets
-
-# ==================== PROVIDERS ====================
-
-from .providers import (
-    ModelResponse,
-    BaseProvider,
-    PROVIDER_REGISTRY
-)
-
-# ==================== UTILITIES ====================
-
-from .utils import (
-    setup_logging,
-    format_cost,
-    estimate_tokens
-)
-
-# ==================== EXCEPTIONS ====================
-
-from .exceptions import (
+from .schema.exceptions import (
+    BudgetExceededError,
     CascadeFlowError,
     ConfigError,
-    ProviderError,
     ModelError,
-    BudgetExceededError,
-    RateLimitError,
+    ProviderError,
     QualityThresholdError,
+    RateLimitError,
     RoutingError,
     ValidationError,
 )
+
+# Execution planning with domain detection
+from .core.execution import (
+    DomainDetector,
+    ExecutionPlan,
+    ExecutionStrategy,
+    LatencyAwareExecutionPlanner,
+    ModelScorer,
+)
+
+# Smart presets for easy setup (now in utils/)
+from .utils import CascadePresets
+from .providers import PROVIDER_REGISTRY, BaseProvider, ModelResponse
+
+# Quality validation (NEW in MVP)
+from .quality import (
+    AdaptiveThreshold,  # Adaptive threshold learning
+    ComparativeValidator,  # Optional comparative validation
+    QualityConfig,  # Quality configuration profiles
+    QualityValidator,  # Quality validation logic
+    ValidationResult,  # Validation result object
+)
+from .schema.result import CascadeResult
+
+# MVP Speculative cascades with quality validation
+from .core.cascade import (
+    SpeculativeCascade,  # Legacy wrapper (for compatibility)
+    SpeculativeResult,  # Result object
+    WholeResponseCascade,  # NEW: MVP whole-response cascade
+)
+
+# Streaming support (Phase 2)
+from .streaming import (
+    StreamEvent,  # NEW: Event dataclass for streaming
+    StreamEventType,  # NEW: Event types for streaming
+    StreamManager,
+)
+
+# Utilities (now in utils/)
+from .utils import estimate_tokens, format_cost, setup_logging
+
+# ==================== MAIN AGENT & RESULT ====================
+
+
+# ==================== INTELLIGENCE LAYER ====================
+
+
+
+
+
+# ==================== SUPPORTING FEATURES ====================
+
+
+
+
+
+
+# ==================== PROVIDERS ====================
+
+
+# ==================== UTILITIES ====================
+
+
+# ==================== EXCEPTIONS ====================
+
 
 # ==================== EXPORTS ====================
 
@@ -131,23 +158,19 @@ __all__ = [
     "__version__",
     "__author__",
     "__license__",
-
     # ===== CORE CONFIGURATION =====
     "ModelConfig",
     "CascadeConfig",
     "UserTier",
-    # Day 4.2 additions
     "WorkflowProfile",
     "LatencyProfile",
     "OptimizationWeights",
     "DEFAULT_TIERS",
     "EXAMPLE_WORKFLOWS",
-
     # ===== MAIN AGENT & RESULT =====
     "CascadeAgent",
     "CascadeResult",
-
-    # ===== INTELLIGENCE LAYER (Day 4.2) =====
+    # ===== INTELLIGENCE LAYER =====
     # Complexity detection
     "ComplexityDetector",
     "QueryComplexity",
@@ -157,30 +180,36 @@ __all__ = [
     "LatencyAwareExecutionPlanner",
     "ExecutionStrategy",
     "ExecutionPlan",
-    # Speculative cascades
-    "SpeculativeCascade",
-    "DeferralStrategy",
-    "FlexibleDeferralRule",
+    # MVP Speculative cascades
+    "WholeResponseCascade",  # NEW: MVP cascade
+    "SpeculativeCascade",  # Legacy wrapper
     "SpeculativeResult",
-
-    # ===== SUPPORTING FEATURES (Day 4.2) =====
+    # Quality validation (NEW)
+    "QualityConfig",  # NEW
+    "QualityValidator",  # NEW
+    "ValidationResult",  # NEW
+    "ComparativeValidator",  # NEW
+    "AdaptiveThreshold",  # NEW
+    # ===== SUPPORTING FEATURES =====
     "CallbackManager",
     "CallbackEvent",
     "CallbackData",
     "ResponseCache",
     "StreamManager",
+    "StreamEventType",  # NEW: Phase 2
+    "StreamEvent",  # NEW: Phase 2
+    "VisualIndicator",  # NEW: Phase 3
+    "TerminalVisualConsumer",  # NEW: Phase 3
+    "SilentConsumer",  # NEW: Phase 3
     "CascadePresets",
-
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
     "PROVIDER_REGISTRY",
-
     # ===== UTILITIES =====
     "setup_logging",
     "format_cost",
     "estimate_tokens",
-
     # ===== EXCEPTIONS =====
     "CascadeFlowError",
     "ConfigError",

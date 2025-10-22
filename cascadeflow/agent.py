@@ -1,189 +1,325 @@
 """
-Enhanced CascadeAgent with full intelligence layer integration.
+CascadeFlow Agent v2.5 - FIXED: Cost Calculation with Telemetry Integration
+===========================================================================
 
-Integrates:
-- Semantic routing (with graceful fallback)
-- Complexity detection
-- Domain detection and scoring
-- Speculative cascades with flexible deferral
-- Multi-factor optimization
-- Callbacks, caching, streaming
-- 20+ control parameters
+✅ Phase 2A: PreRouter for complexity-based routing (routing/)
+✅ Phase 2B: MetricsCollector for statistics tracking (telemetry/)
+✅ Phase 2C: TerminalVisualConsumer for UI feedback (interface/)
+✅ Phase 3: Tool Calling Support via ToolRouter (routing/)
+✅ v2.4: Intelligent streaming module routing (tools vs text)
+🆕 v2.5: CostCalculator integration - FIXES cost aggregation bug (Oct 20, 2025)
+
+NEW in v2.5: Proper Cost Calculation
+    - CostCalculator: Single source of truth for cost calculations
+    - Fixes bug where cascaded queries only showed draft cost
+    - Now correctly aggregates draft + verifier costs
+    - Clean separation: agent orchestrates, calculator computes
+
+Cost Calculation Flow:
+    1. Agent executes query (cascade or direct)
+    2. CostCalculator.calculate(spec_result) extracts costs
+    3. Returns CostBreakdown with:
+       - draft_cost: Individual model costs
+       - verifier_cost: Verifier model cost (if called)
+       - total_cost: Properly aggregated (draft + verifier)
+       - cost_saved: Savings vs big-only approach
+    4. Agent uses breakdown to build CascadeResult
+
+Architecture Overview:
+    1. PreRouter decides complexity-based routing (routing/)
+    2. ToolRouter filters tool-capable models (routing/)
+    3. Agent detects tools parameter
+    4. IF tools → ToolStreamManager (streaming/tools.py)
+       ELSE → StreamManager (streaming/base.py)
+    5. CostCalculator computes costs from results (telemetry/) 🆕
+    6. MetricsCollector tracks ALL statistics (telemetry/)
+    7. TerminalVisualConsumer provides UI feedback (interface/)
+
+Key Features:
+    - Automatic streaming module selection (text vs tools)
+    - Tool usage tracking in telemetry
+    - Accurate cost calculation and aggregation 🆕
+    - Full backward compatibility
+    - Clean separation of concerns
+
+Example:
+    >>> agent = CascadeAgent(models=[cheap, expensive])
+    >>> result = await agent.run("What is 2+2?")
+    >>>
+    >>> # Now shows correct costs!
+    >>> print(f"Total: ${result.total_cost:.6f}")      # $0.001542 ✅
+    >>> print(f"Draft: ${result.draft_cost:.6f}")       # $0.000042 ✅
+    >>> print(f"Verifier: ${result.verifier_cost:.6f}") # $0.001500 ✅
 """
 
-import asyncio
-import time
 import logging
-import os
-from typing import List, Optional, Dict, Any, Callable
+import sys
+import time
+from collections.abc import AsyncIterator
+from typing import Any, Optional
 
-from .config import (
-    ModelConfig, CascadeConfig, UserTier, WorkflowProfile,
-    DEFAULT_TIERS, OptimizationWeights
-)
-from .complexity import ComplexityDetector, QueryComplexity
-from .execution import (
-    LatencyAwareExecutionPlanner,
-    ExecutionStrategy
-)
-from .speculative import (
-    SpeculativeCascade,
-    DeferralStrategy,
-    FlexibleDeferralRule
-)
-from .callbacks import CallbackManager, CallbackEvent
-from .caching import ResponseCache
-from .streaming import StreamManager
-from .routing import SemanticRouter  # ✅ NEW: Semantic routing
-from .result import CascadeResult
-from .providers import PROVIDER_REGISTRY
-from .exceptions import (
-    CascadeFlowError,
-    BudgetExceededError,
-    ModelError,
-    ProviderError,
-    QualityThresholdError,
-)
-from .utils import setup_logging
+from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
+
+from .schema.config import ModelConfig
+from .schema.exceptions import CascadeFlowError
+from .providers import PROVIDER_REGISTRY, get_available_providers
+from .quality import QualityConfig
+from .schema.result import CascadeResult
+
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+from .routing import PreRouter, ToolRouter
+from .core.cascade import WholeResponseCascade
+
+# Streaming imports - BOTH managers (v2.4 FIX)
+from .streaming import StreamEvent, StreamEventType, StreamManager
+
+# Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
+from .telemetry import CostCalculator, MetricsCollector
+
+# 🚀 NEW: Import ToolStreamManager for tool calling
+try:
+    from .streaming.tools import ToolStreamManager
+
+    TOOL_STREAMING_AVAILABLE = True
+except ImportError:
+    TOOL_STREAMING_AVAILABLE = False
+    logger.warning("ToolStreamManager not available - tool streaming disabled")
+
+# Phase 2C: Interface module imports
+from .interface import TerminalVisualConsumer
 
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# AGENT v2.5 - WITH COST CALCULATOR INTEGRATION
+# ============================================================================
+
+
 class CascadeAgent:
     """
-    Enhanced CascadeAgent with full intelligent orchestration.
+    Cascade agent with intelligent streaming module routing and proper cost calculation.
 
-    Features:
-    - Semantic routing with embedding-based similarity (default, optional)
-    - Per-prompt domain detection and routing
-    - 2.0x domain boost for specialists
-    - 1.5x size boost for small models on simple tasks
-    - Speculative cascades with 4 deferral strategies
-    - Multi-factor optimization (cost/speed/quality)
-    - Callbacks, caching, streaming support
-    - 20+ control parameters per query
+    🆕 v2.5 ENHANCEMENT: CostCalculator Integration
 
-    Example:
-        >>> from cascadeflow import CascadeAgent, CascadePresets
-        >>>
-        >>> # Auto-detect models
-        >>> models = CascadePresets.auto_detect_models()
-        >>>
-        >>> # Create agent with semantic routing
-        >>> agent = CascadeAgent(
-        ...     models=models,
-        ...     routing_strategy="semantic",  # default
-        ...     enable_caching=True,
-        ...     verbose=True
-        ... )
-        >>>
-        >>> # Run query (per-prompt optimization!)
-        >>> result = await agent.run(
-        ...     query="Fix this Python bug",
-        ...     user_tier="premium"
-        ... )
-        >>>
-        >>> print(f"Used: {result.model_used}")
-        >>> print(f"Cost: ${result.total_cost:.6f}")
-        >>> print(f"Latency: {result.latency_ms:.0f}ms")
+    Cost calculation is now delegated to the telemetry module:
+    1. Agent executes query → gets SpeculativeResult
+    2. CostCalculator.calculate() → extracts/computes costs
+    3. Returns CostBreakdown with accurate aggregation
+    4. Agent builds CascadeResult with correct costs
+
+    This fixes the bug where cascaded queries only showed draft cost.
+
+    🚀 v2.4 ARCHITECTURE: Smart Streaming Module Selection
+
+    The agent intelligently routes to the correct streaming module:
+
+    1. PreRouter decides complexity-based routing (routing/)
+    2. ToolRouter filters tool-capable models (routing/)
+    3. **Agent detects tools parameter**
+    4. **IF tools → ToolStreamManager (streaming/tools.py)**
+       **ELSE → StreamManager (streaming/base.py)**
+    5. **CostCalculator computes costs (telemetry/)** 🆕
+    6. MetricsCollector tracks statistics (telemetry/)
+    7. TerminalVisualConsumer provides UI feedback (interface/)
+
+    Module Integration:
+        - routing.PreRouter: Complexity-based routing decisions
+        - routing.ToolRouter: Tool capability filtering
+        - telemetry.CostCalculator: Cost calculation (NEW) 🆕
+        - telemetry.MetricsCollector: Comprehensive metrics tracking
+        - interface.TerminalVisualConsumer: Terminal visual feedback
+        - streaming.StreamManager: Text-only streaming wrapper
+        - streaming.tools.ToolStreamManager: Tool call streaming wrapper
+
+    THREE APIs for different use cases (all support tools):
+    1. run() - Simple, returns result with full diagnostics
+    2. run_streaming() - Streaming with visuals, auto-selects correct manager
+    3. stream_events() - Async iterator, yields events (for custom UIs)
     """
 
     def __init__(
-            self,
-            models: List[ModelConfig],
-            config: Optional[CascadeConfig] = None,
-            tiers: Optional[Dict[str, UserTier]] = None,
-            workflows: Optional[Dict[str, WorkflowProfile]] = None,
-            routing_strategy: str = "semantic",  # ✅ NEW: Routing strategy
-            enable_caching: bool = False,
-            cache_size: int = 1000,
-            enable_callbacks: bool = True,
-            verbose: bool = False
+        self,
+        models: list[ModelConfig],
+        quality_config: Optional[QualityConfig] = None,
+        enable_cascade: bool = True,
+        verbose: bool = False,
     ):
         """
-        Initialize CascadeAgent with intelligence layer.
+        Initialize cascade agent with dual streaming managers and cost calculator.
 
         Args:
-            models: List of available models
-            config: Global cascade configuration
-            tiers: User tier configurations (uses defaults if None)
-            workflows: Workflow profiles (optional)
-            routing_strategy: "semantic" (default), "keyword", or "hybrid"
-            enable_caching: Enable response caching
-            cache_size: Max cache entries
-            enable_callbacks: Enable callback system
+            models: List of models (will be sorted by cost)
+            quality_config: Quality validation config
+            enable_cascade: Enable cascade system
             verbose: Enable verbose logging
         """
-        self.models = models
-        self.config = config or CascadeConfig()
-        self.tiers = tiers or DEFAULT_TIERS
-        self.workflows = workflows or {}
+        if not models:
+            raise CascadeFlowError("At least one model is required")
+
+        if len(models) < 2 and enable_cascade:
+            logger.warning(
+                f"Cascade requires 2+ models but got {len(models)}. " f"Disabling cascade."
+            )
+            enable_cascade = False
+
+        # Sort models by cost (cheap → expensive)
+        self.models = sorted(models, key=lambda m: m.cost)
+        self.enable_cascade = enable_cascade
         self.verbose = verbose
 
         # Setup logging
         if verbose:
-            setup_logging("DEBUG")
-        else:
-            setup_logging(self.config.log_level)
+            logging.basicConfig(level=logging.INFO)
+            logger.setLevel(logging.INFO)
 
-        # Initialize intelligence layer
+        # Use cascade-optimized config by default
+        self.quality_config = quality_config or QualityConfig.for_cascade()
+
+        # Initialize routers
         self.complexity_detector = ComplexityDetector()
-        self.execution_planner = LatencyAwareExecutionPlanner()
+        self.router = PreRouter(
+            enable_cascade=enable_cascade,
+            complexity_detector=self.complexity_detector,
+            verbose=verbose,
+        )
 
-        # ✅ NEW: Semantic routing with graceful fallback
-        self.routing_strategy = routing_strategy
-        self.semantic_router = None
+        # Initialize tool router
+        self.tool_router = ToolRouter(models=self.models, verbose=verbose)
 
-        if routing_strategy in ["semantic", "hybrid"]:
-            try:
-                self.semantic_router = SemanticRouter()
-                if self.semantic_router.is_available():
-                    # Precompute embeddings for all models
-                    self.semantic_router.precompute_model_embeddings(models)
-                    logger.info(f"✓ Semantic routing enabled (strategy: {routing_strategy})")
-                else:
-                    logger.info("⚠️ Semantic routing unavailable, using keyword routing")
-                    self.routing_strategy = "keyword"
-            except Exception as e:
-                logger.warning(f"Failed to initialize semantic routing: {e}")
-                logger.info("Falling back to keyword routing")
-                self.routing_strategy = "keyword"
-                self.semantic_router = None
-        else:
-            logger.info(f"Using {routing_strategy} routing")
+        # Initialize telemetry collector
+        self.telemetry = MetricsCollector(max_recent_results=100, verbose=verbose)
 
-        # Initialize supporting features
-        self.callback_manager = CallbackManager() if enable_callbacks else None
-        self.cache = ResponseCache(max_size=cache_size) if enable_caching else None
-        self.stream_manager = StreamManager()
+        # 🆕 v2.5: Initialize cost calculator
+        self.cost_calculator = CostCalculator(
+            drafter=self.models[0], verifier=self.models[-1], verbose=verbose
+        )
+
+        # Connect cost calculator to telemetry (optional)
+        if hasattr(self.telemetry, "set_cost_calculator"):
+            self.telemetry.set_cost_calculator(self.cost_calculator)
 
         # Initialize providers
         self.providers = self._init_providers()
 
-        # Initialize speculative cascades (if we have 2+ models)
-        self.speculative_cascades: Dict[str, SpeculativeCascade] = {}
-        if len(models) >= 2:
-            self._init_speculative_cascades()
+        # Initialize cascade system with BOTH streaming managers
+        if self.enable_cascade:
+            self.cascade = WholeResponseCascade(
+                drafter=self.models[0],
+                verifier=self.models[-1],
+                providers=self.providers,
+                quality_config=self.quality_config,
+                verbose=verbose,
+            )
 
-        # Statistics
-        self.stats = {
-            "total_queries": 0,
-            "total_cost": 0.0,
-            "total_cascades": 0,
-            "model_usage": {},
-            "routing_strategy": self.routing_strategy,  # ✅ NEW: Track routing strategy
-        }
+            # 🚀 v2.4 FIX: Initialize BOTH streaming managers
+            # Text-only streaming manager (base.py)
+            self.text_streaming_manager = StreamManager(cascade=self.cascade, verbose=verbose)
+
+            # Tool streaming manager (tools.py) if available
+            if TOOL_STREAMING_AVAILABLE:
+                self.tool_streaming_manager = ToolStreamManager(
+                    cascade=self.cascade, verbose=verbose
+                )
+            else:
+                self.tool_streaming_manager = None
+                logger.warning("Tool streaming not available - tool calls will not stream")
+
+            # Backward compatibility: default streaming_manager points to text
+            self.streaming_manager = self.text_streaming_manager
+
+            # Visual consumer from interface module
+            self.visual_consumer = TerminalVisualConsumer(enable_visual=True, verbose=verbose)
+        else:
+            self.cascade = None
+            self.text_streaming_manager = None
+            self.tool_streaming_manager = None
+            self.streaming_manager = None
+            self.visual_consumer = None
+
+        # Count tool-capable models
+        tool_capable_count = sum(1 for m in self.models if getattr(m, "supports_tools", False))
 
         logger.info(
-            f"CascadeAgent initialized with {len(models)} models, "
-            f"routing={self.routing_strategy}, "
-            f"caching={'enabled' if enable_caching else 'disabled'}"
+            f"CascadeAgent v2.5 initialized (Cost Calculator Integration):\n"
+            f"  Models: {len(models)} ({tool_capable_count} tool-capable)\n"
+            f"  Drafter: {self.models[0].name} (${self.models[0].cost:.6f})\n"
+            f"  Verifier: {self.models[-1].name} (${self.models[-1].cost:.6f})\n"
+            f"  Quality: {self.quality_config.__class__.__name__}\n"
+            f"  Cascade: {'enabled' if enable_cascade else 'disabled'}\n"
+            f"  Router: PreRouter (complexity-based)\n"
+            f"  ToolRouter: {'enabled' if tool_capable_count > 0 else 'no tool-capable models'}\n"
+            f"  CostCalculator: enabled (telemetry/)\n"  # 🆕
+            f"  Telemetry: MetricsCollector\n"
+            f"  Interface: TerminalVisualConsumer\n"
+            f"  Text Streaming: {'enabled' if self.text_streaming_manager else 'disabled'}\n"
+            f"  Tool Streaming: {'enabled' if self.tool_streaming_manager else 'disabled'}"
         )
 
-    def _init_providers(self) -> Dict[str, Any]:
-        """Initialize all providers."""
+    # ========================================================================
+    # 🚀 v2.4: INTELLIGENT STREAMING MANAGER SELECTOR
+    # ========================================================================
+
+    def _get_streaming_manager(self, tools: Optional[list[dict]] = None):
+        """
+        Select correct streaming manager based on whether tools are present.
+
+        This is the KEY FIX in v2.4:
+        - IF tools present → Use ToolStreamManager (streaming/tools.py)
+        - ELSE → Use StreamManager (streaming/base.py)
+
+        Args:
+            tools: List of tool definitions (if any)
+
+        Returns:
+            Appropriate streaming manager for the request
+
+        Raises:
+            CascadeFlowError: If tools requested but ToolStreamManager unavailable
+        """
+        if tools:
+            # Tools present - need ToolStreamManager
+            if not self.tool_streaming_manager:
+                raise CascadeFlowError(
+                    "Tool streaming requested but ToolStreamManager not available. "
+                    "Check that streaming/tools.py exists and is properly configured."
+                )
+
+            if self.verbose:
+                logger.info("Using ToolStreamManager for tool call streaming")
+
+            return self.tool_streaming_manager
+        else:
+            # No tools - use text streaming manager
+            if self.verbose:
+                logger.info("Using StreamManager for text-only streaming")
+
+            return self.text_streaming_manager
+
+    # ========================================================================
+    # BACKWARD COMPATIBILITY PROPERTIES
+    # ========================================================================
+
+    @property
+    def stats(self) -> dict[str, Any]:
+        """Backward-compatible stats access."""
+        return self.telemetry.stats
+
+    @stats.setter
+    def stats(self, value: dict[str, Any]):
+        """Allow setting stats for testing purposes."""
+        self.telemetry.stats = value
+
+    @property
+    def streaming_cascade(self):
+        """Backward compatibility property."""
+        return self.streaming_manager
+
+    def _init_providers(self) -> dict[str, Any]:
+        """Initialize providers for all models."""
         providers = {}
-        provider_types = set(model.provider for model in self.models)
+        provider_types = {model.provider for model in self.models}
 
         for provider_type in provider_types:
             if provider_type in PROVIDER_REGISTRY:
@@ -194,796 +330,1236 @@ class CascadeAgent:
                     logger.warning(f"Failed to initialize provider '{provider_type}': {e}")
 
         if not providers:
-            raise CascadeFlowError(
-                "No providers could be initialized. Please check your API keys and configuration."
-            )
+            raise CascadeFlowError("No providers could be initialized. Check your API keys.")
 
         return providers
 
-    def _init_speculative_cascades(self):
-        """Initialize speculative cascades for model pairs."""
-        # Sort models by cost (cheap to expensive)
-        sorted_models = sorted(self.models, key=lambda m: (m.cost, m.speed_ms))
-
-        # Create cascades: each cheap model as drafter, expensive as verifier
-        for i, drafter in enumerate(sorted_models[:-1]):
-            for verifier in sorted_models[i+1:]:
-                if verifier.cost > drafter.cost or verifier.quality_score > drafter.quality_score:
-                    key = f"{drafter.name}->{verifier.name}"
-                    self.speculative_cascades[key] = SpeculativeCascade(
-                        drafter=drafter,
-                        verifier=verifier,
-                        providers=self.providers,
-                        verbose=self.verbose
-                    )
-
-                    if self.verbose:
-                        logger.debug(f"Created speculative cascade: {key}")
+    # ========================================================================
+    # API 1: NON-STREAMING - WITH TOOL SUPPORT
+    # ========================================================================
 
     async def run(
-            self,
-            query: str,
-
-            # ===== USER CONTEXT =====
-            user_tier: Optional[str] = None,
-            user_id: Optional[str] = None,
-
-            # ===== WORKFLOW =====
-            workflow: Optional[str] = None,
-
-            # ===== MODEL CONTROL (Highest Priority) =====
-            force_models: Optional[List[str]] = None,
-            exclude_models: Optional[List[str]] = None,
-            preferred_models: Optional[List[str]] = None,
-
-            # ===== DOMAIN (Auto-detected if not provided) =====
-            query_domains: Optional[List[str]] = None,
-
-            # ===== COMPLEXITY =====
-            complexity_hint: Optional[QueryComplexity] = None,
-
-            # ===== BUDGET CONTROL =====
-            max_budget: Optional[float] = None,
-            preferred_budget: Optional[float] = None,
-
-            # ===== QUALITY CONTROL =====
-            quality_threshold: Optional[float] = None,
-            target_quality: Optional[float] = None,
-
-            # ===== PERFORMANCE =====
-            max_latency_ms: Optional[int] = None,
-            timeout: Optional[int] = None,
-
-            # ===== OPTIMIZATION =====
-            cost_weight: Optional[float] = None,
-            speed_weight: Optional[float] = None,
-            quality_weight: Optional[float] = None,
-
-            # ===== SPECULATIVE CONTROL =====
-            enable_speculative: Optional[bool] = None,
-            deferral_strategy: Optional[DeferralStrategy] = None,
-            confidence_threshold: Optional[float] = None,
-
-            # ===== FEATURES =====
-            streaming: bool = False,
-            enable_caching: Optional[bool] = None,
-
-            # ===== CALLBACKS =====
-            on_cascade: Optional[Callable] = None,
-            on_complete: Optional[Callable] = None,
-            on_error: Optional[Callable] = None,
-
-            # ===== METADATA =====
-            metadata: Optional[Dict[str, Any]] = None,
-
-            **kwargs
+        self,
+        query: str,
+        max_tokens: int = 100,
+        temperature: float = 0.7,
+        complexity_hint: Optional[str] = None,
+        force_direct: bool = False,
+        tools: Optional[list[dict[str, Any]]] = None,
+        tool_choice: Optional[str] = None,
+        **kwargs,
     ) -> CascadeResult:
         """
-        Run cascade with full intelligence and control.
-
-        **EVERY PROMPT IS INDIVIDUALLY ANALYZED**
-
-        For EACH query:
-        1. Semantic routing (if enabled) + keyword fallback
-        2. Detects domains (code? math? general?)
-        3. Detects complexity (trivial? expert?)
-        4. Scores ALL models with domain boost
-        5. Selects optimal execution strategy
-        6. Respects all constraints
+        Run query (NON-STREAMING) with comprehensive diagnostics and tool support.
 
         Args:
-            query: User query/prompt
-
-            User Context:
-                user_tier: Apply tier settings (e.g., "free", "premium")
-                user_id: Track user for analytics
-
-            Workflow:
-                workflow: Apply workflow profile (e.g., "code_review")
-
-            Model Control (Highest Priority):
-                force_models: Only use these models (overrides everything)
-                exclude_models: Never use these models
-                preferred_models: Try these first if suitable
-
-            Domain:
-                query_domains: Domain hints (e.g., ["code", "math"])
-                               Auto-detected if not provided
-
-            Complexity:
-                complexity_hint: Override complexity detection
-
-            Budget Control:
-                max_budget: Hard limit on cost
-                preferred_budget: Try to stay under this
-
-            Quality Control:
-                quality_threshold: Minimum acceptable confidence
-                target_quality: Desired quality level
-
-            Performance:
-                max_latency_ms: Maximum acceptable latency
-                timeout: Timeout per model call (seconds)
-
-            Optimization:
-                cost_weight: Weight for cost in scoring (0-1)
-                speed_weight: Weight for speed in scoring (0-1)
-                quality_weight: Weight for quality in scoring (0-1)
-
-            Speculative Control:
-                enable_speculative: Use speculative cascades
-                deferral_strategy: Which deferral strategy to use
-                confidence_threshold: Confidence threshold for deferral
-
-            Features:
-                streaming: Stream response chunks
-                enable_caching: Use response cache
-
-            Callbacks:
-                on_cascade: Called when cascading to next model
-                on_complete: Called when query completes
-                on_error: Called on error
-
-            Metadata:
-                metadata: Custom metadata for tracking
+            query: User query
+            max_tokens: Max tokens to generate
+            temperature: Sampling temperature
+            complexity_hint: Override complexity detection
+            force_direct: Force direct routing
+            tools: List of tools in universal format
+            tool_choice: Control tool calling behavior
+            **kwargs: Additional provider parameters
 
         Returns:
-            CascadeResult with response, cost, latency, model used, etc.
+            CascadeResult with content, cost, latency, tool_calls, and full diagnostics
+        """
+        overall_start = time.time()
+        timing_breakdown = {}
+
+        # Detect complexity
+        complexity_start = time.time()
+
+        if complexity_hint:
+            try:
+                complexity = QueryComplexity(complexity_hint.lower())
+                complexity_confidence = 1.0
+            except ValueError:
+                complexity, complexity_confidence = self.complexity_detector.detect(
+                    query, return_metadata=False
+                )
+        else:
+            complexity, complexity_confidence = self.complexity_detector.detect(
+                query, return_metadata=False
+            )
+
+        timing_breakdown["complexity_detection"] = (time.time() - complexity_start) * 1000
+
+        if self.verbose:
+            print(f"[Complexity: {complexity.value} (confidence: {complexity_confidence:.2f})]")
+            print(f"[Detection time: {timing_breakdown['complexity_detection']:.1f}ms]")
+
+        logger.info(
+            f"Query complexity: {complexity.value} (confidence: {complexity_confidence:.2f})"
+        )
+
+        # Filter models by tool capability
+        available_models = self.models
+
+        if tools:
+            tool_filter_result = self.tool_router.filter_tool_capable_models(
+                tools=tools, available_models=self.models
+            )
+            available_models = tool_filter_result["models"]
+
+            if self.verbose:
+                print(
+                    f"[Tool Filtering: {len(available_models)}/{len(self.models)} models support tools]"
+                )
+
+            logger.info(
+                f"Tool filtering: {len(available_models)}/{len(self.models)} models capable. "
+                f"Models: {[m.name for m in available_models]}"
+            )
+
+        # Get routing decision
+        routing_context = {
+            "complexity": complexity,
+            "complexity_confidence": complexity_confidence,
+            "force_direct": force_direct,
+            "available_models": available_models,
+            "has_tools": bool(tools),
+        }
+
+        decision = await self.router.route(query, routing_context)
+        use_cascade = decision.is_cascade()
+        routing_strategy = "cascade" if use_cascade else "direct"
+        routing_reason = decision.reason
+
+        if self.verbose:
+            print(f"[Routing: {routing_strategy.upper()}]")
+            print(f"[Reason: {routing_reason}]")
+            print(f"[Confidence: {decision.confidence:.2f}]")
+
+        # Execute
+        if use_cascade:
+            result, exec_timing = await self._execute_cascade_with_timing(
+                query,
+                max_tokens,
+                temperature,
+                complexity,
+                available_models,
+                tools,
+                tool_choice,
+                **kwargs,
+            )
+            timing_breakdown.update(exec_timing)
+        else:
+            result, exec_timing = await self._execute_direct_with_timing(
+                query,
+                max_tokens,
+                temperature,
+                complexity,
+                force_direct,
+                available_models,
+                tools,
+                tool_choice,
+                **kwargs,
+            )
+            timing_breakdown.update(exec_timing)
+
+        total_latency = (time.time() - overall_start) * 1000
+
+        if self.verbose:
+            print(f"[Total latency: {total_latency:.1f}ms]")
+            if hasattr(result, "tool_calls") and result.tool_calls:
+                print(f"[Tool calls: {len(result.tool_calls)}]")
+
+        # Record metrics
+        self.telemetry.record(
+            result=result,
+            routing_strategy=routing_strategy,
+            complexity=complexity.value,
+            timing_breakdown=timing_breakdown,
+            streaming=False,
+            has_tools=bool(tools),
+        )
+
+        # Build result
+        return self._build_cascade_result(
+            spec_result=result,
+            query=query,
+            complexity=complexity.value,
+            complexity_confidence=complexity_confidence,
+            routing_strategy=routing_strategy,
+            routing_reason=routing_reason,
+            total_latency_ms=total_latency,
+            timing_breakdown=timing_breakdown,
+            tools=tools,
+            streaming=False,
+        )
+
+    # ========================================================================
+    # API 2: STREAMING WITH VISUALS - WITH INTELLIGENT MANAGER SELECTION
+    # ========================================================================
+
+    async def run_streaming(
+        self,
+        query: str,
+        max_tokens: int = 100,
+        temperature: float = 0.7,
+        complexity_hint: Optional[str] = None,
+        force_direct: bool = False,
+        enable_visual: bool = True,
+        tools: Optional[list[dict[str, Any]]] = None,
+        tool_choice: Optional[str] = None,
+        **kwargs,
+    ) -> CascadeResult:
+        """
+        Run query (STREAMING with visual feedback) with intelligent manager selection.
+
+        🚀 v2.4 KEY FIX: This method now automatically selects the correct streaming manager:
+        - IF tools present → Uses ToolStreamManager (streaming/tools.py)
+        - ELSE → Uses StreamManager (streaming/base.py)
+
+        Args:
+            query: User query
+            max_tokens: Max tokens to generate
+            temperature: Sampling temperature
+            complexity_hint: Override complexity detection
+            force_direct: Force direct routing
+            enable_visual: Show pulsing dot indicator
+            tools: List of tools in universal format
+            tool_choice: Control tool calling behavior
+            **kwargs: Additional provider parameters
+
+        Returns:
+            CascadeResult with content, cost, latency, tool_calls, and full diagnostics
         """
         start_time = time.time()
+        timing_breakdown = {}
 
-        # Trigger start callback
-        if self.callback_manager:
-            self.callback_manager.trigger(
-                CallbackEvent.QUERY_START,
+        # Detect complexity
+        complexity_start = time.time()
+
+        if complexity_hint:
+            try:
+                self.cost_calculator.calculate(spec_result, query_text=query)
+                complexity_confidence = 1.0
+            except ValueError:
+                complexity, complexity_confidence = self.complexity_detector.detect(
+                    query, return_metadata=False
+                )
+        else:
+            complexity, complexity_confidence = self.complexity_detector.detect(
+                query, return_metadata=False
+            )
+
+        timing_breakdown["complexity_detection"] = (time.time() - complexity_start) * 1000
+
+        # Filter models by tool capability
+        available_models = self.models
+
+        if tools:
+            tool_filter_result = self.tool_router.filter_tool_capable_models(
+                tools=tools, available_models=self.models
+            )
+            available_models = tool_filter_result["models"]
+
+        # Get routing decision
+        routing_context = {
+            "complexity": complexity,
+            "complexity_confidence": complexity_confidence,
+            "force_direct": force_direct,
+            "available_models": available_models,
+            "has_tools": bool(tools),
+        }
+
+        decision = await self.router.route(query, routing_context)
+        use_cascade = decision.is_cascade()
+        routing_strategy = "cascade" if use_cascade else "direct"
+        routing_reason = decision.reason
+
+        # 🚀 v2.4 KEY FIX: Select correct streaming manager based on tools
+        streaming_manager = self._get_streaming_manager(tools)
+
+        # Stream execution using selected manager
+        if use_cascade and streaming_manager:
+            consumer = self.visual_consumer if enable_visual else self._get_silent_consumer()
+            result_data = await consumer.consume(
+                streaming_manager=streaming_manager,  # ← Uses correct manager!
                 query=query,
-                data={"user_tier": user_tier, "workflow": workflow},
-                user_tier=user_tier,
-                workflow=workflow
+                max_tokens=max_tokens,
+                temperature=temperature,
+                complexity=complexity.value,
+                routing_strategy=routing_strategy,
+                is_direct_route=False,
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs,
             )
+            result = self._dict_to_result(result_data)
+            if "timing" in result_data:
+                timing_breakdown.update(result_data["timing"])
+        else:
+            if streaming_manager:
+                consumer = self.visual_consumer if enable_visual else self._get_silent_consumer()
+                result_data = await consumer.consume(
+                    streaming_manager=streaming_manager,  # ← Uses correct manager!
+                    query=query,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    complexity=complexity.value,
+                    routing_strategy=routing_strategy,
+                    is_direct_route=True,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    **kwargs,
+                )
+                result = self._dict_to_result(result_data)
+                if "timing" in result_data:
+                    timing_breakdown.update(result_data["timing"])
+            else:
+                result, exec_timing = await self._stream_direct_with_timing(
+                    query,
+                    max_tokens,
+                    temperature,
+                    complexity,
+                    force_direct,
+                    enable_visual,
+                    available_models,
+                    tools,
+                    tool_choice,
+                    **kwargs,
+                )
+                timing_breakdown.update(exec_timing)
 
-        # Register user callbacks
-        if on_cascade and self.callback_manager:
-            self.callback_manager.register(CallbackEvent.CASCADE_DECISION, on_cascade)
-        if on_complete and self.callback_manager:
-            self.callback_manager.register(CallbackEvent.QUERY_COMPLETE, on_complete)
-        if on_error and self.callback_manager:
-            self.callback_manager.register(CallbackEvent.QUERY_ERROR, on_error)
+        total_latency_ms = (time.time() - start_time) * 1000
 
-        try:
-            # 1. Get tier and workflow
-            tier = self.tiers.get(user_tier) if user_tier else None
-            workflow_profile = self.workflows.get(workflow) if workflow else None
+        # Record metrics
+        self.telemetry.record(
+            result=result,
+            routing_strategy=routing_strategy,
+            complexity=complexity.value,
+            timing_breakdown=timing_breakdown,
+            streaming=True,
+            has_tools=bool(tools),
+        )
 
-            # 2. Check cache
-            use_cache = (
-                enable_caching if enable_caching is not None
-                else (tier.enable_caching if tier else False)
+        # Build result
+        return self._build_cascade_result(
+            spec_result=result,
+            query=query,
+            complexity=complexity.value,
+            complexity_confidence=complexity_confidence,
+            routing_strategy=routing_strategy,
+            routing_reason=routing_reason,
+            total_latency_ms=total_latency_ms,
+            timing_breakdown=timing_breakdown,
+            tools=tools,
+            streaming=True,
+        )
+
+    # ========================================================================
+    # API 3: ASYNC ITERATOR - WITH INTELLIGENT MANAGER SELECTION
+    # ========================================================================
+
+    async def stream_events(
+        self,
+        query: str,
+        max_tokens: int = 100,
+        temperature: float = 0.7,
+        complexity_hint: Optional[str] = None,
+        force_direct: bool = False,
+        tools: Optional[list[dict[str, Any]]] = None,
+        tool_choice: Optional[str] = None,
+        **kwargs,
+    ) -> AsyncIterator[StreamEvent]:
+        """
+        Stream events as async iterator with intelligent manager selection.
+
+        🚀 v2.4 KEY FIX: Automatically selects correct streaming manager based on tools.
+
+        Args:
+            query: User query
+            max_tokens: Max tokens to generate
+            temperature: Sampling temperature
+            complexity_hint: Override complexity detection
+            force_direct: Force direct routing
+            tools: List of tools in universal format
+            tool_choice: Control tool calling behavior
+            **kwargs: Additional provider parameters
+
+        Yields:
+            StreamEvent objects with type, content, and data
+        """
+        # Detect complexity
+        if complexity_hint:
+            try:
+                complexity = QueryComplexity(complexity_hint.lower())
+            except ValueError:
+                complexity, _ = self.complexity_detector.detect(query, return_metadata=False)
+        else:
+            complexity, _ = self.complexity_detector.detect(query, return_metadata=False)
+
+        # Filter models by tool capability
+        available_models = self.models
+
+        if tools:
+            tool_filter_result = self.tool_router.filter_tool_capable_models(
+                tools=tools, available_models=self.models
             )
+            available_models = tool_filter_result["models"]
 
-            if use_cache and self.cache:
-                cached = self.cache.get(query, params=metadata)
-                if cached:
-                    if self.callback_manager:
-                        self.callback_manager.trigger(
-                            CallbackEvent.CACHE_HIT,
-                            query=query,
-                            data={"cached": True},
-                            user_tier=user_tier,
-                            workflow=workflow
+        # Get routing decision
+        routing_context = {
+            "complexity": complexity,
+            "force_direct": force_direct,
+            "available_models": available_models,
+            "has_tools": bool(tools),
+        }
+
+        decision = await self.router.route(query, routing_context)
+        use_cascade = decision.is_cascade()
+        routing_strategy = "cascade" if use_cascade else "direct"
+
+        # 🚀 v2.4 KEY FIX: Select correct streaming manager
+        streaming_manager = self._get_streaming_manager(tools)
+
+        # Yield events from selected manager
+        if use_cascade and streaming_manager:
+            async for event in streaming_manager.stream(
+                query=query,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                complexity=complexity.value,
+                routing_strategy=routing_strategy,
+                is_direct_route=False,
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs,
+            ):
+                yield event
+        else:
+            if streaming_manager:
+                async for event in streaming_manager.stream(
+                    query=query,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    complexity=complexity.value,
+                    routing_strategy=routing_strategy,
+                    is_direct_route=True,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    **kwargs,
+                ):
+                    yield event
+            else:
+                # Fallback for manual streaming
+                best_model = available_models[-1] if available_models else self.models[-1]
+                provider = self.providers[best_model.provider]
+
+                yield StreamEvent(
+                    type=StreamEventType.ROUTING,
+                    content="",
+                    data={
+                        "strategy": "direct",
+                        "complexity": complexity.value,
+                        "model": best_model.name,
+                        "has_tools": bool(tools),
+                    },
+                )
+
+                chunks = []
+                start_time = time.time()
+
+                if hasattr(provider, "stream"):
+                    async for chunk in provider.stream(
+                        model=best_model.name,
+                        prompt=query,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        **kwargs,
+                    ):
+                        chunks.append(chunk)
+                        yield StreamEvent(
+                            type=StreamEventType.CHUNK,
+                            content=chunk,
+                            data={"model": best_model.name, "phase": "direct"},
                         )
-                    logger.info("✓ Cache hit")
-                    return CascadeResult(**cached)
                 else:
-                    if self.callback_manager:
-                        self.callback_manager.trigger(
-                            CallbackEvent.CACHE_MISS,
-                            query=query,
-                            data={"cached": False},
-                            user_tier=user_tier,
-                            workflow=workflow
+                    response = await provider.complete(
+                        model=best_model.name,
+                        prompt=query,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        **kwargs,
+                    )
+                    chunks = [response.content]
+
+                    if hasattr(response, "tool_calls") and response.tool_calls:
+                        yield StreamEvent(
+                            type=StreamEventType.METADATA,
+                            content="",
+                            data={"tool_calls": response.tool_calls},
                         )
 
-            # 3. Detect complexity
-            if complexity_hint:
-                complexity = complexity_hint
-            else:
-                complexity, confidence = self.complexity_detector.detect(
-                    query,
-                    context={"tier": user_tier, "domain": query_domains}
-                )
-
-            if self.callback_manager:
-                self.callback_manager.trigger(
-                    CallbackEvent.COMPLEXITY_DETECTED,
-                    query=query,
-                    data={"complexity": complexity.value},
-                    user_tier=user_tier,
-                    workflow=workflow
-                )
-
-            if self.verbose:
-                logger.info(f"🧠 Complexity: {complexity.value}")
-
-            # 4. Filter models
-            available_models = self._filter_models(
-                self.models,
-                tier,
-                workflow_profile,
-                exclude_models,
-                force_models
-            )
-
-            # ✅ NEW: 4.5. Get semantic routing hints (if available)
-            semantic_hints = None
-            if self.semantic_router and self.semantic_router.is_available():
-                try:
-                    semantic_matches = self.semantic_router.route(
-                        query=query,
-                        models=available_models,
-                        top_k=3,
-                        similarity_threshold=0.3
+                    yield StreamEvent(
+                        type=StreamEventType.CHUNK,
+                        content=response.content,
+                        data={"model": best_model.name, "phase": "direct"},
                     )
-                    if semantic_matches:
-                        semantic_hints = {
-                            model.name: similarity
-                            for model, similarity in semantic_matches
+
+                content = "".join(chunks)
+                latency_ms = (time.time() - start_time) * 1000
+                tokens_used = len(content.split()) * 1.3
+                cost = best_model.cost * (tokens_used / 1000)
+
+                yield StreamEvent(
+                    type=StreamEventType.COMPLETE,
+                    content="",
+                    data={
+                        "result": {
+                            "content": content,
+                            "model_used": best_model.name,
+                            "total_cost": cost,
+                            "latency_ms": latency_ms,
+                            "draft_accepted": None,
+                            "routing_strategy": "direct",
+                            "complexity": complexity.value,
+                            "has_tools": bool(tools),
                         }
-                        if self.verbose:
-                            top_match = semantic_matches[0]
-                            logger.info(
-                                f"🎯 Semantic routing: {top_match[0].name} "
-                                f"(similarity: {top_match[1]:.3f})"
-                            )
-                except Exception as e:
-                    logger.debug(f"Semantic routing failed: {e}")
-
-            # 5. Create execution plan
-            plan = await self.execution_planner.create_plan(
-                query=query,
-                complexity=complexity,
-                available_models=available_models,
-                tier=tier,
-                workflow=workflow_profile,
-                force_models=force_models,
-                max_latency_ms=max_latency_ms,
-                max_budget=max_budget,
-                quality_threshold=quality_threshold,
-                query_domains=query_domains,
-                semantic_hints=semantic_hints  # ✅ NEW: Pass semantic hints
-            )
-
-            if self.callback_manager:
-                self.callback_manager.trigger(
-                    CallbackEvent.STRATEGY_SELECTED,
-                    query=query,
-                    data={
-                        "strategy": plan.strategy.value,
-                        "primary_model": plan.primary_model.name if plan.primary_model else None,
-                        "reasoning": plan.reasoning
                     },
-                    user_tier=user_tier,
-                    workflow=workflow
                 )
 
-            if self.verbose:
-                logger.info(f"📋 Strategy: {plan.strategy.value}")
-                logger.info(f"💡 Reasoning: {plan.reasoning}")
+        # Basic telemetry recording
+        self.telemetry.stats["total_queries"] += 1
+        self.telemetry.stats["streaming_used"] += 1
+        if tools:
+            if "tool_queries" not in self.telemetry.stats:
+                self.telemetry.stats["tool_queries"] = 0
+            self.telemetry.stats["tool_queries"] += 1
 
-            # 6. Execute plan
-            result = await self._execute_plan(
-                query=query,
-                plan=plan,
-                streaming=streaming,
-                tier=tier,
-                enable_speculative=enable_speculative,
-                deferral_strategy=deferral_strategy,
-                confidence_threshold=confidence_threshold,
-                user_tier=user_tier,
-                workflow=workflow,
-                **kwargs
-            )
+    # ========================================================================
+    # EXECUTION METHODS - WITH TOOL SUPPORT
+    # ========================================================================
 
-            # 7. Store in cache
-            if use_cache and self.cache:
-                cache_ttl = tier.cache_ttl if tier else 3600
-                self.cache.set(
-                    query,
-                    result.to_dict(),
-                    ttl=cache_ttl,
-                    params=metadata
-                )
+    async def _execute_cascade_with_timing(
+        self,
+        query,
+        max_tokens,
+        temperature,
+        complexity,
+        available_models,
+        tools,
+        tool_choice,
+        **kwargs,
+    ):
+        """Execute cascade with detailed timing tracking and tool support."""
+        # Use filtered models if available
+        drafter = available_models[0] if available_models else self.models[0]
+        verifier = available_models[-1] if available_models else self.models[-1]
 
-            # 8. Update statistics
-            self.stats["total_queries"] += 1
-            self.stats["total_cost"] += result.total_cost
-            if result.cascaded:
-                self.stats["total_cascades"] += 1
-            self.stats["model_usage"][result.model_used] = \
-                self.stats["model_usage"].get(result.model_used, 0) + 1
+        logger.info(f"Routing to cascade: {drafter.name} → {verifier.name}")
+        if tools:
+            logger.info(f"Tool calling enabled with {len(tools)} tools")
 
-            # 9. Trigger complete callback
-            if self.callback_manager:
-                self.callback_manager.trigger(
-                    CallbackEvent.QUERY_COMPLETE,
-                    query=query,
-                    data={
-                        "success": True,
-                        "cost": result.total_cost,
-                        "latency_ms": result.latency_ms,
-                        "model": result.model_used
-                    },
-                    user_tier=user_tier,
-                    workflow=workflow
-                )
+        cascade_start = time.time()
 
-            return result
+        # Pass tools to cascade execution
+        result = await self.cascade.execute(
+            query=query,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            complexity=complexity.value,
+            tools=tools,
+            tool_choice=tool_choice,
+            **kwargs,
+        )
+        cascade_total = (time.time() - cascade_start) * 1000
 
-        except Exception as e:
-            logger.error(f"Error in cascade: {e}", exc_info=True)
-
-            if self.callback_manager:
-                self.callback_manager.trigger(
-                    CallbackEvent.QUERY_ERROR,
-                    query=query,
-                    data={"error": str(e)},
-                    user_tier=user_tier,
-                    workflow=workflow
-                )
-
-            raise
-
-        finally:
-            # Cleanup callbacks
-            if on_cascade and self.callback_manager:
-                self.callback_manager.unregister(CallbackEvent.CASCADE_DECISION, on_cascade)
-            if on_complete and self.callback_manager:
-                self.callback_manager.unregister(CallbackEvent.QUERY_COMPLETE, on_complete)
-            if on_error and self.callback_manager:
-                self.callback_manager.unregister(CallbackEvent.QUERY_ERROR, on_error)
-
-    def _filter_models(
-            self,
-            models: List[ModelConfig],
-            tier: Optional[UserTier],
-            workflow: Optional[WorkflowProfile],
-            exclude: Optional[List[str]],
-            force: Optional[List[str]]
-    ) -> List[ModelConfig]:
-        """Filter models based on constraints."""
-        filtered = models.copy()
-
-        # Force models (highest priority)
-        if force:
-            return [m for m in filtered if m.name in force]
-
-        # Workflow exclusions
-        if workflow and workflow.exclude_models:
-            filtered = [m for m in filtered if m.name not in workflow.exclude_models]
-
-        # Per-query exclusions
-        if exclude:
-            filtered = [m for m in filtered if m.name not in exclude]
-
-        # Tier exclusions
-        if tier and tier.exclude_models:
-            filtered = [m for m in filtered if m.name not in tier.exclude_models]
-
-        # Tier allowed list
-        if tier and "*" not in tier.allowed_models:
-            filtered = [m for m in filtered if m.name in tier.allowed_models]
-
-        return filtered
-
-    async def _execute_plan(
-            self,
-            query: str,
-            plan: Any,
-            streaming: bool,
-            tier: Optional[UserTier],
-            enable_speculative: Optional[bool],
-            deferral_strategy: Optional[DeferralStrategy],
-            confidence_threshold: Optional[float],
-            user_tier: Optional[str],
-            workflow: Optional[str],
-            **kwargs
-    ) -> CascadeResult:
-        """Execute the execution plan."""
-        start_time = time.time()
-
-        if plan.strategy == ExecutionStrategy.DIRECT_CHEAP:
-            result = await self._execute_direct(
-                query, plan.primary_model, **kwargs
-            )
-
-        elif plan.strategy == ExecutionStrategy.DIRECT_BEST:
-            result = await self._execute_direct(
-                query, plan.primary_model, **kwargs
-            )
-
-        elif plan.strategy == ExecutionStrategy.DIRECT_SMART:
-            result = await self._execute_direct(
-                query, plan.primary_model, **kwargs
-            )
-
-        elif plan.strategy == ExecutionStrategy.SPECULATIVE:
-            # Check if speculative is enabled
-            use_speculative = (
-                enable_speculative if enable_speculative is not None
-                else (tier.enable_speculative if tier else True)
-            )
-
-            if use_speculative and plan.drafter and plan.verifier:
-                result = await self._execute_speculative(
-                    query,
-                    plan.drafter,
-                    plan.verifier,
-                    deferral_strategy,
-                    confidence_threshold,
-                    **kwargs
-                )
-            else:
-                # Fallback to direct
-                result = await self._execute_direct(
-                    query, plan.drafter, **kwargs
-                )
-
-        elif plan.strategy == ExecutionStrategy.PARALLEL_RACE:
-            result = await self._execute_parallel_race(
-                query, plan.race_models, **kwargs
-            )
-
+        # Extract timing from cascade metadata
+        timing = {}
+        if hasattr(result, "metadata") and result.metadata:
+            timing["draft_generation"] = result.metadata.get("draft_latency_ms", 0)
+            timing["quality_verification"] = result.metadata.get("quality_check_ms", 0)
+            timing["verifier_generation"] = result.metadata.get("verifier_latency_ms", 0)
+            timing["cascade_overhead"] = result.metadata.get("cascade_overhead_ms", 0)
         else:
-            result = await self._execute_direct(
-                query, plan.primary_model, **kwargs
-            )
+            timing["cascade_total"] = cascade_total
 
-        return result
+        if self.verbose:
+            print(f"[Draft generation: {timing.get('draft_generation', 0):.1f}ms]")
+            print(f"[Quality check: {timing.get('quality_verification', 0):.1f}ms]")
+            if timing.get("verifier_generation", 0) > 0:
+                print(f"[Verifier generation: {timing['verifier_generation']:.1f}ms]")
+            if timing.get("cascade_overhead", 0) > 0:
+                print(f"[Cascade overhead: {timing['cascade_overhead']:.1f}ms]")
 
-    async def _execute_direct(
-            self,
-            query: str,
-            model: ModelConfig,
-            **kwargs
-    ) -> CascadeResult:
-        """Execute direct model call (no cascade)."""
+        return result, timing
+
+    async def _execute_direct_with_timing(
+        self,
+        query,
+        max_tokens,
+        temperature,
+        complexity,
+        force_direct,
+        available_models,
+        tools,
+        tool_choice,
+        **kwargs,
+    ):
+        """Execute direct routing with detailed timing and tool support."""
+        best_model = available_models[-1] if available_models else self.models[-1]
+        provider = self.providers[best_model.provider]
+        reason = (
+            "Forced direct routing"
+            if force_direct
+            else f"Complexity {complexity.value} requires best model"
+        )
+
+        logger.info(f"Routing directly to: {best_model.name} ({reason})")
+        if tools:
+            logger.info(f"Tool calling enabled with {len(tools)} tools")
+
+        direct_start = time.time()
+
+        response = await provider.complete(
+            model=best_model.name,
+            prompt=query,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            tools=tools,
+            tool_choice=tool_choice,
+            **kwargs,
+        )
+        direct_latency = (time.time() - direct_start) * 1000
+
+        tokens_used = response.tokens_used if hasattr(response, "tokens_used") else max_tokens
+        cost = best_model.cost * (tokens_used / 1000)
+
+        result = self._create_direct_result(
+            response.content,
+            best_model.name,
+            cost,
+            direct_latency,
+            reason,
+            tool_calls=getattr(response, "tool_calls", None),
+        )
+
+        timing = {
+            "direct_generation": direct_latency,
+            "draft_generation": 0,
+            "quality_verification": 0,
+            "verifier_generation": 0,
+            "cascade_overhead": 0,
+        }
+
+        return result, timing
+
+    async def _stream_direct_with_timing(
+        self,
+        query,
+        max_tokens,
+        temperature,
+        complexity,
+        force_direct,
+        enable_visual,
+        available_models,
+        tools,
+        tool_choice,
+        **kwargs,
+    ):
+        """Stream directly from best model with timing tracking and tool support."""
+        best_model = available_models[-1] if available_models else self.models[-1]
+        provider = self.providers[best_model.provider]
+        reason = (
+            "Forced direct routing"
+            if force_direct
+            else f"Complexity {complexity.value} requires best model"
+        )
+
+        logger.info(f"Streaming directly from: {best_model.name} ({reason})")
+        if tools:
+            logger.info(f"Tool calling enabled with {len(tools)} tools")
+
+        visual = self._create_visual_indicator(enable_visual)
+        chunks = []
         start_time = time.time()
+        tool_calls = None
 
-        provider = self.providers[model.provider]
-
-        if self.callback_manager:
-            self.callback_manager.trigger(
-                CallbackEvent.MODEL_CALL_START,
-                query=query,
-                data={"model": model.name, "provider": model.provider},
-                user_tier=None,
-                workflow=None
-            )
-
-        try:
+        if hasattr(provider, "stream"):
+            visual.show()
+            try:
+                async for chunk in provider.stream(
+                    model=best_model.name,
+                    prompt=query,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    **kwargs,
+                ):
+                    print(chunk, end="", flush=True)
+                    chunks.append(chunk)
+                visual.complete()
+                visual.clear()
+                print()
+                content = "".join(chunks)
+            except Exception as e:
+                logger.error(f"Streaming failed: {e}")
+                visual.clear()
+                raise
+        else:
             response = await provider.complete(
-                model=model.name,
+                model=best_model.name,
                 prompt=query,
-                **kwargs
+                max_tokens=max_tokens,
+                temperature=temperature,
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs,
             )
+            content = response.content
+            tool_calls = getattr(response, "tool_calls", None)
+            print(content)
 
-            latency = (time.time() - start_time) * 1000
+        latency_ms = (time.time() - start_time) * 1000
+        tokens_used = len(content.split()) * 1.3
+        cost = best_model.cost * (tokens_used / 1000)
 
-            if self.callback_manager:
-                self.callback_manager.trigger(
-                    CallbackEvent.MODEL_CALL_COMPLETE,
-                    query=query,
-                    data={
-                        "model": model.name,
-                        "latency_ms": latency,
-                        "cost": model.cost
-                    },
-                    user_tier=None,
-                    workflow=None
-                )
+        result = self._create_direct_result(
+            content, best_model.name, cost, latency_ms, reason, tool_calls=tool_calls
+        )
 
-            return CascadeResult(
-                content=response.get('content', ''),
-                model_used=model.name,
-                provider=model.provider,
-                total_cost=model.cost,
-                total_tokens=response.get('tokens_used', len(response.get('content', '').split())),
-                confidence=response.get('confidence', 0.0),
-                latency_ms=latency,
-                strategy="direct",
-                metadata={
-                    "tokens": len(response.get('content', '').split())
-                }
-            )
+        timing = {
+            "direct_generation": latency_ms,
+            "draft_generation": 0,
+            "quality_verification": 0,
+            "verifier_generation": 0,
+            "cascade_overhead": 0,
+        }
 
-        except Exception as e:
-            if self.callback_manager:
-                self.callback_manager.trigger(
-                    CallbackEvent.MODEL_CALL_ERROR,
-                    query=query,
-                    data={"model": model.name, "error": str(e)},
-                    user_tier=None,
-                    workflow=None
-                )
-            raise
+        return result, timing
 
-    async def _execute_speculative(
-            self,
-            query: str,
-            drafter: ModelConfig,
-            verifier: ModelConfig,
-            deferral_strategy: Optional[DeferralStrategy],
-            confidence_threshold: Optional[float],
-            **kwargs
+    # ========================================================================
+    # RESULT BUILDING - WITH COST CALCULATOR INTEGRATION (v2.5 FIX)
+    # ========================================================================
+
+    def _build_cascade_result(
+        self,
+        spec_result: Any,
+        query: str,
+        complexity: str,
+        complexity_confidence: float,
+        routing_strategy: str,
+        routing_reason: str,
+        total_latency_ms: float,
+        timing_breakdown: dict[str, float],
+        tools: Optional[list[dict]] = None,
+        streaming: bool = False,
     ) -> CascadeResult:
-        """Execute speculative cascade."""
-        cascade_key = f"{drafter.name}->{verifier.name}"
+        """
+        Build comprehensive cascade result with ALL diagnostic metadata and tool calls.
 
-        if cascade_key not in self.speculative_cascades:
-            # Create on-demand
-            cascade = SpeculativeCascade(
-                drafter=drafter,
-                verifier=verifier,
-                providers=self.providers,
-                verbose=self.verbose
-            )
+        🆕 v2.5 ENHANCEMENT: Now uses CostCalculator for accurate cost aggregation.
+        This fixes the bug where cascaded queries only showed draft cost.
+        """
+        # Extract ALL diagnostic information from metadata
+        quality_score = None
+        quality_threshold = None
+        quality_check_passed = None
+        rejection_reason = None
+        draft_response = None
+        verifier_response = None
+        response_length = None
+        response_word_count = None
+        tool_calls = None
+
+        if hasattr(spec_result, "metadata") and spec_result.metadata:
+            quality_score = spec_result.metadata.get("quality_score")
+            quality_threshold = spec_result.metadata.get("quality_threshold")
+            quality_check_passed = spec_result.metadata.get("quality_check_passed")
+            rejection_reason = spec_result.metadata.get("rejection_reason")
+            draft_response = spec_result.metadata.get("draft_response")
+            verifier_response = spec_result.metadata.get("verifier_response")
+            response_length = spec_result.metadata.get("response_length")
+            response_word_count = spec_result.metadata.get("response_word_count")
+            tool_calls = spec_result.metadata.get("tool_calls")
+
+        # Also check for tool_calls directly on result
+        if not tool_calls and hasattr(spec_result, "tool_calls"):
+            tool_calls = spec_result.tool_calls
+
+        # Fallback to calculation if not in metadata
+        if response_length is None:
+            response_length = len(spec_result.content)
+        if response_word_count is None:
+            response_word_count = len(spec_result.content.split())
+
+        # 🆕 v2.5: Determine cost breakdown using CostCalculator
+        use_cascade = routing_strategy == "cascade"
+
+        if use_cascade:
+            # Use CostCalculator for accurate breakdown
+            try:
+                cost_breakdown = self.cost_calculator.calculate(spec_result)
+
+                draft_cost = cost_breakdown.draft_cost
+                verifier_cost = cost_breakdown.verifier_cost
+                total_cost = cost_breakdown.total_cost  # ✅ PROPERLY AGGREGATED!
+                cost_saved = cost_breakdown.cost_saved
+
+                if self.verbose:
+                    logger.debug(
+                        f"Cost breakdown: draft=${draft_cost:.6f}, "
+                        f"verifier=${verifier_cost:.6f}, "
+                        f"total=${total_cost:.6f} "
+                        f"(accepted={spec_result.draft_accepted})"
+                    )
+            except Exception as e:
+                # Fallback to old method if calculator fails
+                logger.warning(f"CostCalculator failed, using fallback: {e}")
+                if spec_result.draft_accepted:
+                    draft_cost = spec_result.total_cost
+                    verifier_cost = 0.0
+                    total_cost = draft_cost
+                else:
+                    draft_cost = (
+                        spec_result.metadata.get("drafter_cost", self.models[0].cost * 0.1)
+                        if hasattr(spec_result, "metadata")
+                        else self.models[0].cost * 0.1
+                    )
+                    verifier_cost = spec_result.total_cost - draft_cost
+                    total_cost = spec_result.total_cost
+
+                # Calculate cost saved
+                best_model_cost = self.models[-1].cost
+                tokens_used = len(spec_result.content.split()) * 1.3
+                baseline_cost = best_model_cost * (tokens_used / 1000)
+                cost_saved = baseline_cost - total_cost
+
+            # Extract latencies from metadata
+            if spec_result.draft_accepted:
+                draft_latency_ms = spec_result.latency_ms
+                verifier_latency_ms = 0.0
+            else:
+                draft_latency_ms = (
+                    spec_result.metadata.get("draft_latency_ms", spec_result.latency_ms * 0.3)
+                    if hasattr(spec_result, "metadata")
+                    else spec_result.latency_ms * 0.3
+                )
+                verifier_latency_ms = spec_result.latency_ms - draft_latency_ms
         else:
-            cascade = self.speculative_cascades[cascade_key]
+            # Direct routing - no cascade
+            draft_cost = 0.0
+            draft_latency_ms = 0.0
+            verifier_cost = spec_result.total_cost
+            verifier_latency_ms = spec_result.latency_ms
+            total_cost = spec_result.total_cost
+            cost_saved = 0.0
 
-        # Override deferral rule if specified
-        if deferral_strategy or confidence_threshold:
-            cascade.deferral_rule = FlexibleDeferralRule(
-                strategy=deferral_strategy or DeferralStrategy.COMPARATIVE,
-                confidence_threshold=confidence_threshold or 0.7
-            )
+        # Build comprehensive metadata
+        metadata = {
+            "query_length": len(query),
+            "query_word_count": len(query.split()),
+            "complexity": complexity,
+            "complexity_confidence": complexity_confidence,
+            "complexity_detection_ms": timing_breakdown.get("complexity_detection", 0),
+            "routing_strategy": routing_strategy,
+            "routing_reason": routing_reason,
+            "direct_routing": routing_strategy == "direct",
+            "streaming": streaming,
+            "quality_score": quality_score,
+            "quality_threshold": quality_threshold,
+            "quality_check_passed": quality_check_passed,
+            "rejection_reason": rejection_reason,
+            "draft_response": draft_response,
+            "verifier_response": verifier_response,
+            "response_length": response_length,
+            "response_word_count": response_word_count,
+            "total_latency_ms": total_latency_ms,
+            **timing_breakdown,
+            "tokens_generated": (
+                spec_result.metadata.get("tokens_generated", 0)
+                if hasattr(spec_result, "metadata")
+                else 0
+            ),
+            "speedup": spec_result.speedup if hasattr(spec_result, "speedup") else None,
+            "cost_saved": cost_saved,
+            "quality_config": self.quality_config.__class__.__name__,
+            "has_tools": bool(tools),
+            "tool_count": len(tools) if tools else 0,
+            "tool_calls": tool_calls,
+        }
 
-        spec_result = await cascade.execute(query, **kwargs)
-
-        if self.callback_manager and not spec_result.draft_accepted:
-            self.callback_manager.trigger(
-                CallbackEvent.CASCADE_DECISION,
-                query=query,
-                data={
-                    "from": drafter.name,
-                    "to": verifier.name,
-                    "reason": spec_result.metadata.get("reason", "unknown")
-                },
-                user_tier=None,
-                workflow=None
-            )
+        if use_cascade:
+            metadata["cascade_used"] = True
+            metadata["draft_accepted"] = spec_result.draft_accepted
+            metadata["draft_model"] = self.models[0].name
+            metadata["verifier_model"] = self.models[-1].name
+        else:
+            metadata["cascade_used"] = False
+            metadata["direct_model"] = spec_result.model_used
 
         return CascadeResult(
             content=spec_result.content,
             model_used=spec_result.model_used,
-            provider=verifier.provider,
-            total_cost=spec_result.total_cost,
-            total_tokens=spec_result.tokens_drafted + spec_result.tokens_verified,
-            confidence=spec_result.draft_confidence if spec_result.draft_accepted else spec_result.verifier_confidence,
-            latency_ms=spec_result.latency_ms,
-            strategy="speculative",
-            metadata={
-                "draft_accepted": spec_result.draft_accepted,
-                "drafter": spec_result.drafter_model,
-                "verifier": spec_result.verifier_model,
-                "speedup": spec_result.speedup,
-                "deferral_strategy": spec_result.deferral_strategy
-            }
+            total_cost=total_cost,  # ✅ v2.5 FIX: Properly aggregated!
+            latency_ms=total_latency_ms,
+            complexity=complexity,
+            cascaded=use_cascade,
+            draft_accepted=spec_result.draft_accepted if use_cascade else False,
+            routing_strategy=routing_strategy,
+            reason=routing_reason,
+            tool_calls=tool_calls,
+            has_tool_calls=bool(tool_calls),
+            quality_score=quality_score,
+            quality_threshold=quality_threshold,
+            quality_check_passed=quality_check_passed,
+            rejection_reason=rejection_reason,
+            draft_response=draft_response,
+            verifier_response=verifier_response,
+            response_length=response_length,
+            response_word_count=response_word_count,
+            complexity_detection_ms=timing_breakdown.get("complexity_detection", 0),
+            draft_generation_ms=timing_breakdown.get("draft_generation", 0),
+            quality_verification_ms=timing_breakdown.get("quality_verification", 0),
+            verifier_generation_ms=timing_breakdown.get("verifier_generation", 0),
+            cascade_overhead_ms=timing_breakdown.get("cascade_overhead", 0),
+            draft_cost=draft_cost,
+            verifier_cost=verifier_cost,
+            cost_saved=cost_saved,
+            draft_model=spec_result.drafter_model if use_cascade else None,
+            draft_latency_ms=draft_latency_ms,
+            draft_confidence=spec_result.draft_confidence if use_cascade else None,
+            verifier_model=spec_result.verifier_model if use_cascade else self.models[-1].name,
+            verifier_latency_ms=verifier_latency_ms,
+            verifier_confidence=(
+                spec_result.verifier_confidence
+                if hasattr(spec_result, "verifier_confidence")
+                else None
+            ),
+            metadata=metadata,
         )
 
-    async def _execute_parallel_race(
-            self,
-            query: str,
-            models: List[ModelConfig],
-            **kwargs
-    ) -> CascadeResult:
-        """Execute parallel race (first to finish wins)."""
-        start_time = time.time()
+    # ========================================================================
+    # HELPER METHODS - WITH TOOL SUPPORT
+    # ========================================================================
 
-        tasks = [
-            self._execute_direct(query, model, **kwargs)
-            for model in models
-        ]
-
-        # Race them
-        done, pending = await asyncio.wait(
-            tasks,
-            return_when=asyncio.FIRST_COMPLETED
-        )
-
-        # Cancel remaining
-        for task in pending:
-            task.cancel()
-
-        # Get winner
-        winner = list(done)[0].result()
-
-        if self.verbose:
-            logger.info(
-                f"🏁 Parallel race won by {winner.model_used} "
-                f"in {winner.latency_ms:.0f}ms"
-            )
-
-        return winner
-
-    @classmethod
-    def smart_default(cls, tiers: Optional[Dict[str, UserTier]] = None, **kwargs) -> "CascadeAgent":
+    def _create_direct_result(self, content, model, cost, latency, reason, tool_calls=None):
         """
-        Create CascadeAgent with smart defaults.
+        Create result object for direct routing with tool support.
 
-        Auto-detects available providers and creates optimal cascade.
-
-        Args:
-            tiers: Optional custom tiers
-            **kwargs: Additional arguments for CascadeAgent (e.g., routing_strategy)
+        CRITICAL: This must be compatible with telemetry.record()!
         """
-        models = []
 
-        # Check Ollama (local)
-        try:
-            import httpx
-            response = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
-            if response.status_code == 200:
-                models.append(ModelConfig(
-                    name="llama3:8b",
-                    provider="ollama",
-                    cost=0.0,
-                    domains=["general"]
-                ))
-                logger.info("✓ Detected Ollama (local)")
-        except:
-            logger.debug("Ollama not detected")
+        class DirectResult:
+            """Mimics cascade results for telemetry compatibility."""
 
-        # Check vLLM (self-hosted)
-        try:
-            import httpx
-            response = httpx.get("http://localhost:8000/v1/models", timeout=2.0)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("data"):
-                    vllm_model = data["data"][0]["id"]
-                    models.append(ModelConfig(
-                        name=vllm_model,
-                        provider="vllm",
-                        base_url="http://localhost:8000/v1",
-                        cost=0.0,
-                        domains=["general"]
-                    ))
-                    logger.info("✓ Detected vLLM (self-hosted)")
-        except:
-            logger.debug("vLLM not detected")
+            def __init__(self, content, model, cost, latency, reason, tool_calls=None):
+                # Core attributes
+                self.content = content
+                self.model_used = model
+                self.total_cost = cost
+                self.latency_ms = latency
+                self.tool_calls = tool_calls
 
-        # Check Groq
-        if os.getenv("GROQ_API_KEY"):
-            models.append(ModelConfig(
-                name="llama-3.1-70b-versatile",
-                provider="groq",
-                cost=0.0,
-                domains=["general"]
-            ))
-            logger.info("✓ Detected Groq API key")
+                # Cascade attributes
+                self.draft_accepted = False
+                self.drafter_model = None
+                self.verifier_model = model
+                self.draft_confidence = None
+                self.verifier_confidence = 0.95
+                self.speedup = 1.0
 
-        # Check HuggingFace
-        if os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN"):
-            models.append(ModelConfig(
-                name="codellama/CodeLlama-34b-Instruct-hf",
-                provider="huggingface",
-                cost=0.0,
-                domains=["code"]
-            ))
-            logger.info("✓ Detected HuggingFace token")
+                # Complete metadata
+                self.metadata = {
+                    "reason": reason,
+                    "direct_execution": True,
+                    "routing_strategy": "direct",
+                    "cascaded": False,
+                    "drafter_cost": 0.0,
+                    "draft_cost": 0.0,
+                    "verifier_cost": cost,
+                    "total_cost": cost,
+                    "cost_saved": 0.0,
+                    "draft_latency_ms": 0.0,
+                    "drafter_latency_ms": 0.0,
+                    "verifier_latency_ms": latency,
+                    "total_latency_ms": latency,
+                    "quality_check_ms": 0.0,
+                    "quality_verification_ms": 0.0,
+                    "decision_overhead_ms": 0.0,
+                    "cascade_overhead_ms": 0.0,
+                    "response_length": len(content),
+                    "response_word_count": len(content.split()),
+                    "quality_score": None,
+                    "validation_score": None,
+                    "quality_threshold": None,
+                    "quality_check_passed": None,
+                    "rejection_reason": None,
+                    "tokens_generated": int(len(content.split()) * 1.3),
+                    "total_tokens": int(len(content.split()) * 1.3),
+                    "draft_tokens": 0,
+                    "verifier_tokens": int(len(content.split()) * 1.3),
+                    "draft_model": None,
+                    "verifier_model": model,
+                    "tool_calls": tool_calls,
+                    "has_tool_calls": bool(tool_calls),
+                }
 
-        # Check Together.ai
-        if os.getenv("TOGETHER_API_KEY"):
-            models.append(ModelConfig(
-                name="meta-llama/Llama-3-70b-chat-hf",
-                provider="together",
-                cost=0.0009,
-                domains=["general"]
-            ))
-            logger.info("✓ Detected Together.ai API key")
+            def __repr__(self):
+                tool_info = f", tools={len(self.tool_calls)}" if self.tool_calls else ""
+                return (
+                    f"DirectResult(model={self.model_used}, "
+                    f"cost=${self.total_cost:.6f}, "
+                    f"latency={self.latency_ms:.1f}ms{tool_info})"
+                )
 
-        # Check OpenAI
-        if os.getenv("OPENAI_API_KEY"):
-            models.append(ModelConfig(
-                name="gpt-3.5-turbo",
-                provider="openai",
-                cost=0.002,
-                domains=["general"]
-            ))
-            models.append(ModelConfig(
-                name="gpt-4",
-                provider="openai",
-                cost=0.03,
-                domains=["general"]
-            ))
-            logger.info("✓ Detected OpenAI API key")
+            def to_dict(self):
+                return {
+                    "content": self.content,
+                    "model_used": self.model_used,
+                    "total_cost": self.total_cost,
+                    "latency_ms": self.latency_ms,
+                    "draft_accepted": self.draft_accepted,
+                    "drafter_model": self.drafter_model,
+                    "verifier_model": self.verifier_model,
+                    "speedup": self.speedup,
+                    "tool_calls": self.tool_calls,
+                    "metadata": self.metadata,
+                }
 
-        # Check Anthropic
-        if os.getenv("ANTHROPIC_API_KEY"):
-            models.append(ModelConfig(
-                name="claude-3-sonnet-20240229",
-                provider="anthropic",
-                cost=0.003,
-                domains=["general"]
-            ))
-            logger.info("✓ Detected Anthropic API key")
+        return DirectResult(content, model, cost, latency, reason, tool_calls)
 
-        if not models:
-            raise CascadeFlowError(
-                "No providers detected. Please set at least one API key or run a local server."
-            )
+    def _dict_to_result(self, data):
+        """Convert dict to result object."""
 
-        logger.info(f"Created smart cascade with {len(models)} models")
+        class StreamResult:
+            def __init__(self, data):
+                self.content = data.get("content", "")
+                self.model_used = data.get("model_used", "")
+                self.total_cost = data.get("total_cost", 0.0)
+                self.latency_ms = data.get("latency_ms", 0.0)
+                self.draft_accepted = data.get("draft_accepted", False)
+                self.drafter_model = data.get("draft_model", "")
+                self.verifier_model = data.get("verifier_model", "")
+                self.draft_confidence = data.get("draft_confidence", 0.0)
+                self.verifier_confidence = data.get("verifier_confidence", 0.0)
+                self.speedup = data.get("speedup", 1.0)
+                self.tool_calls = data.get("tool_calls")
+                self.metadata = data
 
-        return cls(
-            models=models,
-            tiers=tiers,
-            verbose=True,
-            enable_caching=True,
-            **kwargs  # ✅ NEW: Pass through additional kwargs
-        )
+        return StreamResult(data)
 
-    def add_tier(self, name: str, tier: UserTier):
-        """Add or update a user tier."""
-        self.tiers[name] = tier
-        logger.info(f"Added tier '{name}'")
+    def _create_visual_indicator(self, enabled):
+        """Create visual indicator helper."""
 
-    def get_tier(self, name: str) -> Optional[UserTier]:
-        """Get tier by name."""
-        return self.tiers.get(name)
+        class VisualIndicator:
+            def __init__(self, enabled):
+                self.enabled = enabled and sys.stdout.isatty()
 
-    def list_tiers(self) -> List[str]:
-        """List all tier names."""
-        return list(self.tiers.keys())
+            def show(self):
+                if self.enabled:
+                    sys.stdout.write("\r\033[32m●\033[0m ")
+                    sys.stdout.flush()
 
-    def get_stats(self) -> Dict[str, Any]:
-        """Get agent statistics."""
-        stats = {
-            "models": len(self.models),
-            "tiers": list(self.tiers.keys()),
-            "workflows": list(self.workflows.keys()),
-            **self.stats,
-            "avg_cost": self.stats["total_cost"] / max(1, self.stats["total_queries"]),
-            "cascade_rate": self.stats["total_cascades"] / max(1, self.stats["total_queries"]),
+            def complete(self):
+                if self.enabled:
+                    sys.stdout.write("\r\033[32m✓\033[0m ")
+                    sys.stdout.flush()
+
+            def clear(self):
+                if self.enabled:
+                    sys.stdout.write("\r  ")
+                    sys.stdout.flush()
+
+        return VisualIndicator(enabled)
+
+    def _get_silent_consumer(self):
+        """Get silent consumer for non-visual streaming."""
+        from .interface import SilentConsumer
+
+        return SilentConsumer(verbose=self.verbose)
+
+    # ========================================================================
+    # STATISTICS - DELEGATED TO TELEMETRY
+    # ========================================================================
+
+    def get_stats(self) -> dict[str, Any]:
+        """Get comprehensive agent statistics including tool usage."""
+        telemetry_stats = self.telemetry.get_summary()
+        router_stats = self.router.get_stats()
+        tool_router_stats = self.tool_router.get_stats()
+
+        return {
+            **telemetry_stats,
+            "router_stats": router_stats,
+            "tool_router_stats": tool_router_stats,
         }
 
-        if self.complexity_detector:
-            stats["complexity"] = self.complexity_detector.get_stats()
+    def print_stats(self):
+        """Print formatted statistics including tool usage."""
+        print("\n" + "=" * 80)
+        print("CASCADEFLOW AGENT STATISTICS v2.5 (Cost Calculator Integration)")
+        print("=" * 80)
 
-        if self.cache:
-            stats["cache"] = self.cache.get_stats()
+        telemetry_stats = self.telemetry.get_summary()
 
-        if self.callback_manager:
-            stats["callbacks"] = self.callback_manager.get_stats()
+        if telemetry_stats.get("total_queries", 0) == 0:
+            print("No statistics available")
+            print("=" * 80 + "\n")
+            return
 
-        if self.speculative_cascades:
-            stats["speculative"] = {
-                key: cascade.get_stats()
-                for key, cascade in self.speculative_cascades.items()
-            }
+        print(f"Total Queries:        {telemetry_stats['total_queries']}")
+        print(f"Total Cost:           ${telemetry_stats['total_cost']:.6f}")
+        print(f"Avg Cost/Query:       ${telemetry_stats['avg_cost']:.6f}")
+        print(f"Avg Latency:          {telemetry_stats['avg_latency_ms']:.1f}ms")
+        print()
 
-        # ✅ NEW: Add semantic routing stats
-        if self.semantic_router:
-            stats["semantic_routing"] = self.semantic_router.get_stats()
+        # Tool usage stats (NEW)
+        tool_queries = telemetry_stats.get("tool_queries", 0)
+        if tool_queries > 0:
+            print("TOOL USAGE:")
+            print(
+                f"  Tool Queries:       {tool_queries} ({tool_queries/telemetry_stats['total_queries']*100:.1f}%)"
+            )
+            print()
 
-        return stats
+        print("ROUTING:")
+        print(
+            f"  Cascade Used:       {telemetry_stats['cascade_used']} ({telemetry_stats['cascade_rate']:.1f}%)"
+        )
+        print(f"  Direct Routed:      {telemetry_stats['direct_routed']}")
+        print(
+            f"  Streaming Used:     {telemetry_stats.get('streaming_used', 0)} ({telemetry_stats['streaming_rate']:.1f}%)"
+        )
+        print()
+
+        # Router stats
+        router_stats = self.router.get_stats()
+        if router_stats.get("total_queries", 0) > 0:
+            print("ROUTER (PreRouter):")
+            print(f"  Total Routed:       {router_stats['total_queries']}")
+            print(f"  Cascade Rate:       {router_stats.get('cascade_rate', '0%')}")
+            print(f"  Direct Rate:        {router_stats.get('direct_rate', '0%')}")
+            print(f"  Forced Direct:      {router_stats.get('forced_direct', 0)}")
+            print()
+
+        # Tool router stats (NEW)
+        tool_router_stats = self.tool_router.get_stats()
+        if tool_router_stats.get("total_filters", 0) > 0:
+            print("TOOL ROUTER:")
+            print(f"  Total Filters:      {tool_router_stats['total_filters']}")
+            print(
+                f"  Avg Models/Filter:  {tool_router_stats.get('avg_models_after_filter', 0):.1f}"
+            )
+            print()
+
+        print("CASCADE PERFORMANCE:")
+        print(f"  Draft Accepted:     {telemetry_stats['draft_accepted']}")
+        print(f"  Draft Rejected:     {telemetry_stats['draft_rejected']}")
+        print(f"  Acceptance Rate:    {telemetry_stats['acceptance_rate']:.1f}%")
+        print()
+
+        if telemetry_stats.get("quality_stats"):
+            qs = telemetry_stats["quality_stats"]
+            print("QUALITY SYSTEM:")
+            print(f"  Mean Score:         {qs['mean']:.3f}")
+            print(f"  Median Score:       {qs['median']:.3f}")
+            print(f"  Range:              {qs['min']:.3f} - {qs['max']:.3f}")
+            print()
+
+        if telemetry_stats.get("timing_stats"):
+            ts = telemetry_stats["timing_stats"]
+            print("TIMING BREAKDOWN (ms):")
+            for key in sorted(ts.keys()):
+                if key.startswith("avg_"):
+                    component = key.replace("avg_", "").replace("_ms", "")
+                    avg_val = ts[key]
+                    p95_key = f"p95_{component}_ms"
+                    p95_val = ts.get(p95_key, 0)
+                    print(f"  {component:25s}: {avg_val:6.1f} (p95: {p95_val:6.1f})")
+            print()
+
+        print("BY COMPLEXITY:")
+        for complexity, count in telemetry_stats["by_complexity"].items():
+            if count > 0:
+                acceptance_info = ""
+                if complexity in telemetry_stats.get("acceptance_by_complexity", {}):
+                    acc = telemetry_stats["acceptance_by_complexity"][complexity]
+                    total = acc["accepted"] + acc["rejected"]
+                    if total > 0:
+                        acc_rate = acc["accepted"] / total * 100
+                        acceptance_info = f" (acceptance: {acc_rate:.1f}%)"
+                print(f"  {complexity:12s}: {count}{acceptance_info}")
+
+        print("=" * 80 + "\n")
+
+    @classmethod
+    def from_env(cls, quality_config=None, enable_cascade=True, verbose=False):
+        """Auto-discover providers from environment with tool support."""
+        providers = get_available_providers()
+        if not providers:
+            raise CascadeFlowError("No providers available. Set API keys in environment.")
+
+        models = []
+        if "openai" in providers:
+            models.extend(
+                [
+                    ModelConfig(
+                        name="gpt-3.5-turbo",
+                        provider="openai",
+                        cost=0.002,
+                        speed_ms=800,
+                        supports_tools=False,
+                    ),
+                    ModelConfig(
+                        name="gpt-4",
+                        provider="openai",
+                        cost=0.03,
+                        speed_ms=2500,
+                        supports_tools=True,
+                    ),
+                    ModelConfig(
+                        name="gpt-4o-mini",
+                        provider="openai",
+                        cost=0.0002,
+                        speed_ms=600,
+                        supports_tools=True,
+                    ),
+                ]
+            )
+        if "anthropic" in providers:
+            models.append(
+                ModelConfig(
+                    name="claude-3-haiku-20240307",
+                    provider="anthropic",
+                    cost=0.00125,
+                    speed_ms=700,
+                    supports_tools=True,
+                )
+            )
+        if "groq" in providers:
+            models.append(
+                ModelConfig(
+                    name="llama-3.3-70b-versatile",
+                    provider="groq",
+                    cost=0.0,
+                    speed_ms=300,
+                    supports_tools=True,
+                )
+            )
+
+        if not models:
+            raise CascadeFlowError("No models configured for available providers")
+
+        logger.info(
+            f"Auto-discovered {len(providers)} providers, created {len(models)} model configs"
+        )
+        return cls(
+            models=models,
+            quality_config=quality_config,
+            enable_cascade=enable_cascade,
+            verbose=verbose,
+        )
+
+
+__all__ = ["CascadeAgent", "CascadeResult"]
