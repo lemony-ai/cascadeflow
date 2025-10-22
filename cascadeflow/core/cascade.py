@@ -1479,3 +1479,18 @@ class TokenLevelSpeculativeCascade:
     def get_stats(self) -> dict[str, Any]:
         """Get statistics."""
         return self.cascade.get_stats()
+
+
+# ==================== EXPORTS ====================
+
+__all__ = [
+    # Enums
+    "DeferralStrategy",
+    # Data classes
+    "SpeculativeResult",
+    # Core classes
+    "WholeResponseCascade",
+    "SpeculativeCascade",
+    # Deprecated (for backward compatibility)
+    "TokenLevelSpeculativeCascade",
+]

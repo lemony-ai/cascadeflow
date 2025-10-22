@@ -1,13 +1,45 @@
-"""Custom exceptions for CascadeFlow."""
+"""
+Custom Exception Hierarchy for CascadeFlow
+==========================================
+
+This module defines all custom exceptions used throughout CascadeFlow.
+
+Exception Hierarchy:
+    CascadeFlowError (base)
+    ├── ConfigError
+    ├── ProviderError
+    ├── ModelError
+    ├── BudgetExceededError
+    ├── RateLimitError
+    ├── QualityThresholdError
+    ├── RoutingError
+    └── ValidationError
+
+Usage:
+    >>> from cascadeflow import CascadeFlowError, ProviderError
+    >>>
+    >>> try:
+    ...     result = await agent.run(query)
+    ... except ProviderError as e:
+    ...     print(f"Provider failed: {e}")
+    ... except CascadeFlowError as e:
+    ...     print(f"Cascade error: {e}")
+
+See Also:
+    - agent.py for main error handling patterns
+    - providers.base for provider-specific errors
+"""
 
 
 class CascadeFlowError(Exception):
     """Base exception for CascadeFlow."""
+
     pass
 
 
 class ConfigError(CascadeFlowError):
     """Configuration error."""
+
     pass
 
 
@@ -47,14 +79,32 @@ class RateLimitError(CascadeFlowError):
 
 class QualityThresholdError(CascadeFlowError):
     """Quality threshold not met."""
+
     pass
 
 
 class RoutingError(CascadeFlowError):
     """Routing error."""
+
     pass
 
 
 class ValidationError(CascadeFlowError):
     """Validation error."""
+
     pass
+
+
+# ==================== EXPORTS ====================
+
+__all__ = [
+    "CascadeFlowError",
+    "ConfigError",
+    "ProviderError",
+    "ModelError",
+    "BudgetExceededError",
+    "RateLimitError",
+    "QualityThresholdError",
+    "RoutingError",
+    "ValidationError",
+]

@@ -1,12 +1,43 @@
 """
-Execution planning with domain detection and intelligent model scoring.
+Execution Planning & Domain Detection
+====================================
 
-This is the core intelligence layer that:
-1. Detects query domains (code, math, data, etc.)
-2. Scores models with domain/size/semantic boosts
-3. Uses semantic routing hints (if available)
-4. Selects optimal execution strategy
-5. Validates constraints
+This module implements the intelligence layer for execution planning.
+
+Core Capabilities:
+    1. Domain Detection: Identify query domains (code, math, legal, etc.)
+    2. Model Scoring: Multi-factor scoring with domain/size/semantic boosts
+    3. Strategy Selection: Choose optimal execution strategy
+    4. Constraint Validation: Check latency, cost, quality requirements
+    5. Semantic Routing: Use hints for better routing (if available)
+
+Core Classes:
+    - DomainDetector: Detect query domains from keywords
+    - ModelScorer: Score models based on multiple factors
+    - LatencyAwareExecutionPlanner: Plan execution with latency constraints
+    - ExecutionStrategy: Enum of available strategies
+    - ExecutionPlan: Complete execution plan with reasoning
+
+Execution Strategies:
+    - DIRECT_CHEAP: Use cheapest model directly
+    - DIRECT_BEST: Use best quality model directly
+    - DIRECT_SMART: Use smartest model for the domain
+    - SPECULATIVE: Draft → Validate → Maybe verifier (cascade)
+    - PARALLEL_RACE: Run multiple models in parallel
+
+Usage:
+    >>> planner = LatencyAwareExecutionPlanner()
+    >>> plan = planner.plan(
+    ...     query="Write a Python function",
+    ...     models=[cheap, expensive],
+    ...     complexity=QueryComplexity.MODERATE
+    ... )
+    >>> print(f"Strategy: {plan.strategy}")
+    >>> print(f"Estimated cost: ${plan.estimated_cost:.6f}")
+
+See Also:
+    - core.cascade for speculative execution implementation
+    - quality.complexity for complexity detection
 """
 
 import logging
@@ -565,3 +596,17 @@ class LatencyAwareExecutionPlanner:
             return min(m.speed_ms for m in race_models)
         else:
             return primary.speed_ms if primary else 0.0
+
+
+# ==================== EXPORTS ====================
+
+__all__ = [
+    # Enums
+    "ExecutionStrategy",
+    # Data classes
+    "ExecutionPlan",
+    # Core classes
+    "DomainDetector",
+    "ModelScorer",
+    "LatencyAwareExecutionPlanner",
+]
