@@ -1,0 +1,71 @@
+{
+  "name": "@cascadeflow/core",
+  "version": "1.0.0",
+  "description": "CascadeFlow TypeScript library - Smart AI model cascading for cost optimization",
+  "author": {
+    "name": "Lemony Inc.",
+    "email": "hello@lemony.ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lemony-ai/cascadeflow.git",
+    "directory": "packages/core"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "cost-optimization",
+    "model-routing",
+    "cascade",
+    "openai",
+    "anthropic",
+    "groq",
+    "typescript"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "openai": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "openai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4",
+    "openai": "^4.20.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

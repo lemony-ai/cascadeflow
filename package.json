@@ -1,0 +1,30 @@
+{
+  "name": "cascadeflow-monorepo",
+  "version": "0.2.0",
+  "private": true,
+  "description": "CascadeFlow monorepo - Python and TypeScript libraries",
+  "author": {
+    "name": "Lemony Inc.",
+    "email": "hello@lemony.ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lemony-ai/cascadeflow.git"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^1.11.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}

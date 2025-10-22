@@ -1,0 +1,16 @@
+{
+  "name": "turbo-darwin-arm64",
+  "version": "1.13.4",
+  "description": "The darwin-arm64 binary for turbo, a monorepo build system.",
+  "repository": "https://github.com/vercel/turbo",
+  "bugs": "https://github.com/vercel/turbo/issues",
+  "homepage": "https://turbo.build/repo",
+  "license": "MPL-2.0",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "preferUnplugged": true
+}
