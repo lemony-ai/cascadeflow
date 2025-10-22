@@ -1,7 +1,8 @@
 """Tests for utility functions."""
 
 import pytest
-from cascadeflow.utils import format_cost, estimate_tokens
+
+from cascadeflow.utils import estimate_tokens, format_cost
 
 
 def test_format_cost_zero():

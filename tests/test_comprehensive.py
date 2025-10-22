@@ -13,11 +13,11 @@ Tests:
 
 import asyncio
 import os
-from typing import List, Dict, Any
+from typing import Any
+
 from dotenv import load_dotenv
 
-from cascadeflow import CascadeAgent, ModelConfig, UserTier, CascadeConfig
-from cascadeflow.exceptions import BudgetExceededError
+from cascadeflow import CascadeAgent, CascadeConfig, ModelConfig
 
 load_dotenv()
 
@@ -30,7 +30,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.7,
         "expected_provider": ["ollama", "groq"],  # Should use free models
     },
-
     # 2. EASY (simple fact)
     {
         "level": "easy",
@@ -38,7 +37,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.7,
         "expected_provider": ["ollama", "groq"],
     },
-
     # 3. MODERATE (explanation)
     {
         "level": "moderate",
@@ -46,7 +44,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.7,
         "expected_provider": ["groq", "huggingface", "together"],
     },
-
     # 4. MODERATE+ (comparison)
     {
         "level": "moderate_plus",
@@ -54,7 +51,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.75,
         "expected_provider": ["groq", "together", "openai"],
     },
-
     # 5. INTERMEDIATE (reasoning)
     {
         "level": "intermediate",
@@ -62,7 +58,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.75,
         "expected_provider": ["groq", "together", "openai"],
     },
-
     # 6. INTERMEDIATE+ (code)
     {
         "level": "intermediate_plus",
@@ -70,7 +65,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.8,
         "expected_provider": ["together", "openai", "anthropic"],
     },
-
     # 7. ADVANCED (analysis)
     {
         "level": "advanced",
@@ -78,7 +72,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.8,
         "expected_provider": ["openai", "anthropic"],
     },
-
     # 8. ADVANCED+ (creative reasoning)
     {
         "level": "advanced_plus",
@@ -86,7 +79,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.85,
         "expected_provider": ["openai", "anthropic"],
     },
-
     # 9. EXPERT (complex problem)
     {
         "level": "expert",
@@ -94,7 +86,6 @@ TEST_PROMPTS = [
         "expected_min_confidence": 0.85,
         "expected_provider": ["gpt-4", "claude"],
     },
-
     # 10. VERY HARD (research-level)
     {
         "level": "very_hard",
@@ -110,7 +101,7 @@ class ComprehensiveTest:
 
     def __init__(self):
         """Initialize test suite."""
-        self.results: List[Dict[str, Any]] = []
+        self.results: list[dict[str, Any]] = []
         self.total_cost = 0.0
         self.total_queries = 0
         self.cascades = 0
@@ -122,74 +113,83 @@ class ComprehensiveTest:
         # Tier 1: Local (if available)
         try:
             import httpx
+
             response = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
             if response.status_code == 200:
-                models.append(ModelConfig(
-                    name="llama3:8b",
-                    provider="ollama",
-                    cost=0.0,
-                    keywords=["simple", "quick"]
-                ))
+                models.append(
+                    ModelConfig(
+                        name="llama3:8b", provider="ollama", cost=0.0, keywords=["simple", "quick"]
+                    )
+                )
                 print("✓ Ollama detected")
         except:
             print("○ Ollama not available")
 
         # Tier 2: Free cloud
         if os.getenv("GROQ_API_KEY"):
-            models.append(ModelConfig(
-                name="llama-3.1-8b-instant",
-                provider="groq",
-                cost=0.0,
-                keywords=["moderate", "fast"]
-            ))
+            models.append(
+                ModelConfig(
+                    name="llama-3.1-8b-instant",
+                    provider="groq",
+                    cost=0.0,
+                    keywords=["moderate", "fast"],
+                )
+            )
             print("✓ Groq detected")
 
         # Tier 3: Low-cost options
         if os.getenv("HF_TOKEN"):
-            models.append(ModelConfig(
-                name="meta-llama/Llama-3.2-3B-Instruct",
-                provider="huggingface",
-                cost=0.0,
-                keywords=["moderate"]
-            ))
+            models.append(
+                ModelConfig(
+                    name="meta-llama/Llama-3.2-3B-Instruct",
+                    provider="huggingface",
+                    cost=0.0,
+                    keywords=["moderate"],
+                )
+            )
             print("✓ HuggingFace detected")
 
         if os.getenv("TOGETHER_API_KEY"):
-            models.append(ModelConfig(
-                name="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-                provider="together",
-                cost=0.0002,
-                keywords=["detailed", "reasoning"]
-            ))
+            models.append(
+                ModelConfig(
+                    name="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+                    provider="together",
+                    cost=0.0002,
+                    keywords=["detailed", "reasoning"],
+                )
+            )
             print("✓ Together.ai detected")
 
         # Tier 4: Paid (cheap)
         if os.getenv("OPENAI_API_KEY"):
-            models.append(ModelConfig(
-                name="gpt-3.5-turbo",
-                provider="openai",
-                cost=0.002,
-                keywords=["analysis", "code"]
-            ))
+            models.append(
+                ModelConfig(
+                    name="gpt-3.5-turbo",
+                    provider="openai",
+                    cost=0.002,
+                    keywords=["analysis", "code"],
+                )
+            )
             print("✓ OpenAI (GPT-3.5) detected")
 
         # Tier 5: Paid (expensive)
         if os.getenv("OPENAI_API_KEY"):
-            models.append(ModelConfig(
-                name="gpt-4",
-                provider="openai",
-                cost=0.03,
-                keywords=["complex", "expert"]
-            ))
+            models.append(
+                ModelConfig(
+                    name="gpt-4", provider="openai", cost=0.03, keywords=["complex", "expert"]
+                )
+            )
             print("✓ OpenAI (GPT-4) detected")
 
         if os.getenv("ANTHROPIC_API_KEY"):
-            models.append(ModelConfig(
-                name="claude-3-sonnet",
-                provider="anthropic",
-                cost=0.003,
-                keywords=["reasoning", "analysis"]
-            ))
+            models.append(
+                ModelConfig(
+                    name="claude-3-sonnet",
+                    provider="anthropic",
+                    cost=0.003,
+                    keywords=["reasoning", "analysis"],
+                )
+            )
             print("✓ Anthropic detected")
 
         if not models:
@@ -199,19 +199,11 @@ class ComprehensiveTest:
         print(f"Cascade chain: {' → '.join([m.name for m in models])}\n")
 
         # Create agent
-        config = CascadeConfig(
-            quality_threshold=0.7,
-            max_budget=1.0,
-            verbose=True
-        )
+        config = CascadeConfig(quality_threshold=0.7, max_budget=1.0, verbose=True)
 
         return CascadeAgent(models, config=config)
 
-    async def run_single_test(
-            self,
-            agent: CascadeAgent,
-            test: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def run_single_test(self, agent: CascadeAgent, test: dict[str, Any]) -> dict[str, Any]:
         """Run a single test case."""
         print(f"\n{'='*70}")
         print(f"TEST: {test['level'].upper()}")
@@ -220,10 +212,10 @@ class ComprehensiveTest:
         print(f"{'='*70}\n")
 
         try:
-            result = await agent.run(test['prompt'])
+            result = await agent.run(test["prompt"])
 
             # Validate result
-            success = result.confidence >= test['expected_min_confidence']
+            success = result.confidence >= test["expected_min_confidence"]
 
             test_result = {
                 "level": test["level"],
@@ -242,20 +234,22 @@ class ComprehensiveTest:
 
             # Print result
             if success:
-                print(f"✅ SUCCESS")
+                print("✅ SUCCESS")
             else:
-                print(f"⚠️  QUALITY THRESHOLD NOT MET")
+                print("⚠️  QUALITY THRESHOLD NOT MET")
 
             print(f"Model used: {result.model_used}")
             print(f"Provider: {result.provider}")
-            print(f"Confidence: {result.confidence:.2f} (expected ≥ {test['expected_min_confidence']})")
+            print(
+                f"Confidence: {result.confidence:.2f} (expected ≥ {test['expected_min_confidence']})"
+            )
             print(f"Cost: ${result.total_cost:.6f}")
             print(f"Latency: {result.latency_ms:.0f}ms")
             print(f"Cascaded: {result.cascaded}")
             if result.cascaded:
                 print(f"Cascade path: {' → '.join(result.cascade_path)}")
             print(f"Response length: {len(result.content)} chars")
-            print(f"\nResponse preview:")
+            print("\nResponse preview:")
             print(f"{result.content[:200]}...")
 
             return test_result
@@ -271,10 +265,10 @@ class ComprehensiveTest:
 
     async def run_all_tests(self):
         """Run all test cases."""
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("CASCADEFLOW COMPREHENSIVE TEST SUITE")
         print("Testing 10 prompts from easy to very hard")
-        print("="*70 + "\n")
+        print("=" * 70 + "\n")
 
         # Setup agent
         print("Setting up CascadeAgent...\n")
@@ -301,9 +295,9 @@ class ComprehensiveTest:
 
     def print_summary(self):
         """Print test summary."""
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("TEST SUMMARY")
-        print("="*70 + "\n")
+        print("=" * 70 + "\n")
 
         # Overall stats
         successful = sum(1 for r in self.results if r.get("success"))
@@ -330,9 +324,9 @@ class ComprehensiveTest:
             percentage = count / len(self.results) * 100
             print(f"  {provider}: {count} ({percentage:.1f}%)")
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("Detailed results by complexity level:")
-        print("="*70 + "\n")
+        print("=" * 70 + "\n")
 
         for result in self.results:
             status = "✅" if result.get("success") else "❌"
@@ -343,7 +337,7 @@ class ComprehensiveTest:
 
             print(f"{status} {level:20s} | {model:30s} | Conf: {confidence:.2f} | ${cost:.6f}")
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
 
         # Cost comparison
         print("\nCost comparison:")
@@ -352,9 +346,9 @@ class ComprehensiveTest:
         savings = (1 - self.total_cost / (len(self.results) * 0.03)) * 100
         print(f"Savings: {savings:.1f}%")
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("TEST COMPLETE")
-        print("="*70 + "\n")
+        print("=" * 70 + "\n")
 
 
 async def main():

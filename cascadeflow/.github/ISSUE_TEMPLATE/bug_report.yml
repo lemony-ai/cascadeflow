@@ -1,0 +1,184 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior in CascadeFlow
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us resolve the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: When I try to use CascadeAgent with Anthropic provider, I get...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal code example that reproduces the issue.
+      placeholder: |
+        ```python
+        from cascadeflow import CascadeAgent, ModelConfig
+        
+        agent = CascadeAgent(models=[...])
+        result = await agent.run("test query")
+        # Error occurs here
+        ```
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+      placeholder: The cascade should complete successfully and return a result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include error messages and tracebacks.
+      placeholder: |
+        Traceback (most recent call last):
+          File "example.py", line 10, in <module>
+            result = await agent.run("test")
+        Error: ...
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Which provider(s) are you using?
+      multiple: true
+      options:
+        - OpenAI
+        - Anthropic
+        - Groq
+        - Ollama
+        - Together AI
+        - HuggingFace
+        - vLLM
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: routing
+    attributes:
+      label: Routing strategy
+      options:
+        - sequential
+        - semantic
+        - quality
+        - cost_optimized
+        - speed_optimized
+        - custom
+        - not applicable
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: CascadeFlow version
+      description: Run `pip show cascadeflow` to find your version
+      placeholder: e.g., 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      description: Run `python --version`
+      placeholder: e.g., 3.11.5
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Relevant dependencies
+      description: List relevant package versions (httpx, pydantic, etc.)
+      placeholder: |
+        httpx==0.27.0
+        pydantic==2.5.0
+        anthropic==0.25.0
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Share relevant configuration (remove API keys!)
+      placeholder: |
+        ```python
+        config = CascadeConfig(
+            quality_threshold=0.85,
+            use_speculative=True,
+            ...
+        )
+        ```
+      render: python
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Include relevant logs (set verbose=True or check logs/)
+      placeholder: Paste logs here (remove sensitive information)
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Any other context, screenshots, or information about the problem.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I have searched existing issues to make sure this isn't a duplicate
+          required: true
+        - label: I have provided a minimal reproducible example
+          required: true
+        - label: I have removed all sensitive information (API keys, credentials, etc.)
+          required: true
+        - label: I am using a supported Python version (3.9+)
+          required: true

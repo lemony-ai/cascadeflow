@@ -1,12 +1,12 @@
 """Tests for Together.ai provider."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
 
-from cascadeflow.providers.together import TogetherProvider
+import pytest
+
 from cascadeflow.providers.base import ModelResponse
-from cascadeflow.exceptions import ProviderError, ModelError
+from cascadeflow.providers.together import TogetherProvider
 
 
 @pytest.fixture
@@ -26,17 +26,8 @@ def together_provider(mock_env):
 def mock_together_response():
     """Mock successful Together.ai API response."""
     return {
-        "choices": [
-            {
-                "message": {"content": "This is a test response."},
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30
-        }
+        "choices": [{"message": {"content": "This is a test response."}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
     }
 
 
@@ -69,8 +60,7 @@ class TestTogetherProvider:
             mock_post.return_value = mock_response
 
             result = await together_provider.complete(
-                prompt="Test prompt",
-                model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+                prompt="Test prompt", model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
             )
 
             assert isinstance(result, ModelResponse)

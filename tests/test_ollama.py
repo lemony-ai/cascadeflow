@@ -1,11 +1,12 @@
 """Tests for Ollama provider."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from cascadeflow.providers.ollama import OllamaProvider
+import pytest
+
+from cascadeflow.exceptions import ModelError, ProviderError
 from cascadeflow.providers.base import ModelResponse
-from cascadeflow.exceptions import ProviderError, ModelError
+from cascadeflow.providers.ollama import OllamaProvider
 
 
 @pytest.fixture
@@ -23,7 +24,7 @@ def mock_ollama_response():
         "total_duration": 1234567890,
         "load_duration": 123456,
         "prompt_eval_count": 10,
-        "eval_count": 20
+        "eval_count": 20,
     }
 
 
@@ -35,7 +36,7 @@ def mock_ollama_list_response():
             {"name": "gemma3:1b"},
             {"name": "llama3:8b"},
             {"name": "mistral:7b"},
-            {"name": "codellama:7b"}
+            {"name": "codellama:7b"},
         ]
     }
 
@@ -68,10 +69,7 @@ class TestOllamaProvider:
             mock_response.raise_for_status = MagicMock()
             mock_post.return_value = mock_response
 
-            result = await ollama_provider.complete(
-                prompt="Test prompt",
-                model="gemma3:1b"
-            )
+            result = await ollama_provider.complete(prompt="Test prompt", model="gemma3:1b")
 
             assert isinstance(result, ModelResponse)
             assert result.content == "This is a test response from Llama."
@@ -89,10 +87,8 @@ class TestOllamaProvider:
             mock_response.raise_for_status = MagicMock()
             mock_post.return_value = mock_response
 
-            result = await ollama_provider.complete(
-                prompt="Test",
-                model="gemma3:1b",
-                system_prompt="You are a helpful assistant."
+            await ollama_provider.complete(
+                prompt="Test", model="gemma3:1b", system_prompt="You are a helpful assistant."
             )
 
             # Verify system prompt was included
@@ -106,12 +102,11 @@ class TestOllamaProvider:
         """Test handling of model not found error."""
         with patch.object(ollama_provider.client, "post") as mock_post:
             import httpx
+
             mock_response = MagicMock()
             mock_response.status_code = 404
             mock_post.side_effect = httpx.HTTPStatusError(
-                "Not Found",
-                request=MagicMock(),
-                response=mock_response
+                "Not Found", request=MagicMock(), response=mock_response
             )
 
             with pytest.raises(ModelError, match="Model .* not found"):
@@ -122,9 +117,8 @@ class TestOllamaProvider:
         """Test handling of connection errors."""
         with patch.object(ollama_provider.client, "post") as mock_post:
             import httpx
-            mock_post.side_effect = httpx.ConnectError(
-                "Connection refused"
-            )
+
+            mock_post.side_effect = httpx.ConnectError("Connection refused")
 
             with pytest.raises(ProviderError, match="Cannot connect to Ollama"):
                 await ollama_provider.complete("Test", "gemma3:1b")
@@ -180,19 +174,13 @@ class TestOllamaProvider:
             "of the subject matter being discussed."
         )
 
-        confidence = ollama_provider.calculate_confidence(
-            long_response,
-            metadata
-        )
+        confidence = ollama_provider.calculate_confidence(long_response, metadata)
         assert confidence > 0.7
 
     def test_calculate_confidence_not_done(self, ollama_provider):
         """Test confidence calculation when done=False."""
         metadata = {"done": False}
-        confidence = ollama_provider.calculate_confidence(
-            "This is incomplete",
-            metadata
-        )
+        confidence = ollama_provider.calculate_confidence("This is incomplete", metadata)
         # Should still return reasonable confidence
         assert 0 <= confidence <= 1
 
@@ -214,9 +202,7 @@ async def test_ollama_real_call():
 
     try:
         result = await provider.complete(
-            prompt="Say 'Hello' in one word",
-            model="gemma3:1b",
-            max_tokens=10
+            prompt="Say 'Hello' in one word", model="gemma3:1b", max_tokens=10
         )
 
         assert isinstance(result, ModelResponse)
@@ -224,7 +210,7 @@ async def test_ollama_real_call():
         assert result.cost == 0.0
         assert result.provider == "ollama"
 
-        print(f"\n✅ Real Ollama test passed!")
+        print("\n✅ Real Ollama test passed!")
         print(f"Response: {result.content}")
         print(f"Cost: ${result.cost:.4f} (FREE!)")
 

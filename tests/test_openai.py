@@ -1,12 +1,13 @@
 """Tests for OpenAI provider."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
 
-from cascadeflow.providers.openai import OpenAIProvider
+import pytest
+
+from cascadeflow.exceptions import ProviderError
 from cascadeflow.providers.base import ModelResponse
-from cascadeflow.exceptions import ProviderError, ModelError
+from cascadeflow.providers.openai import OpenAIProvider
 
 
 @pytest.fixture
@@ -26,17 +27,8 @@ def openai_provider(mock_env):
 def mock_openai_response():
     """Mock successful OpenAI API response."""
     return {
-        "choices": [
-            {
-                "message": {"content": "This is a test response."},
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30
-        }
+        "choices": [{"message": {"content": "This is a test response."}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
     }
 
 
@@ -70,10 +62,7 @@ class TestOpenAIProvider:
             mock_post.return_value = mock_response
 
             # Call complete
-            result = await openai_provider.complete(
-                prompt="Test prompt",
-                model="gpt-3.5-turbo"
-            )
+            result = await openai_provider.complete(prompt="Test prompt", model="gpt-3.5-turbo")
 
             # Verify result
             assert isinstance(result, ModelResponse)
@@ -92,10 +81,8 @@ class TestOpenAIProvider:
             mock_response.raise_for_status = MagicMock()
             mock_post.return_value = mock_response
 
-            result = await openai_provider.complete(
-                prompt="Test",
-                model="gpt-4",
-                system_prompt="You are a helpful assistant."
+            await openai_provider.complete(
+                prompt="Test", model="gpt-4", system_prompt="You are a helpful assistant."
             )
 
             # Verify system prompt was included
@@ -110,12 +97,11 @@ class TestOpenAIProvider:
         """Test handling of HTTP errors."""
         with patch.object(openai_provider.client, "post") as mock_post:
             import httpx
+
             mock_response = MagicMock()
             mock_response.status_code = 401
             mock_post.side_effect = httpx.HTTPStatusError(
-                "Unauthorized",
-                request=MagicMock(),
-                response=mock_response
+                "Unauthorized", request=MagicMock(), response=mock_response
             )
 
             with pytest.raises(ProviderError, match="Invalid OpenAI API key"):
@@ -126,12 +112,11 @@ class TestOpenAIProvider:
         """Test handling of rate limit errors."""
         with patch.object(openai_provider.client, "post") as mock_post:
             import httpx
+
             mock_response = MagicMock()
             mock_response.status_code = 429
             mock_post.side_effect = httpx.HTTPStatusError(
-                "Too Many Requests",
-                request=MagicMock(),
-                response=mock_response
+                "Too Many Requests", request=MagicMock(), response=mock_response
             )
 
             with pytest.raises(ProviderError, match="rate limit"):
@@ -141,10 +126,7 @@ class TestOpenAIProvider:
         """Test accurate cost estimation for GPT-3.5 with input/output split."""
         # 10 input tokens, 20 output tokens
         cost = openai_provider.estimate_cost(
-            tokens=30,
-            model="gpt-3.5-turbo",
-            prompt_tokens=10,
-            completion_tokens=20
+            tokens=30, model="gpt-3.5-turbo", prompt_tokens=10, completion_tokens=20
         )
         # Expected: (10/1000 * 0.0005) + (20/1000 * 0.0015) = 0.000005 + 0.00003 = 0.000035
         assert abs(cost - 0.000035) < 0.0000001
@@ -153,10 +135,7 @@ class TestOpenAIProvider:
         """Test accurate cost estimation for GPT-4 with input/output split."""
         # 100 input tokens, 200 output tokens
         cost = openai_provider.estimate_cost(
-            tokens=300,
-            model="gpt-4",
-            prompt_tokens=100,
-            completion_tokens=200
+            tokens=300, model="gpt-4", prompt_tokens=100, completion_tokens=200
         )
         # Expected: (100/1000 * 0.030) + (200/1000 * 0.060) = 0.003 + 0.012 = 0.015
         assert abs(cost - 0.015) < 0.0000001
@@ -164,10 +143,7 @@ class TestOpenAIProvider:
     def test_estimate_cost_gpt4o_mini(self, openai_provider):
         """Test cost estimation for GPT-4o-mini."""
         cost = openai_provider.estimate_cost(
-            tokens=1000,
-            model="gpt-4o-mini",
-            prompt_tokens=500,
-            completion_tokens=500
+            tokens=1000, model="gpt-4o-mini", prompt_tokens=500, completion_tokens=500
         )
         # Expected: (500/1000 * 0.00015) + (500/1000 * 0.0006) = 0.000075 + 0.0003 = 0.000375
         assert abs(cost - 0.000375) < 0.0000001
@@ -181,34 +157,21 @@ class TestOpenAIProvider:
     def test_estimate_cost_unknown_model(self, openai_provider):
         """Test cost estimation for unknown model defaults to GPT-4."""
         cost = openai_provider.estimate_cost(
-            tokens=1000,
-            model="unknown-model",
-            prompt_tokens=500,
-            completion_tokens=500
+            tokens=1000, model="unknown-model", prompt_tokens=500, completion_tokens=500
         )
         # Should default to GPT-4: (500/1000 * 0.030) + (500/1000 * 0.060) = 0.045
         assert abs(cost - 0.045) < 0.0000001
 
     def test_calculate_confidence_stop(self, openai_provider):
         """Test confidence calculation with stop finish_reason."""
-        metadata = {
-            "finish_reason": "stop"
-        }
-        confidence = openai_provider.calculate_confidence(
-            "This is a complete response.",
-            metadata
-        )
+        metadata = {"finish_reason": "stop"}
+        confidence = openai_provider.calculate_confidence("This is a complete response.", metadata)
         assert confidence > 0.7
 
     def test_calculate_confidence_length(self, openai_provider):
         """Test confidence calculation with length finish_reason."""
-        metadata = {
-            "finish_reason": "length"
-        }
-        confidence = openai_provider.calculate_confidence(
-            "This is an incomplete",
-            metadata
-        )
+        metadata = {"finish_reason": "length"}
+        confidence = openai_provider.calculate_confidence("This is an incomplete", metadata)
         assert confidence < 0.9
 
 

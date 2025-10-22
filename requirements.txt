@@ -1,24 +1,48 @@
-# Core dependencies
-httpx>=0.27.0
+# CascadeFlow Production Requirements
+# Minimal core dependencies only - provider SDKs are optional extras
+
+# ============================================================================
+# CORE DEPENDENCIES (Always Required)
+# ============================================================================
+
+# Data validation and settings
 pydantic>=2.0.0
-pyyaml>=6.0
-python-dotenv>=1.0.0
-rich>=13.0.0
 
-# Semantic routing
-sentence-transformers>=2.2.0
-scikit-learn>=1.3.0
-numpy>=1.24.0
+# HTTP client for API calls
+httpx>=0.25.0
 
-# Async support
-asyncio>=3.4.3
+# Token counting and cost estimation
+tiktoken>=0.5.0
 
-# Existing dependencies
-httpx>=0.27.0
-pydantic>=2.0.0
-pyyaml>=6.0
-rich>=13.0.0
-python-dotenv>=1.0.0
 
-# HuggingFace support (NEW)
-huggingface_hub>=0.20.0
+# ============================================================================
+# PROVIDER INSTALLATION (Optional - Use Extras)
+# ============================================================================
+
+# Install specific providers as needed:
+#   pip install cascadeflow[openai]      → Adds openai>=1.0.0
+#   pip install cascadeflow[anthropic]   → Adds anthropic>=0.8.0
+#   pip install cascadeflow[groq]        → Adds groq>=0.4.0
+#   pip install cascadeflow[providers]   → Adds OpenAI + Anthropic + Groq
+#   pip install cascadeflow[all]         → Everything
+
+# FREE/LOCAL OPTIONS (No Python packages needed):
+#   Ollama  → Just HTTP to localhost:11434
+#   vLLM    → Can use HTTP to vLLM server (or install cascadeflow[vllm])
+
+
+# ============================================================================
+# INSTALLATION EXAMPLES
+# ============================================================================
+
+# Minimal (core only):
+#   pip install cascadeflow
+#
+# With OpenAI:
+#   pip install cascadeflow[openai]
+#
+# With common providers:
+#   pip install cascadeflow[providers]
+#
+# Everything:
+#   pip install cascadeflow[all]

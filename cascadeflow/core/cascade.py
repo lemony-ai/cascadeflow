@@ -27,10 +27,6 @@ TWO EXECUTION PATHS:
    → ToolQualityValidator (Phase 4)
    → Tool-specific validation
 
-FIXED (Week 2 Day 3): Now properly uses complete_with_tools() when tools present!
-FIXED (Week 2 Day 4): Alignment score now properly tracked in metadata!
-FIXED (Week 2 Day 5): Cost aggregation bug - now uses CostCalculator from telemetry!
-FIXED (Week 2 Day 6): Now includes INPUT tokens in all cost calculations!
 
 Usage:
     # Text query (existing behavior)
@@ -1144,7 +1140,6 @@ class WholeResponseCascade:
         """
         Call drafter model with optional tool support.
 
-        FIXED (Week 2 Day 3): Now properly uses complete_with_tools() when tools present!
         """
         try:
             provider = self.providers[self.drafter.provider]
@@ -1190,7 +1185,6 @@ class WholeResponseCascade:
         """
         Call verifier model with optional tool support.
 
-        FIXED (Week 2 Day 3): Now properly uses complete_with_tools() when tools present!
         """
         try:
             provider = self.providers[self.verifier.provider]

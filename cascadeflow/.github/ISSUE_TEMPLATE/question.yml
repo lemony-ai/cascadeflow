@@ -1,0 +1,113 @@
+name: ❓ Question or Discussion
+description: Ask a question or start a discussion about CascadeFlow
+title: "[Question]: "
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest in CascadeFlow! 
+        
+        **Before asking, please check:**
+        - [Documentation](https://github.com/yourusername/cascadeflow/blob/main/README.md)
+        - [Existing issues](https://github.com/yourusername/cascadeflow/issues)
+        - [Discussions](https://github.com/yourusername/cascadeflow/discussions)
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic area
+      description: What is your question about?
+      options:
+        - Getting started / Installation
+        - Configuration / Setup
+        - Provider integration (OpenAI, Anthropic, etc.)
+        - Routing strategies
+        - Cost optimization
+        - Quality estimation
+        - Performance / Speed
+        - Tool calling / Functions
+        - Streaming
+        - Error handling
+        - Best practices
+        - Use case / Architecture
+        - Comparison with alternatives
+        - Contributing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What would you like to know?
+      placeholder: |
+        I'm trying to understand how to...
+        
+        What's the best way to...
+        
+        How does X compare to Y...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context about your use case or what you're trying to achieve
+      placeholder: |
+        I'm building an application that...
+        My goal is to...
+        I've tried...
+    validations:
+      required: false
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code example (if applicable)
+      description: Share relevant code to help us understand your question
+      placeholder: |
+        ```python
+        from cascadeflow import CascadeAgent
+        
+        # Your code here
+        ```
+      render: python
+    validations:
+      required: false
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What have you tried?
+      description: Have you already attempted to solve this or looked anywhere for answers?
+      placeholder: |
+        - I've read the documentation at...
+        - I've tried the following approach...
+        - I've searched for...
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: CascadeFlow version (if relevant)
+      placeholder: e.g., 0.1.0
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have checked the documentation
+          required: true
+        - label: This is not a bug report (use bug report template instead)
+          required: true

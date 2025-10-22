@@ -10,17 +10,18 @@ Provides hooks for:
 Enhanced with: verbose mode, print_stats, reset_stats, callback_errors tracking
 """
 
-from typing import Callable, Optional, Dict, Any, List
-from dataclasses import dataclass
-from enum import Enum
 import logging
 import time
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class CallbackEvent(Enum):
     """Types of callback events."""
+
     QUERY_START = "query_start"
     COMPLEXITY_DETECTED = "complexity_detected"
     MODELS_SCORED = "models_scored"
@@ -38,11 +39,12 @@ class CallbackEvent(Enum):
 @dataclass
 class CallbackData:
     """Data passed to callbacks."""
+
     event: CallbackEvent
     query: str
     user_tier: Optional[str]
     workflow: Optional[str]
-    data: Dict[str, Any]
+    data: dict[str, Any]
     timestamp: float
 
 
@@ -73,18 +75,14 @@ class CallbackManager:
             verbose: Enable verbose logging
         """
         self.verbose = verbose
-        self.callbacks: Dict[CallbackEvent, List[Callable]] = {}
+        self.callbacks: dict[CallbackEvent, list[Callable]] = {}
         self.stats = {
             "total_triggers": 0,
-            "by_event": {event: 0 for event in CallbackEvent},
+            "by_event": dict.fromkeys(CallbackEvent, 0),
             "callback_errors": 0,  # ✨ NEW: Track errors
         }
 
-    def register(
-            self,
-            event: CallbackEvent,
-            callback: Callable[[CallbackData], None]
-    ):
+    def register(self, event: CallbackEvent, callback: Callable[[CallbackData], None]):
         """
         Register a callback for an event.
 
@@ -120,12 +118,12 @@ class CallbackManager:
                 logger.warning(f"Callback not found for {event.value}")
 
     def trigger(
-            self,
-            event: CallbackEvent,
-            query: str,
-            data: Dict[str, Any],
-            user_tier: Optional[str] = None,
-            workflow: Optional[str] = None
+        self,
+        event: CallbackEvent,
+        query: str,
+        data: dict[str, Any],
+        user_tier: Optional[str] = None,
+        workflow: Optional[str] = None,
     ):
         """
         Trigger callbacks for an event.
@@ -150,7 +148,7 @@ class CallbackManager:
             user_tier=user_tier,
             workflow=workflow,
             data=data,
-            timestamp=time.time()
+            timestamp=time.time(),
         )
 
         for callback in self.callbacks[event]:
@@ -158,10 +156,7 @@ class CallbackManager:
                 callback(callback_data)
             except Exception as e:
                 self.stats["callback_errors"] += 1  # ✨ Track errors
-                logger.error(
-                    f"Callback error for {event.value}: {e}",
-                    exc_info=True
-                )
+                logger.error(f"Callback error for {event.value}: {e}", exc_info=True)
 
     def clear(self, event: Optional[CallbackEvent] = None):
         """
@@ -183,15 +178,13 @@ class CallbackManager:
             else:
                 logger.debug("Cleared all callbacks")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get callback statistics."""
         return {
             **self.stats,
             "registered_events": [
-                event.value
-                for event, callbacks in self.callbacks.items()
-                if callbacks
-            ]
+                event.value for event, callbacks in self.callbacks.items() if callbacks
+            ],
         }
 
     # ✨ NEW: Additional methods
@@ -200,7 +193,7 @@ class CallbackManager:
         """Reset callback statistics."""
         self.stats = {
             "total_triggers": 0,
-            "by_event": {event: 0 for event in CallbackEvent},
+            "by_event": dict.fromkeys(CallbackEvent, 0),
             "callback_errors": 0,
         }
         if self.verbose:
@@ -210,19 +203,15 @@ class CallbackManager:
         """Print formatted callback statistics."""
         stats = self.get_stats()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("CALLBACK MANAGER STATISTICS")
-        print("="*60)
+        print("=" * 60)
         print(f"Total Triggers:    {stats['total_triggers']}")
         print(f"Callback Errors:   {stats['callback_errors']}")
         print()
 
         # Filter events with triggers > 0
-        active_events = {
-            event: count
-            for event, count in stats['by_event'].items()
-            if count > 0
-        }
+        active_events = {event: count for event, count in stats["by_event"].items() if count > 0}
 
         if active_events:
             print("TRIGGERS BY EVENT:")
@@ -230,17 +219,17 @@ class CallbackManager:
                 print(f"  {event.value:30s}: {count:6d}")
             print()
 
-        if stats['registered_events']:
+        if stats["registered_events"]:
             print("REGISTERED CALLBACKS:")
-            for event in sorted(stats['registered_events']):
+            for event in sorted(stats["registered_events"]):
                 callback_count = len(self.callbacks.get(CallbackEvent[event.upper()], []))
                 print(f"  {event:30s}: {callback_count:3d} callback(s)")
 
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
 
 __all__ = [
-    'CallbackManager',
-    'CallbackEvent',
-    'CallbackData',
+    "CallbackManager",
+    "CallbackEvent",
+    "CallbackData",
 ]

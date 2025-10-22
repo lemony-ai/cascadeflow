@@ -10,13 +10,12 @@ Tests:
 """
 
 import pytest
+
 from cascadeflow.config import (
+    DEFAULT_TIERS,
+    EXAMPLE_WORKFLOWS,
     LatencyProfile,
     OptimizationWeights,
-    UserTier,
-    WorkflowProfile,
-    DEFAULT_TIERS,
-    EXAMPLE_WORKFLOWS
 )
 
 
@@ -28,7 +27,7 @@ class TestLatencyProfile:
             max_total_ms=1500,
             max_per_model_ms=1000,
             prefer_parallel=True,
-            skip_cascade_threshold=1000
+            skip_cascade_threshold=1000,
         )
         assert profile.max_total_ms == 1500
         assert profile.max_per_model_ms == 1000
@@ -41,7 +40,7 @@ class TestLatencyProfile:
             max_total_ms=1000,
             max_per_model_ms=800,
             prefer_parallel=True,
-            skip_cascade_threshold=900
+            skip_cascade_threshold=900,
         )
         assert profile.max_total_ms < 1500
         assert profile.prefer_parallel is True
@@ -51,11 +50,7 @@ class TestOptimizationWeights:
     """Test OptimizationWeights validation."""
 
     def test_valid_weights(self):
-        weights = OptimizationWeights(
-            cost=0.20,
-            speed=0.50,
-            quality=0.30
-        )
+        weights = OptimizationWeights(cost=0.20, speed=0.50, quality=0.30)
         assert weights.cost == 0.20
         assert weights.speed == 0.50
         assert weights.quality == 0.30
@@ -119,7 +114,7 @@ class TestEnhancedUserTier:
 
     def test_tier_quality_thresholds(self):
         """Each tier should have quality thresholds."""
-        for tier_name, tier in DEFAULT_TIERS.items():
+        for _tier_name, tier in DEFAULT_TIERS.items():
             assert 0 <= tier.quality_threshold <= 1
             assert tier.max_budget > 0
             if tier.target_quality:
@@ -234,9 +229,7 @@ class TestConfigIntegration:
     def test_optimization_weights_consistency(self):
         """All optimization weights should sum to 1.0."""
         for tier_name, tier in DEFAULT_TIERS.items():
-            total = (tier.optimization.cost +
-                     tier.optimization.speed +
-                     tier.optimization.quality)
+            total = tier.optimization.cost + tier.optimization.speed + tier.optimization.quality
             assert 0.99 <= total <= 1.01, f"{tier_name} weights don't sum to 1.0"
 
 

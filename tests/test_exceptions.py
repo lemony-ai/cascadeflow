@@ -1,12 +1,13 @@
 """Tests for custom exceptions."""
 
 import pytest
+
 from cascadeflow import (
-    CascadeFlowError,
     BudgetExceededError,
-    QualityThresholdError,
-    ProviderError,
+    CascadeFlowError,
     ModelError,
+    ProviderError,
+    QualityThresholdError,
 )
 
 

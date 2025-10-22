@@ -1,6 +1,7 @@
 """Test suite for streaming support."""
 
 import pytest
+
 from cascadeflow.streaming import StreamManager
 
 
@@ -33,11 +34,7 @@ class TestStreamManager:
         provider = MockProvider()
 
         chunks = []
-        async for chunk in manager.stream_from_model(
-                "test-model",
-                provider,
-                "test query"
-        ):
+        async for chunk in manager.stream_from_model("test-model", provider, "test query"):
             chunks.append(chunk)
 
         assert chunks == ["Hello", " ", "world", "!"]
@@ -49,19 +46,11 @@ class TestStreamManager:
         provider = MockProvider()
 
         # Stream 1
-        async for _ in manager.stream_from_model(
-                "test-model",
-                provider,
-                "query1"
-        ):
+        async for _ in manager.stream_from_model("test-model", provider, "query1"):
             pass
 
         # Stream 2
-        async for _ in manager.stream_from_model(
-                "test-model",
-                provider,
-                "query2"
-        ):
+        async for _ in manager.stream_from_model("test-model", provider, "query2"):
             pass
 
         stats = manager.get_stats()
@@ -75,11 +64,7 @@ class TestStreamManager:
         provider = MockProvider(should_fail=True)
 
         with pytest.raises(ValueError, match="Stream error"):
-            async for _ in manager.stream_from_model(
-                    "test-model",
-                    provider,
-                    "test query"
-            ):
+            async for _ in manager.stream_from_model("test-model", provider, "test query"):
                 pass
 
         stats = manager.get_stats()
@@ -93,11 +78,7 @@ class TestStreamManager:
 
         chunks = []
         async for chunk in manager.stream_with_fallback(
-                "primary-model",
-                primary,
-                "fallback-model",
-                fallback,
-                "test query"
+            "primary-model", primary, "fallback-model", fallback, "test query"
         ):
             chunks.append(chunk)
 
@@ -116,12 +97,12 @@ class TestStreamManager:
 
         chunks = []
         async for chunk in manager.stream_with_fallback(
-                "primary-model",
-                primary,
-                "fallback-model",
-                fallback,
-                "test query",
-                quality_checker=quality_checker
+            "primary-model",
+            primary,
+            "fallback-model",
+            fallback,
+            "test query",
+            quality_checker=quality_checker,
         ):
             chunks.append(chunk)
 
@@ -141,11 +122,7 @@ class TestStreamManager:
         provider = NoStreamProvider()
 
         chunks = []
-        async for chunk in manager.stream_from_model(
-                "test-model",
-                provider,
-                "test query"
-        ):
+        async for chunk in manager.stream_from_model("test-model", provider, "test query"):
             chunks.append(chunk)
 
         assert chunks == ["Complete response"]

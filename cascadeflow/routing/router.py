@@ -6,7 +6,8 @@ Gracefully falls back to keyword routing if dependencies unavailable.
 """
 
 import logging
-from typing import List, Optional, Dict, Tuple
+from typing import Optional
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -35,11 +36,12 @@ class SemanticRouter:
         """
         self.embedding_model_name = embedding_model
         self.model = None
-        self.model_embeddings: Dict[str, np.ndarray] = {}
+        self.model_embeddings: dict[str, np.ndarray] = {}
         self._available = False
 
         try:
             from sentence_transformers import SentenceTransformer
+
             self.model = SentenceTransformer(embedding_model)
             self._available = True
             logger.info(f"✓ Semantic routing enabled with {embedding_model}")
@@ -57,7 +59,7 @@ class SemanticRouter:
         """Check if semantic routing is available."""
         return self._available
 
-    def precompute_model_embeddings(self, models: List[any]):
+    def precompute_model_embeddings(self, models: list[any]):
         """
         Precompute embeddings for model capabilities.
 
@@ -76,15 +78,15 @@ class SemanticRouter:
             capability_parts = [model.name]
 
             # Add domains
-            if hasattr(model, 'domains') and model.domains:
+            if hasattr(model, "domains") and model.domains:
                 capability_parts.extend(model.domains)
 
             # Add keywords if available
-            if hasattr(model, 'keywords') and model.keywords:
+            if hasattr(model, "keywords") and model.keywords:
                 capability_parts.extend(model.keywords)
 
             # Add description if available
-            if hasattr(model, 'description') and model.description:
+            if hasattr(model, "description") and model.description:
                 capability_parts.append(model.description)
 
             capability_text = " ".join(capability_parts)
@@ -92,9 +94,7 @@ class SemanticRouter:
             # Compute and store embedding
             try:
                 self.model_embeddings[model.name] = self.model.encode(
-                    capability_text,
-                    show_progress_bar=False,
-                    convert_to_numpy=True
+                    capability_text, show_progress_bar=False, convert_to_numpy=True
                 )
             except Exception as e:
                 logger.warning(f"Failed to encode model {model.name}: {e}")
@@ -102,12 +102,8 @@ class SemanticRouter:
         logger.info(f"Precomputed embeddings for {len(self.model_embeddings)} models")
 
     def route(
-            self,
-            query: str,
-            models: List[any],
-            top_k: int = 3,
-            similarity_threshold: float = 0.3
-    ) -> List[Tuple[any, float]]:
+        self, query: str, models: list[any], top_k: int = 3, similarity_threshold: float = 0.3
+    ) -> list[tuple[any, float]]:
         """
         Route query to best models using semantic similarity.
 
@@ -132,9 +128,7 @@ class SemanticRouter:
         try:
             # Encode query
             query_embedding = self.model.encode(
-                query,
-                show_progress_bar=False,
-                convert_to_numpy=True
+                query, show_progress_bar=False, convert_to_numpy=True
             )
 
             # Calculate similarities
@@ -172,11 +166,7 @@ class SemanticRouter:
             logger.error(f"Error during semantic routing: {e}")
             return []
 
-    def get_model_similarity(
-            self,
-            query: str,
-            model_name: str
-    ) -> Optional[float]:
+    def get_model_similarity(self, query: str, model_name: str) -> Optional[float]:
         """
         Get similarity score between query and specific model.
 
@@ -195,9 +185,7 @@ class SemanticRouter:
 
         try:
             query_embedding = self.model.encode(
-                query,
-                show_progress_bar=False,
-                convert_to_numpy=True
+                query, show_progress_bar=False, convert_to_numpy=True
             )
 
             model_embedding = self.model_embeddings[model_name]
@@ -251,7 +239,7 @@ class SemanticRouter:
             "available": self._available,
             "embedding_model": self.embedding_model_name,
             "cached_models": len(self.model_embeddings),
-            "model_names": list(self.model_embeddings.keys())
+            "model_names": list(self.model_embeddings.keys()),
         }
 
 
@@ -264,10 +252,10 @@ class HybridRouter:
     """
 
     def __init__(
-            self,
-            semantic_router: Optional[SemanticRouter] = None,
-            semantic_weight: float = 0.7,
-            keyword_weight: float = 0.3
+        self,
+        semantic_router: Optional[SemanticRouter] = None,
+        semantic_weight: float = 0.7,
+        keyword_weight: float = 0.3,
     ):
         """
         Initialize hybrid router.
@@ -288,12 +276,12 @@ class HybridRouter:
             self.keyword_weight /= total
 
     def route(
-            self,
-            query: str,
-            models: List[any],
-            query_domains: Optional[List[str]] = None,
-            top_k: int = 3
-    ) -> List[Tuple[any, float]]:
+        self,
+        query: str,
+        models: list[any],
+        query_domains: Optional[list[str]] = None,
+        top_k: int = 3,
+    ) -> list[tuple[any, float]]:
         """
         Route using hybrid approach.
 
@@ -312,9 +300,7 @@ class HybridRouter:
 
         # 1. Get semantic scores
         if self.semantic_router.is_available():
-            semantic_matches = self.semantic_router.route(
-                query, models, top_k=len(models)
-            )
+            semantic_matches = self.semantic_router.route(query, models, top_k=len(models))
             for model, similarity in semantic_matches:
                 scores[model.name] = self.semantic_weight * similarity
 
@@ -328,19 +314,13 @@ class HybridRouter:
                 scores[model.name] = self.keyword_weight * keyword_score
 
         # 3. Sort and return top-k
-        sorted_models = [
-            (model, scores.get(model.name, 0.0))
-            for model in models
-        ]
+        sorted_models = [(model, scores.get(model.name, 0.0)) for model in models]
         sorted_models.sort(key=lambda x: x[1], reverse=True)
 
         return sorted_models[:top_k]
 
     def _keyword_match_score(
-            self,
-            model: any,
-            query: str,
-            query_domains: Optional[List[str]] = None
+        self, model: any, query: str, query_domains: Optional[list[str]] = None
     ) -> float:
         """
         Calculate keyword-based match score.
@@ -357,22 +337,19 @@ class HybridRouter:
         query_lower = query.lower()
 
         # Domain matching (strongest signal)
-        if query_domains and hasattr(model, 'domains') and model.domains:
+        if query_domains and hasattr(model, "domains") and model.domains:
             domain_matches = len(set(query_domains) & set(model.domains))
             if domain_matches > 0:
                 score += 0.6 * (domain_matches / len(query_domains))
 
         # Keyword matching
-        if hasattr(model, 'keywords') and model.keywords:
-            keyword_matches = sum(
-                1 for kw in model.keywords
-                if kw.lower() in query_lower
-            )
+        if hasattr(model, "keywords") and model.keywords:
+            keyword_matches = sum(1 for kw in model.keywords if kw.lower() in query_lower)
             if keyword_matches > 0:
                 score += 0.3 * min(1.0, keyword_matches / 3)
 
         # Model name matching (weak signal)
-        if hasattr(model, 'name'):
+        if hasattr(model, "name"):
             model_name_lower = model.name.lower()
             # Check for model name mentions in query
             if model_name_lower in query_lower:
@@ -382,10 +359,7 @@ class HybridRouter:
 
 
 # Convenience function
-def create_router(
-        strategy: str = "semantic",
-        **kwargs
-) -> Optional[SemanticRouter]:
+def create_router(strategy: str = "semantic", **kwargs) -> Optional[SemanticRouter]:
     """
     Create a router based on strategy.
 

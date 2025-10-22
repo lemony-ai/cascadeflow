@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/lemony-ai/cascadeflow/blob/main/README.md
+    about: Check out our comprehensive documentation and guides
+  - name: 💬 GitHub Discussions
+    url: https://github.com/lemony-ai/cascadeflow/discussions
+    about: Join the community discussion for questions and ideas
+  - name: 📖 Examples
+    url: https://github.com/lemony-ai/cascadeflow/tree/main/examples
+    about: Browse working examples for all supported providers
+  - name: 🐛 Known Issues
+    url: https://github.com/lemony-ai/cascadeflow/issues?q=is%3Aissue+label%3Abug
+    about: Check if your issue has already been reported
+  - name: 💼 Support
+    url: mailto:hello@lemony.ai
+    about: Contact us for support, consulting, or enterprise inquiries

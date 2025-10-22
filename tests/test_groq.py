@@ -1,12 +1,13 @@
 """Tests for Groq provider."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
 
-from cascadeflow.providers.groq import GroqProvider
+import pytest
+
+from cascadeflow.exceptions import ProviderError
 from cascadeflow.providers.base import ModelResponse
-from cascadeflow.exceptions import ProviderError, ModelError
+from cascadeflow.providers.groq import GroqProvider
 
 
 @pytest.fixture
@@ -27,16 +28,9 @@ def mock_groq_response():
     """Mock successful Groq API response."""
     return {
         "choices": [
-            {
-                "message": {"content": "This is a test response from Groq."},
-                "finish_reason": "stop"
-            }
+            {"message": {"content": "This is a test response from Groq."}, "finish_reason": "stop"}
         ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30
-        }
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
     }
 
 
@@ -69,8 +63,7 @@ class TestGroqProvider:
             mock_post.return_value = mock_response
 
             result = await groq_provider.complete(
-                prompt="Test prompt",
-                model="llama-3.1-8b-instant"
+                prompt="Test prompt", model="llama-3.1-8b-instant"
             )
 
             assert isinstance(result, ModelResponse)
@@ -90,10 +83,10 @@ class TestGroqProvider:
             mock_response.raise_for_status = MagicMock()
             mock_post.return_value = mock_response
 
-            result = await groq_provider.complete(
+            await groq_provider.complete(
                 prompt="Test",
                 model="llama-3.1-70b-versatile",
-                system_prompt="You are a helpful assistant."
+                system_prompt="You are a helpful assistant.",
             )
 
             # Verify system prompt was included
@@ -108,12 +101,11 @@ class TestGroqProvider:
         """Test handling of HTTP errors."""
         with patch.object(groq_provider.client, "post") as mock_post:
             import httpx
+
             mock_response = MagicMock()
             mock_response.status_code = 401
             mock_post.side_effect = httpx.HTTPStatusError(
-                "Unauthorized",
-                request=MagicMock(),
-                response=mock_response
+                "Unauthorized", request=MagicMock(), response=mock_response
             )
 
             with pytest.raises(ProviderError, match="Invalid Groq API key"):
@@ -124,12 +116,11 @@ class TestGroqProvider:
         """Test handling of rate limit errors."""
         with patch.object(groq_provider.client, "post") as mock_post:
             import httpx
+
             mock_response = MagicMock()
             mock_response.status_code = 429
             mock_post.side_effect = httpx.HTTPStatusError(
-                "Too Many Requests",
-                request=MagicMock(),
-                response=mock_response
+                "Too Many Requests", request=MagicMock(), response=mock_response
             )
 
             with pytest.raises(ProviderError, match="rate limit"):
@@ -162,13 +153,8 @@ class TestGroqProvider:
 
     def test_calculate_confidence_stop(self, groq_provider):
         """Test confidence calculation with stop finish_reason."""
-        metadata = {
-            "choices": [{"finish_reason": "stop"}]
-        }
-        confidence = groq_provider.calculate_confidence(
-            "This is a complete response.",
-            metadata
-        )
+        metadata = {"choices": [{"finish_reason": "stop"}]}
+        confidence = groq_provider.calculate_confidence("This is a complete response.", metadata)
         # With stop finish_reason, should have reasonable confidence
         # Base confidence (~0.4-0.6) + boost (+0.1) = ~0.5-0.7
         assert confidence >= 0.5
@@ -177,13 +163,8 @@ class TestGroqProvider:
 
     def test_calculate_confidence_length(self, groq_provider):
         """Test confidence calculation with length finish_reason."""
-        metadata = {
-            "choices": [{"finish_reason": "length"}]
-        }
-        confidence = groq_provider.calculate_confidence(
-            "This is an incomplete",
-            metadata
-        )
+        metadata = {"choices": [{"finish_reason": "length"}]}
+        confidence = groq_provider.calculate_confidence("This is an incomplete", metadata)
         # With length finish_reason, confidence should be reduced
         assert confidence < 0.9
         assert confidence >= 0.0

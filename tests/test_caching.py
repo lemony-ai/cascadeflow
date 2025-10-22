@@ -1,7 +1,9 @@
 """Test suite for response caching."""
 
-import pytest
 import time
+
+import pytest
+
 from cascadeflow.caching import ResponseCache
 
 

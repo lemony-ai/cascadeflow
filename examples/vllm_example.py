@@ -13,6 +13,7 @@ Prerequisites:
 """
 
 import asyncio
+
 from cascadeflow.providers.vllm import VLLMProvider
 
 
@@ -41,9 +42,7 @@ async def main():
         # Test completion
         print("Testing completion...")
         result = await provider.complete(
-            prompt="Explain AI in one sentence",
-            model=model,
-            max_tokens=100
+            prompt="Explain AI in one sentence", model=model, max_tokens=100
         )
 
         print(f"Response: {result.content}")

@@ -1,7 +1,8 @@
 """Test complexity detection with improved algorithm."""
 
 import pytest
-from cascadeflow.complexity import ComplexityDetector, QueryComplexity
+
+from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
 
 class TestComplexityDetector:
@@ -88,7 +89,7 @@ class TestComplexityDetector:
             if n <= 1:
                 return n
             return fibonacci(n-1) + fibonacci(n-2)
-        
+
         Optimize this code
         """
         complexity, _ = self.detector.detect(code_query)

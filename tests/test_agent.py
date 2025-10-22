@@ -10,27 +10,24 @@ Tests all day 4.2 features:
 - 20+ control parameters
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, Any
 
 from cascadeflow import CascadeAgent
 from cascadeflow.config import (
-    ModelConfig, CascadeConfig, UserTier,
-    WorkflowProfile, OptimizationWeights, LatencyProfile
+    LatencyProfile,
+    ModelConfig,
+    OptimizationWeights,
+    UserTier,
+    WorkflowProfile,
 )
-from cascadeflow.complexity import QueryComplexity
-from cascadeflow.execution import ExecutionStrategy
-from cascadeflow.speculative import DeferralStrategy
-from cascadeflow.result import CascadeResult
-from cascadeflow.callbacks import CallbackEvent
-from cascadeflow.exceptions import BudgetExceededError, QualityThresholdError
-
+from cascadeflow.quality.complexity import QueryComplexity
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_models():
@@ -42,7 +39,7 @@ def mock_models():
             cost=0.0,
             quality_score=0.65,
             speed_ms=300,
-            domains=["general"]
+            domains=["general"],
         ),
         ModelConfig(
             name="codellama:7b",
@@ -50,7 +47,7 @@ def mock_models():
             cost=0.0,
             quality_score=0.70,
             speed_ms=350,
-            domains=["code"]
+            domains=["code"],
         ),
         ModelConfig(
             name="gpt-3.5-turbo",
@@ -58,7 +55,7 @@ def mock_models():
             cost=0.002,
             quality_score=0.85,
             speed_ms=800,
-            domains=["general"]
+            domains=["general"],
         ),
         ModelConfig(
             name="gpt-4",
@@ -66,7 +63,7 @@ def mock_models():
             cost=0.03,
             quality_score=0.95,
             speed_ms=1500,
-            domains=["general"]
+            domains=["general"],
         ),
     ]
 
@@ -86,13 +83,9 @@ def mock_tiers():
                 max_total_ms=3000,
                 max_per_model_ms=1000,
                 prefer_parallel=False,
-                skip_cascade_threshold=0
+                skip_cascade_threshold=0,
             ),
-            optimization=OptimizationWeights(
-                cost=0.6,
-                speed=0.2,
-                quality=0.2
-            )
+            optimization=OptimizationWeights(cost=0.6, speed=0.2, quality=0.2),
         ),
         "premium": UserTier(
             name="premium",
@@ -105,14 +98,10 @@ def mock_tiers():
                 max_total_ms=2000,
                 max_per_model_ms=1500,
                 prefer_parallel=True,
-                skip_cascade_threshold=1500
+                skip_cascade_threshold=1500,
             ),
-            optimization=OptimizationWeights(
-                cost=0.2,
-                speed=0.3,
-                quality=0.5
-            )
-        )
+            optimization=OptimizationWeights(cost=0.2, speed=0.3, quality=0.5),
+        ),
     }
 
 
@@ -125,11 +114,7 @@ def mock_workflows():
             domains=["code"],
             preferred_models=["codellama:7b"],
             quality_threshold=0.75,
-            optimization_weights=OptimizationWeights(
-                cost=0.2,
-                speed=0.3,
-                quality=0.5
-            )
+            optimization_weights=OptimizationWeights(cost=0.2, speed=0.3, quality=0.5),
         )
     }
 
@@ -138,24 +123,22 @@ def mock_workflows():
 def mock_provider_response():
     """Create mock provider response."""
     return {
-        'content': 'This is a test response.',
-        'confidence': 0.85,
-        'tokens_used': 50,
-        'cost': 0.002
+        "content": "This is a test response.",
+        "confidence": 0.85,
+        "tokens_used": 50,
+        "cost": 0.002,
     }
 
 
 @pytest.fixture
 async def mock_agent(mock_models, mock_tiers, mock_workflows):
     """Create agent with mocked providers."""
-    with patch('cascadeflow.agent.PROVIDER_REGISTRY') as mock_registry:
+    with patch("cascadeflow.agent.PROVIDER_REGISTRY") as mock_registry:
         # Create mock provider
         mock_provider = Mock()
-        mock_provider.complete = AsyncMock(return_value={
-            'content': 'Test response',
-            'confidence': 0.85,
-            'tokens_used': 50
-        })
+        mock_provider.complete = AsyncMock(
+            return_value={"content": "Test response", "confidence": 0.85, "tokens_used": 50}
+        )
 
         # Register mock providers
         mock_registry.__getitem__.return_value = lambda: mock_provider
@@ -167,14 +150,11 @@ async def mock_agent(mock_models, mock_tiers, mock_workflows):
             workflows=mock_workflows,
             enable_caching=True,
             enable_callbacks=True,
-            verbose=True
+            verbose=True,
         )
 
         # Replace providers with mocks
-        agent.providers = {
-            "ollama": mock_provider,
-            "openai": mock_provider
-        }
+        agent.providers = {"ollama": mock_provider, "openai": mock_provider}
 
         yield agent
 
@@ -182,6 +162,7 @@ async def mock_agent(mock_models, mock_tiers, mock_workflows):
 # ============================================================================
 # Basic Tests
 # ============================================================================
+
 
 class TestAgentInitialization:
     """Test agent initialization."""
@@ -197,20 +178,13 @@ class TestAgentInitialization:
 
     def test_init_with_caching(self, mock_models):
         """Test initialization with caching enabled."""
-        agent = CascadeAgent(
-            models=mock_models,
-            enable_caching=True,
-            cache_size=500
-        )
+        agent = CascadeAgent(models=mock_models, enable_caching=True, cache_size=500)
 
         assert agent.cache is not None
 
     def test_init_with_callbacks(self, mock_models):
         """Test initialization with callbacks enabled."""
-        agent = CascadeAgent(
-            models=mock_models,
-            enable_callbacks=True
-        )
+        agent = CascadeAgent(models=mock_models, enable_callbacks=True)
 
         assert agent.callback_manager is not None
 
@@ -229,6 +203,7 @@ class TestAgentInitialization:
 # Query Execution Tests
 # ============================================================================
 
+
 class TestBasicQueryExecution:
     """Test basic query execution."""
 
@@ -245,10 +220,7 @@ class TestBasicQueryExecution:
     @pytest.mark.asyncio
     async def test_query_with_user_tier(self, mock_agent):
         """Test query with user tier applied."""
-        result = await mock_agent.run(
-            "What is Python?",
-            user_tier="free"
-        )
+        result = await mock_agent.run("What is Python?", user_tier="free")
 
         assert result is not None
         # Free tier should only use free models
@@ -257,10 +229,7 @@ class TestBasicQueryExecution:
     @pytest.mark.asyncio
     async def test_query_with_workflow(self, mock_agent):
         """Test query with workflow applied."""
-        result = await mock_agent.run(
-            "Review this code",
-            workflow="code_review"
-        )
+        result = await mock_agent.run("Review this code", workflow="code_review")
 
         assert result is not None
 
@@ -268,8 +237,7 @@ class TestBasicQueryExecution:
     async def test_query_with_domain_hint(self, mock_agent):
         """Test query with domain hint."""
         result = await mock_agent.run(
-            "def factorial(n): return n * factorial(n-1)",
-            query_domains=["code"]
+            "def factorial(n): return n * factorial(n-1)", query_domains=["code"]
         )
 
         assert result is not None
@@ -279,6 +247,7 @@ class TestBasicQueryExecution:
 # Intelligence Layer Tests
 # ============================================================================
 
+
 class TestComplexityDetection:
     """Test complexity detection integration."""
 
@@ -286,9 +255,7 @@ class TestComplexityDetection:
     async def test_trivial_query(self, mock_agent):
         """Test trivial query detection."""
         # Mock complexity detector to return TRIVIAL
-        mock_agent.complexity_detector.detect = Mock(
-            return_value=(QueryComplexity.TRIVIAL, 0.9)
-        )
+        mock_agent.complexity_detector.detect = Mock(return_value=(QueryComplexity.TRIVIAL, 0.9))
 
         result = await mock_agent.run("What is 2+2?")
 
@@ -299,13 +266,9 @@ class TestComplexityDetection:
     async def test_expert_query(self, mock_agent):
         """Test expert query detection."""
         # Mock complexity detector to return EXPERT
-        mock_agent.complexity_detector.detect = Mock(
-            return_value=(QueryComplexity.EXPERT, 0.95)
-        )
+        mock_agent.complexity_detector.detect = Mock(return_value=(QueryComplexity.EXPERT, 0.95))
 
-        result = await mock_agent.run(
-            "Explain quantum entanglement in relation to Bell's theorem"
-        )
+        result = await mock_agent.run("Explain quantum entanglement in relation to Bell's theorem")
 
         # Should use better model for expert queries
         assert result.model_used in ["gpt-4", "gpt-3.5-turbo", "llama3:8b"]
@@ -318,8 +281,7 @@ class TestDomainRouting:
     async def test_code_domain(self, mock_agent):
         """Test code domain routing."""
         result = await mock_agent.run(
-            "Write a Python function to sort a list",
-            query_domains=["code"]
+            "Write a Python function to sort a list", query_domains=["code"]
         )
 
         assert result is not None
@@ -327,10 +289,7 @@ class TestDomainRouting:
     @pytest.mark.asyncio
     async def test_math_domain(self, mock_agent):
         """Test math domain routing."""
-        result = await mock_agent.run(
-            "Solve: x^2 + 5x + 6 = 0",
-            query_domains=["math"]
-        )
+        result = await mock_agent.run("Solve: x^2 + 5x + 6 = 0", query_domains=["math"])
 
         assert result is not None
 
@@ -339,26 +298,21 @@ class TestDomainRouting:
 # Parameter Control Tests
 # ============================================================================
 
+
 class TestModelControl:
     """Test model control parameters."""
 
     @pytest.mark.asyncio
     async def test_force_models(self, mock_agent):
         """Test force_models parameter."""
-        result = await mock_agent.run(
-            "What is AI?",
-            force_models=["gpt-4"]
-        )
+        result = await mock_agent.run("What is AI?", force_models=["gpt-4"])
 
         assert result.model_used == "gpt-4"
 
     @pytest.mark.asyncio
     async def test_exclude_models(self, mock_agent):
         """Test exclude_models parameter."""
-        result = await mock_agent.run(
-            "What is AI?",
-            exclude_models=["gpt-4", "gpt-3.5-turbo"]
-        )
+        result = await mock_agent.run("What is AI?", exclude_models=["gpt-4", "gpt-3.5-turbo"])
 
         # Should only use Ollama models
         assert result.model_used in ["llama3:8b", "codellama:7b"]
@@ -370,10 +324,7 @@ class TestBudgetControl:
     @pytest.mark.asyncio
     async def test_max_budget(self, mock_agent):
         """Test max_budget parameter."""
-        result = await mock_agent.run(
-            "What is AI?",
-            max_budget=0.0
-        )
+        result = await mock_agent.run("What is AI?", max_budget=0.0)
 
         # Should only use free models
         assert result.total_cost == 0.0  # ✅ Fixed: was result.cost
@@ -383,17 +334,15 @@ class TestBudgetControl:
         """Test budget exceeded error."""
         # Mock expensive responses with low confidence
         for provider in mock_agent.providers.values():
-            provider.complete = AsyncMock(return_value={
-                'content': 'Test',
-                'confidence': 0.5,
-                'tokens_used': 50
-            })
+            provider.complete = AsyncMock(
+                return_value={"content": "Test", "confidence": 0.5, "tokens_used": 50}
+            )
 
         # This should work since we're testing the constraint, not necessarily triggering the error
         result = await mock_agent.run(
             "What is AI?",
             max_budget=0.001,
-            quality_threshold=0.6  # Lower threshold to allow completion
+            quality_threshold=0.6,  # Lower threshold to allow completion
         )
 
         assert result.total_cost <= 0.001 or result.total_cost == 0.0  # ✅ Fixed: was result.cost
@@ -405,10 +354,7 @@ class TestQualityControl:
     @pytest.mark.asyncio
     async def test_quality_threshold(self, mock_agent):
         """Test quality_threshold parameter."""
-        result = await mock_agent.run(
-            "What is AI?",
-            quality_threshold=0.8
-        )
+        result = await mock_agent.run("What is AI?", quality_threshold=0.8)
 
         assert result is not None
 
@@ -416,6 +362,7 @@ class TestQualityControl:
 # ============================================================================
 # Feature Tests
 # ============================================================================
+
 
 class TestCaching:
     """Test response caching."""
@@ -439,14 +386,14 @@ class TestCaching:
         query = "What is AI?"
 
         # First call
-        result1 = await mock_agent.run(query, enable_caching=False)
+        await mock_agent.run(query, enable_caching=False)
 
         # Clear call count
         for provider in mock_agent.providers.values():
             provider.complete.reset_mock()
 
         # Second call (should NOT hit cache)
-        result2 = await mock_agent.run(query, enable_caching=False)
+        await mock_agent.run(query, enable_caching=False)
 
         # Provider should be called again
         assert any(p.complete.call_count > 0 for p in mock_agent.providers.values())
@@ -463,10 +410,7 @@ class TestCallbacks:
         def on_complete(event, **kwargs):
             events.append(("complete", kwargs))
 
-        result = await mock_agent.run(
-            "What is AI?",
-            on_complete=on_complete
-        )
+        await mock_agent.run("What is AI?", on_complete=on_complete)
 
         # Callback should have been called
         assert len(events) > 0
@@ -479,20 +423,14 @@ class TestSpeculativeCascades:
     @pytest.mark.asyncio
     async def test_speculative_enabled(self, mock_agent):
         """Test speculative cascade when enabled."""
-        result = await mock_agent.run(
-            "What is AI?",
-            enable_speculative=True
-        )
+        result = await mock_agent.run("What is AI?", enable_speculative=True)
 
         assert result is not None
 
     @pytest.mark.asyncio
     async def test_speculative_disabled(self, mock_agent):
         """Test speculative cascade disabled."""
-        result = await mock_agent.run(
-            "What is AI?",
-            enable_speculative=False
-        )
+        result = await mock_agent.run("What is AI?", enable_speculative=False)
 
         assert result is not None
 
@@ -500,6 +438,7 @@ class TestSpeculativeCascades:
 # ============================================================================
 # Statistics Tests
 # ============================================================================
+
 
 class TestStatistics:
     """Test agent statistics."""
@@ -523,6 +462,7 @@ class TestStatistics:
 # Integration Tests
 # ============================================================================
 
+
 class TestEndToEnd:
     """End-to-end integration tests."""
 
@@ -532,7 +472,7 @@ class TestEndToEnd:
         callback_events = []
 
         def track_event(event, **kwargs):
-            callback_events.append(event.value if hasattr(event, 'value') else str(event))
+            callback_events.append(event.value if hasattr(event, "value") else str(event))
 
         result = await mock_agent.run(
             query="Write a Python function to reverse a string",
@@ -544,7 +484,7 @@ class TestEndToEnd:
             enable_caching=True,
             enable_speculative=True,
             on_complete=track_event,
-            metadata={"test": True}
+            metadata={"test": True},
         )
 
         assert result is not None
@@ -557,7 +497,7 @@ class TestEndToEnd:
         result = await mock_agent.run(
             query="Review this code: def hello(): print('hi')",
             user_tier="free",
-            workflow="code_review"
+            workflow="code_review",
         )
 
         # Free tier should constrain models
@@ -569,6 +509,7 @@ class TestEndToEnd:
 # Error Handling Tests
 # ============================================================================
 
+
 class TestErrorHandling:
     """Test error handling."""
 
@@ -576,9 +517,7 @@ class TestErrorHandling:
     async def test_provider_error(self, mock_agent):
         """Test handling of provider errors."""
         # Mock provider to raise error
-        mock_agent.providers["ollama"].complete = AsyncMock(
-            side_effect=Exception("Provider error")
-        )
+        mock_agent.providers["ollama"].complete = AsyncMock(side_effect=Exception("Provider error"))
 
         with pytest.raises(Exception):
             await mock_agent.run("What is AI?")
@@ -587,6 +526,7 @@ class TestErrorHandling:
 # ============================================================================
 # Utility Tests
 # ============================================================================
+
 
 class TestAgentUtilities:
     """Test agent utility methods."""
@@ -602,13 +542,9 @@ class TestAgentUtilities:
                 max_total_ms=1000,
                 max_per_model_ms=800,
                 prefer_parallel=True,
-                skip_cascade_threshold=900
+                skip_cascade_threshold=900,
             ),
-            optimization=OptimizationWeights(
-                cost=0.1,
-                speed=0.4,
-                quality=0.5
-            )
+            optimization=OptimizationWeights(cost=0.1, speed=0.4, quality=0.5),
         )
 
         mock_agent.add_tier("enterprise", new_tier)

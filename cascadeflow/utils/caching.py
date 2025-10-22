@@ -8,11 +8,11 @@ Provides:
 - Cache statistics
 """
 
-from typing import Optional, Dict, Any
 import hashlib
-import time
 import logging
+import time
 from collections import OrderedDict
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -44,34 +44,19 @@ class ResponseCache:
         self.max_size = max_size
         self.default_ttl = default_ttl
         self.cache: OrderedDict = OrderedDict()
-        self.stats = {
-            "hits": 0,
-            "misses": 0,
-            "sets": 0,
-            "evictions": 0
-        }
+        self.stats = {"hits": 0, "misses": 0, "sets": 0, "evictions": 0}
 
     def _generate_key(
-            self,
-            query: str,
-            model: Optional[str] = None,
-            params: Optional[Dict[str, Any]] = None
+        self, query: str, model: Optional[str] = None, params: Optional[dict[str, Any]] = None
     ) -> str:
         """Generate cache key from query and parameters."""
-        key_data = {
-            "query": query,
-            "model": model,
-            "params": params or {}
-        }
+        key_data = {"query": query, "model": model, "params": params or {}}
         key_str = str(sorted(key_data.items()))
         return hashlib.sha256(key_str.encode()).hexdigest()
 
     def get(
-            self,
-            query: str,
-            model: Optional[str] = None,
-            params: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, query: str, model: Optional[str] = None, params: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
         """
         Get cached response.
 
@@ -99,12 +84,12 @@ class ResponseCache:
         return entry["response"]
 
     def set(
-            self,
-            query: str,
-            response: Dict[str, Any],
-            model: Optional[str] = None,
-            params: Optional[Dict[str, Any]] = None,
-            ttl: Optional[int] = None
+        self,
+        query: str,
+        response: dict[str, Any],
+        model: Optional[str] = None,
+        params: Optional[dict[str, Any]] = None,
+        ttl: Optional[int] = None,
     ):
         """Set cache entry."""
         key = self._generate_key(query, model, params)
@@ -119,7 +104,7 @@ class ResponseCache:
         self.cache[key] = {
             "response": response,
             "created_at": time.time(),
-            "expires_at": time.time() + (ttl or self.default_ttl)
+            "expires_at": time.time() + (ttl or self.default_ttl),
         }
         self.stats["sets"] += 1
 
@@ -130,7 +115,7 @@ class ResponseCache:
         self.cache.clear()
         logger.info("Cache cleared")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         hit_rate = (
             self.stats["hits"] / (self.stats["hits"] + self.stats["misses"])
@@ -142,5 +127,5 @@ class ResponseCache:
             **self.stats,
             "size": len(self.cache),
             "max_size": self.max_size,
-            "hit_rate": hit_rate
+            "hit_rate": hit_rate,
         }

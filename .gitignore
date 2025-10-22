@@ -1,4 +1,6 @@
-# Python
+# ============================================================================
+# PYTHON
+# ============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,38 +12,142 @@ dist/
 .eggs/
 *.egg
 
-# Virtual environments
+# ============================================================================
+# VIRTUAL ENVIRONMENTS
+# ============================================================================
 .venv/
 venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
-# IDE
+# ============================================================================
+# IDE & EDITORS
+# ============================================================================
+# PyCharm
 .idea/
+
+# VSCode
+.vscode/
+
+# Vim
 *.swp
 *.swo
-.vscode/
+*~
+
+# IntelliJ
 *.iml
 
-# Environment variables
+# ============================================================================
+# AI ASSISTANTS
+# ============================================================================
+CLAUDE.md
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
 .env
 .env.local
 .env.*.local
+*.env
 
-# Testing
+# API Keys (be explicit about config files)
+*_config.txt
+*_api_key.txt
+
+# ============================================================================
+# TESTING
+# ============================================================================
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 coverage.xml
 *.cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# OS
+# ============================================================================
+# TEST ARTIFACTS (CascadeFlow-specific)
+# ============================================================================
+# Test-generated configuration files
+tuned_configs/
+tuning_recommendations/
+
+# ============================================================================
+# OS FILES
+# ============================================================================
+# macOS
 .DS_Store
-Thumbs.db
-*.bak
+.AppleDouble
+.LSOverride
 
-# Project specific
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+Desktop.ini
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================================================
+# BACKUPS
+# ============================================================================
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+.cleanup_backup_*/
+
+# ============================================================================
+# PROJECT SPECIFIC (CascadeFlow)
+# ============================================================================
+# Logs
 logs/
 *.log
+*.log.*
+
+# Cache
 .cache/
+.ruff_cache/
+
+# Documentation builds
+docs/_build/
+docs/_static/
+docs/_templates/
+site/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# ============================================================================
+# SECURITY (Important!)
+# ============================================================================
+# Never commit these
+*secret*
+*SECRET*
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+credentials.json
+token.json
+
+# ============================================================================
+# MACOS SPECIFIC
+# ============================================================================
+# Prevent committing macOS folder attributes
+._*
+.Spotlight-V100
+.Trashes

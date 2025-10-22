@@ -15,16 +15,17 @@ Based on research:
 - Domain-specific vocabulary scoring from academic sources
 """
 
-from typing import Tuple, Optional, Dict, Set, List, Union
-from enum import Enum
-import re
 import logging
+import re
+from enum import Enum
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
 
 class QueryComplexity(Enum):
     """Query complexity levels."""
+
     TRIVIAL = "trivial"
     SIMPLE = "simple"
     MODERATE = "moderate"
@@ -34,6 +35,7 @@ class QueryComplexity(Enum):
 
 class DomainType(Enum):
     """Scientific domain types."""
+
     PHYSICS = "physics"
     MATHEMATICS = "mathematics"
     COMPUTER_SCIENCE = "computer_science"
@@ -75,123 +77,266 @@ class ComplexityDetector:
     # Physics - Advanced Topics
     PHYSICS_TERMS = {
         # Quantum Mechanics
-        'quantum entanglement', 'quantum superposition', 'quantum decoherence',
-        'wave function collapse', 'schrödinger equation', 'schrodinger equation',
-        'heisenberg uncertainty', 'uncertainty principle', 'pauli exclusion',
-        'fermi-dirac', 'bose-einstein', 'bell theorem', 'bell inequality',
-        'double slit experiment', 'quantum tunneling', 'zero-point energy',
-        'planck constant', 'dirac equation', 'klein-gordon',
-
+        "quantum entanglement",
+        "quantum superposition",
+        "quantum decoherence",
+        "wave function collapse",
+        "schrödinger equation",
+        "schrodinger equation",
+        "heisenberg uncertainty",
+        "uncertainty principle",
+        "pauli exclusion",
+        "fermi-dirac",
+        "bose-einstein",
+        "bell theorem",
+        "bell inequality",
+        "double slit experiment",
+        "quantum tunneling",
+        "zero-point energy",
+        "planck constant",
+        "dirac equation",
+        "klein-gordon",
         # Relativity
-        'special relativity', 'general relativity', 'spacetime curvature',
-        'schwarzschild metric', 'lorentz transformation', 'time dilation',
-        'length contraction', 'event horizon', 'gravitational waves',
-        'einstein field equations', 'geodesic', 'minkowski space',
-
+        "special relativity",
+        "general relativity",
+        "spacetime curvature",
+        "schwarzschild metric",
+        "lorentz transformation",
+        "time dilation",
+        "length contraction",
+        "event horizon",
+        "gravitational waves",
+        "einstein field equations",
+        "geodesic",
+        "minkowski space",
         # Particle Physics
-        'standard model', 'higgs boson', 'higgs mechanism', 'gauge theory',
-        'quantum chromodynamics', 'qcd', 'quantum electrodynamics', 'qed',
-        'weak interaction', 'strong force', 'electroweak theory',
-        'feynman diagrams', 'renormalization', 'symmetry breaking',
-
+        "standard model",
+        "higgs boson",
+        "higgs mechanism",
+        "gauge theory",
+        "quantum chromodynamics",
+        "qcd",
+        "quantum electrodynamics",
+        "qed",
+        "weak interaction",
+        "strong force",
+        "electroweak theory",
+        "feynman diagrams",
+        "renormalization",
+        "symmetry breaking",
         # Fluid Dynamics (Critical!)
-        'navier-stokes equations', 'navier stokes', 'reynolds number',
-        'turbulent flow', 'laminar flow', 'boundary layer', 'bernoulli equation',
-        'euler equations', 'viscosity', 'incompressible flow', 'mach number',
-        'continuity equation', 'vorticity', 'streamline', 'stokes flow',
-
+        "navier-stokes equations",
+        "navier stokes",
+        "reynolds number",
+        "turbulent flow",
+        "laminar flow",
+        "boundary layer",
+        "bernoulli equation",
+        "euler equations",
+        "viscosity",
+        "incompressible flow",
+        "mach number",
+        "continuity equation",
+        "vorticity",
+        "streamline",
+        "stokes flow",
         # Thermodynamics
-        'carnot cycle', 'entropy', 'enthalpy', 'gibbs free energy',
-        'boltzmann distribution', 'partition function', 'phase transition',
-        'critical point', 'thermodynamic equilibrium',
-
+        "carnot cycle",
+        "entropy",
+        "enthalpy",
+        "gibbs free energy",
+        "boltzmann distribution",
+        "partition function",
+        "phase transition",
+        "critical point",
+        "thermodynamic equilibrium",
         # Optics
-        'diffraction', 'interference', 'polarization', 'brewster angle',
-        'total internal reflection', 'snell law', 'fresnel equations',
+        "diffraction",
+        "interference",
+        "polarization",
+        "brewster angle",
+        "total internal reflection",
+        "snell law",
+        "fresnel equations",
     }
 
     # Mathematics - Advanced Topics
     MATHEMATICS_TERMS = {
         # Logic & Set Theory (Critical!)
-        'gödel incompleteness', 'goedel incompleteness', 'gödel theorem',
-        'incompleteness theorem', 'church-turing thesis', 'halting problem',
-        'continuum hypothesis', 'axiom of choice', 'zermelo-fraenkel',
-        'peano axioms', 'cantor set', 'russell paradox',
-
+        "gödel incompleteness",
+        "goedel incompleteness",
+        "gödel theorem",
+        "incompleteness theorem",
+        "church-turing thesis",
+        "halting problem",
+        "continuum hypothesis",
+        "axiom of choice",
+        "zermelo-fraenkel",
+        "peano axioms",
+        "cantor set",
+        "russell paradox",
         # Number Theory
-        'riemann hypothesis', 'riemann zeta function', 'prime number theorem',
-        'fermat last theorem', 'goldbach conjecture', 'twin prime',
-        'diophantine equation', 'modular arithmetic', 'elliptic curve',
-
+        "riemann hypothesis",
+        "riemann zeta function",
+        "prime number theorem",
+        "fermat last theorem",
+        "goldbach conjecture",
+        "twin prime",
+        "diophantine equation",
+        "modular arithmetic",
+        "elliptic curve",
         # Topology
-        'hausdorff space', 'topological space', 'homeomorphism',
-        'homotopy', 'fundamental group', 'manifold', 'compactness',
-        'connectedness', 'metric space', 'banach space', 'hilbert space',
-
+        "hausdorff space",
+        "topological space",
+        "homeomorphism",
+        "homotopy",
+        "fundamental group",
+        "manifold",
+        "compactness",
+        "connectedness",
+        "metric space",
+        "banach space",
+        "hilbert space",
         # Analysis
-        'cauchy sequence', 'lebesgue integral', 'fourier transform',
-        'laplace transform', 'taylor series', 'laurent series',
-        'contour integration', 'residue theorem', 'analytic continuation',
-        'dirichlet problem', 'green function', 'sturm-liouville',
-
+        "cauchy sequence",
+        "lebesgue integral",
+        "fourier transform",
+        "laplace transform",
+        "taylor series",
+        "laurent series",
+        "contour integration",
+        "residue theorem",
+        "analytic continuation",
+        "dirichlet problem",
+        "green function",
+        "sturm-liouville",
         # Algebra
-        'galois theory', 'group theory', 'ring theory', 'field theory',
-        'homomorphism', 'isomorphism', 'kernel', 'quotient group',
-        'sylow theorem', 'representation theory', 'lie algebra', 'lie group',
-
+        "galois theory",
+        "group theory",
+        "ring theory",
+        "field theory",
+        "homomorphism",
+        "isomorphism",
+        "kernel",
+        "quotient group",
+        "sylow theorem",
+        "representation theory",
+        "lie algebra",
+        "lie group",
         # Differential Equations
-        'partial differential equation', 'pde', 'ordinary differential equation',
-        'ode', 'boundary value problem', 'initial value problem',
-        'eigenvalue problem', 'characteristic equation',
+        "partial differential equation",
+        "pde",
+        "ordinary differential equation",
+        "ode",
+        "boundary value problem",
+        "initial value problem",
+        "eigenvalue problem",
+        "characteristic equation",
     }
 
     # Computer Science - Advanced Topics
     CS_TERMS = {
         # Complexity Theory
-        'np-complete', 'np-hard', 'polynomial time', 'turing machine',
-        'computational complexity', 'big o notation', 'time complexity',
-        'space complexity', 'decidability', 'reducibility',
-
+        "np-complete",
+        "np-hard",
+        "polynomial time",
+        "turing machine",
+        "computational complexity",
+        "big o notation",
+        "time complexity",
+        "space complexity",
+        "decidability",
+        "reducibility",
         # Algorithms
-        'dynamic programming', 'greedy algorithm', 'divide and conquer',
-        'backtracking', 'branch and bound', 'amortized analysis',
-        'dijkstra algorithm', 'bellman-ford', 'floyd-warshall',
-        'kruskal algorithm', 'prim algorithm', 'topological sort',
-
+        "dynamic programming",
+        "greedy algorithm",
+        "divide and conquer",
+        "backtracking",
+        "branch and bound",
+        "amortized analysis",
+        "dijkstra algorithm",
+        "bellman-ford",
+        "floyd-warshall",
+        "kruskal algorithm",
+        "prim algorithm",
+        "topological sort",
         # AI/ML
-        'neural network', 'deep learning', 'convolutional neural network',
-        'recurrent neural network', 'transformer', 'attention mechanism',
-        'gradient descent', 'backpropagation', 'overfitting', 'regularization',
-        'cross-validation', 'reinforcement learning', 'q-learning',
-
+        "neural network",
+        "deep learning",
+        "convolutional neural network",
+        "recurrent neural network",
+        "transformer",
+        "attention mechanism",
+        "gradient descent",
+        "backpropagation",
+        "overfitting",
+        "regularization",
+        "cross-validation",
+        "reinforcement learning",
+        "q-learning",
         # Theory
-        'formal language', 'context-free grammar', 'pushdown automaton',
-        'regular expression', 'finite state machine', 'lambda calculus',
-        'type theory', 'category theory',
+        "formal language",
+        "context-free grammar",
+        "pushdown automaton",
+        "regular expression",
+        "finite state machine",
+        "lambda calculus",
+        "type theory",
+        "category theory",
     }
 
     # Engineering & Applied Sciences
     ENGINEERING_TERMS = {
-        'finite element analysis', 'fea', 'computational fluid dynamics', 'cfd',
-        'control theory', 'pid controller', 'feedback loop', 'transfer function',
-        'laplace domain', 'frequency response', 'bode plot', 'nyquist plot',
-        'signal processing', 'fourier analysis', 'wavelet transform',
-        'digital signal processing', 'dsp', 'sampling theorem',
+        "finite element analysis",
+        "fea",
+        "computational fluid dynamics",
+        "cfd",
+        "control theory",
+        "pid controller",
+        "feedback loop",
+        "transfer function",
+        "laplace domain",
+        "frequency response",
+        "bode plot",
+        "nyquist plot",
+        "signal processing",
+        "fourier analysis",
+        "wavelet transform",
+        "digital signal processing",
+        "dsp",
+        "sampling theorem",
     }
 
     # Chemistry
     CHEMISTRY_TERMS = {
-        'schrodinger equation', 'molecular orbital', 'valence bond theory',
-        'hybridization', 'electronegativity', 'periodic table trends',
-        'quantum chemistry', 'density functional theory', 'dft',
-        'hartree-fock', 'molecular dynamics', 'thermodynamics',
+        "schrodinger equation",
+        "molecular orbital",
+        "valence bond theory",
+        "hybridization",
+        "electronegativity",
+        "periodic table trends",
+        "quantum chemistry",
+        "density functional theory",
+        "dft",
+        "hartree-fock",
+        "molecular dynamics",
+        "thermodynamics",
     }
 
     # Biology
     BIOLOGY_TERMS = {
-        'dna replication', 'transcription', 'translation', 'gene expression',
-        'natural selection', 'evolution', 'phylogenetics', 'crispr',
-        'proteomics', 'genomics', 'metabolomics', 'systems biology',
+        "dna replication",
+        "transcription",
+        "translation",
+        "gene expression",
+        "natural selection",
+        "evolution",
+        "phylogenetics",
+        "crispr",
+        "proteomics",
+        "genomics",
+        "metabolomics",
+        "systems biology",
     }
 
     # =====================================================================
@@ -215,31 +360,133 @@ class ComplexityDetector:
     # Common mathematical Unicode symbols (explicit list)
     MATH_UNICODE_SYMBOLS = {
         # Calculus
-        '∫', '∬', '∭', '∮', '∯', '∰', '∂', '∇', '∆', '∑', '∏', '∐',
+        "∫",
+        "∬",
+        "∭",
+        "∮",
+        "∯",
+        "∰",
+        "∂",
+        "∇",
+        "∆",
+        "∑",
+        "∏",
+        "∐",
         # Logic
-        '∀', '∃', '∄', '∧', '∨', '¬', '⊕', '⊗', '⊻', '⟹', '⟺', '⊤', '⊥',
+        "∀",
+        "∃",
+        "∄",
+        "∧",
+        "∨",
+        "¬",
+        "⊕",
+        "⊗",
+        "⊻",
+        "⟹",
+        "⟺",
+        "⊤",
+        "⊥",
         # Set Theory
-        '∈', '∉', '∋', '∌', '⊂', '⊃', '⊆', '⊇', '∩', '∪', '∅', '⊎',
+        "∈",
+        "∉",
+        "∋",
+        "∌",
+        "⊂",
+        "⊃",
+        "⊆",
+        "⊇",
+        "∩",
+        "∪",
+        "∅",
+        "⊎",
         # Relations
-        '≈', '≠', '≡', '≢', '≤', '≥', '≪', '≫', '∝', '∞', '⊥', '∥',
+        "≈",
+        "≠",
+        "≡",
+        "≢",
+        "≤",
+        "≥",
+        "≪",
+        "≫",
+        "∝",
+        "∞",
+        "∥",
         # Operators
-        '±', '∓', '×', '÷', '√', '∛', '∜', '⊕', '⊗', '⊙', '⊛',
+        "±",
+        "∓",
+        "×",
+        "÷",
+        "√",
+        "∛",
+        "∜",
+        "⊙",
+        "⊛",
         # Greek (common in math)
-        'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'λ', 'μ', 'ν', 'ξ', 'π',
-        'ρ', 'σ', 'τ', 'φ', 'χ', 'ψ', 'ω',
-        'Γ', 'Δ', 'Θ', 'Λ', 'Ξ', 'Π', 'Σ', 'Φ', 'Ψ', 'Ω',
+        "α",
+        "β",
+        "γ",
+        "δ",
+        "ε",
+        "ζ",
+        "η",
+        "θ",
+        "λ",
+        "μ",
+        "ν",
+        "ξ",
+        "π",
+        "ρ",
+        "σ",
+        "τ",
+        "φ",
+        "χ",
+        "ψ",
+        "ω",
+        "Γ",
+        "Δ",
+        "Θ",
+        "Λ",
+        "Ξ",
+        "Π",
+        "Σ",
+        "Φ",
+        "Ψ",
+        "Ω",
     }
 
     # LaTeX mathematical commands (common patterns)
     LATEX_MATH_PATTERNS = [
-        r'\\int\b', r'\\sum\b', r'\\prod\b', r'\\lim\b',
-        r'\\partial\b', r'\\nabla\b', r'\\infty\b',
-        r'\\alpha\b', r'\\beta\b', r'\\gamma\b', r'\\delta\b',
-        r'\\epsilon\b', r'\\theta\b', r'\\lambda\b', r'\\pi\b',
-        r'\\sigma\b', r'\\omega\b', r'\\Delta\b', r'\\Omega\b',
-        r'\\frac\{', r'\\sqrt\{', r'\\overline\{', r'\\hat\{',
-        r'\\vec\{', r'\\mathbb\{', r'\\mathcal\{', r'\\mathfrak\{',
-        r'\$\$', r'\\\[', r'\\\(', r'\\begin\{equation\}',
+        r"\\int\b",
+        r"\\sum\b",
+        r"\\prod\b",
+        r"\\lim\b",
+        r"\\partial\b",
+        r"\\nabla\b",
+        r"\\infty\b",
+        r"\\alpha\b",
+        r"\\beta\b",
+        r"\\gamma\b",
+        r"\\delta\b",
+        r"\\epsilon\b",
+        r"\\theta\b",
+        r"\\lambda\b",
+        r"\\pi\b",
+        r"\\sigma\b",
+        r"\\omega\b",
+        r"\\Delta\b",
+        r"\\Omega\b",
+        r"\\frac\{",
+        r"\\sqrt\{",
+        r"\\overline\{",
+        r"\\hat\{",
+        r"\\vec\{",
+        r"\\mathbb\{",
+        r"\\mathcal\{",
+        r"\\mathfrak\{",
+        r"\$\$",
+        r"\\\[",
+        r"\\\(",
+        r"\\begin\{equation\}",
     ]
 
     # =====================================================================
@@ -247,114 +494,212 @@ class ComplexityDetector:
     # =====================================================================
 
     TRIVIAL_PATTERNS = [
-        r'what\s+is\s+\d+\s*[+*/\-]\s*\d+',
+        r"what\s+is\s+\d+\s*[+*/\-]\s*\d+",
         r"what's\s+\d+\s*[+*/\-]\s*\d+",
-        r'whats\s+\d+\s*[+*/\-]\s*\d+',
-        r'(calculate|compute|solve)\s+\d+\s*[+*/\-]\s*\d+',
-        r'(capital|population|currency|language)\s+of\s+\w+',
-        r'^(hi|hello|hey|thanks|thank\s+you)[\.\!\?]*$',
+        r"whats\s+\d+\s*[+*/\-]\s*\d+",
+        r"(calculate|compute|solve)\s+\d+\s*[+*/\-]\s*\d+",
+        r"(capital|population|currency|language)\s+of\s+\w+",
+        r"^(hi|hello|hey|thanks|thank\s+you)[\.\!\?]*$",
     ]
 
     TRIVIAL_CONCEPTS = {
-        'color', 'colour', 'farbe', 'couleur', 'colore',
-        'red', 'blue', 'green', 'yellow', 'black', 'white',
-        'sky', 'himmel', 'ciel', 'cielo',
-        'sun', 'sonne', 'soleil', 'sole',
-        'moon', 'mond', 'lune', 'luna',
-        'water', 'wasser', 'eau', 'acqua',
-        'cat', 'dog', 'bird', 'fish',
+        "color",
+        "colour",
+        "farbe",
+        "couleur",
+        "colore",
+        "red",
+        "blue",
+        "green",
+        "yellow",
+        "black",
+        "white",
+        "sky",
+        "himmel",
+        "ciel",
+        "cielo",
+        "sun",
+        "sonne",
+        "soleil",
+        "sole",
+        "moon",
+        "mond",
+        "lune",
+        "luna",
+        "water",
+        "wasser",
+        "eau",
+        "acqua",
+        "cat",
+        "dog",
+        "bird",
+        "fish",
     }
 
     SIMPLE_KEYWORDS = [
-        'what', 'who', 'when', 'where', 'which',
-        'define', 'definition', 'meaning', 'means',
-        'explain', 'describe', 'tell me',
-        'is', 'are', 'does', 'do',
-        'simple', 'basic', 'introduction',
-        'overview', 'summary', 'briefly',
-        'example', 'examples',
-        'difference', 'similar',
-        'list', 'name',
+        "what",
+        "who",
+        "when",
+        "where",
+        "which",
+        "define",
+        "definition",
+        "meaning",
+        "means",
+        "explain",
+        "describe",
+        "tell me",
+        "is",
+        "are",
+        "does",
+        "do",
+        "simple",
+        "basic",
+        "introduction",
+        "overview",
+        "summary",
+        "briefly",
+        "example",
+        "examples",
+        "difference",
+        "similar",
+        "list",
+        "name",
     ]
 
     MODERATE_KEYWORDS = [
-        'compare', 'contrast', 'versus', 'vs', 'vs.',
-        'difference between', 'distinguish',
-        'how does', 'how do', 'why does', 'why do',
-        'advantages', 'disadvantages', 'benefits', 'drawbacks',
-        'pros and cons', 'pros', 'cons',
-        'summarize', 'outline', 'describe in detail',
-        'relationship', 'connection', 'correlation',
-        'cause', 'effect', 'impact',
-        'process', 'steps', 'procedure',
+        "compare",
+        "contrast",
+        "versus",
+        "vs",
+        "vs.",
+        "difference between",
+        "distinguish",
+        "how does",
+        "how do",
+        "why does",
+        "why do",
+        "advantages",
+        "disadvantages",
+        "benefits",
+        "drawbacks",
+        "pros and cons",
+        "pros",
+        "cons",
+        "summarize",
+        "outline",
+        "describe in detail",
+        "relationship",
+        "connection",
+        "correlation",
+        "cause",
+        "effect",
+        "impact",
+        "process",
+        "steps",
+        "procedure",
     ]
 
     HARD_KEYWORDS = [
-        'analyze', 'analysis', 'examine', 'investigate',
-        'evaluate', 'assessment', 'assess', 'appraise',
-        'critique', 'critical', 'critically',
-        'implications', 'consequences', 'ramifications',
-        'comprehensive', 'thorough', 'extensive', 'in-depth',
-        'justify', 'argue', 'argument',
-        'theoretical', 'theory', 'hypothesis',
-        'methodology', 'approach', 'framework',
-        'synthesize', 'integrate', 'consolidate',
+        "analyze",
+        "analysis",
+        "examine",
+        "investigate",
+        "evaluate",
+        "assessment",
+        "assess",
+        "appraise",
+        "critique",
+        "critical",
+        "critically",
+        "implications",
+        "consequences",
+        "ramifications",
+        "comprehensive",
+        "thorough",
+        "extensive",
+        "in-depth",
+        "justify",
+        "argue",
+        "argument",
+        "theoretical",
+        "theory",
+        "hypothesis",
+        "methodology",
+        "approach",
+        "framework",
+        "synthesize",
+        "integrate",
+        "consolidate",
     ]
 
     EXPERT_KEYWORDS = [
-        'implement', 'implementation', 'build', 'create', 'develop',
-        'production', 'production-ready', 'enterprise',
-        'architecture', 'design pattern', 'system design',
-        'scalable', 'scalability', 'scale',
-        'distributed', 'microservices', 'distributed tracing',
-        'optimize', 'optimization', 'performance',
-        'refactor', 'refactoring',
-        'best practice', 'best practices',
-        'algorithm', 'algorithmic',
-        'theorem', 'theorems',
+        "implement",
+        "implementation",
+        "build",
+        "create",
+        "develop",
+        "production",
+        "production-ready",
+        "enterprise",
+        "architecture",
+        "design pattern",
+        "system design",
+        "scalable",
+        "scalability",
+        "scale",
+        "distributed",
+        "microservices",
+        "distributed tracing",
+        "optimize",
+        "optimization",
+        "performance",
+        "refactor",
+        "refactoring",
+        "best practice",
+        "best practices",
+        "algorithm",
+        "algorithmic",
+        "theorem",
+        "theorems",
     ]
 
     CODE_PATTERNS = [
-        r'\bdef\s+\w+',
-        r'\bclass\s+\w+',
-        r'\bimport\s+\w+',
-        r'\bfunction\s+\w+',
-        r'\bconst\s+\w+\s*=',
-        r'=>',
-        r'\{[\s\S]*\}',
-        r'```',
+        r"\bdef\s+\w+",
+        r"\bclass\s+\w+",
+        r"\bimport\s+\w+",
+        r"\bfunction\s+\w+",
+        r"\bconst\s+\w+\s*=",
+        r"=>",
+        r"\{[\s\S]*\}",
+        r"```",
     ]
 
     def __init__(self):
         self.stats = {
             "total_detected": 0,
-            "by_complexity": {c: 0 for c in QueryComplexity},
+            "by_complexity": dict.fromkeys(QueryComplexity, 0),
             "technical_terms_found": 0,
             "math_notation_found": 0,
-            "domain_detected": {}
+            "domain_detected": {},
         }
 
         # Compile all technical terms into one searchable set
         self.all_technical_terms = (
-                self.PHYSICS_TERMS |
-                self.MATHEMATICS_TERMS |
-                self.CS_TERMS |
-                self.ENGINEERING_TERMS |
-                self.CHEMISTRY_TERMS |
-                self.BIOLOGY_TERMS
+            self.PHYSICS_TERMS
+            | self.MATHEMATICS_TERMS
+            | self.CS_TERMS
+            | self.ENGINEERING_TERMS
+            | self.CHEMISTRY_TERMS
+            | self.BIOLOGY_TERMS
         )
 
         # Compile LaTeX patterns
-        self.compiled_latex_patterns = [
-            re.compile(p) for p in self.LATEX_MATH_PATTERNS
-        ]
+        self.compiled_latex_patterns = [re.compile(p) for p in self.LATEX_MATH_PATTERNS]
 
     def detect(
-            self,
-            query: str,
-            context: Optional[dict] = None,
-            return_metadata: bool = False
-    ) -> Union[Tuple[QueryComplexity, float], Tuple[QueryComplexity, float, Dict]]:
+        self, query: str, context: Optional[dict] = None, return_metadata: bool = False
+    ) -> Union[tuple[QueryComplexity, float], tuple[QueryComplexity, float, dict]]:
         """
         Detect query complexity with enhanced technical recognition.
 
@@ -394,7 +739,7 @@ class ComplexityDetector:
             "technical_terms": [],
             "domains": set(),
             "math_notation": [],
-            "domain_score": 0.0
+            "domain_score": 0.0,
         }
 
         # 1. Check trivial patterns first
@@ -424,9 +769,7 @@ class ComplexityDetector:
 
         # 5. Calculate technical complexity boost
         tech_boost = self._calculate_technical_boost(
-            len(tech_terms),
-            len(math_notation),
-            domain_scores
+            len(tech_terms), len(math_notation), domain_scores
         )
 
         # 6. Detect code patterns
@@ -436,20 +779,23 @@ class ComplexityDetector:
         words = query.split()
         word_count = len(words)
 
-        has_multiple_questions = query.count('?') > 1
-        has_conditionals = any(w in query_lower for w in [
-            'if', 'when', 'unless', 'provided', 'assuming', 'given that'
-        ])
-        has_requirements = any(w in query_lower for w in [
-            'must', 'should', 'need to', 'required', 'ensure', 'guarantee'
-        ])
-        has_multiple_parts = any(sep in query for sep in [';', '\n', '1.', '2.'])
+        has_multiple_questions = query.count("?") > 1
+        has_conditionals = any(
+            w in query_lower for w in ["if", "when", "unless", "provided", "assuming", "given that"]
+        )
+        has_requirements = any(
+            w in query_lower
+            for w in ["must", "should", "need to", "required", "ensure", "guarantee"]
+        )
+        has_multiple_parts = any(sep in query for sep in [";", "\n", "1.", "2."])
 
-        structure_score = sum([
-            has_multiple_questions,
-            has_conditionals and has_requirements,
-            has_multiple_parts,
-            ])
+        structure_score = sum(
+            [
+                has_multiple_questions,
+                has_conditionals and has_requirements,
+                has_multiple_parts,
+            ]
+        )
 
         # 8. Count keyword matches
         simple_matches = sum(1 for kw in self.SIMPLE_KEYWORDS if kw in query_lower)
@@ -458,10 +804,18 @@ class ComplexityDetector:
         expert_matches = sum(1 for kw in self.EXPERT_KEYWORDS if kw in query_lower)
 
         # Comparison query detection
-        is_comparison = any(kw in query_lower for kw in [
-            'compare', 'contrast', 'versus', 'vs', 'vs.',
-            'difference between', 'distinguish'
-        ])
+        is_comparison = any(
+            kw in query_lower
+            for kw in [
+                "compare",
+                "contrast",
+                "versus",
+                "vs",
+                "vs.",
+                "difference between",
+                "distinguish",
+            ]
+        )
         if is_comparison and moderate_matches == 0:
             moderate_matches = 1
 
@@ -549,7 +903,8 @@ class ComplexityDetector:
             final_complexity = QueryComplexity.HARD
 
         if word_count > 50 and final_complexity in [
-            QueryComplexity.SIMPLE, QueryComplexity.MODERATE
+            QueryComplexity.SIMPLE,
+            QueryComplexity.MODERATE,
         ]:
             final_complexity = QueryComplexity.HARD
 
@@ -561,8 +916,7 @@ class ComplexityDetector:
         if math_notation:
             self.stats["math_notation_found"] += len(math_notation)
         for domain in metadata["domains"]:
-            self.stats["domain_detected"][domain] = \
-                self.stats["domain_detected"].get(domain, 0) + 1
+            self.stats["domain_detected"][domain] = self.stats["domain_detected"].get(domain, 0) + 1
 
         logger.debug(
             f"Detected {final_complexity.value} "
@@ -577,10 +931,7 @@ class ComplexityDetector:
             return final_complexity, final_confidence, metadata
         return final_complexity, final_confidence
 
-    def _detect_technical_terms(
-            self,
-            query_lower: str
-    ) -> Tuple[List[str], Dict[str, float]]:
+    def _detect_technical_terms(self, query_lower: str) -> tuple[list[str], dict[str, float]]:
         """
         Detect technical terms and calculate domain scores.
 
@@ -589,59 +940,59 @@ class ComplexityDetector:
         """
         found_terms = []
         domain_scores = {
-            'physics': 0.0,
-            'mathematics': 0.0,
-            'computer_science': 0.0,
-            'engineering': 0.0,
-            'chemistry': 0.0,
-            'biology': 0.0
+            "physics": 0.0,
+            "mathematics": 0.0,
+            "computer_science": 0.0,
+            "engineering": 0.0,
+            "chemistry": 0.0,
+            "biology": 0.0,
         }
 
         # Multi-word terms (check first, more specific)
         for term in self.all_technical_terms:
-            if ' ' in term or '-' in term:  # Multi-word or hyphenated
+            if " " in term or "-" in term:  # Multi-word or hyphenated
                 # Use word boundaries for multi-word terms
-                pattern = r'\b' + re.escape(term) + r'\b'
+                pattern = r"\b" + re.escape(term) + r"\b"
                 if re.search(pattern, query_lower):
                     found_terms.append(term)
 
                     # Assign to domain
                     if term in self.PHYSICS_TERMS:
-                        domain_scores['physics'] += 1.0
+                        domain_scores["physics"] += 1.0
                     if term in self.MATHEMATICS_TERMS:
-                        domain_scores['mathematics'] += 1.0
+                        domain_scores["mathematics"] += 1.0
                     if term in self.CS_TERMS:
-                        domain_scores['computer_science'] += 1.0
+                        domain_scores["computer_science"] += 1.0
                     if term in self.ENGINEERING_TERMS:
-                        domain_scores['engineering'] += 1.0
+                        domain_scores["engineering"] += 1.0
                     if term in self.CHEMISTRY_TERMS:
-                        domain_scores['chemistry'] += 1.0
+                        domain_scores["chemistry"] += 1.0
                     if term in self.BIOLOGY_TERMS:
-                        domain_scores['biology'] += 1.0
+                        domain_scores["biology"] += 1.0
 
         # Single-word terms
         words_in_query = set(query_lower.split())
         for term in self.all_technical_terms:
-            if ' ' not in term and '-' not in term:  # Single word
+            if " " not in term and "-" not in term:  # Single word
                 if term in words_in_query:
                     found_terms.append(term)
 
                     if term in self.PHYSICS_TERMS:
-                        domain_scores['physics'] += 0.5
+                        domain_scores["physics"] += 0.5
                     if term in self.MATHEMATICS_TERMS:
-                        domain_scores['mathematics'] += 0.5
+                        domain_scores["mathematics"] += 0.5
                     if term in self.CS_TERMS:
-                        domain_scores['computer_science'] += 0.5
+                        domain_scores["computer_science"] += 0.5
                     if term in self.ENGINEERING_TERMS:
-                        domain_scores['engineering'] += 0.5
+                        domain_scores["engineering"] += 0.5
                     if term in self.CHEMISTRY_TERMS:
-                        domain_scores['chemistry'] += 0.5
+                        domain_scores["chemistry"] += 0.5
                     if term in self.BIOLOGY_TERMS:
-                        domain_scores['biology'] += 0.5
+                        domain_scores["biology"] += 0.5
 
         return found_terms, domain_scores
 
-    def _detect_math_notation(self, query: str) -> List[str]:
+    def _detect_math_notation(self, query: str) -> list[str]:
         """
         Detect mathematical notation in query.
 
@@ -673,10 +1024,7 @@ class ComplexityDetector:
         return list(set(notation))  # Remove duplicates
 
     def _calculate_technical_boost(
-            self,
-            num_tech_terms: int,
-            num_math_notation: int,
-            domain_scores: Dict[str, float]
+        self, num_tech_terms: int, num_math_notation: int, domain_scores: dict[str, float]
     ) -> float:
         """
         Calculate complexity boost from technical content.
@@ -710,7 +1058,7 @@ class ComplexityDetector:
         trivial_count = 0
 
         for concept in self.TRIVIAL_CONCEPTS:
-            pattern = r'\b' + re.escape(concept) + r'\b'
+            pattern = r"\b" + re.escape(concept) + r"\b"
             if re.search(pattern, query_lower):
                 trivial_count += 1
 
@@ -724,13 +1072,13 @@ class ComplexityDetector:
         return False
 
     def _apply_context(
-            self,
-            complexity: QueryComplexity,
-            confidence: float,
-            context: dict,
-            word_count: int,
-            has_code: bool
-    ) -> Tuple[QueryComplexity, float]:
+        self,
+        complexity: QueryComplexity,
+        confidence: float,
+        context: dict,
+        word_count: int,
+        has_code: bool,
+    ) -> tuple[QueryComplexity, float]:
         """Apply context-based adjustments."""
         domain = context.get("domain")
 
@@ -771,8 +1119,7 @@ class ComplexityDetector:
         return {
             **self.stats,
             "distribution": {
-                c.value: count / total
-                for c, count in self.stats["by_complexity"].items()
+                c.value: count / total for c, count in self.stats["by_complexity"].items()
             },
             "avg_technical_terms": self.stats["technical_terms_found"] / total,
             "avg_math_notation": self.stats["math_notation_found"] / total,
@@ -794,7 +1141,7 @@ if __name__ == "__main__":
     print("\n1. SIMPLE USAGE (backward compatible):")
     print("-" * 70)
     complexity, confidence = detector.detect("What is 2+2?")
-    print(f"Query: 'What is 2+2?'")
+    print("Query: 'What is 2+2?'")
     print(f"Complexity: {complexity.value}")
     print(f"Confidence: {confidence:.2f}")
 
@@ -802,10 +1149,9 @@ if __name__ == "__main__":
     print("\n2. WITH METADATA (advanced):")
     print("-" * 70)
     complexity, confidence, metadata = detector.detect(
-        "Explain Navier-Stokes equations",
-        return_metadata=True
+        "Explain Navier-Stokes equations", return_metadata=True
     )
-    print(f"Query: 'Explain Navier-Stokes equations'")
+    print("Query: 'Explain Navier-Stokes equations'")
     print(f"Complexity: {complexity.value}")
     print(f"Confidence: {confidence:.2f}")
     print(f"Technical terms: {metadata['technical_terms']}")
@@ -816,8 +1162,7 @@ if __name__ == "__main__":
     print("\n3. ADVANCED WITH SYMBOLS:")
     print("-" * 70)
     complexity, confidence, metadata = detector.detect(
-        "Derive ∇×E = -∂B/∂t from Maxwell equations using Gödel's approach",
-        return_metadata=True
+        "Derive ∇×E = -∂B/∂t from Maxwell equations using Gödel's approach", return_metadata=True
     )
     print(f"Complexity: {complexity.value} ({confidence:.2f})")
     print(f"Technical terms found: {len(metadata['technical_terms'])}")
@@ -833,7 +1178,7 @@ if __name__ == "__main__":
         "what color is the sky?",
         "explain quantum entanglement",
         "compare Python and JavaScript",
-        "implement a distributed hash table with consistent hashing"
+        "implement a distributed hash table with consistent hashing",
     ]
 
     for query in test_queries:
@@ -849,5 +1194,5 @@ if __name__ == "__main__":
     print(f"Average technical terms per query: {stats['avg_technical_terms']:.2f}")
     print(f"Average math notation per query: {stats['avg_math_notation']:.2f}")
     print("\nDistribution:")
-    for complexity_level, percentage in stats['distribution'].items():
+    for complexity_level, percentage in stats["distribution"].items():
         print(f"  {complexity_level:8}: {percentage*100:5.1f}%")

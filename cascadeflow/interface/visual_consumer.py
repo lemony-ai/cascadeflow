@@ -8,10 +8,11 @@ This module makes streaming "just work" - chunks print automatically
 with optional visual indicators (🟢 → ⤴ → ✅).
 """
 
-import sys
 import asyncio
-from typing import Optional, Dict, Any
-from .streaming import StreamEventType
+import sys
+from typing import Any
+
+from cascadeflow.streaming import StreamEventType
 
 
 class VisualIndicator:
@@ -84,11 +85,7 @@ class TerminalVisualConsumer:
         >>> # Chunks were automatically printed!
     """
 
-    def __init__(
-            self,
-            enable_visual: bool = True,
-            verbose: bool = False
-    ):
+    def __init__(self, enable_visual: bool = True, verbose: bool = False):
         """
         Initialize consumer.
 
@@ -100,13 +97,13 @@ class TerminalVisualConsumer:
         self.verbose = verbose
 
     async def consume(
-            self,
-            streaming_manager,  # StreamManager instance from agent
-            query: str,
-            max_tokens: int = 100,
-            temperature: float = 0.7,
-            **kwargs
-    ) -> Dict[str, Any]:
+        self,
+        streaming_manager,  # StreamManager instance from agent
+        query: str,
+        max_tokens: int = 100,
+        temperature: float = 0.7,
+        **kwargs,
+    ) -> dict[str, Any]:
         """
         Consume streaming events and display output.
 
@@ -138,16 +135,13 @@ class TerminalVisualConsumer:
 
             # Consume all events from StreamManager
             async for event in streaming_manager.stream(
-                    query=query,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    **kwargs
+                query=query, max_tokens=max_tokens, temperature=temperature, **kwargs
             ):
 
                 if event.type == StreamEventType.CHUNK:
                     # CRITICAL: Print chunk immediately with flush=True
                     # This is why chunks appear in real-time!
-                    print(event.content, end='', flush=True)
+                    print(event.content, end="", flush=True)
                     chunks.append(event.content)
 
                 elif event.type == StreamEventType.SWITCH:
@@ -169,7 +163,7 @@ class TerminalVisualConsumer:
                     self.visual.show_complete(success=True)
 
                     # Get result from metadata
-                    result_data = event.metadata.get('result')
+                    result_data = event.metadata.get("result")
 
                     # Brief pause before clearing
                     await asyncio.sleep(0.3)
@@ -188,33 +182,33 @@ class TerminalVisualConsumer:
             if not result_data:
                 # Construct result from chunks if no result in metadata
                 result_data = {
-                    'content': ''.join(chunks),
-                    'model_used': 'unknown',
-                    'total_cost': 0.0,
-                    'latency_ms': 0.0,
-                    'draft_accepted': False,
+                    "content": "".join(chunks),
+                    "model_used": "unknown",
+                    "total_cost": 0.0,
+                    "latency_ms": 0.0,
+                    "draft_accepted": False,
                 }
 
             # Ensure result_data is a dict (might be an object)
             if not isinstance(result_data, dict):
                 # Convert object to dict
                 result_data = {
-                    'content': getattr(result_data, 'content', ''.join(chunks)),
-                    'model_used': getattr(result_data, 'model_used', 'unknown'),
-                    'total_cost': getattr(result_data, 'total_cost', 0.0),
-                    'latency_ms': getattr(result_data, 'latency_ms', 0.0),
-                    'draft_accepted': getattr(result_data, 'draft_accepted', False),
-                    'draft_model': getattr(result_data, 'drafter_model', None),
-                    'verifier_model': getattr(result_data, 'verifier_model', None),
-                    'draft_confidence': getattr(result_data, 'draft_confidence', None),
-                    'verifier_confidence': getattr(result_data, 'verifier_confidence', None),
-                    'speedup': getattr(result_data, 'speedup', 1.0),
-                    'reason': getattr(result_data, 'metadata', {}).get('reason', 'cascade'),
+                    "content": getattr(result_data, "content", "".join(chunks)),
+                    "model_used": getattr(result_data, "model_used", "unknown"),
+                    "total_cost": getattr(result_data, "total_cost", 0.0),
+                    "latency_ms": getattr(result_data, "latency_ms", 0.0),
+                    "draft_accepted": getattr(result_data, "draft_accepted", False),
+                    "draft_model": getattr(result_data, "drafter_model", None),
+                    "verifier_model": getattr(result_data, "verifier_model", None),
+                    "draft_confidence": getattr(result_data, "draft_confidence", None),
+                    "verifier_confidence": getattr(result_data, "verifier_confidence", None),
+                    "speedup": getattr(result_data, "speedup", 1.0),
+                    "reason": getattr(result_data, "metadata", {}).get("reason", "cascade"),
                 }
 
             return result_data
 
-        except Exception as e:
+        except Exception:
             # Clean up on error
             self.visual.show_complete(success=False)
             await asyncio.sleep(0.3)
@@ -248,13 +242,13 @@ class SilentConsumer:
         self.verbose = verbose
 
     async def consume(
-            self,
-            streaming_manager,
-            query: str,
-            max_tokens: int = 100,
-            temperature: float = 0.7,
-            **kwargs
-    ) -> Dict[str, Any]:
+        self,
+        streaming_manager,
+        query: str,
+        max_tokens: int = 100,
+        temperature: float = 0.7,
+        **kwargs,
+    ) -> dict[str, Any]:
         """
         Consume streaming events silently.
 
@@ -272,38 +266,35 @@ class SilentConsumer:
         result_data = None
 
         async for event in streaming_manager.stream(
-                query=query,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs
+            query=query, max_tokens=max_tokens, temperature=temperature, **kwargs
         ):
             if event.type == StreamEventType.CHUNK:
                 chunks.append(event.content)
             elif event.type == StreamEventType.COMPLETE:
-                result_data = event.metadata.get('result')
+                result_data = event.metadata.get("result")
             elif event.type == StreamEventType.ERROR:
                 raise Exception(event.content)
 
         # Ensure we have a result
         if not result_data:
             result_data = {
-                'content': ''.join(chunks),
-                'model_used': 'unknown',
-                'total_cost': 0.0,
-                'latency_ms': 0.0,
-                'draft_accepted': False,
+                "content": "".join(chunks),
+                "model_used": "unknown",
+                "total_cost": 0.0,
+                "latency_ms": 0.0,
+                "draft_accepted": False,
             }
 
         # Convert object to dict if needed
         if not isinstance(result_data, dict):
             result_data = {
-                'content': getattr(result_data, 'content', ''.join(chunks)),
-                'model_used': getattr(result_data, 'model_used', 'unknown'),
-                'total_cost': getattr(result_data, 'total_cost', 0.0),
-                'latency_ms': getattr(result_data, 'latency_ms', 0.0),
-                'draft_accepted': getattr(result_data, 'draft_accepted', False),
-                'draft_model': getattr(result_data, 'drafter_model', None),
-                'verifier_model': getattr(result_data, 'verifier_model', None),
+                "content": getattr(result_data, "content", "".join(chunks)),
+                "model_used": getattr(result_data, "model_used", "unknown"),
+                "total_cost": getattr(result_data, "total_cost", 0.0),
+                "latency_ms": getattr(result_data, "latency_ms", 0.0),
+                "draft_accepted": getattr(result_data, "draft_accepted", False),
+                "draft_model": getattr(result_data, "drafter_model", None),
+                "verifier_model": getattr(result_data, "verifier_model", None),
             }
 
         return result_data

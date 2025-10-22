@@ -1,12 +1,13 @@
 """Tests for vLLM provider."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
 
-from cascadeflow.providers.vllm import VLLMProvider
+import pytest
+
+from cascadeflow.exceptions import ModelError, ProviderError
 from cascadeflow.providers.base import ModelResponse
-from cascadeflow.exceptions import ProviderError, ModelError
+from cascadeflow.providers.vllm import VLLMProvider
 
 
 @pytest.fixture
@@ -20,16 +21,9 @@ def mock_vllm_response():
     """Mock successful vLLM API response."""
     return {
         "choices": [
-            {
-                "message": {"content": "This is a test response from vLLM."},
-                "finish_reason": "stop"
-            }
+            {"message": {"content": "This is a test response from vLLM."}, "finish_reason": "stop"}
         ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30
-        }
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
     }
 
 
@@ -62,8 +56,7 @@ class TestVLLMProvider:
             mock_post.return_value = mock_response
 
             result = await vllm_provider.complete(
-                prompt="Test prompt",
-                model="meta-llama/Llama-3-8B-Instruct"
+                prompt="Test prompt", model="meta-llama/Llama-3-8B-Instruct"
             )
 
             assert isinstance(result, ModelResponse)
@@ -82,10 +75,8 @@ class TestVLLMProvider:
             mock_response.raise_for_status = MagicMock()
             mock_post.return_value = mock_response
 
-            result = await vllm_provider.complete(
-                prompt="Test",
-                model="test-model",
-                system_prompt="You are a helpful assistant."
+            await vllm_provider.complete(
+                prompt="Test", model="test-model", system_prompt="You are a helpful assistant."
             )
 
             # Verify system prompt was included
@@ -100,12 +91,11 @@ class TestVLLMProvider:
         """Test handling of model not found error."""
         with patch.object(vllm_provider.client, "post") as mock_post:
             import httpx
+
             mock_response = MagicMock()
             mock_response.status_code = 404
             mock_post.side_effect = httpx.HTTPStatusError(
-                "Not Found",
-                request=MagicMock(),
-                response=mock_response
+                "Not Found", request=MagicMock(), response=mock_response
             )
 
             with pytest.raises(ModelError, match="not found"):
@@ -116,12 +106,11 @@ class TestVLLMProvider:
         """Test handling of server overload."""
         with patch.object(vllm_provider.client, "post") as mock_post:
             import httpx
+
             mock_response = MagicMock()
             mock_response.status_code = 503
             mock_post.side_effect = httpx.HTTPStatusError(
-                "Service Unavailable",
-                request=MagicMock(),
-                response=mock_response
+                "Service Unavailable", request=MagicMock(), response=mock_response
             )
 
             with pytest.raises(ProviderError, match="overloaded"):
@@ -140,7 +129,7 @@ class TestVLLMProvider:
             mock_response.json.return_value = {
                 "data": [
                     {"id": "meta-llama/Llama-3-8B-Instruct"},
-                    {"id": "mistralai/Mistral-7B-Instruct-v0.2"}
+                    {"id": "mistralai/Mistral-7B-Instruct-v0.2"},
                 ]
             }
             mock_response.raise_for_status = MagicMock()

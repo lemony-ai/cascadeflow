@@ -1,0 +1,188 @@
+name: 💡 Feature Request
+description: Suggest a new feature or enhancement for CascadeFlow
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! We love hearing ideas from the community.
+
+  - type: dropdown
+    id: feature_type
+    attributes:
+      label: Feature type
+      description: What type of feature is this?
+      options:
+        - New provider integration
+        - Routing strategy improvement
+        - Quality estimation enhancement
+        - Cost optimization feature
+        - Performance improvement
+        - Developer experience (DX)
+        - Documentation
+        - Tool calling / Function support
+        - Multi-agent orchestration
+        - Analytics / Monitoring
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem would this feature solve? Why is it needed?
+      placeholder: |
+        Currently, when using CascadeFlow with multiple providers, I can't...
+        This makes it difficult to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like to see this problem solved?
+      placeholder: |
+        I propose adding a new feature that allows...
+        
+        Example API:
+        ```python
+        agent = CascadeAgent(
+            models=[...],
+            new_feature=True  # Your proposed API
+        )
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other solutions have you considered? What are their drawbacks?
+      placeholder: |
+        Alternative 1: Use a different approach...
+        - Pros: ...
+        - Cons: ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example use case
+      description: Provide a concrete example of how you would use this feature
+      placeholder: |
+        ```python
+        # Real-world scenario where this would be useful
+        from cascadeflow import CascadeAgent
+        
+        agent = CascadeAgent(...)
+        result = agent.your_new_feature(...)
+        ```
+      render: python
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this feature to you?
+      options:
+        - Critical - Blocking my usage
+        - High - Would significantly improve my workflow
+        - Medium - Nice to have
+        - Low - Just an idea
+    validations:
+      required: true
+
+  - type: dropdown
+    id: users
+    attributes:
+      label: Who would benefit from this feature?
+      multiple: true
+      options:
+        - Individual developers
+        - Small teams
+        - Enterprise users
+        - ML researchers
+        - Production deployments
+        - Cost-sensitive users
+        - Performance-sensitive users
+        - All users
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation ideas (optional)
+      description: If you have ideas about how to implement this, share them here
+      placeholder: |
+        This could be implemented by:
+        1. Adding a new method to...
+        2. Modifying the existing...
+        3. Creating a new module for...
+    validations:
+      required: false
+
+  - type: textarea
+    id: breaking
+    attributes:
+      label: Breaking changes
+      description: Would this require any breaking changes to the API?
+      placeholder: |
+        - Yes, this would change...
+        - No, this is fully backward compatible
+        - Could be implemented as an optional feature
+    validations:
+      required: false
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related issues/PRs
+      description: Link to related issues, PRs, or discussions
+      placeholder: |
+        - Related to #123
+        - Similar to #456
+        - Discussed in community forum: [link]
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Any other context, mockups, research, or references
+      placeholder: |
+        - Research paper: [link]
+        - Similar implementation in other libraries: [link]
+        - Screenshots or mockups: [attach]
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to implement this feature (with guidance)
+        - label: I would be willing to help test this feature
+        - label: I would be willing to write documentation for this feature
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I have searched existing issues to make sure this isn't a duplicate
+          required: true
+        - label: I have clearly described the problem and proposed solution
+          required: true
+        - label: I have considered the impact on existing users
+          required: true

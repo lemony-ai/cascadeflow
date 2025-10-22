@@ -1,12 +1,12 @@
 """Tests for Anthropic provider."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from cascadeflow.providers.anthropic import AnthropicProvider
 from cascadeflow.providers.base import ModelResponse
-from cascadeflow.exceptions import ProviderError, ModelError
 
 
 @pytest.fixture
@@ -26,11 +26,9 @@ def anthropic_provider(mock_env):
 def mock_anthropic_response():
     """Mock successful Anthropic API response."""
     return {
-        "content": [
-            {"text": "This is a test response from Claude."}
-        ],
+        "content": [{"text": "This is a test response from Claude."}],
         "stop_reason": "end_turn",
-        "id": "msg_test_123"
+        "id": "msg_test_123",
     }
 
 
@@ -63,8 +61,7 @@ class TestAnthropicProvider:
             mock_post.return_value = mock_response
 
             result = await anthropic_provider.complete(
-                prompt="Test prompt",
-                model="claude-3-sonnet-20240229"
+                prompt="Test prompt", model="claude-3-sonnet-20240229"
             )
 
             assert isinstance(result, ModelResponse)
@@ -82,10 +79,10 @@ class TestAnthropicProvider:
             mock_response.raise_for_status = MagicMock()
             mock_post.return_value = mock_response
 
-            result = await anthropic_provider.complete(
+            await anthropic_provider.complete(
                 prompt="Test",
                 model="claude-3-opus-20240229",
-                system_prompt="You are a helpful assistant."
+                system_prompt="You are a helpful assistant.",
             )
 
             # Verify system prompt was included

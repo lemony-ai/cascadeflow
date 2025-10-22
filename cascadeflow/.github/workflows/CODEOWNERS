@@ -1,0 +1,31 @@
+# CODEOWNERS file for CascadeFlow
+# These owners will be automatically requested for review when someone opens a PR
+
+# Default owner for everything in the repo
+* @saschabuehrle
+
+# Core agent and orchestration logic
+/cascadeflow/agent.py @saschabuehrle
+/cascadeflow/speculative.py @saschabuehrle
+/cascadeflow/config.py @saschabuehrle
+
+# Provider implementations - require extra careful review
+/cascadeflow/providers/ @saschabuehrle
+
+# Quality and routing systems
+/cascadeflow/quality.py @saschabuehrle
+/cascadeflow/routing/ @saschabuehrle
+/cascadeflow/confidence.py @saschabuehrle
+
+# Documentation - anyone can review but maintainers should be notified
+/docs/ @saschabuehrle
+/examples/ @saschabuehrle
+README.md @saschabuehrle
+
+# CI/CD and infrastructure - require maintainer approval
+/.github/ @saschabuehrle
+/pyproject.toml @saschabuehrle
+/requirements*.txt @saschabuehrle
+
+# Tests - should be reviewed by maintainers
+/tests/ @saschabuehrle

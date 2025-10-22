@@ -10,22 +10,22 @@ Or for specific test:
 
 import os
 import time
-import pytest
-from cascadeflow.providers.anthropic import AnthropicProvider
-from cascadeflow.exceptions import ProviderError
 
+import pytest
+
+from cascadeflow.exceptions import ProviderError
+from cascadeflow.providers.anthropic import AnthropicProvider
 
 # Skip all tests if no API key is set
 pytestmark = pytest.mark.skipif(
-    not os.getenv('ANTHROPIC_API_KEY'),
-    reason="ANTHROPIC_API_KEY not set - skipping real API tests"
+    not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set - skipping real API tests"
 )
 
 
 @pytest.fixture
 def provider():
     """Create Anthropic provider instance."""
-    api_key = os.getenv('ANTHROPIC_API_KEY')
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         pytest.skip("ANTHROPIC_API_KEY not set")
     return AnthropicProvider(api_key=api_key)
@@ -84,10 +84,10 @@ class TestAnthropicBasics:
             prompt="What is 2+2? Answer with just the number.",
             model=cheap_model,
             max_tokens=10,
-            temperature=0.1
+            temperature=0.1,
         )
 
-        print(f"Prompt: What is 2+2?")
+        print("Prompt: What is 2+2?")
         print(f"Model: {cheap_model}")
         print(f"Response: {result.content}")
         print(f"Tokens used: {result.tokens_used}")
@@ -120,13 +120,13 @@ class TestAnthropicLogprobs:
             max_tokens=5,
             temperature=0.7,
             logprobs=True,
-            top_logprobs=10
+            top_logprobs=10,
         )
 
-        print(f"Prompt: The capital of France is")
+        print("Prompt: The capital of France is")
         print(f"Model: {cheap_model}")
         print(f"Response: {result.content}")
-        print(f"\nLogprobs Analysis:")
+        print("\nLogprobs Analysis:")
         print(f"  Tokens: {result.tokens}")
         print(f"  Logprobs: {result.logprobs}")
         print(f"  Top alternatives count: {len(result.top_logprobs) if result.top_logprobs else 0}")
@@ -139,12 +139,12 @@ class TestAnthropicLogprobs:
         assert result.top_logprobs is not None, "Top logprobs should be estimated"
         assert len(result.tokens) > 0, "Should have at least one token"
         assert len(result.logprobs) == len(result.tokens), "Logprobs match tokens"
-        assert result.metadata.get('estimated') is True, "Should be marked as estimated"
+        assert result.metadata.get("estimated") is True, "Should be marked as estimated"
         assert 0 <= result.confidence <= 1, "Confidence in valid range"
 
         # Print sample alternatives for first token
         if result.top_logprobs and len(result.top_logprobs) > 0:
-            print(f"\n  First token alternatives:")
+            print("\n  First token alternatives:")
             first_token_alts = list(result.top_logprobs[0].items())[:3]
             for i, (token, logprob) in enumerate(first_token_alts, 1):
                 print(f"    {i}. '{token}' (logprob: {logprob:.3f})")
@@ -165,7 +165,7 @@ class TestAnthropicLogprobs:
                 model=cheap_model,
                 max_tokens=5,
                 temperature=temp,
-                logprobs=True
+                logprobs=True,
             )
 
             confidences.append(result.confidence)
@@ -188,7 +188,7 @@ class TestAnthropicLogprobs:
             model=cheap_model,
             max_tokens=15,
             temperature=0.5,
-            logprobs=True
+            logprobs=True,
             # Note: no top_logprobs parameter
         )
 
@@ -213,13 +213,10 @@ class TestAnthropicModels:
         print("\n=== Testing Claude 3 Haiku ===")
 
         result = await provider.complete(
-            prompt="Hi",
-            model="claude-3-haiku-20240307",
-            max_tokens=10,
-            logprobs=True
+            prompt="Hi", model="claude-3-haiku-20240307", max_tokens=10, logprobs=True
         )
 
-        print(f"Model: Haiku")
+        print("Model: Haiku")
         print(f"Response: {result.content}")
         print(f"Cost: ${result.cost:.6f}")
         print(f"Confidence: {result.confidence:.2f}")
@@ -239,10 +236,10 @@ class TestAnthropicModels:
             max_tokens=50,
             temperature=0.7,
             logprobs=True,
-            top_logprobs=5
+            top_logprobs=5,
         )
 
-        print(f"Model: Sonnet 3.5")
+        print("Model: Sonnet 3.5")
         print(f"Response: {result.content}")
         print(f"Cost: ${result.cost:.6f}")
         print(f"Confidence: {result.confidence:.2f}")
@@ -269,7 +266,7 @@ class TestAnthropicStopReasons:
             model=cheap_model,
             max_tokens=10,
             temperature=0.1,
-            logprobs=True
+            logprobs=True,
         )
 
         print(f"Response: {result.content}")
@@ -277,7 +274,7 @@ class TestAnthropicStopReasons:
         print(f"Confidence: {result.confidence:.3f}")
 
         # Should have end_turn and high confidence
-        if result.metadata.get('stop_reason') == 'end_turn':
+        if result.metadata.get("stop_reason") == "end_turn":
             assert result.confidence > 0.7, "end_turn should boost confidence"
             print("✓ end_turn correctly boosts confidence")
         else:
@@ -293,7 +290,7 @@ class TestAnthropicStopReasons:
             model=cheap_model,
             max_tokens=5,  # Force max_tokens
             temperature=0.7,
-            logprobs=True
+            logprobs=True,
         )
 
         print(f"Response: {result.content}")
@@ -301,7 +298,7 @@ class TestAnthropicStopReasons:
         print(f"Confidence: {result.confidence:.3f}")
 
         # Should have max_tokens and lower confidence
-        if result.metadata.get('stop_reason') == 'max_tokens':
+        if result.metadata.get("stop_reason") == "max_tokens":
             assert result.confidence < 0.9, "max_tokens should reduce confidence"
             print("✓ max_tokens correctly reduces confidence")
         else:
@@ -317,11 +314,7 @@ class TestAnthropicErrorHandling:
         print("\n=== Testing Invalid Model Handling ===")
 
         with pytest.raises(ProviderError) as exc_info:
-            await provider.complete(
-                prompt="Test",
-                model="invalid-model-xyz",
-                max_tokens=10
-            )
+            await provider.complete(prompt="Test", model="invalid-model-xyz", max_tokens=10)
 
         print(f"Error caught: {exc_info.value}")
         print("✓ Invalid model handled correctly")
@@ -335,9 +328,7 @@ class TestAnthropicErrorHandling:
 
         with pytest.raises(ProviderError) as exc_info:
             await bad_provider.complete(
-                prompt="Test",
-                model="claude-3-haiku-20240307",
-                max_tokens=10
+                prompt="Test", model="claude-3-haiku-20240307", max_tokens=10
             )
 
         assert "Invalid" in str(exc_info.value) or "401" in str(exc_info.value)
@@ -359,7 +350,7 @@ class TestAnthropicIntegration:
             max_tokens=30,
             temperature=0.7,
             logprobs=True,
-            top_logprobs=10
+            top_logprobs=10,
         )
 
         print("Required fields for cascade:")
@@ -380,7 +371,7 @@ class TestAnthropicIntegration:
         assert result.confidence is not None
         assert result.cost is not None
         assert result.latency_ms is not None
-        assert result.metadata.get('estimated') is True
+        assert result.metadata.get("estimated") is True
 
         print("\n✓ Response has all fields needed for cascade")
 
@@ -389,9 +380,9 @@ class TestAnthropicIntegration:
 @pytest.mark.asyncio
 async def test_anthropic_full_workflow(provider, cheap_model):
     """Complete workflow test."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ANTHROPIC PROVIDER - COMPLETE WORKFLOW TEST")
-    print("="*60)
+    print("=" * 60)
 
     # 1. Check support
     print("\n1. Checking logprobs support...")
@@ -402,10 +393,7 @@ async def test_anthropic_full_workflow(provider, cheap_model):
     # 2. Basic completion
     print("\n2. Testing basic completion...")
     result1 = await provider.complete(
-        prompt="What is 5+5?",
-        model=cheap_model,
-        max_tokens=10,
-        temperature=0.1
+        prompt="What is 5+5?", model=cheap_model, max_tokens=10, temperature=0.1
     )
     print(f"   Response: {result1.content}")
     print(f"   Cost: ${result1.cost:.6f}")
@@ -418,7 +406,7 @@ async def test_anthropic_full_workflow(provider, cheap_model):
         max_tokens=10,
         temperature=0.7,
         logprobs=True,
-        top_logprobs=10
+        top_logprobs=10,
     )
     print(f"   Response: {result2.content}")
     print(f"   Tokens: {len(result2.tokens)} tokens")
@@ -427,17 +415,19 @@ async def test_anthropic_full_workflow(provider, cheap_model):
 
     # 4. Verify cascade readiness
     print("\n4. Verifying cascade readiness...")
-    assert all([
-        result2.content,
-        result2.tokens,
-        result2.logprobs,
-        result2.top_logprobs,
-        result2.confidence,
-        result2.cost,
-        result2.latency_ms
-    ])
+    assert all(
+        [
+            result2.content,
+            result2.tokens,
+            result2.logprobs,
+            result2.top_logprobs,
+            result2.confidence,
+            result2.cost,
+            result2.latency_ms,
+        ]
+    )
     print("   ✓ All required fields present")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("✓ ANTHROPIC PROVIDER FULLY FUNCTIONAL")
-    print("="*60)
+    print("=" * 60)

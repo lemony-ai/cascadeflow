@@ -1,51 +1,92 @@
-"""OpenAI provider implementation."""
+"""OpenAI provider implementation with tool calling support."""
 
+import json
 import os
 import time
-import math
-from typing import Optional, Dict, Any
+from collections.abc import AsyncIterator
+from typing import Any, Optional
 
 import httpx
 
-from .base import BaseProvider, ModelResponse
-from ..exceptions import ProviderError, ModelError
+from ..exceptions import ModelError, ProviderError
+from .base import BaseProvider, ModelResponse, RetryConfig
 
 
 class OpenAIProvider(BaseProvider):
     """
-    OpenAI provider for GPT models.
+    OpenAI provider for GPT models with tool calling support.
 
-    Supports: GPT-3.5, GPT-4, GPT-4 Turbo, GPT-4o, etc.
+    Supports: GPT-3.5, GPT-4, GPT-4 Turbo, GPT-4o, GPT-4o mini, GPT-5 (when available)
 
-    Enhanced with full logprobs support for token-level speculative cascading.
+    Enhanced with full logprobs support and intelligent defaults for token-level confidence.
+
+    Uses hybrid confidence (logprobs + semantic) for maximum accuracy.
 
     Example:
+        >>> # Basic usage (automatic retry on failures)
         >>> provider = OpenAIProvider(api_key="sk-...")
+        >>>
+        >>> # Non-streaming (traditional):
         >>> response = await provider.complete(
         ...     prompt="What is AI?",
         ...     model="gpt-3.5-turbo"
         ... )
-        >>> print(response.content)
-
-        >>> # With logprobs
-        >>> response = await provider.complete(
+        >>> print(f"Confidence: {response.confidence}")
+        >>>
+        >>> # Streaming (new):
+        >>> async for chunk in provider.stream(
         ...     prompt="What is AI?",
-        ...     model="gpt-3.5-turbo",
-        ...     logprobs=True,
-        ...     top_logprobs=10
+        ...     model="gpt-3.5-turbo"
+        ... ):
+        ...     print(chunk, end='', flush=True)
+        >>>
+        >>> # Tool calling (Step 1.3 - NEW!):
+        >>> tools = [{
+        ...     "name": "get_weather",
+        ...     "description": "Get weather for a location",
+        ...     "parameters": {
+        ...         "type": "object",
+        ...         "properties": {
+        ...             "location": {"type": "string"},
+        ...             "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+        ...         },
+        ...         "required": ["location"]
+        ...     }
+        ... }]
+        >>> response = await provider.complete_with_tools(
+        ...     messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+        ...     tools=tools,
+        ...     model="gpt-4o-mini"
         ... )
-        >>> print(response.logprobs)
+        >>> if response.tool_calls:
+        ...     for tool_call in response.tool_calls:
+        ...         print(f"Tool: {tool_call['name']}")
+        ...         print(f"Args: {tool_call['arguments']}")
+        >>>
+        >>> # Custom retry configuration
+        >>> custom_retry = RetryConfig(
+        ...     max_attempts=5,
+        ...     rate_limit_backoff=60.0
+        ... )
+        >>> provider = OpenAIProvider(api_key="sk-...", retry_config=custom_retry)
+        >>>
+        >>> # Check retry metrics
+        >>> print(provider.get_retry_metrics())
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, retry_config: Optional[RetryConfig] = None):
         """
-        Initialize OpenAI provider.
+        Initialize OpenAI provider with automatic retry logic.
 
         Args:
             api_key: OpenAI API key. If None, reads from OPENAI_API_KEY env var.
+            retry_config: Custom retry configuration (optional). If None, uses defaults:
+                - max_attempts: 3
+                - initial_delay: 1.0s
+                - rate_limit_backoff: 30.0s
         """
-        # Call parent init to load API key and check logprobs support
-        super().__init__(api_key)
+        # Call parent init to load API key, check logprobs support, and setup retry
+        super().__init__(api_key=api_key, retry_config=retry_config)
 
         # Verify API key is set
         if not self.api_key:
@@ -54,14 +95,11 @@ class OpenAIProvider(BaseProvider):
                 "variable or pass api_key parameter."
             )
 
-        # Now initialize HTTP client with the loaded API key
+        # Initialize HTTP client with the loaded API key
         self.base_url = "https://api.openai.com/v1"
         self.client = httpx.AsyncClient(
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            },
-            timeout=60.0
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            timeout=60.0,
         )
 
     def _load_api_key(self) -> Optional[str]:
@@ -69,43 +107,376 @@ class OpenAIProvider(BaseProvider):
         return os.getenv("OPENAI_API_KEY")
 
     def _check_logprobs_support(self) -> bool:
-        """OpenAI supports logprobs."""
-        return True
-
-    async def complete(
-            self,
-            prompt: str,
-            model: str,
-            max_tokens: int = 4096,
-            temperature: float = 0.7,
-            system_prompt: Optional[str] = None,
-            **kwargs
-    ) -> ModelResponse:
         """
-        Complete a prompt using OpenAI API.
-
-        Args:
-            prompt: User prompt
-            model: Model name (e.g., 'gpt-3.5-turbo', 'gpt-4')
-            max_tokens: Maximum tokens to generate
-            temperature: Sampling temperature (0-2)
-            system_prompt: Optional system prompt
-            **kwargs: Additional OpenAI parameters
-                     NEW: logprobs (bool) - Enable logprobs
-                          top_logprobs (int) - Get top-k alternatives (1-20)
+        OpenAI supports native logprobs for confidence analysis.
 
         Returns:
-            ModelResponse with standardized format (enhanced with logprobs)
+            True - OpenAI provides native logprobs
+        """
+        return True
+
+    def _convert_tools_to_openai(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Convert tools from universal format to OpenAI format.
+
+        Universal format:
+        {
+            "name": "get_weather",
+            "description": "Get weather for a location",
+            "parameters": {...}  # JSON Schema
+        }
+
+        OpenAI format:
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get weather for a location",
+                "parameters": {...}  # JSON Schema
+            }
+        }
+
+        Args:
+            tools: List of tools in universal format
+
+        Returns:
+            List of tools in OpenAI format
+        """
+        if not tools:
+            return []
+
+        openai_tools = []
+        for tool in tools:
+            openai_tool = {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("parameters", {"type": "object", "properties": {}}),
+                },
+            }
+            openai_tools.append(openai_tool)
+
+        return openai_tools
+
+    def _parse_tool_calls(self, choice: dict[str, Any]) -> Optional[list[dict[str, Any]]]:
+        """
+        Parse tool calls from OpenAI response into universal format.
+
+        OpenAI format:
+        {
+            "id": "call_abc123",
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "arguments": '{"location": "Paris"}'
+            }
+        }
+
+        Universal format:
+        {
+            "id": "call_abc123",
+            "type": "function",
+            "name": "get_weather",
+            "arguments": {"location": "Paris"}  # Parsed JSON
+        }
+
+        Args:
+            choice: OpenAI response choice
+
+        Returns:
+            List of tool calls in universal format, or None
+        """
+        message = choice.get("message", {})
+        tool_calls = message.get("tool_calls")
+
+        if not tool_calls:
+            return None
+
+        universal_tool_calls = []
+        for tool_call in tool_calls:
+            try:
+                # Parse arguments JSON string
+                arguments_str = tool_call["function"]["arguments"]
+                arguments = json.loads(arguments_str) if arguments_str else {}
+
+                universal_call = {
+                    "id": tool_call["id"],
+                    "type": tool_call["type"],
+                    "name": tool_call["function"]["name"],
+                    "arguments": arguments,
+                }
+                universal_tool_calls.append(universal_call)
+            except (json.JSONDecodeError, KeyError) as e:
+                # Log error but continue processing other tool calls
+                if os.getenv("DEBUG_TOOLS"):
+                    print(f"⚠️ Error parsing tool call: {e}")
+                continue
+
+        return universal_tool_calls if universal_tool_calls else None
+
+    async def complete_with_tools(
+        self,
+        messages: list[dict[str, str]],
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: str = "gpt-4o-mini",
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        tool_choice: Optional[str] = None,
+        **kwargs,
+    ) -> ModelResponse:
+        """
+        Complete a conversation with tool calling support.
+
+        This method enables the model to call tools/functions during generation.
+        The model can request to call multiple tools in parallel.
+
+        STEP 1.3: OpenAI Provider Tool Integration
+        - Implements universal tool schema format
+        - Uses adapter pattern for format conversion
+        - OpenAI format as baseline for other providers
+
+
+        Args:
+            messages: List of conversation messages in format:
+                [{"role": "user", "content": "What's the weather?"}]
+                Supports roles: system, user, assistant, tool
+            tools: List of available tools in universal format (optional):
+                [{
+                    "name": "get_weather",
+                    "description": "Get current weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {"type": "string"}
+                        },
+                        "required": ["location"]
+                    }
+                }]
+            model: Model name (e.g., 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo')
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0-2)
+            tool_choice: Control tool calling behavior:
+                - None/omitted: Model decides
+                - "auto": Model decides (explicit)
+                - "none": Prevent tool calling
+                - {"type": "function", "function": {"name": "get_weather"}}: Force specific tool
+            **kwargs: Additional OpenAI parameters
+
+        Returns:
+            ModelResponse with tool_calls populated if model wants to call tools:
+                response.tool_calls = [
+                    {
+                        "id": "call_abc123",
+                        "type": "function",
+                        "name": "get_weather",
+                        "arguments": {"location": "Paris"}
+                    }
+                ]
 
         Raises:
             ProviderError: If API call fails
             ModelError: If model execution fails
+
+        Example:
+            >>> # Define tools
+            >>> tools = [{
+            ...     "name": "search_web",
+            ...     "description": "Search the web for information",
+            ...     "parameters": {
+            ...         "type": "object",
+            ...         "properties": {
+            ...             "query": {"type": "string", "description": "Search query"}
+            ...         },
+            ...         "required": ["query"]
+            ...     }
+            ... }]
+            >>>
+            >>> # Call with tools
+            >>> messages = [{"role": "user", "content": "Search for AI news"}]
+            >>> response = await provider.complete_with_tools(
+            ...     messages=messages,
+            ...     tools=tools,
+            ...     model="gpt-4o-mini"
+            ... )
+            >>>
+            >>> # Check if model wants to call tools
+            >>> if response.tool_calls:
+            ...     for tool_call in response.tool_calls:
+            ...         print(f"Calling: {tool_call['name']}")
+            ...         print(f"Arguments: {tool_call['arguments']}")
+            ...         # Execute tool and add result to messages
+            ...         # Then call complete_with_tools again with tool results
         """
         start_time = time.time()
 
+        # Convert tools to OpenAI format
+        openai_tools = self._convert_tools_to_openai(tools) if tools else None
+
+        # Build request payload
+        payload = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            **kwargs,
+        }
+
+        # Add tools if provided
+        if openai_tools:
+            payload["tools"] = openai_tools
+
+            # Add tool_choice if specified
+            if tool_choice:
+                payload["tool_choice"] = tool_choice
+
+        try:
+            # Make API request (retry handled by parent class)
+            response = await self.client.post(f"{self.base_url}/chat/completions", json=payload)
+            response.raise_for_status()
+
+            data = response.json()
+
+            # Extract response
+            choice = data["choices"][0]
+            message = choice["message"]
+            content = message.get("content", "")  # May be None if only tool calls
+            prompt_tokens = data["usage"]["prompt_tokens"]
+            completion_tokens = data["usage"]["completion_tokens"]
+            tokens_used = data["usage"]["total_tokens"]
+
+            # Calculate latency
+            latency_ms = (time.time() - start_time) * 1000
+
+            # Calculate cost
+            cost = self.estimate_cost(
+                tokens_used, model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+            )
+
+            # Parse tool calls if present
+            tool_calls = self._parse_tool_calls(choice)
+
+            # ============================================================
+            # NEW (Week 2 Day 4): Determine confidence method for tool calls
+            # ============================================================
+            if tool_calls:
+                # Model successfully generated tool calls
+                confidence_method = "tool-call-present"
+                confidence = 0.9  # High confidence for successful tool calls
+
+                # Optional: More sophisticated confidence for tool calls
+                # Could analyze tool call quality, parameter completeness, etc.
+                if temperature == 0:
+                    confidence = 0.95  # Even higher for deterministic
+                elif temperature > 1.0:
+                    confidence = 0.85  # Slightly lower for high temperature
+            else:
+                # Tools were available but model chose text response
+                if openai_tools:
+                    confidence_method = "tool-available-text-chosen"
+                    confidence = 0.7  # Lower confidence when tools not used
+                else:
+                    # No tools provided (shouldn't happen in this method)
+                    confidence_method = "text-only"
+                    confidence = 0.8
+            # ============================================================
+
+            # Build response metadata
+            response_metadata = {
+                "finish_reason": choice["finish_reason"],
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "has_tool_calls": bool(tool_calls),
+                "confidence_method": confidence_method,  # ← NEW!
+                "tool_choice_reasoning": (
+                    "model_generated_tool_calls" if tool_calls else "model_chose_text_response"
+                ),
+            }
+
+            # Build model response
+            model_response = ModelResponse(
+                content=content or "",  # Empty string if only tool calls
+                model=model,
+                provider="openai",
+                cost=cost,
+                tokens_used=tokens_used,
+                confidence=confidence,  # ← Now uses calculated confidence
+                latency_ms=latency_ms,
+                metadata=response_metadata,
+            )
+
+            # Add tool calls to response
+            if tool_calls:
+                model_response.tool_calls = tool_calls
+
+            return model_response
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                raise ProviderError("Invalid OpenAI API key", provider="openai", original_error=e)
+            elif e.response.status_code == 429:
+                raise ProviderError(
+                    "OpenAI rate limit exceeded", provider="openai", original_error=e
+                )
+            else:
+                raise ProviderError(
+                    f"OpenAI API error: {e.response.status_code}",
+                    provider="openai",
+                    original_error=e,
+                )
+        except httpx.RequestError as e:
+            raise ProviderError(
+                "Failed to connect to OpenAI API", provider="openai", original_error=e
+            )
+        except (KeyError, IndexError) as e:
+            raise ModelError(
+                f"Failed to parse OpenAI response: {e}", model=model, provider="openai"
+            )
+
+    async def _complete_impl(
+        self,
+        prompt: str,
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> ModelResponse:
+        """
+        Complete a prompt using OpenAI API (internal implementation with automatic retry).
+
+        This is the internal implementation called by the public complete() method.
+        Retry logic is handled automatically by the parent class.
+
+        method and component breakdown for test validation and debugging.
+
+        Args:
+            prompt: User prompt
+            model: Model name (e.g., 'gpt-3.5-turbo', 'gpt-4', 'gpt-4o-mini')
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0-2)
+            system_prompt: Optional system prompt
+            **kwargs: Additional OpenAI parameters including:
+                - logprobs (bool): Enable logprobs (default: True for accurate confidence)
+                - top_logprobs (int): Get top-k alternatives (default: 5)
+
+        Returns:
+            ModelResponse with standardized format (enhanced with logprobs by default)
+
+        Raises:
+            ProviderError: If API call fails (will be caught by retry logic)
+            ModelError: If model execution fails (will be caught by retry logic)
+        """
+        start_time = time.time()
+
+        # INTELLIGENT DEFAULT: Request logprobs unless explicitly disabled
+        # This ensures accurate multi-signal confidence estimation
+        if "logprobs" not in kwargs:
+            kwargs["logprobs"] = self.should_request_logprobs(**kwargs)
+
         # Extract logprobs parameters
-        logprobs_enabled = kwargs.pop('logprobs', False)
-        top_logprobs = kwargs.pop('top_logprobs', None)
+        logprobs_enabled = kwargs.pop("logprobs", False)
+        top_logprobs = kwargs.pop("top_logprobs", 5)  # Default to 5
 
         # Build messages
         messages = []
@@ -119,21 +490,18 @@ class OpenAIProvider(BaseProvider):
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            **kwargs
+            **kwargs,
         }
 
-        # Add logprobs if requested
+        # Add logprobs if requested (now typically True by default)
         if logprobs_enabled:
             payload["logprobs"] = True
             if top_logprobs:
                 payload["top_logprobs"] = min(top_logprobs, 20)  # OpenAI max is 20
 
         try:
-            # Make API request
-            response = await self.client.post(
-                f"{self.base_url}/chat/completions",
-                json=payload
-            )
+            # Make API request (retry handled by parent class)
+            response = await self.client.post(f"{self.base_url}/chat/completions", json=payload)
             response.raise_for_status()
 
             data = response.json()
@@ -150,46 +518,26 @@ class OpenAIProvider(BaseProvider):
 
             # Calculate accurate cost using input/output split
             cost = self.estimate_cost(
-                tokens_used,
-                model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens
+                tokens_used, model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
             )
 
-            # Calculate confidence
-            confidence = self.calculate_confidence(
-                content,
-                {"finish_reason": choice["finish_reason"]}
-            )
-
-            # Build base response
-            model_response = ModelResponse(
-                content=content,
-                model=model,
-                provider="openai",
-                cost=cost,
-                tokens_used=tokens_used,
-                confidence=confidence,
-                latency_ms=latency_ms,
-                metadata={
-                    "finish_reason": choice["finish_reason"],
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                }
-            )
+            # ============================================================
+            # Now captures full analysis for test validation
+            # OpenAI has REAL logprobs - uses hybrid confidence!
+            # ============================================================
 
             # Parse logprobs if available
+            tokens_list = []
+            logprobs_list = []
+            top_logprobs_list = []
+
             if logprobs_enabled and "logprobs" in choice and choice["logprobs"]:
                 logprobs_data = choice["logprobs"]
 
                 if "content" in logprobs_data and logprobs_data["content"]:
-                    tokens = []
-                    logprobs_list = []
-                    top_logprobs_list = []
-
                     for token_data in logprobs_data["content"]:
                         # Extract token
-                        tokens.append(token_data["token"])
+                        tokens_list.append(token_data["token"])
 
                         # Extract logprob
                         logprobs_list.append(token_data["logprob"])
@@ -203,112 +551,277 @@ class OpenAIProvider(BaseProvider):
                         else:
                             top_logprobs_list.append({})
 
-                    # Add to response
-                    model_response.tokens = tokens
-                    model_response.logprobs = logprobs_list
-                    model_response.top_logprobs = top_logprobs_list
+            # Build comprehensive metadata for confidence system
+            metadata_for_confidence = {
+                "finish_reason": choice["finish_reason"],
+                "temperature": temperature,
+                "query": prompt,
+                "model": model,
+                "logprobs": logprobs_list if logprobs_list else None,
+                "tokens": tokens_list if tokens_list else None,
+            }
 
-                    # Update confidence based on actual probabilities
-                    if logprobs_list:
-                        avg_prob = sum(math.exp(lp) for lp in logprobs_list) / len(logprobs_list)
-                        # Blend with heuristic confidence
-                        model_response.confidence = (confidence + avg_prob) / 2
-
-                    # Add metadata
-                    model_response.metadata["has_logprobs"] = True
-                    model_response.metadata["estimated"] = False
+            # Get FULL confidence analysis (not just float)
+            # OpenAI has real logprobs - will use hybrid method!
+            if self._confidence_estimator:
+                confidence_analysis = self._confidence_estimator.estimate(
+                    response=content,
+                    query=prompt,
+                    logprobs=logprobs_list if logprobs_list else None,  # ← REAL logprobs!
+                    tokens=tokens_list if tokens_list else None,
+                    temperature=temperature,
+                    metadata=metadata_for_confidence,
+                )
+                confidence = confidence_analysis.final_confidence
+                confidence_method = confidence_analysis.method_used  # "multi-signal-hybrid"!
+                confidence_components = confidence_analysis.components or {}
             else:
-                # No logprobs available - add estimated values
-                if logprobs_enabled:
-                    model_response = self.add_logprobs_fallback(
-                        model_response,
-                        temperature,
-                        base_confidence=0.85  # OpenAI is high quality
-                    )
+                # Fallback if estimator not available
+                confidence = self.calculate_confidence(content, metadata_for_confidence)
+                confidence_method = "legacy"
+                confidence_components = {}
+
+            # Optional debug logging (enable with DEBUG_CONFIDENCE=1)
+            if os.getenv("DEBUG_CONFIDENCE"):
+                print("🔍 OpenAI Confidence Debug:")
+                print(f"  Query: {prompt[:50]}...")
+                print(f"  Response: {content[:50]}...")
+                print(f"  Has logprobs: {bool(logprobs_list)}")
+                print(f"  Num tokens: {len(tokens_list) if tokens_list else 0}")
+                print(f"  Confidence: {confidence:.3f}")
+                print(f"  Method: {confidence_method}")
+                if confidence_components:
+                    print("  Components:")
+                    for comp, val in confidence_components.items():
+                        print(f"    • {comp:20s}: {val:.3f}")
+
+            # Build response metadata WITH confidence details
+            response_metadata = {
+                "finish_reason": choice["finish_reason"],
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                # NEW: Add confidence analysis details for test validation
+                "query": prompt,
+                "confidence_method": confidence_method,
+                "confidence_components": confidence_components,
+            }
+
+            # Build base response
+            model_response = ModelResponse(
+                content=content,
+                model=model,
+                provider="openai",
+                cost=cost,
+                tokens_used=tokens_used,
+                confidence=confidence,
+                latency_ms=latency_ms,
+                metadata=response_metadata,
+            )
+
+            # Add logprobs data to response if available
+            if logprobs_list:
+                model_response.tokens = tokens_list
+                model_response.logprobs = logprobs_list
+                model_response.top_logprobs = top_logprobs_list
+                model_response.metadata["has_logprobs"] = True
+                model_response.metadata["estimated"] = False
+            elif logprobs_enabled:
+                # Logprobs were requested but not available - use fallback
+                model_response = self.add_logprobs_fallback(
+                    model_response, temperature, base_confidence=0.85  # OpenAI is high quality
+                )
 
             return model_response
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
-                raise ProviderError(
-                    "Invalid OpenAI API key",
-                    provider="openai",
-                    original_error=e
-                )
+                raise ProviderError("Invalid OpenAI API key", provider="openai", original_error=e)
             elif e.response.status_code == 429:
                 raise ProviderError(
-                    "OpenAI rate limit exceeded",
-                    provider="openai",
-                    original_error=e
+                    "OpenAI rate limit exceeded", provider="openai", original_error=e
                 )
             else:
                 raise ProviderError(
                     f"OpenAI API error: {e.response.status_code}",
                     provider="openai",
-                    original_error=e
+                    original_error=e,
                 )
         except httpx.RequestError as e:
             raise ProviderError(
-                "Failed to connect to OpenAI API",
-                provider="openai",
-                original_error=e
+                "Failed to connect to OpenAI API", provider="openai", original_error=e
             )
         except (KeyError, IndexError) as e:
             raise ModelError(
-                f"Failed to parse OpenAI response: {e}",
-                model=model,
-                provider="openai"
+                f"Failed to parse OpenAI response: {e}", model=model, provider="openai"
+            )
+
+    async def _stream_impl(
+        self,
+        prompt: str,
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> AsyncIterator[str]:
+        """
+        Stream response from OpenAI API (internal implementation with automatic retry).
+
+        This is the internal implementation called by the public stream() method.
+        Retry logic is handled automatically by the parent class.
+
+        This method enables real-time streaming for better UX. Yields chunks
+        as they arrive from the API.
+
+        NOTE: Streaming mode does NOT include logprobs in the stream, but
+        the StreamingCascadeWrapper will call complete() separately to get
+        the full result with confidence scores.
+
+        Args:
+            prompt: User prompt
+            model: Model name (e.g., 'gpt-3.5-turbo', 'gpt-4', 'gpt-4o-mini')
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0-2)
+            system_prompt: Optional system prompt
+            **kwargs: Additional OpenAI parameters
+
+        Yields:
+            Content chunks as they arrive from the API
+
+        Raises:
+            ProviderError: If API call fails (will be caught by retry logic)
+            ModelError: If model execution fails (will be caught by retry logic)
+
+        Example:
+            >>> provider = OpenAIProvider()
+            >>> async for chunk in provider.stream(
+            ...     prompt="What is Python?",
+            ...     model="gpt-3.5-turbo"
+            ... ):
+            ...     print(chunk, end='', flush=True)
+            Python is a high-level programming language...
+        """
+        # Build messages
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        # Build request payload
+        payload = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": True,  # Enable streaming
+            **kwargs,
+        }
+
+        try:
+            # Make streaming API request (retry handled by parent class)
+            async with self.client.stream(
+                "POST", f"{self.base_url}/chat/completions", json=payload
+            ) as response:
+                response.raise_for_status()
+
+                # Process SSE stream
+                async for line in response.aiter_lines():
+                    # Skip empty lines
+                    if not line.strip():
+                        continue
+
+                    # Skip if not a data line
+                    if not line.startswith("data: "):
+                        continue
+
+                    # Extract JSON data
+                    data_str = line[6:]  # Remove "data: " prefix
+
+                    # Check for stream end
+                    if data_str.strip() == "[DONE]":
+                        break
+
+                    try:
+                        # Parse JSON chunk
+                        chunk_data = json.loads(data_str)
+
+                        # Extract content delta
+                        if "choices" in chunk_data and len(chunk_data["choices"]) > 0:
+                            delta = chunk_data["choices"][0].get("delta", {})
+
+                            if "content" in delta and delta["content"]:
+                                # Yield content chunk
+                                yield delta["content"]
+
+                    except json.JSONDecodeError:
+                        # Skip malformed JSON
+                        continue
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                raise ProviderError("Invalid OpenAI API key", provider="openai", original_error=e)
+            elif e.response.status_code == 429:
+                raise ProviderError(
+                    "OpenAI rate limit exceeded", provider="openai", original_error=e
+                )
+            else:
+                raise ProviderError(
+                    f"OpenAI API error: {e.response.status_code}",
+                    provider="openai",
+                    original_error=e,
+                )
+        except httpx.RequestError as e:
+            raise ProviderError(
+                "Failed to connect to OpenAI API", provider="openai", original_error=e
             )
 
     def estimate_cost(
-            self,
-            tokens: int,
-            model: str,
-            prompt_tokens: Optional[int] = None,
-            completion_tokens: Optional[int] = None
+        self,
+        tokens: int,
+        model: str,
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
     ) -> float:
         """
         Estimate cost for OpenAI model with accurate input/output pricing.
 
+        OpenAI charges different rates for input vs output tokens.
+        This method provides accurate cost calculation when token split is available.
+
         Args:
             tokens: Total tokens (fallback if split not available)
-            model: Model name
+            model: Model name (e.g., 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo')
             prompt_tokens: Input tokens (if available)
             completion_tokens: Output tokens (if available)
 
         Returns:
             Estimated cost in USD
         """
-        # OpenAI pricing per 1K tokens (as of January 2025)
+        # OpenAI pricing per 1K tokens (as of December 2024)
         # Source: https://openai.com/api/pricing/
-        # IMPORTANT: Order matters! Check specific models before generic ones
         pricing = {
-            "gpt-4o-mini": {           # Must be before "gpt-4o"
-                "input": 0.00015,      # $0.15 per 1M tokens
-                "output": 0.0006       # $0.60 per 1M tokens
-            },
-            "gpt-4o": {
-                "input": 0.0025,       # $2.50 per 1M tokens
-                "output": 0.010        # $10.00 per 1M tokens
-            },
-            "gpt-4-turbo": {
-                "input": 0.010,        # $10.00 per 1M tokens
-                "output": 0.030        # $30.00 per 1M tokens
-            },
-            "gpt-4": {
-                "input": 0.030,        # $30.00 per 1M tokens
-                "output": 0.060        # $60.00 per 1M tokens
-            },
-            "gpt-3.5-turbo": {
-                "input": 0.0005,       # $0.50 per 1M tokens
-                "output": 0.0015       # $1.50 per 1M tokens
-            },
+            # GPT-5 series (future/preview - pricing TBD)
+            "gpt-5": {"input": 0.010, "output": 0.030},  # Estimated flagship pricing
+            "gpt-5-turbo": {"input": 0.005, "output": 0.015},  # Estimated mid-tier
+            "gpt-5-mini": {"input": 0.0003, "output": 0.0012},  # Estimated cost-effective
+
+            # GPT-4o series (current flagship)
+            "gpt-4o": {"input": 0.0025, "output": 0.010},
+            "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+
+            # GPT-4 series (previous generation)
+            "gpt-4-turbo": {"input": 0.010, "output": 0.030},
+            "gpt-4": {"input": 0.030, "output": 0.060},
+
+            # GPT-3.5 series (legacy)
+            "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
         }
 
-        # Find model pricing (order matters - specific before generic)
+        # Find model pricing
         model_pricing = None
+        model_lower = model.lower()
         for prefix, rates in pricing.items():
-            if model.startswith(prefix):
+            if model_lower.startswith(prefix):
                 model_pricing = rates
                 break
 
@@ -323,46 +836,8 @@ class OpenAIProvider(BaseProvider):
             return input_cost + output_cost
 
         # Fallback: estimate with blended rate
-        # Assume typical ratio: 30% input, 70% output
         blended_rate = (model_pricing["input"] * 0.3) + (model_pricing["output"] * 0.7)
         return (tokens / 1000) * blended_rate
-
-    def calculate_confidence(
-            self,
-            response: str,
-            metadata: Optional[Dict[str, Any]] = None
-    ) -> float:
-        """
-        Calculate confidence score for OpenAI response.
-
-        Uses finish_reason and response length as heuristics.
-
-        Args:
-            response: Model response text
-            metadata: Response metadata from API
-
-        Returns:
-            Confidence score (0-1)
-        """
-        # Start with base confidence from response analysis
-        confidence = super().calculate_confidence(response)
-
-        if metadata:
-            # Adjust based on finish_reason
-            finish_reason = metadata.get("finish_reason")
-
-            if finish_reason == "stop":
-                # Natural completion - strong signal of quality
-                # Boost confidence significantly since model chose to stop
-                confidence = min(1.0, confidence + 0.4)
-            elif finish_reason == "length":
-                # Hit max tokens - might be incomplete
-                confidence = max(0.5, confidence - 0.1)
-            elif finish_reason == "content_filter":
-                # Content filtered - low confidence
-                confidence = 0.3
-
-        return confidence
 
     async def __aenter__(self):
         """Async context manager entry."""

@@ -31,13 +31,8 @@ def setup_logging(level: Optional[str] = None) -> None:
         format="%(message)s",
         datefmt="[%X]",
         handlers=[
-            RichHandler(
-                rich_tracebacks=True,
-                console=console,
-                show_time=True,
-                show_path=False
-            )
-        ]
+            RichHandler(rich_tracebacks=True, console=console, show_time=True, show_path=False)
+        ],
     )
 
 
@@ -105,7 +100,7 @@ def truncate_text(text: str, max_length: int = 100, suffix: str = "...") -> str:
     """
     if len(text) <= max_length:
         return text
-    return text[:max_length - len(suffix)] + suffix
+    return text[: max_length - len(suffix)] + suffix
 
 
 def calculate_cosine_similarity(vec1: list, vec2: list) -> float:

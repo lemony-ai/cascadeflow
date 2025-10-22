@@ -1,11 +1,9 @@
 """Integration tests for full CascadeAgent with Day 4.2 features."""
 
 import pytest
-import asyncio
-import os
+
 from cascadeflow.agent import CascadeAgent
-from cascadeflow.config import ModelConfig, DEFAULT_TIERS
-from cascadeflow.complexity import QueryComplexity
+from cascadeflow.config import DEFAULT_TIERS, ModelConfig
 
 
 @pytest.fixture
@@ -18,7 +16,7 @@ def test_models():
             cost=0.0,
             speed_ms=300,
             quality_score=0.6,
-            domains=["general"]
+            domains=["general"],
         ),
         ModelConfig(
             name="test-code",
@@ -27,7 +25,7 @@ def test_models():
             speed_ms=400,
             quality_score=0.7,
             domains=["code"],
-            keywords=["python", "javascript", "code"]
+            keywords=["python", "javascript", "code"],
         ),
         ModelConfig(
             name="test-large",
@@ -35,7 +33,7 @@ def test_models():
             cost=0.01,
             speed_ms=1000,
             quality_score=0.9,
-            domains=["general"]
+            domains=["general"],
         ),
     ]
 
@@ -44,11 +42,7 @@ class TestAgentInitialization:
 
     def test_init_with_semantic_routing(self, test_models):
         """Test agent initialization with semantic routing."""
-        agent = CascadeAgent(
-            models=test_models,
-            routing_strategy="semantic",
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, routing_strategy="semantic", verbose=True)
 
         assert agent.routing_strategy in ["semantic", "keyword"]
         assert agent.complexity_detector is not None
@@ -57,11 +51,7 @@ class TestAgentInitialization:
 
     def test_init_with_keyword_routing(self, test_models):
         """Test agent initialization with keyword-only routing."""
-        agent = CascadeAgent(
-            models=test_models,
-            routing_strategy="keyword",
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, routing_strategy="keyword", verbose=True)
 
         assert agent.routing_strategy == "keyword"
         assert agent.semantic_router is None
@@ -69,11 +59,7 @@ class TestAgentInitialization:
 
     def test_semantic_router_precomputation(self, test_models):
         """Test that embeddings are precomputed if available."""
-        agent = CascadeAgent(
-            models=test_models,
-            routing_strategy="semantic",
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, routing_strategy="semantic", verbose=True)
 
         if agent.semantic_router and agent.semantic_router.is_available():
             assert len(agent.semantic_router.model_embeddings) == len(test_models)
@@ -87,17 +73,15 @@ class TestAgentRouting:
     @pytest.mark.asyncio
     async def test_complexity_detection(self, test_models):
         """Test that agent detects complexity correctly."""
-        agent = CascadeAgent(
-            models=test_models,
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, verbose=True)
 
         plan_captured = None
 
         async def mock_execute(*args, **kwargs):
             nonlocal plan_captured
-            plan_captured = kwargs.get('plan')
+            plan_captured = kwargs.get("plan")
             from cascadeflow.result import CascadeResult
+
             return CascadeResult(
                 content="test",
                 model_used="test-small",
@@ -106,7 +90,7 @@ class TestAgentRouting:
                 total_tokens=10,
                 confidence=0.9,
                 latency_ms=100,
-                strategy="direct"
+                strategy="direct",
             )
 
         agent._execute_plan = mock_execute
@@ -119,17 +103,15 @@ class TestAgentRouting:
     @pytest.mark.asyncio
     async def test_domain_routing(self, test_models):
         """Test that code queries route to code models."""
-        agent = CascadeAgent(
-            models=test_models,
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, verbose=True)
 
         plan_captured = None
 
         async def mock_execute(*args, **kwargs):
             nonlocal plan_captured
-            plan_captured = kwargs.get('plan')
+            plan_captured = kwargs.get("plan")
             from cascadeflow.result import CascadeResult
+
             return CascadeResult(
                 content="test",
                 model_used="test-code",
@@ -138,7 +120,7 @@ class TestAgentRouting:
                 total_tokens=10,
                 confidence=0.9,
                 latency_ms=100,
-                strategy="direct"
+                strategy="direct",
             )
 
         agent._execute_plan = mock_execute
@@ -150,14 +132,14 @@ class TestAgentRouting:
 
         # Check that domain boost was applied
         top_models = plan_captured.metadata["top_3_models"]
-        print(f"\nTop models for code query:")
+        print("\nTop models for code query:")
         for model in top_models:
             print(f"  {model['name']}: boost={model['domain_boost']:.1f}x")
 
         # Code model should have domain boost
-        code_model = next((m for m in top_models if m['name'] == 'test-code'), None)
+        code_model = next((m for m in top_models if m["name"] == "test-code"), None)
         assert code_model is not None
-        assert code_model['domain_boost'] == 2.0
+        assert code_model["domain_boost"] == 2.0
 
 
 class TestAgentFeatures:
@@ -165,11 +147,7 @@ class TestAgentFeatures:
     @pytest.mark.asyncio
     async def test_caching(self, test_models):
         """Test response caching."""
-        agent = CascadeAgent(
-            models=test_models,
-            enable_caching=True,
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, enable_caching=True, verbose=True)
 
         # Mock provider
         async def mock_complete(model, prompt, **kwargs):
@@ -190,23 +168,20 @@ class TestAgentFeatures:
 
         cache_stats = agent.cache.get_stats()
         print(f"\nCache stats: hits={cache_stats['hits']}, misses={cache_stats['misses']}")
-        assert cache_stats['hits'] >= 1
+        assert cache_stats["hits"] >= 1
 
     @pytest.mark.asyncio
     async def test_user_tiers(self, test_models):
         """Test user tier application."""
-        agent = CascadeAgent(
-            models=test_models,
-            tiers=DEFAULT_TIERS,
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, tiers=DEFAULT_TIERS, verbose=True)
 
         plan_captured = None
 
         async def mock_execute(*args, **kwargs):
             nonlocal plan_captured
-            plan_captured = kwargs.get('plan')
+            plan_captured = kwargs.get("plan")
             from cascadeflow.result import CascadeResult
+
             return CascadeResult(
                 content="test",
                 model_used="test-small",
@@ -215,7 +190,7 @@ class TestAgentFeatures:
                 total_tokens=10,
                 confidence=0.9,
                 latency_ms=100,
-                strategy="direct"
+                strategy="direct",
             )
 
         agent._execute_plan = mock_execute
@@ -239,10 +214,7 @@ class TestAgentStats:
     @pytest.mark.asyncio
     async def test_statistics_tracking(self, test_models):
         """Test that agent tracks statistics."""
-        agent = CascadeAgent(
-            models=test_models,
-            verbose=True
-        )
+        agent = CascadeAgent(models=test_models, verbose=True)
 
         # Mock provider
         async def mock_complete(model, prompt, **kwargs):
@@ -262,7 +234,7 @@ class TestAgentStats:
         assert "model_usage" in stats
         assert "complexity" in stats
 
-        print(f"\nAgent stats after 3 queries:")
+        print("\nAgent stats after 3 queries:")
         print(f"  Total cost: ${stats['total_cost']:.6f}")
         print(f"  Avg cost: ${stats['avg_cost']:.6f}")
         print(f"  Model usage: {stats['model_usage']}")

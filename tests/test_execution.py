@@ -1,15 +1,15 @@
 """Test execution planning with domain and semantic integration."""
 
 import pytest
-import asyncio
-from cascadeflow.execution import (
-    LatencyAwareExecutionPlanner,
-    ExecutionStrategy,
-    DomainDetector,
-    ModelScorer
-)
-from cascadeflow.complexity import QueryComplexity
+
 from cascadeflow.config import ModelConfig, OptimizationWeights
+from cascadeflow.execution import (
+    DomainDetector,
+    ExecutionStrategy,
+    LatencyAwareExecutionPlanner,
+    ModelScorer,
+)
+from cascadeflow.quality.complexity import QueryComplexity
 
 
 class TestDomainDetector:
@@ -64,7 +64,7 @@ class TestModelScorer:
                 cost=0.0,
                 speed_ms=500,
                 quality_score=0.6,
-                domains=["general"]
+                domains=["general"],
             ),
             ModelConfig(
                 name="codellama",
@@ -72,7 +72,7 @@ class TestModelScorer:
                 cost=0.0,
                 speed_ms=600,
                 quality_score=0.7,
-                domains=["code"]
+                domains=["code"],
             ),
             ModelConfig(
                 name="gpt-4",
@@ -80,7 +80,7 @@ class TestModelScorer:
                 cost=0.03,
                 speed_ms=1500,
                 quality_score=0.95,
-                domains=["general"]
+                domains=["general"],
             ),
         ]
 
@@ -93,13 +93,12 @@ class TestModelScorer:
             query="Fix this Python bug",
             complexity=QueryComplexity.MODERATE,
             optimization=optimization,
-            query_domains=["code"]
+            query_domains=["code"],
         )
 
         # Find codellama in results
         codellama_score = next(
-            (meta for model, score, meta in scored if model.name == "codellama"),
-            None
+            (meta for model, score, meta in scored if model.name == "codellama"), None
         )
 
         assert codellama_score is not None
@@ -115,13 +114,12 @@ class TestModelScorer:
             query="What is Python?",
             complexity=QueryComplexity.SIMPLE,
             optimization=optimization,
-            query_domains=["general"]
+            query_domains=["general"],
         )
 
         # Small model (llama3:8b, quality<0.7) should get boost
         llama_result = next(
-            (meta for model, score, meta in scored if model.name == "llama3:8b"),
-            None
+            (meta for model, score, meta in scored if model.name == "llama3:8b"), None
         )
 
         assert llama_result is not None
@@ -134,7 +132,7 @@ class TestModelScorer:
 
         semantic_hints = {
             "codellama": 0.85,  # High similarity
-            "gpt-4": 0.45,      # Medium similarity
+            "gpt-4": 0.45,  # Medium similarity
         }
 
         scored = self.scorer.score_models(
@@ -143,12 +141,11 @@ class TestModelScorer:
             complexity=QueryComplexity.MODERATE,
             optimization=optimization,
             query_domains=["code"],
-            semantic_hints=semantic_hints
+            semantic_hints=semantic_hints,
         )
 
         codellama_result = next(
-            (meta for model, score, meta in scored if model.name == "codellama"),
-            None
+            (meta for model, score, meta in scored if model.name == "codellama"), None
         )
 
         assert codellama_result is not None
@@ -167,12 +164,11 @@ class TestModelScorer:
             complexity=QueryComplexity.MODERATE,
             optimization=optimization,
             query_domains=["code"],
-            semantic_hints=semantic_hints
+            semantic_hints=semantic_hints,
         )
 
         codellama_result = next(
-            (meta for model, score, meta in scored if model.name == "codellama"),
-            None
+            (meta for model, score, meta in scored if model.name == "codellama"), None
         )
 
         # Should have domain_boost (2.0) * semantic_boost (1.5+)
@@ -192,7 +188,7 @@ class TestExecutionPlanner:
                 cost=0.0,
                 speed_ms=500,
                 quality_score=0.6,
-                domains=["general"]
+                domains=["general"],
             ),
             ModelConfig(
                 name="codellama",
@@ -200,7 +196,7 @@ class TestExecutionPlanner:
                 cost=0.0,
                 speed_ms=600,
                 quality_score=0.7,
-                domains=["code"]
+                domains=["code"],
             ),
             ModelConfig(
                 name="gpt-4",
@@ -208,7 +204,7 @@ class TestExecutionPlanner:
                 cost=0.03,
                 speed_ms=1500,
                 quality_score=0.95,
-                domains=["general"]
+                domains=["general"],
             ),
         ]
 
@@ -216,9 +212,7 @@ class TestExecutionPlanner:
     async def test_trivial_query_uses_cheapest(self):
         """Test that trivial queries use cheapest model."""
         plan = await self.planner.create_plan(
-            query="What is 2+2?",
-            complexity=QueryComplexity.TRIVIAL,
-            available_models=self.models
+            query="What is 2+2?", complexity=QueryComplexity.TRIVIAL, available_models=self.models
         )
 
         assert plan.strategy == ExecutionStrategy.DIRECT_CHEAP
@@ -232,15 +226,15 @@ class TestExecutionPlanner:
             query="Fix this Python bug",
             complexity=QueryComplexity.MODERATE,
             available_models=self.models,
-            query_domains=["code"]
+            query_domains=["code"],
         )
 
         # Should prefer codellama due to domain boost
         print(f"\nCode query plan: {plan.reasoning}")
         print(f"Top 3 models: {plan.metadata['top_3_models']}")
 
-        top_model = plan.metadata['top_3_models'][0]
-        assert top_model['domain_boost'] == 2.0
+        top_model = plan.metadata["top_3_models"][0]
+        assert top_model["domain_boost"] == 2.0
 
     @pytest.mark.asyncio
     async def test_semantic_hints_influence(self):
@@ -255,14 +249,14 @@ class TestExecutionPlanner:
             complexity=QueryComplexity.MODERATE,
             available_models=self.models,
             query_domains=["code"],
-            semantic_hints=semantic_hints
+            semantic_hints=semantic_hints,
         )
 
         assert plan.metadata["semantic_routing_used"] is True
         print(f"\nWith semantic hints: {plan.reasoning}")
 
-        top_model = plan.metadata['top_3_models'][0]
-        assert top_model['semantic_boost'] > 1.0
+        top_model = plan.metadata["top_3_models"][0]
+        assert top_model["semantic_boost"] > 1.0
 
 
 if __name__ == "__main__":

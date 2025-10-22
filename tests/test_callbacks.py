@@ -1,11 +1,8 @@
 """Test suite for callback system."""
 
 import pytest
-from cascadeflow.callbacks import (
-    CallbackManager,
-    CallbackEvent,
-    CallbackData
-)
+
+from cascadeflow.telemetry.callbacks import CallbackData, CallbackEvent, CallbackManager
 
 
 class TestCallbackManager:
@@ -19,11 +16,7 @@ class TestCallbackManager:
             called.append(data.event)
 
         manager.register(CallbackEvent.QUERY_START, callback)
-        manager.trigger(
-            CallbackEvent.QUERY_START,
-            query="test",
-            data={}
-        )
+        manager.trigger(CallbackEvent.QUERY_START, query="test", data={})
 
         assert CallbackEvent.QUERY_START in called
 
@@ -40,11 +33,7 @@ class TestCallbackManager:
         manager.register(CallbackEvent.QUERY_START, callback1)
         manager.register(CallbackEvent.QUERY_START, callback2)
 
-        manager.trigger(
-            CallbackEvent.QUERY_START,
-            query="test",
-            data={}
-        )
+        manager.trigger(CallbackEvent.QUERY_START, query="test", data={})
 
         assert len(calls) == 2
         assert "callback1" in calls
@@ -60,11 +49,7 @@ class TestCallbackManager:
         manager.register(CallbackEvent.QUERY_START, callback)
         manager.unregister(CallbackEvent.QUERY_START, callback)
 
-        manager.trigger(
-            CallbackEvent.QUERY_START,
-            query="test",
-            data={}
-        )
+        manager.trigger(CallbackEvent.QUERY_START, query="test", data={})
 
         assert len(called) == 0
 
@@ -82,7 +67,7 @@ class TestCallbackManager:
             query="test query",
             data={"complexity": "moderate"},
             user_tier="premium",
-            workflow="production"
+            workflow="production",
         )
 
         assert len(captured_data) == 1
@@ -107,11 +92,7 @@ class TestCallbackManager:
         manager.register(CallbackEvent.QUERY_START, good_callback)
 
         # Should not raise, just log error
-        manager.trigger(
-            CallbackEvent.QUERY_START,
-            query="test",
-            data={}
-        )
+        manager.trigger(CallbackEvent.QUERY_START, query="test", data={})
 
     def test_clear_specific_event(self):
         manager = CallbackManager()

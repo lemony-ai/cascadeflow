@@ -1,102 +1,107 @@
 """Quick test to verify all imports work after __init__.py update."""
 
+
 def test_core_imports():
     """Test core configuration imports."""
-    from cascadeflow import (
-        ModelConfig,
-        CascadeConfig,
-        UserTier,
-        CascadeAgent,
-        CascadeResult
-    )
+    from cascadeflow import CascadeAgent, CascadeConfig, CascadeResult, ModelConfig, UserTier
+
     print("✓ Core imports working")
+
 
 def test_day42_config_imports():
     """Test Day 4.2 configuration imports."""
     from cascadeflow import (
-        WorkflowProfile,
+        DEFAULT_TIERS,
+        EXAMPLE_WORKFLOWS,
         LatencyProfile,
         OptimizationWeights,
-        DEFAULT_TIERS,
-        EXAMPLE_WORKFLOWS
+        WorkflowProfile,
     )
+
     print("✓ Day 4.2 config imports working")
     print(f"  - Found {len(DEFAULT_TIERS)} default tiers")
     print(f"  - Found {len(EXAMPLE_WORKFLOWS)} example workflows")
+
 
 def test_intelligence_imports():
     """Test intelligence layer imports."""
     from cascadeflow import (
         ComplexityDetector,
-        QueryComplexity,
         DomainDetector,
-        ModelScorer,
-        LatencyAwareExecutionPlanner,
+        ExecutionPlan,
         ExecutionStrategy,
-        ExecutionPlan
+        LatencyAwareExecutionPlanner,
+        ModelScorer,
+        QueryComplexity,
     )
+
     print("✓ Intelligence layer imports working")
+
 
 def test_speculative_imports():
     """Test speculative cascade imports."""
     from cascadeflow import (
-        SpeculativeCascade,
         DeferralStrategy,
         FlexibleDeferralRule,
-        SpeculativeResult
+        SpeculativeCascade,
+        SpeculativeResult,
     )
+
     print("✓ Speculative cascade imports working")
+
 
 def test_features_imports():
     """Test supporting features imports."""
     from cascadeflow import (
-        CallbackManager,
-        CallbackEvent,
         CallbackData,
+        CallbackEvent,
+        CallbackManager,
+        CascadePresets,
         ResponseCache,
         StreamManager,
-        CascadePresets
     )
+
     print("✓ Supporting features imports working")
+
 
 def test_providers_imports():
     """Test provider imports."""
-    from cascadeflow import (
-        ModelResponse,
-        BaseProvider,
-        PROVIDER_REGISTRY
-    )
+    from cascadeflow import PROVIDER_REGISTRY, BaseProvider, ModelResponse
+
     print("✓ Provider imports working")
+
 
 def test_utils_imports():
     """Test utility imports."""
-    from cascadeflow import (
-        setup_logging,
-        format_cost,
-        estimate_tokens
-    )
+    from cascadeflow import estimate_tokens, format_cost, setup_logging
+
     print("✓ Utility imports working")
+
 
 def test_exceptions_imports():
     """Test exception imports."""
     from cascadeflow import (
+        BudgetExceededError,
         CascadeFlowError,
         ConfigError,
-        ProviderError,
         ModelError,
-        BudgetExceededError,
-        RateLimitError,
+        ProviderError,
         QualityThresholdError,
+        RateLimitError,
         RoutingError,
-        ValidationError
+        ValidationError,
     )
+
     print("✓ Exception imports working")
+
 
 def test_version():
     """Test version info."""
     from cascadeflow import __version__
+
     print(f"✓ Version: {__version__}")
     assert __version__ == "0.4.2"
+
 
 if __name__ == "__main__":
     print("Testing CascadeFlow imports...\n")
@@ -117,4 +122,5 @@ if __name__ == "__main__":
     except ImportError as e:
         print(f"\n❌ Import failed: {e}")
         import traceback
+
         traceback.print_exc()

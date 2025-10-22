@@ -5,69 +5,192 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cascadeflow"
 version = "0.1.0"
-description = "Smart AI model cascading for cost optimization with speculative cascades"
+description = "Smart AI model cascading for cost optimization - Save 60-98% on LLM costs with 2-6x faster responses"
 readme = "README.md"
-authors = [
-    {name = "Your Name", email = "your.email@example.com"}
-]
-license = {text = "MIT"}
 requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Lemony Inc.", email = "hello@lemony.ai"}
+]
+maintainers = [
+    {name = "Lemony Inc.", email = "hello@lemony.ai"}
+]
+keywords = [
+    "ai",
+    "llm",
+    "cost-optimization",
+    "model-routing",
+    "cascade",
+    "inference",
+    "openai",
+    "anthropic",
+    "gpt",
+    "claude",
+    "machine-learning",
+    "groq",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: OS Independent",
 ]
 
 dependencies = [
-    "httpx>=0.27.0",
     "pydantic>=2.0.0",
-    "pyyaml>=6.0",
-    "python-dotenv>=1.0.0",
-    "rich>=13.0.0",
-    "sentence-transformers>=2.2.0",
-    "scikit-learn>=1.3.0",
-    "numpy>=1.24.0",
+    "httpx>=0.25.0",
+    "tiktoken>=0.5.0",
 ]
 
 [project.optional-dependencies]
+# Individual providers (API-based - require API keys)
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.8.0"]
+groq = ["groq>=0.4.0"]
+huggingface = ["huggingface-hub>=0.19.0"]
+together = ["together>=0.2.0"]
+
+# Local inference providers (run your own models)
+# Note: Ollama doesn't need a Python package - just HTTP requests to localhost:11434
+# Install Ollama separately from: https://ollama.ai
+vllm = ["vllm>=0.2.0"]  # For running vLLM in-process (or use vLLM server via HTTP)
+
+# Common API providers bundle (most popular)
+providers = [
+    "openai>=1.0.0",
+    "anthropic>=0.8.0",
+    "groq>=0.4.0",
+]
+
+# Local inference bundle
+local = [
+    "vllm>=0.2.0",
+]
+
+# Semantic routing (optional feature)
+semantic = [
+    "sentence-transformers>=2.2.0",
+]
+
+# Development tools (includes rich for terminal output)
 dev = [
-    "pytest>=7.0.0",
+    "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "pytest-mock>=3.10.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
-    "mypy>=1.0.0",
+    "mypy>=1.5.0",
     "isort>=5.12.0",
+    "pre-commit>=3.5.0",
+    "rich>=13.0.0",
+]
+
+# Documentation tools
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.23.0",
+]
+
+# Everything (all providers + semantic routing)
+all = [
+    "openai>=1.0.0",
+    "anthropic>=0.8.0",
+    "groq>=0.4.0",
+    "huggingface-hub>=0.19.0",
+    "together>=0.2.0",
+    "vllm>=0.2.0",
+    "sentence-transformers>=2.2.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/cascadeflow"
-Documentation = "https://github.com/yourusername/cascadeflow#readme"
-Repository = "https://github.com/yourusername/cascadeflow"
-Issues = "https://github.com/yourusername/cascadeflow/issues"
+Homepage = "https://lemony.ai"
+Documentation = "https://docs.lemony.ai/cascadeflow"
+Repository = "https://github.com/lemony-ai/cascadeflow"
+"Bug Tracker" = "https://github.com/lemony-ai/cascadeflow/issues"
+Changelog = "https://github.com/lemony-ai/cascadeflow/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+packages = ["cascadeflow"]
+
+[tool.setuptools.package-data]
+cascadeflow = ["py.typed"]
 
 [tool.black]
 line-length = 100
-target-version = ['py39', 'py310', 'py311']
+target-version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.idea
+  | build
+  | dist
+)/
+'''
 
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "PT",  # flake8-pytest-style
+]
+ignore = []
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+exclude = [
+    "build",
+    "dist",
+    ".venv",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "openai.*",
+    "anthropic.*",
+    "groq.*",
+    "huggingface_hub.*",
+    "together.*",
+    "vllm.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra -q --cov=cascadeflow --cov-report=html --cov-report=term"
 testpaths = ["tests"]
-asyncio_mode = "auto"
-markers = [
-    "integration: marks tests as integration tests (requires real services like Ollama, Groq, etc.)",
-    "slow: marks tests as slow running tests",
-    "unit: marks tests as unit tests (default)",
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--cov=cascadeflow",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--asyncio-mode=auto",
 ]
 
 [tool.coverage.run]
@@ -75,9 +198,6 @@ source = ["cascadeflow"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
-    "*/__pycache__/*",
-    "*/venv/*",
-    "*/.venv/*",
 ]
 
 [tool.coverage.report]
@@ -88,23 +208,4 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
-    "@abstractmethod",
 ]
-
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-follow_imports = "normal"
-ignore_missing_imports = true
-
-[tool.isort]
-profile = "black"
-line_length = 100

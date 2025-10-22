@@ -1,125 +1,191 @@
-"""vLLM provider for high-performance local inference."""
+"""vLLM provider for high-performance local inference with tool calling support."""
 
+import json
 import os
 import time
-import math
-from typing import Optional, Dict, Any
+from collections.abc import AsyncIterator
+from typing import Any, Optional
 
 import httpx
 
-from .base import BaseProvider, ModelResponse
-from ..exceptions import ProviderError, ModelError
+from ..exceptions import ModelError, ProviderError
+from .base import BaseProvider, ModelResponse, RetryConfig
 
 
 class VLLMProvider(BaseProvider):
     """
-    vLLM provider for high-performance inference.
+    vLLM provider for high-performance inference with tool calling.
 
     vLLM is an OpenAI-compatible server with:
     - PagedAttention for efficient memory usage
     - Continuous batching for high throughput
     - 24x faster than standard serving
-    - Full logprobs support
+    - Full logprobs support (OpenAI-compatible format)
+    - Tool/function calling support (OpenAI-compatible!)
+    - Self-hosted (zero API costs)
+
+    Enhanced with full logprobs support, intelligent defaults for token-level confidence,
+    complete tool calling capabilities, and confidence_method tracking.
+
+                           tool calling API, so we can leverage the same format as OpenAI/Groq.
+                           Supports parallel tool calls, multi-turn conversations, and automatic
+                           tool result handling.
 
     Requires vLLM server running locally or remotely.
 
-    Example:
+    Example (Basic):
         >>> provider = VLLMProvider(base_url="http://localhost:8000/v1")
         >>> response = await provider.complete(
         ...     prompt="What is AI?",
         ...     model="meta-llama/Llama-3-8B-Instruct"
         ... )
 
-        >>> # With logprobs
+    Example (Tool Calling):
+        >>> # Define tools (OpenAI-compatible format)
+        >>> tools = [{
+        ...     "type": "function",
+        ...     "function": {
+        ...         "name": "get_weather",
+        ...         "description": "Get weather for a location",
+        ...         "parameters": {
+        ...             "type": "object",
+        ...             "properties": {
+        ...                 "location": {"type": "string"},
+        ...                 "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+        ...             },
+        ...             "required": ["location"]
+        ...         }
+        ...     }
+        ... }]
+        >>>
+        >>> # Use tools automatically
         >>> response = await provider.complete(
-        ...     prompt="What is AI?",
-        ...     model="meta-llama/Llama-3-8B-Instruct",
-        ...     logprobs=True,
-        ...     top_logprobs=10
+        ...     prompt="What's the weather in Paris?",
+        ...     model="meta-llama/Meta-Llama-3.1-70B-Instruct",
+        ...     tools=tools
+        ... )
+        >>>
+        >>> # Check for tool calls
+        >>> if response.tool_calls:
+        ...     for tool_call in response.tool_calls:
+        ...         print(f"Tool: {tool_call['name']}")
+        ...         print(f"Args: {tool_call['arguments']}")
+        >>>
+        >>> # Multi-turn with tool results (conversation format)
+        >>> messages = [
+        ...     {"role": "user", "content": "What's the weather in Paris?"},
+        ...     {"role": "assistant", "content": None, "tool_calls": response.tool_calls},
+        ...     {"role": "tool", "tool_call_id": "call_123", "content": '{"temp": 22, "condition": "sunny"}'}
+        ... ]
+        >>> response = await provider.complete(
+        ...     messages=messages,
+        ...     model="meta-llama/Meta-Llama-3.1-70B-Instruct",
+        ...     tools=tools
         ... )
     """
 
     def __init__(
-            self,
-            api_key: Optional[str] = None,
-            base_url: Optional[str] = None
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+        timeout: float = 120.0,
     ):
         """
-        Initialize vLLM provider.
+        Initialize vLLM provider with tool calling support.
 
         Args:
             api_key: Optional API key (usually not needed for local vLLM)
             base_url: vLLM server URL (default: http://localhost:8000/v1)
+            retry_config: Custom retry configuration (optional)
+            timeout: Request timeout in seconds (default: 120s for large models)
         """
-        super().__init__(api_key)
+        super().__init__(api_key=api_key, retry_config=retry_config)
 
-        # Default to local vLLM server
-        self.base_url = base_url or os.getenv(
-            "VLLM_BASE_URL",
-            "http://localhost:8000/v1"
-        )
+        self.base_url = base_url or os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+        self.timeout = timeout
 
-        # vLLM is OpenAI-compatible, so we use similar headers
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        # Initialize HTTP client
-        self.client = httpx.AsyncClient(
-            headers=headers,
-            timeout=120.0  # vLLM can be slower for large models
-        )
+        self.client = httpx.AsyncClient(headers=headers, timeout=self.timeout)
 
     def _load_api_key(self) -> Optional[str]:
         """Load API key from environment (optional for vLLM)."""
         return os.getenv("VLLM_API_KEY")
 
     def _check_logprobs_support(self) -> bool:
-        """vLLM supports logprobs (OpenAI-compatible)."""
-        return True
-
-    async def complete(
-            self,
-            prompt: str,
-            model: str,
-            max_tokens: int = 4096,
-            temperature: float = 0.7,
-            system_prompt: Optional[str] = None,
-            **kwargs
-    ) -> ModelResponse:
         """
-        Complete a prompt using vLLM server.
-
-        vLLM uses OpenAI-compatible API format.
-
-        Args:
-            prompt: User prompt
-            model: Model name (must match what's loaded in vLLM)
-            max_tokens: Maximum tokens to generate
-            temperature: Sampling temperature
-            system_prompt: Optional system prompt
-            **kwargs: Additional parameters
-                     NEW: logprobs (bool) - Enable logprobs
-                          top_logprobs (int) - Get top-k alternatives (1-20)
+        vLLM supports native logprobs for confidence analysis.
 
         Returns:
-            ModelResponse with standardized format (enhanced with logprobs)
+            True - vLLM provides native logprobs (OpenAI-compatible format)
+        """
+        return True
+
+    async def _complete_impl(
+        self,
+        prompt: Optional[str] = None,
+        model: str = "",
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
+        tool_choice: str = "auto",
+        **kwargs,
+    ) -> ModelResponse:
+        """
+        Complete a prompt using vLLM server with optional tool calling.
+
+        confidence estimation. Set logprobs=False to disable.
+
+        vLLM uses OpenAI-compatible API format with full logprobs and tool support.
+
+        Args:
+            prompt: User prompt (for simple queries)
+            model: Model name (must match what's loaded in vLLM)
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0-2)
+            system_prompt: Optional system prompt
+            messages: Conversation history (OpenAI format) - for multi-turn or tool use
+            tools: Tool definitions (OpenAI format) - enables tool calling
+            tool_choice: Tool selection strategy ("auto", "none", or {"type": "function", "function": {"name": "..."}})
+            **kwargs: Additional parameters including:
+                - logprobs (bool): Enable logprobs (default: True for accurate confidence)
+                - top_logprobs (int): Get top-k alternatives (default: 5)
+                - parallel_tool_calls (bool): Allow parallel tool calls (default: True)
+
+        Returns:
+            ModelResponse with standardized format (enhanced with logprobs, tool_calls, and confidence_method)
 
         Raises:
-            ProviderError: If API call fails
-            ModelError: If model execution fails
+            ProviderError: If API call fails (will be caught by retry logic)
+            ModelError: If model execution fails (will be caught by retry logic)
         """
         start_time = time.time()
 
-        # Extract logprobs parameters
-        logprobs_enabled = kwargs.pop('logprobs', False)
-        top_logprobs = kwargs.pop('top_logprobs', None)
+        # Intelligent default for logprobs
+        if "logprobs" not in kwargs:
+            kwargs["logprobs"] = self.should_request_logprobs(**kwargs)
 
-        # Build messages (OpenAI format)
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        # Extract parameters
+        logprobs_enabled = kwargs.pop("logprobs", False)
+        top_logprobs = kwargs.pop("top_logprobs", 5)
+        parallel_tool_calls = kwargs.pop("parallel_tool_calls", True)
+
+        # Build messages (support both simple prompt and conversation format)
+        if messages is None:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            if prompt:
+                messages.append({"role": "user", "content": prompt})
+
+        # If prompt provided but messages exist, add prompt to messages
+        elif prompt and messages:
+            messages.append({"role": "user", "content": prompt})
 
         # Build request payload
         payload = {
@@ -127,10 +193,17 @@ class VLLMProvider(BaseProvider):
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            **kwargs
+            **kwargs,
         }
 
-        # Add logprobs if requested (OpenAI-compatible)
+        # Add tool calling parameters if tools provided
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice
+            if parallel_tool_calls:
+                payload["parallel_tool_calls"] = True
+
+        # Add logprobs if requested
         if logprobs_enabled:
             payload["logprobs"] = True
             if top_logprobs:
@@ -138,17 +211,18 @@ class VLLMProvider(BaseProvider):
 
         try:
             # Make API request
-            response = await self.client.post(
-                f"{self.base_url}/chat/completions",
-                json=payload
-            )
+            response = await self.client.post(f"{self.base_url}/chat/completions", json=payload)
             response.raise_for_status()
 
             data = response.json()
-
-            # Extract response (OpenAI format)
             choice = data["choices"][0]
-            content = choice["message"]["content"]
+
+            # Extract content (may be None if tool_calls present)
+            content = choice["message"].get("content") or ""
+
+            # Extract usage
+            prompt_tokens = data["usage"]["prompt_tokens"]
+            completion_tokens = data["usage"]["completion_tokens"]
             tokens_used = data["usage"]["total_tokens"]
 
             # Calculate latency
@@ -157,8 +231,90 @@ class VLLMProvider(BaseProvider):
             # vLLM is self-hosted, so cost is 0
             cost = 0.0
 
+            # Build metadata for confidence system
+            metadata_for_confidence = {
+                "finish_reason": choice["finish_reason"],
+                "temperature": temperature,
+                "query": prompt or (messages[-1]["content"] if messages else ""),
+            }
+
+            # Parse tool calls if present (OpenAI format)
+            tool_calls = None
+            if "tool_calls" in choice["message"] and choice["message"]["tool_calls"]:
+                tool_calls = []
+                for tc in choice["message"]["tool_calls"]:
+                    tool_calls.append(
+                        {
+                            "id": tc["id"],
+                            "type": tc["type"],
+                            "name": tc["function"]["name"],
+                            "arguments": json.loads(tc["function"]["arguments"]),
+                        }
+                    )
+
+                # Add to metadata
+                metadata_for_confidence["has_tool_calls"] = True
+                metadata_for_confidence["tool_count"] = len(tool_calls)
+
+            # Parse logprobs if available
+            tokens_list = []
+            logprobs_list = []
+            top_logprobs_list = []
+
+            if logprobs_enabled and "logprobs" in choice and choice["logprobs"]:
+                logprobs_data = choice["logprobs"]
+
+                if "content" in logprobs_data and logprobs_data["content"]:
+                    for token_data in logprobs_data["content"]:
+                        tokens_list.append(token_data["token"])
+                        logprobs_list.append(token_data["logprob"])
+
+                        if "top_logprobs" in token_data and token_data["top_logprobs"]:
+                            top_k = {}
+                            for alt in token_data["top_logprobs"]:
+                                top_k[alt["token"]] = alt["logprob"]
+                            top_logprobs_list.append(top_k)
+                        else:
+                            top_logprobs_list.append({})
+
+                    metadata_for_confidence["logprobs"] = logprobs_list
+                    metadata_for_confidence["tokens"] = tokens_list
+
+            # 🎯 DETERMINE CONFIDENCE METHOD (NEW!)
+            # This tracks HOW we calculated confidence for diagnostic insights
+            confidence_method = "unknown"
+
+            if tool_calls:
+                # Model called a tool - highest confidence signal
+                confidence_method = "tool-call-present"
+            elif tools and not tool_calls:
+                # Tools were available but model chose to respond with text
+                confidence_method = "tool-available-text-chosen"
+            elif logprobs_list:
+                # Using native logprobs for confidence
+                if top_logprobs_list and any(top_logprobs_list):
+                    confidence_method = "multi-signal-hybrid"  # logprobs + top_k
+                else:
+                    confidence_method = "logprobs-native"
+            else:
+                # Fallback to heuristic-based confidence
+                confidence_method = "heuristic-based"
+
             # Calculate confidence
-            confidence = self.calculate_confidence(content, data)
+            confidence = self.calculate_confidence(content, metadata_for_confidence)
+
+            # Build response metadata with confidence_method tracking
+            response_metadata = {
+                "finish_reason": choice["finish_reason"],
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "base_url": self.base_url,
+                "query": metadata_for_confidence["query"],
+                "confidence_method": confidence_method,  # 🎯 Track method used!
+            }
+
+            if tools:
+                response_metadata["tools_available"] = len(tools)
 
             # Build base response
             model_response = ModelResponse(
@@ -169,61 +325,21 @@ class VLLMProvider(BaseProvider):
                 tokens_used=tokens_used,
                 confidence=confidence,
                 latency_ms=latency_ms,
-                metadata={
-                    "finish_reason": choice["finish_reason"],
-                    "prompt_tokens": data["usage"]["prompt_tokens"],
-                    "completion_tokens": data["usage"]["completion_tokens"],
-                    "base_url": self.base_url,
-                }
+                metadata=response_metadata,
+                tool_calls=tool_calls,  # Add tool calls to response!
             )
 
-            # Parse logprobs if available (OpenAI-compatible format)
-            if logprobs_enabled and "logprobs" in choice and choice["logprobs"]:
-                logprobs_data = choice["logprobs"]
-
-                if "content" in logprobs_data and logprobs_data["content"]:
-                    tokens = []
-                    logprobs_list = []
-                    top_logprobs_list = []
-
-                    for token_data in logprobs_data["content"]:
-                        # Extract token
-                        tokens.append(token_data["token"])
-
-                        # Extract logprob
-                        logprobs_list.append(token_data["logprob"])
-
-                        # Extract top alternatives
-                        if "top_logprobs" in token_data and token_data["top_logprobs"]:
-                            top_k = {}
-                            for alt in token_data["top_logprobs"]:
-                                top_k[alt["token"]] = alt["logprob"]
-                            top_logprobs_list.append(top_k)
-                        else:
-                            top_logprobs_list.append({})
-
-                    # Add to response
-                    model_response.tokens = tokens
-                    model_response.logprobs = logprobs_list
-                    model_response.top_logprobs = top_logprobs_list
-
-                    # Update confidence based on actual probabilities
-                    if logprobs_list:
-                        avg_prob = sum(math.exp(lp) for lp in logprobs_list) / len(logprobs_list)
-                        # Blend with heuristic confidence
-                        model_response.confidence = (confidence + avg_prob) / 2
-
-                    # Add metadata
-                    model_response.metadata["has_logprobs"] = True
-                    model_response.metadata["estimated"] = False
-            else:
-                # No logprobs available - add estimated values
-                if logprobs_enabled:
-                    model_response = self.add_logprobs_fallback(
-                        model_response,
-                        temperature,
-                        base_confidence=0.80  # vLLM local models are good
-                    )
+            # Add logprobs data if available
+            if logprobs_list:
+                model_response.tokens = tokens_list
+                model_response.logprobs = logprobs_list
+                model_response.top_logprobs = top_logprobs_list
+                model_response.metadata["has_logprobs"] = True
+                model_response.metadata["estimated"] = False
+            elif logprobs_enabled:
+                model_response = self.add_logprobs_fallback(
+                    model_response, temperature, base_confidence=0.80
+                )
 
             return model_response
 
@@ -233,38 +349,196 @@ class VLLMProvider(BaseProvider):
                     f"Model '{model}' not found in vLLM server. "
                     f"Available models can be checked at {self.base_url}/models",
                     model=model,
-                    provider="vllm"
+                    provider="vllm",
+                )
+            elif e.response.status_code == 400:
+                error_msg = "vLLM bad request (400)"
+                try:
+                    error_data = e.response.json()
+                    if "message" in error_data:
+                        error_msg = f"vLLM validation error: {error_data['message']}"
+                except:
+                    pass
+                raise ProviderError(error_msg, provider="vllm", original_error=e)
+            elif e.response.status_code == 500:
+                raise ProviderError(
+                    "vLLM internal server error (500). This is often transient in vLLM - retrying.",
+                    provider="vllm",
+                    original_error=e,
                 )
             elif e.response.status_code == 503:
                 raise ProviderError(
-                    "vLLM server is overloaded or unavailable",
+                    "vLLM server is overloaded or unavailable (503)",
                     provider="vllm",
-                    original_error=e
+                    original_error=e,
                 )
             else:
                 raise ProviderError(
-                    f"vLLM API error: {e.response.status_code}",
-                    provider="vllm",
-                    original_error=e
+                    f"vLLM API error: {e.response.status_code}", provider="vllm", original_error=e
                 )
+        except httpx.TimeoutException as e:
+            raise ProviderError(
+                f"vLLM request timed out after {self.timeout}s. "
+                "vLLM can hang intermittently - consider using --disable-custom-all-reduce flag.",
+                provider="vllm",
+                original_error=e,
+            )
+        except httpx.ConnectError as e:
+            raise ProviderError(
+                f"Failed to connect to vLLM server at {self.base_url}. "
+                f"Make sure vLLM server is running.",
+                provider="vllm",
+                original_error=e,
+            )
         except httpx.RequestError as e:
             raise ProviderError(
                 f"Failed to connect to vLLM server at {self.base_url}",
                 provider="vllm",
-                original_error=e
+                original_error=e,
             )
-        except (KeyError, IndexError) as e:
-            raise ModelError(
-                f"Failed to parse vLLM response: {e}",
-                model=model,
-                provider="vllm"
+        except (KeyError, IndexError, json.JSONDecodeError) as e:
+            raise ModelError(f"Failed to parse vLLM response: {e}", model=model, provider="vllm")
+
+    async def _stream_impl(
+        self,
+        prompt: Optional[str] = None,
+        model: str = "",
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
+        tool_choice: str = "auto",
+        **kwargs,
+    ) -> AsyncIterator[str]:
+        """
+        Stream response from vLLM server with optional tool support.
+
+        NOTE: Streaming mode does NOT include logprobs in the stream.
+        Tool calls are streamed incrementally as deltas.
+
+        Args:
+            prompt: User prompt (for simple queries)
+            model: Model name (must match what's loaded in vLLM)
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0-2)
+            system_prompt: Optional system prompt
+            messages: Conversation history (OpenAI format)
+            tools: Tool definitions (OpenAI format)
+            tool_choice: Tool selection strategy
+            **kwargs: Additional vLLM parameters
+
+        Yields:
+            Content chunks or tool call deltas as they arrive
+
+        Example:
+            >>> async for chunk in provider.stream(
+            ...     prompt="Count to 5",
+            ...     model="meta-llama/Llama-3-8B-Instruct"
+            ... ):
+            ...     print(chunk, end='', flush=True)
+        """
+        parallel_tool_calls = kwargs.pop("parallel_tool_calls", True)
+
+        # Build messages
+        if messages is None:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            if prompt:
+                messages.append({"role": "user", "content": prompt})
+        elif prompt and messages:
+            messages.append({"role": "user", "content": prompt})
+
+        # Build request payload
+        payload = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": True,
+            **kwargs,
+        }
+
+        # Add tool parameters if provided
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice
+            if parallel_tool_calls:
+                payload["parallel_tool_calls"] = True
+
+        try:
+            async with self.client.stream(
+                "POST", f"{self.base_url}/chat/completions", json=payload
+            ) as response:
+                response.raise_for_status()
+
+                async for line in response.aiter_lines():
+                    if not line.strip() or not line.startswith("data: "):
+                        continue
+
+                    data_str = line[6:]
+                    if data_str.strip() == "[DONE]":
+                        break
+
+                    try:
+                        chunk_data = json.loads(data_str)
+                        if "choices" in chunk_data and len(chunk_data["choices"]) > 0:
+                            delta = chunk_data["choices"][0].get("delta", {})
+
+                            # Stream content if present
+                            if "content" in delta and delta["content"]:
+                                yield delta["content"]
+
+                            # Note: Tool calls are also streamed as deltas
+                            # but we yield content only for simplicity
+                            # Full tool call handling should be done with complete()
+
+                    except json.JSONDecodeError:
+                        continue
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise ModelError(
+                    f"Model '{model}' not found in vLLM server.", model=model, provider="vllm"
+                )
+            elif e.response.status_code == 400:
+                error_msg = "vLLM bad request (400)"
+                try:
+                    error_data = e.response.json()
+                    if "message" in error_data:
+                        error_msg = f"vLLM validation error: {error_data['message']}"
+                except:
+                    pass
+                raise ProviderError(error_msg, provider="vllm", original_error=e)
+            elif e.response.status_code in (500, 503):
+                raise ProviderError(
+                    f"vLLM server error ({e.response.status_code})",
+                    provider="vllm",
+                    original_error=e,
+                )
+            else:
+                raise ProviderError(
+                    f"vLLM API error: {e.response.status_code}", provider="vllm", original_error=e
+                )
+        except httpx.TimeoutException as e:
+            raise ProviderError(
+                f"vLLM streaming timed out after {self.timeout}s.",
+                provider="vllm",
+                original_error=e,
+            )
+        except (httpx.ConnectError, httpx.RequestError) as e:
+            raise ProviderError(
+                f"Failed to connect to vLLM server at {self.base_url}",
+                provider="vllm",
+                original_error=e,
             )
 
     def estimate_cost(self, tokens: int, model: str) -> float:
         """
         Estimate cost for vLLM model.
 
-        vLLM is self-hosted, so cost is always 0.
+        vLLM is self-hosted, so there are no API costs.
 
         Args:
             tokens: Total tokens
@@ -281,6 +555,9 @@ class VLLMProvider(BaseProvider):
 
         Returns:
             List of model names
+
+        Raises:
+            ProviderError: If unable to fetch models
         """
         try:
             response = await self.client.get(f"{self.base_url}/models")
@@ -288,10 +565,7 @@ class VLLMProvider(BaseProvider):
             data = response.json()
             return [model["id"] for model in data.get("data", [])]
         except Exception as e:
-            raise ProviderError(
-                f"Failed to list models from vLLM server: {e}",
-                provider="vllm"
-            )
+            raise ProviderError(f"Failed to list models from vLLM server: {e}", provider="vllm")
 
     async def __aenter__(self):
         """Async context manager entry."""

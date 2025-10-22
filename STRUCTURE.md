@@ -470,6 +470,86 @@ class NewProvider(BaseProvider):
 
 ---
 
+### Updating Provider Pricing & Adding New Models
+
+**Overview:**
+Provider pricing is defined in each provider's `calculate_cost()` method using Python dictionaries. This approach is type-safe, fast, and requires no external file dependencies.
+
+**Files to modify:**
+1. `cascadeflow/providers/{provider}.py` - Update pricing dictionary in `calculate_cost()` method
+2. Update documentation if model capabilities changed
+
+**Example: Adding GPT-5 to OpenAI**
+```python
+# cascadeflow/providers/openai.py - calculate_cost() method
+
+# OpenAI pricing per 1K tokens (as of December 2024)
+# Source: https://openai.com/api/pricing/
+pricing = {
+    # GPT-5 series (NEW!)
+    "gpt-5": {"input": 0.010, "output": 0.030},
+    "gpt-5-turbo": {"input": 0.005, "output": 0.015},
+    "gpt-5-mini": {"input": 0.0003, "output": 0.0012},
+
+    # Existing models...
+    "gpt-4o": {"input": 0.0025, "output": 0.010},
+    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+}
+```
+
+**Why Python dict over YAML/JSON:**
+- ✅ Type-safe (IDE autocomplete and validation)
+- ✅ No file I/O overhead (faster)
+- ✅ No external dependencies
+- ✅ Works in all environments (containers, serverless, etc.)
+- ✅ Can be dynamically overridden in code
+- ✅ Version controlled with code
+
+**Provider Pricing Locations:**
+- OpenAI: `cascadeflow/providers/openai.py` (line ~800)
+- Anthropic: `cascadeflow/providers/anthropic.py` (`calculate_cost()`)
+- Groq: `cascadeflow/providers/groq.py` (`calculate_cost()`)
+- Together: `cascadeflow/providers/together.py` (`calculate_cost()`)
+- HuggingFace: `cascadeflow/providers/huggingface.py` (`calculate_cost()`)
+- Ollama: Free (always $0)
+- vLLM: Self-hosted (user-defined cost in ModelConfig)
+
+**Auto-Discovery for Local Providers:**
+
+Both Ollama and vLLM support automatic model discovery:
+
+```python
+# Ollama - List installed models
+from cascadeflow.providers.ollama import OllamaProvider
+provider = OllamaProvider()
+models = await provider.list_models()
+# Returns: ['llama3.2:1b', 'mistral:7b', ...]
+
+# vLLM - List served models
+from cascadeflow.providers.vllm import VLLMProvider
+provider = VLLMProvider(base_url="http://localhost:8000/v1")
+models = await provider.list_models()
+# Returns: ['meta-llama/Llama-3.2-3B-Instruct', ...]
+```
+
+**When to update pricing:**
+1. Provider announces new pricing (check official pricing pages)
+2. New model released with different pricing tier
+3. User reports cost calculation mismatch
+
+**Testing after pricing update:**
+```bash
+# Verify pricing calculation
+python -c "
+from cascadeflow.providers.openai import OpenAIProvider
+provider = OpenAIProvider(api_key='test')
+cost = provider.calculate_cost(tokens=1000, model='gpt-5')
+print(f'Cost for 1K tokens: \${cost:.6f}')
+"
+```
+
+---
+
 ### Adding a New Quality Check
 
 **Files to modify:**
@@ -620,6 +700,33 @@ This means existing code continues to work without changes.
 ---
 
 ## Recent Changes
+
+### v0.2.0 (December 2024) - Production Readiness
+
+**Code Quality:**
+- Removed 85 changelog-style comments from codebase (cleaner, more maintainable)
+- Professional production-ready code without bloat
+- Verified no inline test suites (proper test separation already exists)
+
+**Examples & Documentation:**
+- Fixed `edge_device.py` example (imports, indentation, syntax)
+- Created `docs/guides/edge_device.md` (600-line comprehensive guide)
+- Updated `examples/README.md` (now documents all 11 examples)
+- Moved `test_cascadeflow.py` to proper `tests/` directory
+- Total documentation: 10 guides, ~10,280 lines
+
+**Provider Updates:**
+- Added GPT-5 family to OpenAI provider (gpt-5, gpt-5-turbo, gpt-5-mini)
+- Updated pricing with proper documentation and source references
+- Organized pricing by model generation (GPT-5 → GPT-4o → GPT-4 → GPT-3.5)
+- Verified auto-discovery already implemented for Ollama and vLLM
+
+**Developer Experience:**
+- Easy to get started (all examples validated and working)
+- Scales to production (clean code, documented patterns)
+- State-of-the-art Python approach (Pydantic, type-safe, no external config files)
+
+---
 
 ### v0.1.0 (October 2024) - Major Restructuring
 
