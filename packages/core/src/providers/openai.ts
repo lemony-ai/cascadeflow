@@ -1,11 +1,26 @@
 /**
- * OpenAI provider implementation
+ * OpenAI provider implementation with automatic environment detection
+ *
+ * Works in both Node.js (using OpenAI SDK) and browser (using fetch API).
+ * Automatically detects the runtime environment and uses the appropriate method.
  */
 
-import OpenAI from 'openai';
 import { BaseProvider, type ProviderRequest } from './base';
 import type { ProviderResponse, Tool, Message } from '../types';
 import type { ModelConfig } from '../config';
+
+// Conditional import for Node.js environment
+let OpenAI: any;
+try {
+  // Only import in Node.js environment
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (typeof (globalThis as any).window === 'undefined') {
+    OpenAI = require('openai').default;
+  }
+} catch {
+  // SDK not available (browser or missing dependency)
+  OpenAI = null;
+}
 
 // OpenAI types
 type ChatCompletionMessageParam = any; // Simplified for MVP
@@ -42,19 +57,46 @@ const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
 };
 
 /**
- * OpenAI provider
+ * OpenAI provider with automatic environment detection
+ *
+ * Automatically uses:
+ * - OpenAI SDK in Node.js
+ * - Fetch API in browser
  */
 export class OpenAIProvider extends BaseProvider {
   readonly name = 'openai';
-  private client: OpenAI;
+  private client: any = null;
+  private useSDK: boolean;
+  private baseUrl: string;
 
   constructor(config: ModelConfig) {
     super(config);
     const apiKey = this.getApiKey();
-    this.client = new OpenAI({ apiKey });
+
+    // Detect environment and initialize accordingly
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    this.useSDK = typeof (globalThis as any).window === 'undefined' && OpenAI !== null;
+    this.baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+
+    if (this.useSDK) {
+      // Node.js: Use SDK
+      this.client = new OpenAI({ apiKey });
+    }
+    // Browser: Will use fetch in generate()
   }
 
   async generate(request: ProviderRequest): Promise<ProviderResponse> {
+    if (this.useSDK) {
+      return this.generateWithSDK(request);
+    } else {
+      return this.generateWithFetch(request);
+    }
+  }
+
+  /**
+   * Generate using OpenAI SDK (Node.js)
+   */
+  private async generateWithSDK(request: ProviderRequest): Promise<ProviderResponse> {
     try {
       const messages = this.normalizeMessages(request.messages);
       const chatMessages = this.convertToChatMessages(messages, request.systemPrompt);
@@ -85,7 +127,69 @@ export class OpenAIProvider extends BaseProvider {
             }
           : undefined,
         finish_reason: choice.finish_reason,
-        tool_calls: choice.message.tool_calls?.map((tc) => ({
+        tool_calls: choice.message.tool_calls?.map((tc: any) => ({
+          id: tc.id,
+          type: 'function',
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          },
+        })),
+        raw: completion,
+      };
+    } catch (error) {
+      throw this.formatError(error);
+    }
+  }
+
+  /**
+   * Generate using fetch API (Browser)
+   */
+  private async generateWithFetch(request: ProviderRequest): Promise<ProviderResponse> {
+    try {
+      const messages = this.normalizeMessages(request.messages);
+      const chatMessages = this.convertToChatMessages(messages, request.systemPrompt);
+      const tools = request.tools ? this.convertTools(request.tools) : undefined;
+
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getApiKey()}`,
+        },
+        body: JSON.stringify({
+          model: request.model || this.config.name,
+          messages: chatMessages,
+          max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+          temperature: request.temperature ?? this.config.temperature ?? 0.7,
+          tools,
+          ...request.extra,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      }
+
+      const completion: any = await response.json();
+      const choice = completion.choices?.[0];
+
+      if (!choice) {
+        throw new Error('No response from OpenAI');
+      }
+
+      return {
+        content: choice.message.content || '',
+        model: completion.model,
+        usage: completion.usage
+          ? {
+              prompt_tokens: completion.usage.prompt_tokens,
+              completion_tokens: completion.usage.completion_tokens,
+              total_tokens: completion.usage.total_tokens,
+            }
+          : undefined,
+        finish_reason: choice.finish_reason,
+        tool_calls: choice.message.tool_calls?.map((tc: any) => ({
           id: tc.id,
           type: 'function',
           function: {

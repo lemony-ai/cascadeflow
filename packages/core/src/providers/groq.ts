@@ -1,15 +1,28 @@
 /**
- * Groq provider implementation
+ * Groq provider implementation with automatic environment detection
+ *
+ * Works in both Node.js (using Groq SDK) and browser (using fetch API).
+ * Automatically detects the runtime environment and uses the appropriate method.
  *
  * Supports: Llama 4, Llama 3.3, Llama 3.1, DeepSeek, Qwen, Mixtral, Mistral
  * Pricing: Pay-as-you-go token pricing (as low as $0.05/million tokens)
  * Note: Groq uses OpenAI-compatible API but does NOT support logprobs
  */
 
-import Groq from 'groq-sdk';
 import { BaseProvider, type ProviderRequest } from './base';
 import type { ProviderResponse, Tool, Message } from '../types';
 import type { ModelConfig } from '../config';
+
+// Conditional import for Node.js environment
+let Groq: any;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (typeof (globalThis as any).window === 'undefined') {
+    Groq = require('groq-sdk').default;
+  }
+} catch {
+  Groq = null;
+}
 
 /**
  * Groq pricing per 1M tokens (October 2025)
@@ -56,19 +69,45 @@ const GROQ_PRICING: Record<string, [number, number]> = {
 };
 
 /**
- * Groq provider for fast inference
+ * Groq provider with automatic environment detection
+ *
+ * Automatically uses:
+ * - Groq SDK in Node.js
+ * - Fetch API in browser
  */
 export class GroqProvider extends BaseProvider {
   readonly name = 'groq';
-  private client: Groq;
+  private client: any = null;
+  private useSDK: boolean;
+  private baseUrl: string;
 
   constructor(config: ModelConfig) {
     super(config);
-    const apiKey = this.getApiKey();
-    this.client = new Groq({ apiKey });
+
+    // Detect environment and initialize accordingly
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    this.useSDK = typeof (globalThis as any).window === 'undefined' && Groq !== null;
+    this.baseUrl = config.baseUrl || 'https://api.groq.com/openai/v1';
+
+    if (this.useSDK) {
+      // Node.js: Use SDK
+      this.client = new Groq({ apiKey: this.getApiKey() });
+    }
+    // Browser: Will use fetch in generate()
   }
 
   async generate(request: ProviderRequest): Promise<ProviderResponse> {
+    if (this.useSDK) {
+      return this.generateWithSDK(request);
+    } else {
+      return this.generateWithFetch(request);
+    }
+  }
+
+  /**
+   * Generate using Groq SDK (Node.js)
+   */
+  private async generateWithSDK(request: ProviderRequest): Promise<ProviderResponse> {
     try {
       const messages = this.normalizeMessages(request.messages);
       const groqMessages = this.convertToGroqMessages(messages, request.systemPrompt);
@@ -99,7 +138,69 @@ export class GroqProvider extends BaseProvider {
             }
           : undefined,
         finish_reason: choice.finish_reason || undefined,
-        tool_calls: choice.message.tool_calls?.map((tc) => ({
+        tool_calls: choice.message.tool_calls?.map((tc: any) => ({
+          id: tc.id,
+          type: 'function',
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          },
+        })),
+        raw: completion,
+      };
+    } catch (error) {
+      throw this.formatError(error);
+    }
+  }
+
+  /**
+   * Generate using fetch API (Browser)
+   */
+  private async generateWithFetch(request: ProviderRequest): Promise<ProviderResponse> {
+    try {
+      const messages = this.normalizeMessages(request.messages);
+      const groqMessages = this.convertToGroqMessages(messages, request.systemPrompt);
+      const tools = request.tools ? this.convertTools(request.tools) : undefined;
+
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getApiKey()}`,
+        },
+        body: JSON.stringify({
+          model: request.model || this.config.name,
+          messages: groqMessages,
+          max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+          temperature: request.temperature ?? this.config.temperature ?? 0.7,
+          tools,
+          ...request.extra,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Groq API error: ${response.status} ${response.statusText}`);
+      }
+
+      const completion: any = await response.json();
+      const choice = completion.choices?.[0];
+
+      if (!choice) {
+        throw new Error('No response from Groq');
+      }
+
+      return {
+        content: choice.message.content || '',
+        model: completion.model,
+        usage: completion.usage
+          ? {
+              prompt_tokens: completion.usage.prompt_tokens,
+              completion_tokens: completion.usage.completion_tokens,
+              total_tokens: completion.usage.total_tokens,
+            }
+          : undefined,
+        finish_reason: choice.finish_reason || undefined,
+        tool_calls: choice.message.tool_calls?.map((tc: any) => ({
           id: tc.id,
           type: 'function',
           function: {

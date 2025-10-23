@@ -1,15 +1,28 @@
 /**
- * Anthropic Claude provider implementation
+ * Anthropic Claude provider implementation with automatic environment detection
+ *
+ * Works in both Node.js (using Anthropic SDK) and browser (using fetch API).
+ * Automatically detects the runtime environment and uses the appropriate method.
  *
  * Supports: Claude 4, Claude 3.7, Claude 3.5, Claude 3
  *
  * Note: Anthropic does not support logprobs natively
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { BaseProvider, type ProviderRequest } from './base';
 import type { ProviderResponse, Tool, Message } from '../types';
 import type { ModelConfig } from '../config';
+
+// Conditional import for Node.js environment
+let Anthropic: any;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (typeof (globalThis as any).window === 'undefined') {
+    Anthropic = require('@anthropic-ai/sdk').default;
+  }
+} catch {
+  Anthropic = null;
+}
 
 /**
  * Anthropic pricing per 1M tokens (October 2025)
@@ -40,19 +53,45 @@ const ANTHROPIC_PRICING: Record<string, number> = {
 };
 
 /**
- * Anthropic provider for Claude models
+ * Anthropic provider with automatic environment detection
+ *
+ * Automatically uses:
+ * - Anthropic SDK in Node.js
+ * - Fetch API in browser
  */
 export class AnthropicProvider extends BaseProvider {
   readonly name = 'anthropic';
-  private client: Anthropic;
+  private client: any = null;
+  private useSDK: boolean;
+  private baseUrl: string;
 
   constructor(config: ModelConfig) {
     super(config);
-    const apiKey = this.getApiKey();
-    this.client = new Anthropic({ apiKey });
+
+    // Detect environment and initialize accordingly
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    this.useSDK = typeof (globalThis as any).window === 'undefined' && Anthropic !== null;
+    this.baseUrl = config.baseUrl || 'https://api.anthropic.com/v1';
+
+    if (this.useSDK) {
+      // Node.js: Use SDK
+      this.client = new Anthropic({ apiKey: this.getApiKey() });
+    }
+    // Browser: Will use fetch in generate()
   }
 
   async generate(request: ProviderRequest): Promise<ProviderResponse> {
+    if (this.useSDK) {
+      return this.generateWithSDK(request);
+    } else {
+      return this.generateWithFetch(request);
+    }
+  }
+
+  /**
+   * Generate using Anthropic SDK (Node.js)
+   */
+  private async generateWithSDK(request: ProviderRequest): Promise<ProviderResponse> {
     try {
       const messages = this.normalizeMessages(request.messages);
       const anthropicMessages = this.convertToAnthropicMessages(messages);
@@ -70,27 +109,104 @@ export class AnthropicProvider extends BaseProvider {
 
       // Extract text content
       const textContent = completion.content
-        .filter((block) => block.type === 'text')
-        .map((block) => ('text' in block ? block.text : ''))
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
         .join('');
 
       // Extract tool calls
       const toolCalls = completion.content
-        .filter((block) => block.type === 'tool_use')
-        .map((block) => {
-          if (block.type === 'tool_use') {
-            return {
-              id: block.id,
-              type: 'function' as const,
-              function: {
-                name: block.name,
-                arguments: JSON.stringify(block.input),
-              },
-            };
-          }
-          return null;
-        })
-        .filter((tc): tc is NonNullable<typeof tc> => tc !== null);
+        .filter((block: any) => block.type === 'tool_use')
+        .map((block: any) => ({
+          id: block.id,
+          type: 'function' as const,
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        }));
+
+      return {
+        content: textContent,
+        model: completion.model,
+        usage: {
+          prompt_tokens: completion.usage.input_tokens,
+          completion_tokens: completion.usage.output_tokens,
+          total_tokens: completion.usage.input_tokens + completion.usage.output_tokens,
+        },
+        finish_reason: completion.stop_reason || undefined,
+        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+        raw: completion,
+      };
+    } catch (error) {
+      throw this.formatError(error);
+    }
+  }
+
+  /**
+   * Generate using fetch API (Browser)
+   */
+  private async generateWithFetch(request: ProviderRequest): Promise<ProviderResponse> {
+    try {
+      const messages = this.normalizeMessages(request.messages);
+      const anthropicMessages = this.convertToAnthropicMessages(messages);
+      const tools = request.tools ? this.convertTools(request.tools) : undefined;
+
+      const body: any = {
+        model: request.model || this.config.name,
+        max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+        messages: anthropicMessages,
+        ...request.extra,
+      };
+
+      if (request.systemPrompt) {
+        body.system = request.systemPrompt;
+      }
+
+      if (request.temperature !== undefined) {
+        body.temperature = request.temperature;
+      } else if (this.config.temperature !== undefined) {
+        body.temperature = this.config.temperature;
+      } else {
+        body.temperature = 0.7;
+      }
+
+      if (tools) {
+        body.tools = tools;
+      }
+
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.getApiKey(),
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+      }
+
+      const completion: any = await response.json();
+
+      // Extract text content
+      const textContent = completion.content
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
+        .join('');
+
+      // Extract tool calls
+      const toolCalls = completion.content
+        .filter((block: any) => block.type === 'tool_use')
+        .map((block: any) => ({
+          id: block.id,
+          type: 'function' as const,
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        }));
 
       return {
         content: textContent,

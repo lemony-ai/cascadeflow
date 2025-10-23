@@ -183,26 +183,44 @@ console.log(`Saved ${result.savingsPercentage}%`);
 
 ---
 
-### Pattern 3: BrowserOpenAIProvider (Advanced)
+### Pattern 3: Multi-Provider Browser Support
 
-**Best for:** When you already have an OpenAI-compatible proxy
+**Best for:** Using multiple AI providers in browser environments
+
+All CascadeFlow providers automatically work in both Node.js and browser environments through runtime detection:
 
 ```typescript
-import { CascadeAgent, BrowserOpenAIProvider } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
 
+// All providers work in browser automatically!
 const agent = new CascadeAgent({
   models: [
     {
       name: 'gpt-4o-mini',
       provider: 'openai',
       cost: 0.00015,
-      proxyUrl: 'https://your-proxy.com/v1/chat/completions'  // Your proxy
+      proxyUrl: 'https://your-proxy.com/api/openai'  // Your proxy
+    },
+    {
+      name: 'claude-3-haiku',
+      provider: 'anthropic',
+      cost: 0.00075,
+      proxyUrl: 'https://your-proxy.com/api/anthropic'  // Your proxy
     }
   ]
 });
 
 const result = await agent.run('Hello!');
 ```
+
+**Supported providers in browser:**
+- ✅ OpenAI (automatic runtime detection)
+- ✅ Anthropic (automatic runtime detection)
+- ✅ Groq (automatic runtime detection)
+- ✅ Together AI
+- ✅ Ollama
+- ✅ HuggingFace
+- ✅ vLLM
 
 ---
 

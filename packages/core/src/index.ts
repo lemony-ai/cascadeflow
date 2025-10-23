@@ -60,7 +60,6 @@ export type {
 export { providerRegistry } from './providers/base';
 export type { Provider, ProviderRequest } from './providers/base';
 export { OpenAIProvider } from './providers/openai';
-export { BrowserOpenAIProvider } from './providers/browser-openai';
 export { AnthropicProvider } from './providers/anthropic';
 export { GroqProvider } from './providers/groq';
 export { TogetherProvider } from './providers/together';

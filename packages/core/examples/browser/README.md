@@ -134,12 +134,14 @@ const response = await fetch('/api/cascade', {
 const result = await response.json();
 ```
 
-### Pattern 3: Direct Browser (with BrowserOpenAIProvider)
+### Pattern 3: Direct Browser (Multi-Provider Support)
 
 Best for: When you already have a proxy endpoint
 
+All providers automatically work in browser through runtime detection:
+
 ```typescript
-import { CascadeAgent, BrowserOpenAIProvider } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
 
 const agent = new CascadeAgent({
   models: [
@@ -148,6 +150,12 @@ const agent = new CascadeAgent({
       provider: 'openai',
       cost: 0.00015,
       proxyUrl: '/api/openai-proxy'  // Your proxy endpoint
+    },
+    {
+      name: 'claude-3-haiku',
+      provider: 'anthropic',
+      cost: 0.00075,
+      proxyUrl: '/api/anthropic-proxy'  // Your proxy endpoint
     }
   ]
 });
@@ -155,6 +163,9 @@ const agent = new CascadeAgent({
 const result = await agent.run('Hello!');
 console.log(`Savings: ${result.savingsPercentage}%`);
 ```
+
+**All 7 providers work in browser:**
+OpenAI, Anthropic, Groq, Together AI, Ollama, HuggingFace, vLLM
 
 ## Environment Variables
 
