@@ -1,0 +1,256 @@
+name: Publish Packages
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Which package to publish'
+        required: true
+        type: choice
+        options:
+          - all
+          - python
+          - typescript-core
+          - n8n
+
+jobs:
+  # Detect which packages have version changes
+  detect-changes:
+    name: Detect Package Changes
+    runs-on: ubuntu-latest
+    outputs:
+      python_changed: ${{ steps.changes.outputs.python_changed }}
+      typescript_changed: ${{ steps.changes.outputs.typescript_changed }}
+      n8n_changed: ${{ steps.changes.outputs.n8n_changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changes
+        id: changes
+        run: |
+          # Check if triggered by workflow_dispatch
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            case "${{ github.event.inputs.package }}" in
+              all)
+                echo "python_changed=true" >> $GITHUB_OUTPUT
+                echo "typescript_changed=true" >> $GITHUB_OUTPUT
+                echo "n8n_changed=true" >> $GITHUB_OUTPUT
+                ;;
+              python)
+                echo "python_changed=true" >> $GITHUB_OUTPUT
+                ;;
+              typescript-core)
+                echo "typescript_changed=true" >> $GITHUB_OUTPUT
+                ;;
+              n8n)
+                echo "n8n_changed=true" >> $GITHUB_OUTPUT
+                ;;
+            esac
+            exit 0
+          fi
+
+          # Check for version changes in recent commits
+          if git diff HEAD~1 HEAD -- pyproject.toml | grep -q "version ="; then
+            echo "python_changed=true" >> $GITHUB_OUTPUT
+          fi
+
+          if git diff HEAD~1 HEAD -- packages/core/package.json | grep -q '"version"'; then
+            echo "typescript_changed=true" >> $GITHUB_OUTPUT
+          fi
+
+          if git diff HEAD~1 HEAD -- packages/integrations/n8n/package.json | grep -q '"version"'; then
+            echo "n8n_changed=true" >> $GITHUB_OUTPUT
+          fi
+
+  # Build Python package
+  build-python:
+    name: Build Python Package
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check package
+        run: twine check dist/*
+
+      - name: Store distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  # Publish to PyPI
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build-python
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/cascadeflow
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  # Publish to TestPyPI (for manual testing)
+  publish-test-pypi:
+    name: Publish to TestPyPI
+    needs: build-python
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/cascadeflow
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+
+  # Build and publish TypeScript Core
+  publish-typescript-core:
+    name: Publish @cascadeflow/core to npm
+    needs: detect-changes
+    if: needs.detect-changes.outputs.typescript_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package
+        run: pnpm --filter @cascadeflow/core build
+
+      - name: Publish to npm
+        run: pnpm --filter @cascadeflow/core publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Build and publish n8n integration
+  publish-n8n:
+    name: Publish n8n-nodes-cascadeflow to npm
+    needs: detect-changes
+    if: needs.detect-changes.outputs.n8n_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @cascadeflow/core (dependency)
+        run: pnpm --filter @cascadeflow/core build
+
+      - name: Build n8n package
+        run: pnpm --filter n8n-nodes-cascadeflow build
+
+      - name: Publish to npm
+        run: pnpm --filter n8n-nodes-cascadeflow publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Create GitHub Release
+  create-release:
+    name: Create GitHub Release
+    needs: [publish-pypi, publish-typescript-core, publish-n8n]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release v${{ steps.version.outputs.VERSION }}
+          body: |
+            ## CascadeFlow v${{ steps.version.outputs.VERSION }}
+
+            ### 📦 Packages Published
+            - Python: `pip install cascadeflow==${{ steps.version.outputs.VERSION }}`
+            - TypeScript: `npm install @cascadeflow/core@${{ steps.version.outputs.VERSION }}`
+            - n8n: `npm install n8n-nodes-cascadeflow@${{ steps.version.outputs.VERSION }}`
+
+            ### 📖 Documentation
+            - [Python Docs](https://github.com/lemony-ai/cascadeflow/tree/main/docs)
+            - [TypeScript Docs](https://github.com/lemony-ai/cascadeflow/tree/main/packages/core)
+            - [n8n Integration](https://github.com/lemony-ai/cascadeflow/tree/main/packages/integrations/n8n)
+
+            See [CHANGELOG.md](https://github.com/lemony-ai/cascadeflow/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false

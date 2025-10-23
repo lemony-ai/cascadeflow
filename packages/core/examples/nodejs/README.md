@@ -1,0 +1,156 @@
+# CascadeFlow Node.js Examples
+
+TypeScript/JavaScript examples for using CascadeFlow in Node.js environments.
+
+## Prerequisites
+
+- Node.js 18+
+- pnpm, npm, or yarn
+- API keys for your chosen providers
+
+## Installation
+
+```bash
+# Install CascadeFlow core
+npm install @cascadeflow/core
+
+# Install peer dependencies for providers you'll use
+npm install openai                    # For OpenAI
+npm install @anthropic-ai/sdk         # For Anthropic
+npm install groq-sdk                  # For Groq
+npm install @huggingface/inference    # For HuggingFace
+```
+
+## Examples
+
+### 1. Basic Usage (`basic-usage.ts`)
+
+The simplest introduction to CascadeFlow.
+
+**What it shows:**
+- Setting up a two-tier cascade
+- Automatic query routing
+- Cost tracking
+
+**Run:**
+```bash
+export OPENAI_API_KEY="your-key"
+npx tsx basic-usage.ts
+```
+
+### 2. Tool Calling (`tool-calling.ts`)
+
+Function/tool calling with CascadeFlow.
+
+**What it shows:**
+- Defining tools with TypeScript types
+- Tool execution across cascade tiers
+- Type-safe tool definitions
+
+**Run:**
+```bash
+export OPENAI_API_KEY="your-key"
+npx tsx tool-calling.ts
+```
+
+### 3. Multi-Provider (`multi-provider.ts`)
+
+Using multiple AI providers together.
+
+**What it shows:**
+- Mixing OpenAI, Anthropic, Groq
+- Cross-provider cascading
+- Provider-specific configurations
+
+**Run:**
+```bash
+export OPENAI_API_KEY="your-key"
+export ANTHROPIC_API_KEY="your-key"
+export GROQ_API_KEY="your-key"
+npx tsx multi-provider.ts
+```
+
+## Quick Start
+
+### Minimal Example
+
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
+
+const result = await agent.run('What is TypeScript?');
+console.log(`Cost: $${result.totalCost}, Savings: ${result.savingsPercentage}%`);
+```
+
+### With TypeScript
+
+All examples include full TypeScript types for IDE autocomplete and type checking.
+
+```typescript
+import { CascadeAgent, ModelConfig, CascadeResult } from '@cascadeflow/core';
+
+const models: ModelConfig[] = [
+  {
+    name: 'gpt-4o-mini',
+    provider: 'openai',
+    cost: 0.00015,
+    qualityThreshold: 0.7,
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+];
+
+const agent = new CascadeAgent({ models });
+const result: CascadeResult = await agent.run('Hello!');
+```
+
+## Environment Variables
+
+Set API keys as environment variables:
+
+```bash
+# OpenAI
+export OPENAI_API_KEY="sk-..."
+
+# Anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Groq
+export GROQ_API_KEY="gsk_..."
+
+# HuggingFace
+export HUGGINGFACE_API_KEY="hf_..."
+```
+
+Or use a `.env` file:
+
+```bash
+# .env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+```
+
+Then load it:
+
+```typescript
+import 'dotenv/config';
+```
+
+## Next Steps
+
+- **Production Patterns**: See Python examples for production best practices
+- **Browser Examples**: See `../browser/` for edge functions and browser usage
+- **Full Documentation**: See `/docs/` for complete guides
+- **API Reference**: Full TypeScript definitions in the package
+
+## Support
+
+- GitHub: https://github.com/lemony-ai/cascadeflow
+- Issues: https://github.com/lemony-ai/cascadeflow/issues
+- Docs: https://github.com/lemony-ai/cascadeflow/tree/main/docs

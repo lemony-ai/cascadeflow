@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-cascadeflow",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "n8n node for CascadeFlow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
@@ -19,7 +19,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/lemony-ai/cascadeflow.git",
-    "directory": "packages/n8n-nodes-cascadeflow"
+    "directory": "packages/integrations/n8n"
   },
   "main": "index.js",
   "scripts": {
@@ -43,6 +43,7 @@
     ]
   },
   "devDependencies": {
+    "@types/node": "^20.10.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.42.0",
     "eslint-plugin-n8n-nodes-base": "^1.11.0",

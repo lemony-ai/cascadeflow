@@ -1,0 +1,37 @@
+{
+  "name": "cascadeflow-nodejs-examples",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node.js examples for @cascadeflow/core",
+  "type": "module",
+  "scripts": {
+    "basic": "tsx basic-usage.ts",
+    "tools": "tsx tool-calling.ts",
+    "multi": "tsx multi-provider.ts"
+  },
+  "dependencies": {
+    "@cascadeflow/core": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "dotenv": "^16.3.1",
+    "@types/node": "^20.10.0"
+  },
+  "peerDependencies": {
+    "openai": "^4.0.0",
+    "@anthropic-ai/sdk": "^0.30.0",
+    "groq-sdk": "^0.5.0"
+  },
+  "peerDependenciesMeta": {
+    "openai": {
+      "optional": true
+    },
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "groq-sdk": {
+      "optional": true
+    }
+  }
+}

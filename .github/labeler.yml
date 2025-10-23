@@ -1,0 +1,90 @@
+# Labeler configuration for automatic PR labeling
+
+# Python
+'lang: python':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'cascadeflow/**/*.py'
+      - 'tests/**/*.py'
+      - 'examples/**/*.py'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+
+# TypeScript
+'lang: typescript':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'packages/**/*.ts'
+      - 'packages/**/*.tsx'
+      - 'packages/**/tsconfig.json'
+      - 'packages/**/package.json'
+
+# n8n
+'integration: n8n':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'packages/integrations/n8n/**/*'
+
+# Documentation
+'documentation':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**/*'
+
+# Workflows
+'ci/cd':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**/*'
+      - '.github/**/*.yml'
+
+# Dependencies
+'dependencies':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+
+# Tests
+'tests':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**/*'
+      - 'packages/**/__tests__/**/*'
+      - 'packages/**/*.test.ts'
+      - 'packages/**/*.spec.ts'
+
+# Examples
+'examples':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'examples/**/*'
+      - 'packages/**/examples/**/*'
+
+# Core
+'core':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'cascadeflow/**/*.py'
+      - 'packages/core/src/**/*'
+
+# Providers
+'providers':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'cascadeflow/providers/**/*'
+      - 'packages/core/src/providers/**/*'
+
+# Configuration
+'configuration':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'turbo.json'
+      - 'pnpm-workspace.yaml'
+      - '.eslintrc*'
+      - '.prettierrc*'
+      - 'ruff.toml'
+      - 'pyproject.toml'

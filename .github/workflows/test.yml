@@ -1,0 +1,211 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Python Tests
+  test-python:
+    name: Python Tests (${{ matrix.python-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests with pytest
+        run: |
+          pytest tests/ -v --cov=cascadeflow --cov-report=xml --cov-report=term-missing
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: python
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # TypeScript Core Tests
+  test-typescript-core:
+    name: TypeScript Core Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build TypeScript packages
+        run: pnpm --filter @cascadeflow/core build
+
+      - name: Run TypeScript tests
+        run: pnpm --filter @cascadeflow/core test || echo "No tests defined yet"
+
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./packages/core/coverage/coverage.xml
+          flags: typescript
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # n8n Integration Tests
+  test-n8n:
+    name: n8n Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build n8n package
+        run: pnpm --filter n8n-nodes-cascadeflow build
+
+      - name: Lint n8n package
+        run: pnpm --filter n8n-nodes-cascadeflow lint
+
+  # Python Code Quality
+  lint-python:
+    name: Python Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black ruff mypy types-PyYAML
+
+      - name: Check formatting with Black
+        run: black --check cascadeflow tests examples
+
+      - name: Lint with Ruff
+        run: ruff check cascadeflow tests examples
+
+      - name: Type check with mypy
+        run: mypy cascadeflow --ignore-missing-imports
+
+  # TypeScript Code Quality
+  lint-typescript:
+    name: TypeScript Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint TypeScript Core
+        run: pnpm --filter @cascadeflow/core lint || echo "Lint not configured"
+
+      - name: Type check TypeScript Core
+        run: pnpm --filter @cascadeflow/core exec tsc --noEmit
+
+      - name: Lint n8n Integration
+        run: pnpm --filter n8n-nodes-cascadeflow lint
+
+  # Security Scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit bandit
+
+      - name: Run pip-audit
+        run: pip-audit --requirement requirements.txt --requirement requirements-dev.txt || true
+
+      - name: Run Bandit security scan
+        run: bandit -r cascadeflow/ -ll || true

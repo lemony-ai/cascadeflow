@@ -1,0 +1,72 @@
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "lang: python"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # TypeScript/npm dependencies (root)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "lang: typescript"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # TypeScript Core package
+  - package-ecosystem: "npm"
+    directory: "/packages/core"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "lang: typescript"
+      - "core"
+    commit-message:
+      prefix: "chore(deps-core)"
+      include: "scope"
+
+  # n8n Integration package
+  - package-ecosystem: "npm"
+    directory: "/packages/integrations/n8n"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "integration: n8n"
+    commit-message:
+      prefix: "chore(deps-n8n)"
+      include: "scope"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci/cd"
+    commit-message:
+      prefix: "chore(deps-actions)"
+      include: "scope"
