@@ -41,9 +41,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from cascadeflow import CascadeAgent
 from cascadeflow.config import ModelConfig
 from cascadeflow.exceptions import CascadeFlowError
+
+from cascadeflow import CascadeAgent
 from cascadeflow.providers import (
     AnthropicProvider,
     GroqProvider,

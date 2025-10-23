@@ -39,8 +39,9 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from cascadeflow.agent import CascadeAgent, CascadeResult
 from cascadeflow.config import ModelConfig
+
+from cascadeflow.agent import CascadeAgent, CascadeResult
 from cascadeflow.quality import QualityConfig
 
 # Load environment

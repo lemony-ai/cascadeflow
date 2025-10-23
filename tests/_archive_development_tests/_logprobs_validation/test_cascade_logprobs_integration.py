@@ -15,13 +15,14 @@ import pytest
 
 # Import cascade components
 from cascadeflow.config import ModelConfig
-from cascadeflow.providers import PROVIDER_REGISTRY
 from cascadeflow.speculative import (
     DeferralStrategy,
     FlexibleDeferralRule,
     SpeculativeResult,
     TokenLevelSpeculativeCascade,
 )
+
+from cascadeflow.providers import PROVIDER_REGISTRY
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

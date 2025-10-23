@@ -8,7 +8,6 @@ import math
 from typing import Any
 
 import pytest
-
 from cascadeflow.config import ModelConfig
 from cascadeflow.speculative import (
     DeferralStrategy,

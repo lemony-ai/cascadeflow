@@ -4,8 +4,8 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from cascadeflow.exceptions import ProviderError
+
 from cascadeflow.providers.base import ModelResponse
 from cascadeflow.providers.groq import GroqProvider
 

@@ -27,8 +27,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from cascadeflow.agent import CascadeAgent
 from cascadeflow.config import ModelConfig
+
+from cascadeflow.agent import CascadeAgent
 from cascadeflow.providers import get_available_providers
 from cascadeflow.quality import QualityConfig
 from cascadeflow.streaming import StreamEventType, StreamManager

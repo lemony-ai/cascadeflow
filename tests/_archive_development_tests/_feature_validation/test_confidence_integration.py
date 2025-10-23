@@ -8,11 +8,11 @@ Run with: pytest tests/test_confidence_integration.py -v -s
 import os
 
 import pytest
+from cascadeflow.config import ModelConfig
+from cascadeflow.speculative import WholeResponseCascade
 from dotenv import load_dotenv
 
-from cascadeflow.config import ModelConfig
 from cascadeflow.providers import PROVIDER_REGISTRY
-from cascadeflow.speculative import WholeResponseCascade
 
 # Load environment variables
 load_dotenv()

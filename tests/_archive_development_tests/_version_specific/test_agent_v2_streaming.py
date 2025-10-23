@@ -32,8 +32,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from cascadeflow.agent import CascadeAgent, CascadeResult
 from cascadeflow.config import ModelConfig
+
+from cascadeflow.agent import CascadeAgent, CascadeResult
 from cascadeflow.interface.visual_consumer import SilentConsumer
 from cascadeflow.providers import get_available_providers
 from cascadeflow.quality import QualityConfig

@@ -12,9 +12,9 @@ Run with: pytest tests/test_provider_confidence_raw.py -v -s --tb=short
 import os
 
 import pytest
+from cascadeflow.config import ModelConfig
 from dotenv import load_dotenv
 
-from cascadeflow.config import ModelConfig
 from cascadeflow.providers import PROVIDER_REGISTRY
 from cascadeflow.quality.alignment_scorer import QueryResponseAlignmentScorer
 from cascadeflow.quality.confidence import ProductionConfidenceEstimator

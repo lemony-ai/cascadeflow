@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from cascadeflow.caching import ResponseCache
+from cascadeflow.utils.caching import ResponseCache
 
 
 class TestResponseCache:

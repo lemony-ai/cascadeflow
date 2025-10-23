@@ -110,6 +110,53 @@ Desktop.ini
 .cleanup_backup_*/
 
 # ============================================================================
+# TYPESCRIPT/NODE.js
+# ============================================================================
+node_modules/
+*.tsbuildinfo
+.turbo/
+
+# ============================================================================
+# DEVELOPMENT TEST FILES (Do not commit to repo)
+# ============================================================================
+# TypeScript test files (not in tests/ directory)
+/packages/*/test-*.ts
+/packages/*/test-*.js
+/test-*.ts
+/test-*.js
+
+# Python test files (root level only, tests/ directory is fine)
+/test_*.py
+
+# ============================================================================
+# DEVELOPMENT DOCUMENTATION (Keep locally but don't track in git)
+# ============================================================================
+# Assistant conversation notes
+CLAUDE.md
+
+# Architecture and planning documents
+INTEGRATIONS_ARCHITECTURE.md
+MONOREPO_ARCHITECTURE.md
+TYPESCRIPT_ROADMAP.md
+TYPESCRIPT_STRUCTURE_PLAN.md
+TYPESCRIPT_FEATURE_GAPS.md
+
+# Audit and analysis reports
+PRE_RELEASE_AUDIT.md
+VALIDATION_REPORT.md
+STRUCTURE.md
+
+# Progress and work tracking
+PROGRESS_*.md
+WORK_*.md
+
+# Analysis directory (keep locally for reference)
+/.analysis/
+
+# IDE files
+*.iml
+
+# ============================================================================
 # PROJECT SPECIFIC (CascadeFlow)
 # ============================================================================
 # Logs

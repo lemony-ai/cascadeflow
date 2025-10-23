@@ -1983,9 +1983,7 @@ PROVIDER_MODEL_CONFIGS = {
 async def test_model_availability(provider, model_name: str) -> bool:
     """Test if a model is available."""
     try:
-        await provider.complete(
-            model=model_name, prompt="Hi", temperature=0.7, max_tokens=5
-        )
+        await provider.complete(model=model_name, prompt="Hi", temperature=0.7, max_tokens=5)
         return True
     except Exception as e:
         error_msg = str(e).lower()

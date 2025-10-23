@@ -4,8 +4,8 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from cascadeflow.exceptions import ModelError, ProviderError
+
 from cascadeflow.providers.base import ModelResponse
 from cascadeflow.providers.vllm import VLLMProvider
 

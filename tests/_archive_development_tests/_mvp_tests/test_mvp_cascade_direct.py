@@ -12,11 +12,11 @@ Tests pure cascade performance:
 import os
 
 import pytest
-
 from cascadeflow.config import ModelConfig
+from cascadeflow.speculative import WholeResponseCascade
+
 from cascadeflow.providers import PROVIDER_REGISTRY
 from cascadeflow.quality import QualityConfig
-from cascadeflow.speculative import WholeResponseCascade
 
 
 # Test configurations

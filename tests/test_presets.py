@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cascadeflow.presets import CascadePresets
+from cascadeflow.utils.presets import CascadePresets
 
 
 class TestCascadePresets:

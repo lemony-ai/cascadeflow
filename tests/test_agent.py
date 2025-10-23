@@ -10,14 +10,10 @@ Tests all day 4.2 features:
 - 20+ control parameters
 """
 
-import os
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from dotenv import load_dotenv
-
-from cascadeflow import CascadeAgent
 from cascadeflow.config import (
     LatencyProfile,
     ModelConfig,
@@ -25,6 +21,9 @@ from cascadeflow.config import (
     UserTier,
     WorkflowProfile,
 )
+from dotenv import load_dotenv
+
+from cascadeflow import CascadeAgent
 from cascadeflow.quality.complexity import QueryComplexity
 
 # Load environment variables from .env file
@@ -183,9 +182,7 @@ class TestAgentInitialization:
 
     def test_init_single_model_disables_cascade(self):
         """Test that single model automatically disables cascade."""
-        single_model = [
-            ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015)
-        ]
+        single_model = [ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015)]
         agent = CascadeAgent(models=single_model)
 
         assert agent.enable_cascade is False

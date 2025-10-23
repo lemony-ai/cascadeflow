@@ -8,8 +8,8 @@ Run with:
 import os
 
 import pytest
-
 from cascadeflow.exceptions import ProviderError
+
 from cascadeflow.providers.together import TogetherProvider
 
 pytestmark = pytest.mark.skipif(
