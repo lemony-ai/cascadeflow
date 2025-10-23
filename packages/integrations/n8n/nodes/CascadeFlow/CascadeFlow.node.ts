@@ -280,6 +280,24 @@ export class CascadeFlow implements INodeType {
     // Get credentials
     const credentials = await this.getCredentials('cascadeFlowApi');
 
+    // Helper to get API key for provider (moved inside execute for proper 'this' context)
+    const getApiKeyForProvider = (creds: any, provider: string): string => {
+      const keyMap: Record<string, string> = {
+        openai: 'openaiApiKey',
+        anthropic: 'anthropicApiKey',
+        groq: 'groqApiKey',
+        together: 'togetherApiKey',
+        huggingface: 'huggingfaceApiKey',
+      };
+
+      const keyName = keyMap[provider];
+      if (!keyName) {
+        return '';
+      }
+
+      return (creds[keyName] as string) || '';
+    };
+
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
       try {
         // Get parameters
@@ -301,14 +319,14 @@ export class CascadeFlow implements INodeType {
             name: models.draftModel || 'gpt-4o-mini',
             provider: models.draftProvider || 'openai',
             cost: models.draftCost || 0.00015,
-            apiKey: this.getApiKey(credentials, models.draftProvider || 'openai'),
+            apiKey: getApiKeyForProvider(credentials, models.draftProvider || 'openai'),
           },
           // Verifier model
           {
             name: models.verifierModel || 'gpt-4o',
             provider: models.verifierProvider || 'openai',
             cost: models.verifierCost || 0.00625,
-            apiKey: this.getApiKey(credentials, models.verifierProvider || 'openai'),
+            apiKey: getApiKeyForProvider(credentials, models.verifierProvider || 'openai'),
           },
         ];
 
@@ -334,9 +352,10 @@ export class CascadeFlow implements INodeType {
           try {
             runOptions.tools = JSON.parse(toolsJson);
           } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             throw new NodeOperationError(
               this.getNode(),
-              `Invalid tools JSON: ${error.message}`,
+              `Invalid tools JSON: ${errorMessage}`,
               { itemIndex }
             );
           }
@@ -392,9 +411,10 @@ export class CascadeFlow implements INodeType {
 
       } catch (error) {
         if (this.continueOnFail()) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
           returnData.push({
             json: {
-              error: error.message,
+              error: errorMessage,
             },
             pairedItem: { item: itemIndex },
           });
@@ -405,23 +425,5 @@ export class CascadeFlow implements INodeType {
     }
 
     return [returnData];
-  }
-
-  // Helper to get API key for provider
-  private getApiKey(credentials: any, provider: string): string {
-    const keyMap: Record<string, string> = {
-      openai: 'openaiApiKey',
-      anthropic: 'anthropicApiKey',
-      groq: 'groqApiKey',
-      together: 'togetherApiKey',
-      huggingface: 'huggingfaceApiKey',
-    };
-
-    const keyName = keyMap[provider];
-    if (!keyName) {
-      return '';
-    }
-
-    return credentials[keyName] as string || '';
   }
 }

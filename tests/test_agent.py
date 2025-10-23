@@ -10,9 +10,12 @@ Tests all day 4.2 features:
 - 20+ control parameters
 """
 
+import os
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from dotenv import load_dotenv
 
 from cascadeflow import CascadeAgent
 from cascadeflow.config import (
@@ -24,6 +27,11 @@ from cascadeflow.config import (
 )
 from cascadeflow.quality.complexity import QueryComplexity
 
+# Load environment variables from .env file
+env_path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -31,39 +39,19 @@ from cascadeflow.quality.complexity import QueryComplexity
 
 @pytest.fixture
 def mock_models():
-    """Create mock model configurations."""
+    """Create mock model configurations matching current API."""
     return [
         ModelConfig(
-            name="llama3:8b",
-            provider="ollama",
-            cost=0.0,
-            quality_score=0.65,
-            speed_ms=300,
-            domains=["general"],
-        ),
-        ModelConfig(
-            name="codellama:7b",
-            provider="ollama",
-            cost=0.0,
-            quality_score=0.70,
-            speed_ms=350,
-            domains=["code"],
-        ),
-        ModelConfig(
-            name="gpt-3.5-turbo",
+            name="gpt-4o-mini",
             provider="openai",
-            cost=0.002,
-            quality_score=0.85,
-            speed_ms=800,
+            cost=0.00015,
             domains=["general"],
         ),
         ModelConfig(
-            name="gpt-4",
+            name="gpt-4o",
             provider="openai",
-            cost=0.03,
-            quality_score=0.95,
-            speed_ms=1500,
-            domains=["general"],
+            cost=0.00625,
+            domains=["general", "reasoning", "code"],
         ),
     ]
 
@@ -171,32 +159,37 @@ class TestAgentInitialization:
         """Test basic initialization."""
         agent = CascadeAgent(models=mock_models)
 
-        assert len(agent.models) == 4
-        assert agent.config is not None
+        assert len(agent.models) == 2
+        assert agent.quality_config is not None
         assert agent.complexity_detector is not None
-        assert agent.execution_planner is not None
+        assert agent.router is not None
+        assert agent.tool_router is not None
+        assert agent.telemetry is not None
+        assert agent.cost_calculator is not None
+        assert len(agent.providers) > 0
 
-    def test_init_with_caching(self, mock_models):
-        """Test initialization with caching enabled."""
-        agent = CascadeAgent(models=mock_models, enable_caching=True, cache_size=500)
+    def test_init_with_cascade_disabled(self, mock_models):
+        """Test initialization with cascade disabled."""
+        agent = CascadeAgent(models=mock_models, enable_cascade=False)
 
-        assert agent.cache is not None
+        assert agent.enable_cascade is False
+        assert len(agent.models) == 2
 
-    def test_init_with_callbacks(self, mock_models):
-        """Test initialization with callbacks enabled."""
-        agent = CascadeAgent(models=mock_models, enable_callbacks=True)
+    def test_init_with_verbose(self, mock_models):
+        """Test initialization with verbose logging."""
+        agent = CascadeAgent(models=mock_models, verbose=True)
 
-        assert agent.callback_manager is not None
+        assert agent.verbose is True
 
-    def test_init_speculative_cascades(self, mock_models):
-        """Test speculative cascades are initialized."""
-        agent = CascadeAgent(models=mock_models)
+    def test_init_single_model_disables_cascade(self):
+        """Test that single model automatically disables cascade."""
+        single_model = [
+            ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015)
+        ]
+        agent = CascadeAgent(models=single_model)
 
-        # Should create cascades for model pairs
-        assert len(agent.speculative_cascades) > 0
-
-        # Check one cascade exists
-        assert any("llama3:8b" in key for key in agent.speculative_cascades.keys())
+        assert agent.enable_cascade is False
+        assert len(agent.models) == 1
 
 
 # ============================================================================
