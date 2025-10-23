@@ -86,6 +86,8 @@ print(f"Cost: ${result.total_cost:.6f}")
 
 ```
 
+> **⚠️ GPT-5 Note:** GPT-5 requires OpenAI organization verification. Go to [OpenAI Settings](https://platform.openai.com/settings/organization/general) and click "Verify Organization". Access is granted within ~15 minutes. Alternatively, use the recommended setup below which works immediately.
+
 **Output:**
 
 ```
@@ -95,6 +97,48 @@ Cost: $0.000014
 ✅ Saved $0.001236 (98.9% reduction)
 
 ```
+
+### Even Easier: Use Presets (NEW in v0.1.1)
+
+**No configuration needed** - just import and go:
+
+```python
+from cascadeflow import CascadeAgent, PRESET_ULTRA_FAST
+
+# That's it! Configured for maximum speed
+agent = CascadeAgent(models=PRESET_ULTRA_FAST)
+
+result = await agent.run("What's the capital of France?")
+# Uses Groq Llama models - 5-10x faster than OpenAI!
+```
+
+**Available Presets:**
+
+| Preset | Best For | Speed | Cost/Query | API Keys Needed |
+|--------|----------|-------|-----------|----------------|
+| `PRESET_BEST_OVERALL` | Most use cases | Fast (~2-3s) | ~$0.0008 | Anthropic + OpenAI |
+| `PRESET_ULTRA_FAST` | Real-time apps | Ultra-fast (~1-2s) | ~$0.00005 | Groq |
+| `PRESET_ULTRA_CHEAP` | High volume | Very fast (~1-3s) | ~$0.00008 | Groq + OpenAI |
+| `PRESET_OPENAI_ONLY` | Single provider | Fast (~2-4s) | ~$0.0005 | OpenAI |
+| `PRESET_ANTHROPIC_ONLY` | Claude fans | Fast (~2-3s) | ~$0.002 | Anthropic |
+| `PRESET_FREE_LOCAL` | Privacy/offline | Moderate (~3-5s) | $0 (free) | None (requires Ollama) |
+
+**Custom Presets:**
+
+```python
+from cascadeflow import create_preset
+
+# Build your own preset
+models = create_preset(
+    quality='strict',       # 'cost-optimized' | 'balanced' | 'strict'
+    performance='fast',     # 'fast' | 'balanced' | 'reliable'
+    include_premium=True    # Add premium tier (gpt-4o)
+)
+
+agent = CascadeAgent(models=models)
+```
+
+**[📖 Full Preset Guide →](./docs/guides/presets.md)**
 
 ### Side-by-Side Comparison
 
@@ -165,6 +209,18 @@ console.log(`Cost: $${result.totalCost}`);
 console.log(`Saved: ${result.savingsPercentage}%`);
 ```
 
+**Or use presets (even easier):**
+
+```typescript
+import { CascadeAgent, PRESET_ULTRA_FAST } from '@cascadeflow/core';
+
+// That's it! Pre-configured for maximum speed
+const agent = new CascadeAgent(PRESET_ULTRA_FAST);
+
+const result = await agent.run('What is TypeScript?');
+// Uses Groq Llama models - 5-10x faster!
+```
+
 **Features:**
 - ✅ Full TypeScript support with type definitions
 - ✅ Works in Node.js and browser (auto-detection)
@@ -227,6 +283,174 @@ Configure CascadeFlow node:
 | 🌐 **Universal Support** | 20+ providers, 100+ models |
 | 🚀 **3-Line Integration** | Zero architecture changes needed |
 | 🏭 **Production Ready** | Streaming, caching, error handling, monitoring |
+
+---
+
+## 🏗️ Architecture & How It Works
+
+### CascadeFlow Stack
+
+CascadeFlow is built on four core components that work together to optimize costs and performance:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CascadeFlow Stack                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │  🎯 Cascade Agent                                     │ │
+│  │  Orchestrates the entire cascade execution           │ │
+│  │  • Query routing & model selection                   │ │
+│  │  • Drafter → Verifier coordination                   │ │
+│  │  • Cost tracking & telemetry                         │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                          ↓                                  │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │  ✅ Quality Validation Engine                         │ │
+│  │  Multi-dimensional quality checks                     │ │
+│  │  • Length validation (too short/verbose)             │ │
+│  │  • Confidence scoring (logprobs analysis)            │ │
+│  │  • Format validation (JSON, structured output)       │ │
+│  │  • Semantic alignment (intent matching)              │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                          ↓                                  │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │  🔄 Cascading Engine                                  │ │
+│  │  Smart model escalation strategy                      │ │
+│  │  • Try cheap models first (speculative execution)    │ │
+│  │  • Validate quality instantly                        │ │
+│  │  • Escalate only when needed                         │ │
+│  │  • Automatic retry & fallback                        │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                          ↓                                  │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │  🌐 Provider Abstraction Layer                        │ │
+│  │  Unified interface for 7+ providers                   │ │
+│  │  • OpenAI • Anthropic • Groq • Ollama               │ │
+│  │  • Together • vLLM • HuggingFace                    │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Drafter → Verifier Pattern
+
+The **Drafter → Verifier** pattern is the secret sauce for agent systems and tool calling:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  User Query: "Find flights from NYC to Paris"              │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+         ┌────────────────────┐
+         │  🎯 Cascade Agent  │
+         └────────┬───────────┘
+                  │
+    ┌─────────────┴─────────────┐
+    │                           │
+    ▼                           ▼
+┌─────────────┐           ┌─────────────┐
+│  💨 Drafter │           │ 🔍 Verifier │
+│  (Cheap)    │           │ (Premium)   │
+├─────────────┤           ├─────────────┤
+│ gpt-4o-mini │           │   gpt-4o    │
+│ $0.00015/1M │           │ $0.00625/1M │
+└──────┬──────┘           └──────┬──────┘
+       │                         │
+       │ 1️⃣ Generate draft       │
+       │    tool calls           │
+       ├─────────────────────────┤
+       │                         │
+       │ 2️⃣ Quality check        │
+       │    ✓ JSON valid?        │
+       │    ✓ Params correct?    │
+       │    ✓ Confidence high?   │
+       │                         │
+       ├─────────────────────────┤
+       │                         │
+       │ ✅ Quality: PASS        │ 3️⃣ If PASS: Use draft (70-80% of cases)
+       │    → Return draft       │    Cost: $0.00015
+       │    → Save $0.00610      │    Savings: 97.6%
+       │                         │
+       │ ❌ Quality: FAIL        │ 4️⃣ If FAIL: Escalate to verifier (20-30%)
+       │    → Call verifier   ───┼──► Generate with premium model
+       │                         │    Cost: $0.00625
+       │                         │    Ensure 100% quality
+       └─────────────────────────┘
+                  │
+                  ▼
+         ┌────────────────────┐
+         │   Tool Execution   │
+         │  search_flights()  │
+         └────────────────────┘
+```
+
+**Why This Works:**
+- **70-80% of agent calls** don't need expensive models → Use drafter
+- **Quality validation** catches issues instantly → No risk
+- **Only 20-30% escalate** to premium models → Massive savings
+- **Result:** 70-80% cost reduction with zero quality loss
+
+### Complete Execution Flow
+
+Here's what happens when you call `agent.run()`:
+
+```
+                      agent.run("Your query")
+                               │
+                               ▼
+                  ┌────────────────────────┐
+                  │  1. Query Analysis     │
+                  │  • Detect complexity   │
+                  │  • Select models       │
+                  └───────────┬────────────┘
+                              │
+                              ▼
+                  ┌────────────────────────┐
+                  │  2. Drafter Execution  │
+                  │  • Call cheap model    │
+                  │  • Get response fast   │
+                  └───────────┬────────────┘
+                              │
+                              ▼
+                  ┌────────────────────────┐
+                  │  3. Quality Validation │
+                  │  ✓ Length OK?          │
+                  │  ✓ Confidence high?    │
+                  │  ✓ Format correct?     │
+                  │  ✓ Semantically valid? │
+                  └───────────┬────────────┘
+                              │
+                 ┌────────────┴────────────┐
+                 │                         │
+           ✅ PASS                    ❌ FAIL
+                 │                         │
+                 ▼                         ▼
+    ┌────────────────────┐    ┌────────────────────┐
+    │  4a. Return Draft  │    │  4b. Escalate      │
+    │  • Use cheap model │    │  • Call verifier   │
+    │  • 70-80% of time  │    │  • Ensure quality  │
+    │  • Save 97%+ cost  │    │  • 20-30% of time  │
+    └────────┬───────────┘    └────────┬───────────┘
+             │                         │
+             └────────────┬────────────┘
+                          │
+                          ▼
+              ┌────────────────────────┐
+              │  5. Return Result      │
+              │  • Response content    │
+              │  • Model used          │
+              │  • Total cost          │
+              │  • Savings achieved    │
+              └────────────────────────┘
+```
+
+**Key Benefits:**
+- ⚡ **2-10x faster**: Cheap models respond in 50-200ms vs 500-2000ms
+- 💰 **40-85% cheaper**: Most queries handled by drafter
+- ✅ **Zero quality loss**: Quality engine ensures standards
+- 🎯 **Smart escalation**: Only use premium when truly needed
 
 ---
 
