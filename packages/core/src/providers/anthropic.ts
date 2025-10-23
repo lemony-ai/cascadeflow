@@ -12,6 +12,7 @@
 import { BaseProvider, type ProviderRequest } from './base';
 import type { ProviderResponse, Tool, Message } from '../types';
 import type { ModelConfig } from '../config';
+import type { StreamChunk } from '../streaming';
 
 // Conditional import for Node.js environment
 let Anthropic: any;
@@ -85,6 +86,161 @@ export class AnthropicProvider extends BaseProvider {
       return this.generateWithSDK(request);
     } else {
       return this.generateWithFetch(request);
+    }
+  }
+
+  /**
+   * Stream a completion
+   */
+  async *stream(request: ProviderRequest): AsyncIterable<StreamChunk> {
+    if (this.useSDK) {
+      yield* this.streamWithSDK(request);
+    } else {
+      yield* this.streamWithFetch(request);
+    }
+  }
+
+  /**
+   * Stream using Anthropic SDK (Node.js)
+   */
+  private async *streamWithSDK(request: ProviderRequest): AsyncIterable<StreamChunk> {
+    try {
+      const messages = this.normalizeMessages(request.messages);
+      const anthropicMessages = this.convertToAnthropicMessages(messages);
+      const tools = request.tools ? this.convertTools(request.tools) : undefined;
+
+      const stream = await this.client.messages.stream({
+        model: request.model || this.config.name,
+        max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+        temperature: request.temperature ?? this.config.temperature ?? 0.7,
+        messages: anthropicMessages,
+        system: request.systemPrompt,
+        tools,
+        ...request.extra,
+      });
+
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          yield {
+            content: event.delta.text,
+            done: false,
+            raw: event,
+          };
+        } else if (event.type === 'message_stop') {
+          yield {
+            content: '',
+            done: true,
+            finish_reason: 'stop',
+            raw: event,
+          };
+        }
+      }
+    } catch (error) {
+      throw this.formatError(error);
+    }
+  }
+
+  /**
+   * Stream using fetch API (Browser) with SSE parsing
+   */
+  private async *streamWithFetch(request: ProviderRequest): AsyncIterable<StreamChunk> {
+    try {
+      const messages = this.normalizeMessages(request.messages);
+      const anthropicMessages = this.convertToAnthropicMessages(messages);
+      const tools = request.tools ? this.convertTools(request.tools) : undefined;
+
+      const body: any = {
+        model: request.model || this.config.name,
+        max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+        messages: anthropicMessages,
+        stream: true,
+        ...request.extra,
+      };
+
+      if (request.systemPrompt) {
+        body.system = request.systemPrompt;
+      }
+
+      if (request.temperature !== undefined) {
+        body.temperature = request.temperature;
+      } else if (this.config.temperature !== undefined) {
+        body.temperature = this.config.temperature;
+      } else {
+        body.temperature = 0.7;
+      }
+
+      if (tools) {
+        body.tools = tools;
+      }
+
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.getApiKey(),
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      // Parse SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim() || line.startsWith(':')) continue;
+
+          if (line.startsWith('event: ') || line.startsWith('data: ')) {
+            const isEvent = line.startsWith('event: ');
+            const data = line.slice(isEvent ? 7 : 6);
+
+            if (!isEvent) {
+              try {
+                const parsed = JSON.parse(data);
+
+                // Handle content delta events
+                if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+                  yield {
+                    content: parsed.delta.text,
+                    done: false,
+                    raw: parsed,
+                  };
+                } else if (parsed.type === 'message_stop') {
+                  yield {
+                    content: '',
+                    done: true,
+                    finish_reason: 'stop',
+                    raw: parsed,
+                  };
+                  return;
+                }
+              } catch (e) {
+                // Skip invalid JSON
+                continue;
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      throw this.formatError(error);
     }
   }
 

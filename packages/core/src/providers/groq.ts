@@ -12,6 +12,7 @@
 import { BaseProvider, type ProviderRequest } from './base';
 import type { ProviderResponse, Tool, Message } from '../types';
 import type { ModelConfig } from '../config';
+import type { StreamChunk } from '../streaming';
 
 // Conditional import for Node.js environment
 let Groq: any;
@@ -101,6 +102,138 @@ export class GroqProvider extends BaseProvider {
       return this.generateWithSDK(request);
     } else {
       return this.generateWithFetch(request);
+    }
+  }
+
+  /**
+   * Stream a completion
+   */
+  async *stream(request: ProviderRequest): AsyncIterable<StreamChunk> {
+    if (this.useSDK) {
+      yield* this.streamWithSDK(request);
+    } else {
+      yield* this.streamWithFetch(request);
+    }
+  }
+
+  /**
+   * Stream using Groq SDK (Node.js)
+   */
+  private async *streamWithSDK(request: ProviderRequest): AsyncIterable<StreamChunk> {
+    try {
+      const messages = this.normalizeMessages(request.messages);
+      const groqMessages = this.convertToGroqMessages(messages, request.systemPrompt);
+      const tools = request.tools ? this.convertTools(request.tools) : undefined;
+
+      const stream = await this.client.chat.completions.create({
+        model: request.model || this.config.name,
+        messages: groqMessages,
+        max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+        temperature: request.temperature ?? this.config.temperature ?? 0.7,
+        tools,
+        stream: true,
+        ...request.extra,
+      });
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta;
+        if (!delta) continue;
+
+        const content = delta.content || '';
+        const done = chunk.choices[0]?.finish_reason !== null;
+
+        yield {
+          content,
+          done,
+          finish_reason: chunk.choices[0]?.finish_reason || undefined,
+          raw: chunk,
+        };
+      }
+    } catch (error) {
+      throw this.formatError(error);
+    }
+  }
+
+  /**
+   * Stream using fetch API (Browser) with SSE parsing
+   */
+  private async *streamWithFetch(request: ProviderRequest): AsyncIterable<StreamChunk> {
+    try {
+      const messages = this.normalizeMessages(request.messages);
+      const groqMessages = this.convertToGroqMessages(messages, request.systemPrompt);
+      const tools = request.tools ? this.convertTools(request.tools) : undefined;
+
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getApiKey()}`,
+        },
+        body: JSON.stringify({
+          model: request.model || this.config.name,
+          messages: groqMessages,
+          max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+          temperature: request.temperature ?? this.config.temperature ?? 0.7,
+          tools,
+          stream: true,
+          ...request.extra,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Groq API error: ${response.status} ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      // Parse SSE stream (same format as OpenAI)
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim() || line.startsWith(':')) continue;
+
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+
+            if (data === '[DONE]') {
+              return;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta;
+              if (!delta) continue;
+
+              const content = delta.content || '';
+              const isFinished = parsed.choices[0]?.finish_reason !== null;
+
+              yield {
+                content,
+                done: isFinished,
+                finish_reason: parsed.choices[0]?.finish_reason || undefined,
+                raw: parsed,
+              };
+            } catch (e) {
+              // Skip invalid JSON
+              continue;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      throw this.formatError(error);
     }
   }
 

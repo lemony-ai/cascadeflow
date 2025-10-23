@@ -41,6 +41,23 @@ export {
 export type { CascadeResult } from './result';
 export { resultToObject } from './result';
 
+// Streaming
+export {
+  StreamEventType,
+  createStreamEvent,
+  isChunkEvent,
+  isCompleteEvent,
+  isErrorEvent,
+  collectStream,
+  collectResult,
+} from './streaming';
+export type {
+  StreamEvent,
+  StreamEventData,
+  StreamChunk,
+  StreamOptions,
+} from './streaming';
+
 // Types
 export type {
   Provider as ProviderType,

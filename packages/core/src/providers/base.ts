@@ -4,6 +4,7 @@
 
 import type { Message, Tool, ProviderResponse } from '../types';
 import type { ModelConfig } from '../config';
+import type { StreamChunk } from '../streaming';
 
 /**
  * Request options for provider calls
@@ -47,6 +48,14 @@ export interface Provider {
    * Generate a completion
    */
   generate(request: ProviderRequest): Promise<ProviderResponse>;
+
+  /**
+   * Stream a completion (optional)
+   *
+   * Providers that support streaming should implement this method.
+   * Returns an async iterator that yields content chunks.
+   */
+  stream?(request: ProviderRequest): AsyncIterable<StreamChunk>;
 
   /**
    * Calculate cost for a completion
