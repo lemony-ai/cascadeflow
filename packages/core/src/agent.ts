@@ -4,12 +4,24 @@
 
 import { providerRegistry } from './providers/base';
 import { OpenAIProvider } from './providers/openai';
+import { AnthropicProvider } from './providers/anthropic';
+import { GroqProvider } from './providers/groq';
+import { TogetherProvider } from './providers/together';
+import { OllamaProvider } from './providers/ollama';
+import { HuggingFaceProvider } from './providers/huggingface';
+import { VLLMProvider } from './providers/vllm';
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
 import type { Message, Tool } from './types';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
+providerRegistry.register('anthropic', AnthropicProvider);
+providerRegistry.register('groq', GroqProvider);
+providerRegistry.register('together', TogetherProvider);
+providerRegistry.register('ollama', OllamaProvider);
+providerRegistry.register('huggingface', HuggingFaceProvider);
+providerRegistry.register('vllm', VLLMProvider);
 
 /**
  * Run options for agent

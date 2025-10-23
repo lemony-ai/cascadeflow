@@ -1,0 +1,63 @@
+{
+  "name": "n8n-nodes-cascadeflow",
+  "version": "1.0.0",
+  "description": "n8n node for CascadeFlow - Smart AI model cascading with 40-85% cost savings",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "cascadeflow",
+    "ai",
+    "llm",
+    "cost-optimization"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/lemony-ai/cascadeflow",
+  "author": {
+    "name": "Lemony Inc.",
+    "email": "hello@lemony.ai"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lemony-ai/cascadeflow.git",
+    "directory": "packages/n8n-nodes-cascadeflow"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "format": "prettier nodes credentials --write",
+    "lint": "eslint nodes credentials package.json",
+    "lintfix": "eslint nodes credentials package.json --fix",
+    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes credentials package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/CascadeFlowApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/CascadeFlow/CascadeFlow.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.42.0",
+    "eslint-plugin-n8n-nodes-base": "^1.11.0",
+    "gulp": "^4.0.2",
+    "n8n-workflow": "^1.0.0",
+    "prettier": "^2.7.1",
+    "typescript": "^5.1.6"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "dependencies": {
+    "@cascadeflow/core": "workspace:*",
+    "openai": "^4.73.1",
+    "@anthropic-ai/sdk": "^0.30.0",
+    "groq-sdk": "^0.5.0"
+  }
+}

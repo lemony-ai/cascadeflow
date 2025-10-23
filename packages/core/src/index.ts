@@ -61,6 +61,12 @@ export { providerRegistry } from './providers/base';
 export type { Provider, ProviderRequest } from './providers/base';
 export { OpenAIProvider } from './providers/openai';
 export { BrowserOpenAIProvider } from './providers/browser-openai';
+export { AnthropicProvider } from './providers/anthropic';
+export { GroqProvider } from './providers/groq';
+export { TogetherProvider } from './providers/together';
+export { OllamaProvider } from './providers/ollama';
+export { HuggingFaceProvider, HuggingFaceEndpointType } from './providers/huggingface';
+export { VLLMProvider } from './providers/vllm';
 
 // Version
 export const VERSION = '1.0.0';
