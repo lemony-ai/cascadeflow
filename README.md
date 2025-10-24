@@ -17,13 +17,13 @@
 [![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=social)](https://github.com/lemony-ai/cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 
-**[<img src=".github/assets/CF_python_color.svg" width="20" height="20" alt="Python"/> Python](#-quick-start) • [<img src=".github/assets/CF_ts_color.svg" width="20" height="20" alt="TypeScript"/> TypeScript](#typescript--javascript) • [<img src=".github/assets/CF_n8n_color.svg" width="20" height="20" alt="n8n"/> n8n](#-n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#-examples)**
+**[<img src=".github/assets/CF_python_color.svg" width="20" height="20" alt="Python"/> Python](#python) • [<img src=".github/assets/CF_ts_color.svg" width="20" height="20" alt="TypeScript"/> TypeScript](#typescript) • [<img src=".github/assets/CF_n8n_color.svg" width="20" height="20" alt="n8n"/> n8n](#n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
 
 </div>
 
 **Stop Bleeding Money on AI Calls. Cut Costs 30-65% in 3 Lines of Code.**
 
-40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
+40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
 
 *CascadeFlow fixes this with intelligent model cascading, available in Python and TypeScript.*
 
@@ -37,9 +37,11 @@ npm install @cascadeflow/core
 
 ---
 
-## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_bright.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_dark.svg"><img src=".github/assets/CF_icon_dark.svg" width="24" height="24" alt="CascadeFlow"></picture> Why use CascadeFlow?
+## Why CascadeFlow?
 
 CascadeFlow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, CascadeFlow automatically escalates to flagship models if needed.
+
+### Use Cases
 
 Use CascadeFlow for:
 
@@ -53,7 +55,7 @@ Use CascadeFlow for:
 
 ---
 
-## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_bright.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_dark.svg"><img src=".github/assets/CF_icon_dark.svg" width="24" height="24" alt="CascadeFlow"></picture> How CascadeFlow works
+## How CascadeFlow Works
 
 CascadeFlow uses **speculative execution with quality validation**:
 
@@ -66,9 +68,9 @@ Zero configuration. Works with YOUR existing models (7 Providers currently suppo
 
 In practice, 60-70% of queries are handled by small, efficient models (8-20x cost difference) without requiring escalation
 
-**Result:** 40-85% cost reduction, 2-10x faster responses, zero quality loss.
+**Result:** 40-85% cost reduction, 2-10x faster responses, zero quality loss.
 
-```tsx
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                      CascadeFlow Stack                      │
 ├─────────────────────────────────────────────────────────────┤
@@ -111,11 +113,11 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 
 ---
 
-## **🚀 Quick Start**
+## Quick Start
 
-### **Your First Cascade**
+### Python
 
-<img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> **Python**
+<img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> **Installation**
 
 ```python
 pip install cascadeflow[all]
@@ -138,11 +140,13 @@ print(f"Model used: {result.final_model}")
 print(f"Cost: ${result.total_cost:.6f}")
 ```
 
-> **⚠️ GPT-5 Note:** GPT-5 requires OpenAI organization verification. Go to [OpenAI Settings](https://platform.openai.com/settings/organization/general) and click "Verify Organization". Access is granted within ~15 minutes. Alternatively, use the recommended setup below which works immediately.
+> **⚠️ GPT-5 Note:** GPT-5 requires OpenAI organization verification. Go to [OpenAI Settings](https://platform.openai.com/settings/organization/general) and click "Verify Organization". Access is granted within ~15 minutes. Alternatively, use the recommended setup below which works immediately.
 
-📖 [**Full Python Documentation →**](./docs/)
+📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
-<img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> **TypeScript**
+### TypeScript
+
+<img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> **Installation**
 
 ```bash
 npm install @cascadeflow/core
@@ -165,13 +169,15 @@ console.log(`Cost: $${result.totalCost}`);
 console.log(`Saved: ${result.savingsPercentage}%`);
 ```
 
-📖 [**Full TypeScript Documentation →**](./packages/core/)
+📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
+
+### Migration Example
 
 **Migrate in 5min from direct Provider implementation to cost savings and full cost control and transparency.**
 
-Side-by-Side Comparison
+#### Before (Standard Approach)
 
-**Before (Standard Approach):** # Cost: $0.001250, Latency: 850ms
+Cost: $0.001250, Latency: 850ms
 
 ```python
 # Using expensive model for everything
@@ -181,7 +187,9 @@ result = openai.chat.completions.create(
 )
 ```
 
-**After (With CascadeFlow):** # Cost: $0.000150, Latency: 234ms
+#### After (With CascadeFlow)
+
+Cost: $0.000150, Latency: 234ms
 
 ```python
 agent = CascadeAgent(models=[
@@ -194,22 +202,24 @@ result = await agent.run("What's 2+2?")
 
 > **🔥 Saved:** $0.001100 (88% reduction), 3.6x faster
 
-📊 [**Cost Tracking Guide →**](./docs/guides/)
+📊 **Learn more:** [Cost Tracking Guide](./docs/guides/cost_tracking.md) | [Production Best Practices](./docs/guides/production.md) | [Performance Optimization](./docs/guides/performance.md)
 
 ---
 
-## <img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/> **n8n Integration**
+## n8n Integration
+
+<img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/>
 
 Use CascadeFlow in n8n workflows for no-code AI automation with automatic cost optimization!
 
-### **Installation**
+### Installation
 
 1. Open n8n
-2. Go to **Settings** → **Community Nodes**
-3. Search for: `n8n-nodes-cascadeflow`
-4. Click **Install**
+2. Go to **Settings** → **Community Nodes**
+3. Search for: `n8n-nodes-cascadeflow`
+4. Click **Install**
 
-### **Quick Example**
+### Quick Example
 
 Create a workflow:
 
@@ -220,12 +230,12 @@ Manual Trigger → CascadeFlow Node → Set Node
 
 Configure CascadeFlow node:
 
-- **Draft Model**: `gpt-4o-mini` ($0.00015)
-- **Verifier Model**: `gpt-4o` ($0.00625)
+- **Draft Model**: `gpt-4o-mini` ($0.00015)
+- **Verifier Model**: `gpt-4o` ($0.00625)
 - **Message**: Your prompt
 - **Output**: Full Metrics
 
-**Result:** 40-85% cost savings in your n8n workflows!
+**Result:** 40-85% cost savings in your n8n workflows!
 
 **Features:**
 
@@ -235,11 +245,11 @@ Configure CascadeFlow node:
 - ✅ Tool calling support
 - ✅ Easy debugging with metrics
 
-🔌 [**n8n Integration Guide →**](./packages/integrations/n8n/)
+🔌 **Learn more:** [n8n Integration Guide](./packages/integrations/n8n/) | [n8n Documentation](./docs/guides/n8n_integration.md)
 
 ---
 
-## **📚 Resources**
+## Resources
 
 ### Examples
 
@@ -336,37 +346,40 @@ Configure CascadeFlow node:
 
 ---
 
-## **✨ Features**
+## Features
 
 | **Feature** | **Benefit** |
 | --- | --- |
-| 🎯 **Speculative Cascading** | Tries cheap models first, escalates intelligently |
-| 💰 **40-85% Cost Savings** | Research-backed, proven in production |
-| ⚡ **2-10x Faster** | Small models respond in <50ms vs 500-2000ms |
-| 🔄 **Mix Any Providers** | OpenAI, Anthropic, Groq, Ollama, vLLM, Together |
-| ✅ **Quality Validation** | Automatic quality checks |
-| 🤖 **Drafter/Validator Pattern** | 20-60% savings for agent/tool systems |
-| 📊 **Cost Tracking** | Built-in analytics per query, model, provider |
-| 🌐 **Universal Support** | 20+ providers, 100+ models |
-| 🚀 3**-Line Integration** | Zero architecture changes needed |
-| 🏭 **Production Ready** | Streaming, caching, error handling, monitoring |
+| 🎯 **Speculative Cascading** | Tries cheap models first, escalates intelligently |
+| 💰 **40-85% Cost Savings** | Research-backed, proven in production |
+| ⚡ **2-10x Faster** | Small models respond in <50ms vs 500-2000ms |
+| 🔄 **Mix Any Providers** | OpenAI, Anthropic, Groq, Ollama, vLLM, Together |
+| ✅ **Quality Validation** | Automatic quality checks |
+| 🤖 **Drafter/Validator Pattern** | 20-60% savings for agent/tool systems |
+| 📊 **Cost Tracking** | Built-in analytics per query, model, provider |
+| 🌐 **Universal Support** | 20+ providers, 100+ models |
+| 🚀 3**-Line Integration** | Zero architecture changes needed |
+| 🏭 **Production Ready** | Streaming, caching, error handling, monitoring |
 
 ---
-## **📜 License**
 
-MIT ©  see [LICENSE](https://github.com/lemony-ai/cascadeflow/blob/main/LICENSE) file.
+## License
 
-Free for commercial use. Attribution appreciated but not required.
+MIT ©  see [LICENSE](https://github.com/lemony-ai/cascadeflow/blob/main/LICENSE) file.
+
+Free for commercial use. Attribution appreciated but not required.
 
 ---
-## **🙏 Contributing**
+
+## Contributing
 
 We ❤️ contributions!
 
 📝 [**Contributing Guide**](./CONTRIBUTING.md) - Python & TypeScript development setup
 
 ---
-## **🎯 Roadmap**
+
+## Roadmap
 
 - **User Tier Management** - Cost controls and limits per user tier with advanced routing
 - **Semantic Quality Validators** - Optional lightweight local quality scoring (200MB CPU model, no external API calls)
@@ -375,14 +388,16 @@ We ❤️ contributions!
 - **Benchmark Report**s
 
 ---
-## **🤝 Support**
 
-- 📖 [**GitHub Discussions**](https://github.com/lemony-ai/cascadeflow/discussions) - Searchable Q&A
-- 🐛 [**GitHub Issues**](https://github.com/lemony-ai/cascadeflow/issues) - Bug reports & feature requests
-- 📧 [**Email Support**](mailto:hello@lemony.ai) - Direct support
+## Support
+
+- 📖 [**GitHub Discussions**](https://github.com/lemony-ai/cascadeflow/discussions) - Searchable Q&A
+- 🐛 [**GitHub Issues**](https://github.com/lemony-ai/cascadeflow/issues) - Bug reports & feature requests
+- 📧 [**Email Support**](mailto:hello@lemony.ai) - Direct support
 
 ---
-## **📝 Citation**
+
+## Citation
 
 If you use CascadeFlow in your research or project, please cite:
 
@@ -406,11 +421,13 @@ pip install cascadeflow
 npm install @cascadeflow/core
 ```
 
-[Read the Docs](https://docs.lemony.ai/cascadeflow) • [View Examples](https://github.com/lemony-ai/cascadeflow/tree/main/examples) • Star us!
+[Read the Docs](./docs/) • [View Python Examples](./examples/) • [View TypeScript Examples](./packages/core/examples/) • [Join Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
 
 ---
 
-### **Built with ❤️ by [Lemony Inc.](https://lemony.ai/) and the CascadeFlow Community**
+## About
+
+**Built with ❤️ by [Lemony Inc.](https://lemony.ai/) and the CascadeFlow Community**
 
 One cascade. Hundreds of specialists.
 
