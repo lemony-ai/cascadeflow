@@ -15,7 +15,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/cascadeflow)](https://pypi.org/project/cascadeflow/)
 [![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=social)](https://github.com/lemony-ai/cascadeflow)
-[![Tests](https://github.com/lemony-ai/cascadeflow/workflows/Tests/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions)
+[![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 
 **[<img src=".github/assets/CF_python_color.svg" width="20" height="20" alt="Python"/> Python](#-quick-start) • [<img src=".github/assets/CF_ts_color.svg" width="20" height="20" alt="TypeScript"/> TypeScript](#typescript--javascript) • [<img src=".github/assets/CF_n8n_color.svg" width="20" height="20" alt="n8n"/> n8n](#-n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#-examples)**
 
