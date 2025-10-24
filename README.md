@@ -75,38 +75,38 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │                      CascadeFlow Stack                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Cascade Agent                                        │ │
-│  │  Orchestrates the entire cascade execution           │ │
-│  │  • Query routing & model selection                   │ │
-│  │  • Drafter -> Verifier coordination                  │ │
-│  │  • Cost tracking & telemetry                         │ │
-│  └───────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Cascade Agent                                        │  │
+│  │  Orchestrates the entire cascade execution            │  │
+│  │  • Query routing & model selection                    │  │
+│  │  • Drafter -> Verifier coordination                   │  │
+│  │  • Cost tracking & telemetry                          │  │
+│  └───────────────────────────────────────────────────────┘  │
 │                          ↓                                  │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Quality Validation Engine                            │ │
-│  │  Multi-dimensional quality checks                     │ │
-│  │  • Length validation (too short/verbose)             │ │
-│  │  • Confidence scoring (logprobs analysis)            │ │
-│  │  • Format validation (JSON, structured output)       │ │
-│  │  • Semantic alignment (intent matching)              │ │
-│  └───────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Quality Validation Engine                            │  │
+│  │  Multi-dimensional quality checks                     │  │
+│  │  • Length validation (too short/verbose)              │  │
+│  │  • Confidence scoring (logprobs analysis)             │  │
+│  │  • Format validation (JSON, structured output)        │  │
+│  │  • Semantic alignment (intent matching)               │  │
+│  └───────────────────────────────────────────────────────┘  │
 │                          ↓                                  │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Cascading Engine                                     │ │
-│  │  Smart model escalation strategy                      │ │
-│  │  • Try cheap models first (speculative execution)    │ │
-│  │  • Validate quality instantly                        │ │
-│  │  • Escalate only when needed                         │ │
-│  │  • Automatic retry & fallback                        │ │
-│  └───────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Cascading Engine                                     │  │
+│  │  Smart model escalation strategy                      │  │
+│  │  • Try cheap models first (speculative execution)     │  │
+│  │  • Validate quality instantly                         │  │
+│  │  • Escalate only when needed                          │  │
+│  │  • Automatic retry & fallback                         │  │
+│  └───────────────────────────────────────────────────────┘  │ 
 │                          ↓                                  │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Provider Abstraction Layer                           │ │
-│  │  Unified interface for 7+ providers                   │ │
-│  │  • OpenAI • Anthropic • Groq • Ollama                │ │
-│  │  • Together • vLLM • HuggingFace                     │ │
-│  └───────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Provider Abstraction Layer                           │  │
+│  │  Unified interface for 7+ providers                   │  │
+│  │  • OpenAI • Anthropic • Groq • Ollama                 │  │
+│  │  • Together • vLLM • HuggingFace                      │  │
+│  └───────────────────────────────────────────────────────┘  │ 
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
