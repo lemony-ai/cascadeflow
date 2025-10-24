@@ -241,7 +241,7 @@ async def main():
         if provider_latency > 0:
             provider_pct = (provider_latency / total_latency * 100) if total_latency > 0 else 0
             cascade_pct = (cascade_latency / total_latency * 100) if total_latency > 0 else 0
-            print(f"   ⚡ Latency Breakdown:")
+            print("   ⚡ Latency Breakdown:")
             print(f"      Total: {total_latency:.0f}ms")
             print(f"      ├─ Provider API: {provider_latency:.0f}ms ({provider_pct:.1f}%)")
             print(f"      └─ CascadeFlow: {cascade_latency:.0f}ms ({cascade_pct:.1f}%)")

@@ -1,7 +1,6 @@
 """Test execution planning with domain and semantic integration."""
 
 import pytest
-
 from cascadeflow.config import ModelConfig, OptimizationWeights
 from cascadeflow.execution import (
     DomainDetector,
@@ -9,6 +8,7 @@ from cascadeflow.execution import (
     LatencyAwareExecutionPlanner,
     ModelScorer,
 )
+
 from cascadeflow.quality.complexity import QueryComplexity
 
 

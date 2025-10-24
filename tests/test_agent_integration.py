@@ -1,9 +1,9 @@
 """Integration tests for full CascadeAgent with Day 4.2 features."""
 
 import pytest
+from cascadeflow.config import DEFAULT_TIERS, ModelConfig
 
 from cascadeflow.agent import CascadeAgent
-from cascadeflow.config import DEFAULT_TIERS, ModelConfig
 
 
 @pytest.fixture

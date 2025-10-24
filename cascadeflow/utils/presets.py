@@ -20,15 +20,15 @@ Example:
 
 import logging
 import os
-from typing import List, Literal
+from typing import Literal
 
 from ..schema.config import ModelConfig
 
 logger = logging.getLogger(__name__)
 
 # Type definitions
-QualityMode = Literal['cost-optimized', 'balanced', 'strict']
-PerformanceMode = Literal['fast', 'balanced', 'reliable']
+QualityMode = Literal["cost-optimized", "balanced", "strict"]
+PerformanceMode = Literal["fast", "balanced", "reliable"]
 
 
 class CascadePresets:
@@ -281,7 +281,7 @@ class CascadePresets:
 # Cost: ~$0.0008/query avg
 # Speed: Fast (~2-3s)
 # Quality: Excellent
-PRESET_BEST_OVERALL: List[ModelConfig] = [
+PRESET_BEST_OVERALL: list[ModelConfig] = [
     ModelConfig(
         name="claude-3-5-haiku-20241022",
         provider="anthropic",
@@ -308,7 +308,7 @@ PRESET_BEST_OVERALL: List[ModelConfig] = [
 # Cost: ~$0.00005/query avg
 # Speed: Ultra-fast (~1-2s)
 # Quality: Good
-PRESET_ULTRA_FAST: List[ModelConfig] = [
+PRESET_ULTRA_FAST: list[ModelConfig] = [
     ModelConfig(
         name="llama-3.1-8b-instant",
         provider="groq",
@@ -335,7 +335,7 @@ PRESET_ULTRA_FAST: List[ModelConfig] = [
 # Cost: ~$0.00008/query avg
 # Speed: Very fast (~1-3s)
 # Quality: Good
-PRESET_ULTRA_CHEAP: List[ModelConfig] = [
+PRESET_ULTRA_CHEAP: list[ModelConfig] = [
     ModelConfig(
         name="llama-3.1-8b-instant",
         provider="groq",
@@ -362,7 +362,7 @@ PRESET_ULTRA_CHEAP: List[ModelConfig] = [
 # Cost: ~$0.0005/query avg
 # Speed: Fast (~2-4s)
 # Quality: Excellent
-PRESET_OPENAI_ONLY: List[ModelConfig] = [
+PRESET_OPENAI_ONLY: list[ModelConfig] = [
     ModelConfig(
         name="gpt-4o-mini",
         provider="openai",
@@ -389,7 +389,7 @@ PRESET_OPENAI_ONLY: List[ModelConfig] = [
 # Cost: ~$0.002/query avg
 # Speed: Fast (~2-3s)
 # Quality: Excellent
-PRESET_ANTHROPIC_ONLY: List[ModelConfig] = [
+PRESET_ANTHROPIC_ONLY: list[ModelConfig] = [
     ModelConfig(
         name="claude-3-5-haiku-20241022",
         provider="anthropic",
@@ -419,7 +419,7 @@ PRESET_ANTHROPIC_ONLY: List[ModelConfig] = [
 # Quality: Good
 #
 # Requires: ollama pull llama3.1:8b && ollama pull llama3.1:70b
-PRESET_FREE_LOCAL: List[ModelConfig] = [
+PRESET_FREE_LOCAL: list[ModelConfig] = [
     ModelConfig(
         name="llama3.1:8b",
         provider="ollama",
@@ -440,17 +440,17 @@ PRESET_FREE_LOCAL: List[ModelConfig] = [
 
 # Quality threshold presets
 QUALITY_THRESHOLDS = {
-    'cost-optimized': 0.6,  # Accept more drafts for cost savings
-    'balanced': 0.7,         # Default balanced threshold
-    'strict': 0.8,           # Higher quality, more escalations
+    "cost-optimized": 0.6,  # Accept more drafts for cost savings
+    "balanced": 0.7,  # Default balanced threshold
+    "strict": 0.8,  # Higher quality, more escalations
 }
 
 
 def create_preset(
-    quality: QualityMode = 'balanced',
-    performance: PerformanceMode = 'balanced',
-    include_premium: bool = False
-) -> List[ModelConfig]:
+    quality: QualityMode = "balanced",
+    performance: PerformanceMode = "balanced",
+    include_premium: bool = False,
+) -> list[ModelConfig]:
     """
     Create a custom preset with specified quality and performance modes.
 
@@ -473,66 +473,72 @@ def create_preset(
     models = []
 
     # Select models based on performance mode
-    if performance == 'fast':
+    if performance == "fast":
         # Groq for maximum speed
-        models.extend([
-            ModelConfig(
-                name="llama-3.1-8b-instant",
-                provider="groq",
-                cost=0.00005,
-                speed_ms=1000,
-                quality_score=0.75,
-                domains=["general"],
-            ),
-            ModelConfig(
-                name="llama-3.3-70b-versatile",
-                provider="groq",
-                cost=0.00069,
-                speed_ms=1500,
-                quality_score=0.82,
-                domains=["general"],
-            ),
-        ])
-    elif performance == 'reliable':
+        models.extend(
+            [
+                ModelConfig(
+                    name="llama-3.1-8b-instant",
+                    provider="groq",
+                    cost=0.00005,
+                    speed_ms=1000,
+                    quality_score=0.75,
+                    domains=["general"],
+                ),
+                ModelConfig(
+                    name="llama-3.3-70b-versatile",
+                    provider="groq",
+                    cost=0.00069,
+                    speed_ms=1500,
+                    quality_score=0.82,
+                    domains=["general"],
+                ),
+            ]
+        )
+    elif performance == "reliable":
         # OpenAI/Anthropic for reliability
-        models.extend([
-            ModelConfig(
-                name="gpt-4o-mini",
-                provider="openai",
-                cost=0.00015,
-                speed_ms=2500,
-                quality_score=0.80,
-                domains=["general"],
-            ),
-            ModelConfig(
-                name="claude-3-5-haiku-20241022",
-                provider="anthropic",
-                cost=0.0008,
-                speed_ms=2000,
-                quality_score=0.85,
-                domains=["general"],
-            ),
-        ])
+        models.extend(
+            [
+                ModelConfig(
+                    name="gpt-4o-mini",
+                    provider="openai",
+                    cost=0.00015,
+                    speed_ms=2500,
+                    quality_score=0.80,
+                    domains=["general"],
+                ),
+                ModelConfig(
+                    name="claude-3-5-haiku-20241022",
+                    provider="anthropic",
+                    cost=0.0008,
+                    speed_ms=2000,
+                    quality_score=0.85,
+                    domains=["general"],
+                ),
+            ]
+        )
     else:
         # Balanced - mix of speed and reliability
-        models.extend([
-            ModelConfig(
-                name="claude-3-5-haiku-20241022",
-                provider="anthropic",
-                cost=0.0008,
-                speed_ms=2000,
-                quality_score=0.85,
-                domains=["general"],
-            ),
-            ModelConfig(
-                name="gpt-4o-mini",
-                provider="openai",
-                cost=0.00015,
-                speed_ms=2500,
-                quality_score=0.80,
-                domains=["general"],
-            ),
-        ])
+        models.extend(
+            [
+                ModelConfig(
+                    name="claude-3-5-haiku-20241022",
+                    provider="anthropic",
+                    cost=0.0008,
+                    speed_ms=2000,
+                    quality_score=0.85,
+                    domains=["general"],
+                ),
+                ModelConfig(
+                    name="gpt-4o-mini",
+                    provider="openai",
+                    cost=0.00015,
+                    speed_ms=2500,
+                    quality_score=0.80,
+                    domains=["general"],
+                ),
+            ]
+        )
 
     # Add premium tier if requested
     if include_premium:
@@ -552,10 +558,10 @@ def create_preset(
 
 # All available presets
 PRESETS = {
-    'BEST_OVERALL': PRESET_BEST_OVERALL,
-    'ULTRA_FAST': PRESET_ULTRA_FAST,
-    'ULTRA_CHEAP': PRESET_ULTRA_CHEAP,
-    'OPENAI_ONLY': PRESET_OPENAI_ONLY,
-    'ANTHROPIC_ONLY': PRESET_ANTHROPIC_ONLY,
-    'FREE_LOCAL': PRESET_FREE_LOCAL,
+    "BEST_OVERALL": PRESET_BEST_OVERALL,
+    "ULTRA_FAST": PRESET_ULTRA_FAST,
+    "ULTRA_CHEAP": PRESET_ULTRA_CHEAP,
+    "OPENAI_ONLY": PRESET_OPENAI_ONLY,
+    "ANTHROPIC_ONLY": PRESET_ANTHROPIC_ONLY,
+    "FREE_LOCAL": PRESET_FREE_LOCAL,
 }

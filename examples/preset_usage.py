@@ -51,7 +51,6 @@ from cascadeflow import (
     PRESET_ULTRA_CHEAP,
     PRESET_ULTRA_FAST,
     CascadeAgent,
-    create_preset,
 )
 
 
@@ -79,7 +78,8 @@ async def main():
     print()
 
     print("📋 Before (v0.1.0) - Manual Configuration:")
-    print("""
+    print(
+        """
     from cascadeflow import CascadeAgent, ModelConfig
 
     agent = CascadeAgent(models=[
@@ -100,14 +100,17 @@ async def main():
             domains=["general"],
         ),
     ])
-    """)
+    """
+    )
 
     print("📋 After (v0.1.1) - Using Preset:")
-    print("""
+    print(
+        """
     from cascadeflow import CascadeAgent, PRESET_BEST_OVERALL
 
     agent = CascadeAgent(models=PRESET_BEST_OVERALL)  # That's it!
-    """)
+    """
+    )
 
     print("✅ Result: 90% less code, same functionality!\n")
 
@@ -180,29 +183,31 @@ async def main():
 
             # Calculate percentages
             if total_latency > 0:
-                provider_pct = (provider_latency / total_latency * 100)
-                cascade_pct = (cascade_latency / total_latency * 100)
+                provider_pct = provider_latency / total_latency * 100
+                cascade_pct = cascade_latency / total_latency * 100
             else:
                 provider_pct = cascade_pct = 0
 
-            print(f"✅ Result:")
+            print("✅ Result:")
             print(f"   Model: {result.model_used}")
             print(f"   Cost: ${result.total_cost:.6f}")
-            print(f"   Latency Breakdown:")
+            print("   Latency Breakdown:")
             print(f"     Total: {total_latency:.0f}ms (100%)")
             print(f"     ├─ Provider API: {provider_latency:.0f}ms ({provider_pct:.1f}%)")
             print(f"     └─ CascadeFlow: {cascade_latency:.0f}ms ({cascade_pct:.1f}%)")
             print()
 
-            results.append({
-                "preset": preset_name,
-                "model": result.model_used,
-                "cost": result.total_cost,
-                "total_latency": total_latency,
-                "provider_latency": provider_latency,
-                "cascade_latency": cascade_latency,
-                "provider_pct": provider_pct,
-            })
+            results.append(
+                {
+                    "preset": preset_name,
+                    "model": result.model_used,
+                    "cost": result.total_cost,
+                    "total_latency": total_latency,
+                    "provider_latency": provider_latency,
+                    "cascade_latency": cascade_latency,
+                    "provider_pct": provider_pct,
+                }
+            )
 
         except Exception as e:
             print(f"❌ Error: {e}\n")
@@ -247,7 +252,8 @@ async def main():
     print("🔧 For advanced users who want control without manual config:")
     print()
     print("Example 1: Strict quality, fast performance")
-    print("""
+    print(
+        """
     from cascadeflow import create_preset
 
     models = create_preset(
@@ -255,16 +261,19 @@ async def main():
         performance='fast',    # Use Groq for speed
         include_premium=False  # No premium tier
     )
-    """)
+    """
+    )
 
     print("Example 2: Cost-optimized with premium fallback")
-    print("""
+    print(
+        """
     models = create_preset(
         quality='cost-optimized',  # Accept more drafts (0.6)
         performance='balanced',     # Mix of providers
         include_premium=True        # Add gpt-4o tier
     )
-    """)
+    """
+    )
 
     print()
     print("📚 Quality Modes:")

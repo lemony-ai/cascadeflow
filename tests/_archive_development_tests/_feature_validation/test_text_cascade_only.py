@@ -50,9 +50,10 @@ except ImportError:
 
 # Import CascadeFlow components
 from cascadeflow.config import ModelConfig
+from cascadeflow.speculative import WholeResponseCascade
+
 from cascadeflow.quality import QualityConfig
 from cascadeflow.quality.alignment_scorer import QueryResponseAlignmentScorer
-from cascadeflow.speculative import WholeResponseCascade
 
 
 @dataclass
