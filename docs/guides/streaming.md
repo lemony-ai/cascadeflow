@@ -6,15 +6,24 @@ Complete guide to real-time streaming with CascadeFlow.
 
 ## 📋 Table of Contents
 
+### **Basic (Getting Started)**
 1. [Overview](#overview)
 2. [Quick Start](#quick-start)
 3. [Text Streaming](#text-streaming)
 4. [Tool Streaming](#tool-streaming)
 5. [Event Types](#event-types)
+
+### **Advanced (Power Features)**
 6. [Advanced Usage](#advanced-usage)
 7. [Performance](#performance)
 8. [Troubleshooting](#troubleshooting)
 9. [Best Practices](#best-practices)
+
+---
+
+# Basic Usage
+
+Essential streaming patterns for CascadeFlow.
 
 ---
 
@@ -508,6 +517,12 @@ tool = event.data.get('tool_call', {})
 name = tool.get('name')
 args = tool.get('arguments')
 ```
+
+---
+
+# Advanced Usage
+
+Power features for streaming in production environments.
 
 ---
 

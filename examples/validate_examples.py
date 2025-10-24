@@ -16,7 +16,7 @@ from pathlib import Path
 def validate_syntax(file_path: Path) -> tuple[bool, str]:
     """Check if file has valid Python syntax."""
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             source = f.read()
         ast.parse(source)
         return True, "✅ Valid syntax"
@@ -27,16 +27,14 @@ def validate_syntax(file_path: Path) -> tuple[bool, str]:
 def validate_imports(file_path: Path) -> tuple[bool, str]:
     """Check if file can be imported (validates imports and top-level code)."""
     try:
-        spec = importlib.util.spec_from_file_location(
-            file_path.stem, file_path
-        )
+        spec = importlib.util.spec_from_file_location(file_path.stem, file_path)
         if spec is None or spec.loader is None:
             return False, "❌ Could not load module spec"
 
         # We just compile it, not execute to avoid running expensive API calls
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             source = f.read()
-        compile(source, str(file_path), 'exec')
+        compile(source, str(file_path), "exec")
 
         return True, "✅ Imports valid"
     except ImportError as e:
@@ -74,12 +72,14 @@ def main():
             import_ok = False
             import_msg = "⏭️  Skipped (syntax error)"
 
-        results.append({
-            "file": example_file.name,
-            "syntax_ok": syntax_ok,
-            "import_ok": import_ok,
-            "valid": syntax_ok and import_ok
-        })
+        results.append(
+            {
+                "file": example_file.name,
+                "syntax_ok": syntax_ok,
+                "import_ok": import_ok,
+                "valid": syntax_ok and import_ok,
+            }
+        )
         print()
 
     # Summary

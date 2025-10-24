@@ -797,22 +797,21 @@ class OpenAIProvider(BaseProvider):
         Returns:
             Estimated cost in USD
         """
-        # OpenAI pricing per 1K tokens (as of December 2024)
+        # OpenAI pricing per 1K tokens (as of January 2025)
         # Source: https://openai.com/api/pricing/
         pricing = {
-            # GPT-5 series (future/preview - pricing TBD)
-            "gpt-5": {"input": 0.010, "output": 0.030},  # Estimated flagship pricing
-            "gpt-5-turbo": {"input": 0.005, "output": 0.015},  # Estimated mid-tier
-            "gpt-5-mini": {"input": 0.0003, "output": 0.0012},  # Estimated cost-effective
-
-            # GPT-4o series (current flagship)
+            # GPT-5 series (current flagship - released August 2025)
+            # 50% cheaper input than GPT-4o, superior performance on coding, reasoning, math
+            "gpt-5": {"input": 0.00125, "output": 0.010},
+            "gpt-5-mini": {"input": 0.00025, "output": 0.002},
+            "gpt-5-nano": {"input": 0.00005, "output": 0.0004},
+            "gpt-5-chat-latest": {"input": 0.00125, "output": 0.010},
+            # GPT-4o series (previous flagship)
             "gpt-4o": {"input": 0.0025, "output": 0.010},
             "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
-
             # GPT-4 series (previous generation)
             "gpt-4-turbo": {"input": 0.010, "output": 0.030},
             "gpt-4": {"input": 0.030, "output": 0.060},
-
             # GPT-3.5 series (legacy)
             "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
         }

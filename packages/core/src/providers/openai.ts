@@ -28,16 +28,18 @@ type ChatCompletionMessageParam = any; // Simplified for MVP
 type ChatCompletionTool = any; // Simplified for MVP
 
 /**
- * OpenAI pricing per 1K tokens (as of December 2024)
+ * OpenAI pricing per 1K tokens (as of January 2025)
  * Source: https://openai.com/api/pricing/
  */
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
-  // GPT-5 series (future/preview - pricing TBD)
-  'gpt-5': { input: 0.010, output: 0.030 },
-  'gpt-5-turbo': { input: 0.005, output: 0.015 },
-  'gpt-5-mini': { input: 0.0003, output: 0.0012 },
+  // GPT-5 series (current flagship - released August 2025)
+  // 50% cheaper input than GPT-4o, superior performance on coding, reasoning, math
+  'gpt-5': { input: 0.00125, output: 0.010 },
+  'gpt-5-mini': { input: 0.00025, output: 0.002 },
+  'gpt-5-nano': { input: 0.00005, output: 0.0004 },
+  'gpt-5-chat-latest': { input: 0.00125, output: 0.010 },
 
-  // GPT-4o series (current flagship)
+  // GPT-4o series (previous flagship)
   'gpt-4o': { input: 0.0025, output: 0.010 },
   'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
   'gpt-4o-2024-11-20': { input: 0.0025, output: 0.010 },
@@ -114,15 +116,38 @@ export class OpenAIProvider extends BaseProvider {
       const chatMessages = this.convertToChatMessages(messages, request.systemPrompt);
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
-      const stream = await this.client.chat.completions.create({
-        model: request.model || this.config.name,
+      const modelName = request.model || this.config.name;
+      // GPT-5 series doesn't support logprobs yet (as of January 2025)
+      const supportsLogprobs = !modelName.startsWith('gpt-5');
+      const isGpt5 = modelName.startsWith('gpt-5');
+      const maxTokens = request.maxTokens || this.config.maxTokens || 1000;
+
+      const streamConfig: any = {
+        model: modelName,
         messages: chatMessages,
-        max_tokens: request.maxTokens || this.config.maxTokens || 1000,
-        temperature: request.temperature ?? this.config.temperature ?? 0.7,
         tools,
         stream: true,
         ...request.extra,
-      });
+      };
+
+      // GPT-5 only supports temperature=1 (default), doesn't allow custom values
+      if (!isGpt5) {
+        streamConfig.temperature = request.temperature ?? this.config.temperature ?? 0.7;
+      }
+
+      // GPT-5 uses max_completion_tokens instead of max_tokens
+      if (isGpt5) {
+        streamConfig.max_completion_tokens = maxTokens;
+      } else {
+        streamConfig.max_tokens = maxTokens;
+      }
+
+      if (supportsLogprobs) {
+        streamConfig.logprobs = true;
+        streamConfig.top_logprobs = 1;
+      }
+
+      const stream = await this.client.chat.completions.create(streamConfig);
 
       for await (const chunk of stream) {
         const delta = chunk.choices[0]?.delta;
@@ -131,10 +156,20 @@ export class OpenAIProvider extends BaseProvider {
         const content = delta.content || '';
         const done = chunk.choices[0]?.finish_reason !== null;
 
+        // Extract logprob for this chunk if available
+        let logprob: number | undefined;
+        if (chunk.choices[0]?.logprobs?.content && chunk.choices[0].logprobs.content.length > 0) {
+          const firstToken = chunk.choices[0].logprobs.content[0];
+          if (firstToken && firstToken.logprob !== null) {
+            logprob = firstToken.logprob;
+          }
+        }
+
         yield {
           content,
           done,
           finish_reason: chunk.choices[0]?.finish_reason || undefined,
+          logprob,
           raw: chunk,
         };
       }
@@ -152,21 +187,44 @@ export class OpenAIProvider extends BaseProvider {
       const chatMessages = this.convertToChatMessages(messages, request.systemPrompt);
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
+      const modelName = request.model || this.config.name;
+      // GPT-5 series doesn't support logprobs yet (as of January 2025)
+      const supportsLogprobs = !modelName.startsWith('gpt-5');
+      const isGpt5 = modelName.startsWith('gpt-5');
+      const maxTokens = request.maxTokens || this.config.maxTokens || 1000;
+
+      const requestBody: any = {
+        model: modelName,
+        messages: chatMessages,
+        tools,
+        stream: true,
+        ...request.extra,
+      };
+
+      // GPT-5 only supports temperature=1 (default), doesn't allow custom values
+      if (!isGpt5) {
+        requestBody.temperature = request.temperature ?? this.config.temperature ?? 0.7;
+      }
+
+      // GPT-5 uses max_completion_tokens instead of max_tokens
+      if (isGpt5) {
+        requestBody.max_completion_tokens = maxTokens;
+      } else {
+        requestBody.max_tokens = maxTokens;
+      }
+
+      if (supportsLogprobs) {
+        requestBody.logprobs = true;
+        requestBody.top_logprobs = 1;
+      }
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.getApiKey()}`,
         },
-        body: JSON.stringify({
-          model: request.model || this.config.name,
-          messages: chatMessages,
-          max_tokens: request.maxTokens || this.config.maxTokens || 1000,
-          temperature: request.temperature ?? this.config.temperature ?? 0.7,
-          tools,
-          stream: true,
-          ...request.extra,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -208,10 +266,20 @@ export class OpenAIProvider extends BaseProvider {
               const content = delta.content || '';
               const isFinished = parsed.choices[0]?.finish_reason !== null;
 
+              // Extract logprob for this chunk if available
+              let logprob: number | undefined;
+              if (parsed.choices[0]?.logprobs?.content && parsed.choices[0].logprobs.content.length > 0) {
+                const firstToken = parsed.choices[0].logprobs.content[0];
+                if (firstToken && firstToken.logprob !== null) {
+                  logprob = firstToken.logprob;
+                }
+              }
+
               yield {
                 content,
                 done: isFinished,
                 finish_reason: parsed.choices[0]?.finish_reason || undefined,
+                logprob,
                 raw: parsed,
               };
             } catch (e) {
@@ -235,18 +303,49 @@ export class OpenAIProvider extends BaseProvider {
       const chatMessages = this.convertToChatMessages(messages, request.systemPrompt);
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
-      const completion = await this.client.chat.completions.create({
-        model: request.model || this.config.name,
+      const modelName = request.model || this.config.name;
+      // GPT-5 series doesn't support logprobs yet (as of January 2025)
+      const supportsLogprobs = !modelName.startsWith('gpt-5');
+      const isGpt5 = modelName.startsWith('gpt-5');
+      const maxTokens = request.maxTokens || this.config.maxTokens || 1000;
+
+      const completionConfig: any = {
+        model: modelName,
         messages: chatMessages,
-        max_tokens: request.maxTokens || this.config.maxTokens || 1000,
-        temperature: request.temperature ?? this.config.temperature ?? 0.7,
         tools,
         ...request.extra,
-      });
+      };
+
+      // GPT-5 only supports temperature=1 (default), doesn't allow custom values
+      if (!isGpt5) {
+        completionConfig.temperature = request.temperature ?? this.config.temperature ?? 0.7;
+      }
+
+      // GPT-5 uses max_completion_tokens instead of max_tokens
+      if (isGpt5) {
+        completionConfig.max_completion_tokens = maxTokens;
+      } else {
+        completionConfig.max_tokens = maxTokens;
+      }
+
+      if (supportsLogprobs) {
+        completionConfig.logprobs = true;
+        completionConfig.top_logprobs = 1;
+      }
+
+      const completion = await this.client.chat.completions.create(completionConfig);
 
       const choice = completion.choices[0];
       if (!choice) {
         throw new Error('No response from OpenAI');
+      }
+
+      // Extract logprobs if available
+      let logprobs: number[] | undefined;
+      if (choice.logprobs && choice.logprobs.content) {
+        logprobs = choice.logprobs.content
+          .filter((item: any) => item && item.logprob !== null)
+          .map((item: any) => item.logprob);
       }
 
       return {
@@ -268,6 +367,7 @@ export class OpenAIProvider extends BaseProvider {
             arguments: tc.function.arguments,
           },
         })),
+        logprobs,
         raw: completion,
       };
     } catch (error) {
@@ -284,20 +384,43 @@ export class OpenAIProvider extends BaseProvider {
       const chatMessages = this.convertToChatMessages(messages, request.systemPrompt);
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
+      const modelName = request.model || this.config.name;
+      // GPT-5 series doesn't support logprobs yet (as of January 2025)
+      const supportsLogprobs = !modelName.startsWith('gpt-5');
+      const isGpt5 = modelName.startsWith('gpt-5');
+      const maxTokens = request.maxTokens || this.config.maxTokens || 1000;
+
+      const requestBody: any = {
+        model: modelName,
+        messages: chatMessages,
+        tools,
+        ...request.extra,
+      };
+
+      // GPT-5 only supports temperature=1 (default), doesn't allow custom values
+      if (!isGpt5) {
+        requestBody.temperature = request.temperature ?? this.config.temperature ?? 0.7;
+      }
+
+      // GPT-5 uses max_completion_tokens instead of max_tokens
+      if (isGpt5) {
+        requestBody.max_completion_tokens = maxTokens;
+      } else {
+        requestBody.max_tokens = maxTokens;
+      }
+
+      if (supportsLogprobs) {
+        requestBody.logprobs = true;
+        requestBody.top_logprobs = 1;
+      }
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.getApiKey()}`,
         },
-        body: JSON.stringify({
-          model: request.model || this.config.name,
-          messages: chatMessages,
-          max_tokens: request.maxTokens || this.config.maxTokens || 1000,
-          temperature: request.temperature ?? this.config.temperature ?? 0.7,
-          tools,
-          ...request.extra,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -309,6 +432,14 @@ export class OpenAIProvider extends BaseProvider {
 
       if (!choice) {
         throw new Error('No response from OpenAI');
+      }
+
+      // Extract logprobs if available
+      let logprobs: number[] | undefined;
+      if (choice.logprobs && choice.logprobs.content) {
+        logprobs = choice.logprobs.content
+          .filter((item: any) => item && item.logprob !== null)
+          .map((item: any) => item.logprob);
       }
 
       return {
@@ -330,6 +461,7 @@ export class OpenAIProvider extends BaseProvider {
             arguments: tc.function.arguments,
           },
         })),
+        logprobs,
         raw: completion,
       };
     } catch (error) {

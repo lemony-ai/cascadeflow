@@ -1,4 +1,14 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../../.github/assets/CF_logo_dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="../../../.github/assets/CF_logo_bright.svg">
+  <img alt="CascadeFlow Logo" src="../../../.github/assets/CF_logo_bright.svg" width="400">
+</picture>
+
 # n8n-nodes-cascadeflow
+
+<img src="../../../.github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/> **n8n community node for CascadeFlow**
 
 This is an n8n community node that brings CascadeFlow's intelligent AI model cascading to n8n workflows.
 
@@ -40,10 +50,10 @@ The CascadeFlow node supports these operations:
 Generate AI responses with intelligent cascading between draft and verifier models.
 
 **How it works:**
-1. Sends query to cheap draft model (e.g., GPT-4o-mini)
+1. Sends query to cheap draft model (e.g., Claude-3.5-Haiku or GPT-4o-mini)
 2. Validates quality automatically
 3. If quality passes → return draft (fast + cheap) ✅
-4. If quality fails → escalate to verifier model (e.g., GPT-4o) ⚠️
+4. If quality fails → escalate to verifier model (e.g., GPT-5) ⚠️
 
 **Result:** 70-80% of queries accept the draft, saving 40-85% on costs.
 
@@ -72,11 +82,11 @@ You only need to provide keys for the providers you're actually using.
 - **Message**: The query or prompt to send to AI
 - **Draft Model**: Configuration for the cheap model
   - Provider (OpenAI, Anthropic, Groq, etc.)
-  - Model name (e.g., `gpt-4o-mini`)
+  - Model name (e.g., `claude-3-5-haiku-20241022`, `gpt-4o-mini`)
   - Cost per 1K tokens
 - **Verifier Model**: Configuration for the expensive model
   - Provider
-  - Model name (e.g., `gpt-4o`)
+  - Model name (e.g., `gpt-5`, `claude-3-5-sonnet-20241022`)
   - Cost per 1K tokens
 
 #### Optional Parameters
@@ -102,13 +112,13 @@ Input: "What is TypeScript?"
 
 CascadeFlow Node:
   Draft: gpt-4o-mini ($0.00015)
-  Verifier: gpt-4o ($0.00625)
+  Verifier: gpt-5 ($0.00125)
 
 Output:
   content: "TypeScript is a superset of JavaScript..."
   modelUsed: "gpt-4o-mini"
   totalCost: 0.000211
-  savingsPercentage: 97.8%
+  savingsPercentage: 83.2%
   draftAccepted: true
 ```
 
@@ -223,54 +233,76 @@ Output:
 
 ## Cost Savings Examples
 
-| Use Case | Traditional Cost | CascadeFlow Cost | Savings |
-|----------|-----------------|------------------|---------|
-| Simple Q&A (70% of traffic) | $0.00625 | $0.00015 | 97.6% |
-| Complex query (30% of traffic) | $0.00625 | $0.00640 | 0% (correctly escalated) |
-| **Average** | **$0.00625** | **$0.00297** | **52.5%** |
+**With GPT-5 (Recommended):**
+
+| Use Case | Traditional GPT-5 Only | CascadeFlow (Haiku + GPT-5) | Savings |
+|----------|------------------------|------------------------------|---------|
+| Simple Q&A (70% of traffic) | $0.00125 | $0.0008 | 36% |
+| Complex query (30% of traffic) | $0.00125 | $0.00125 | 0% (correctly escalated) |
+| **Average** | **$0.00125** | **$0.00094** | **24.8%** |
 
 **Monthly savings (10,000 queries):**
-- Traditional: $62.50
-- CascadeFlow: $29.70
-- **You save: $32.80/month**
+- Traditional (GPT-5 only): $12.50
+- CascadeFlow (Haiku + GPT-5): $9.40
+- **You save: $3.10/month** (25% savings)
 
 **Monthly savings (100,000 queries):**
-- Traditional: $625.00
-- CascadeFlow: $297.00
-- **You save: $328.00/month**
+- Traditional (GPT-5 only): $125.00
+- CascadeFlow (Haiku + GPT-5): $94.00
+- **You save: $31.00/month** (25% savings)
+
+**Note:** GPT-5 is already 50% cheaper input than GPT-4o. Cascading adds additional 25-30% savings on top!
 
 ## Recommended Model Configurations
 
-### OpenAI (Balanced)
+### ⭐ Best Overall: Claude Haiku + GPT-5 (Recommended)
+
+```
+Draft: claude-3-5-haiku-20241022 ($0.0008)
+Verifier: gpt-5 ($0.00125)
+Savings: ~50-65%
+Why: Haiku's fast, high-quality drafts + GPT-5's superior reasoning
+Use for: Coding, reasoning, complex queries, agentic workflows
+```
+
+> **⚠️ Important:** GPT-5 requires OpenAI organization verification. Visit [OpenAI Settings](https://platform.openai.com/settings/organization/general) and verify your organization. The cascade works immediately (Claude handles 75% of queries), GPT-5 verification unlocks the remaining 25%.
+
+### OpenAI Only (Good Balance)
 
 ```
 Draft: gpt-4o-mini ($0.00015)
-Verifier: gpt-4o ($0.00625)
+Verifier: gpt-5 ($0.00125)
 Savings: ~50-60%
+Why: GPT-5 is 50% cheaper input than GPT-4o, better performance
+Note: GPT-5 excels at coding (75% vs 31%), reasoning, math
 ```
 
-### Anthropic (High Quality)
+### Anthropic Only (High Quality)
 
 ```
-Draft: claude-3-haiku ($0.00075)
-Verifier: claude-3-sonnet ($0.009)
+Draft: claude-3-5-haiku-20241022 ($0.0008)
+Verifier: claude-3-5-sonnet-20241022 ($0.003)
 Savings: ~40-50%
+Why: Consistent Anthropic experience, excellent quality
 ```
 
-### Groq (Ultra Fast & Cheap)
-
-```
-Draft: llama-3.1-8b-instant ($0.00005)
-Verifier: llama-3.1-70b-versatile ($0.00059)
-Savings: ~70-80%
-```
-
-### Mixed Providers (Best Value)
+### Groq + GPT-5 (Ultra Fast + Best Quality)
 
 ```
 Draft: groq/llama-3.1-8b-instant ($0.00005)
-Verifier: openai/gpt-4o ($0.00625)
-Savings: ~80-85%
+Verifier: gpt-5 ($0.00125)
+Savings: ~75-85%
+Why: Groq's instant speed + GPT-5's reasoning power
+Note: Highest cost savings, best for high-volume workloads
+```
+
+### Legacy: GPT-4o (Not Recommended)
+
+```
+Draft: gpt-4o-mini ($0.00015)
+Verifier: gpt-4o ($0.0025)
+Savings: ~40-50%
+Note: GPT-5 is cheaper and significantly better at coding/reasoning
 ```
 
 ## Compatibility

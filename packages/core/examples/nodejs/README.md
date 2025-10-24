@@ -72,20 +72,32 @@ npx tsx multi-provider.ts
 
 ## Quick Start
 
-### Minimal Example
+### Minimal Example (Recommended Setup)
 
 ```typescript
 import { CascadeAgent } from '@cascadeflow/core';
 
+// Recommended: Claude Haiku + GPT-5
 const agent = new CascadeAgent({
   models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
-    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+    { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
+    { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
   ],
 });
 
 const result = await agent.run('What is TypeScript?');
 console.log(`Cost: $${result.totalCost}, Savings: ${result.savingsPercentage}%`);
+```
+
+### OpenAI Only
+
+```typescript
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
+  ],
+});
 ```
 
 ### With TypeScript
@@ -97,10 +109,17 @@ import { CascadeAgent, ModelConfig, CascadeResult } from '@cascadeflow/core';
 
 const models: ModelConfig[] = [
   {
-    name: 'gpt-4o-mini',
-    provider: 'openai',
-    cost: 0.00015,
+    name: 'claude-3-5-haiku-20241022',
+    provider: 'anthropic',
+    cost: 0.0008,
     qualityThreshold: 0.7,
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
+  {
+    name: 'gpt-5',
+    provider: 'openai',
+    cost: 0.00125,
+    qualityThreshold: 0.95,
     apiKey: process.env.OPENAI_API_KEY,
   },
 ];

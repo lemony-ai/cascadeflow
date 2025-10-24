@@ -737,7 +737,6 @@ def update_base_provider_confidence(provider_instance: Any) -> None:
     provider_name = provider_instance.__class__.__name__.replace("Provider", "").lower()
     provider_instance._confidence_estimator = ProductionConfidenceEstimator(provider_name)
 
-
     def enhanced_calculate_confidence(
         response: str, metadata: Optional[dict[str, Any]] = None
     ) -> float:

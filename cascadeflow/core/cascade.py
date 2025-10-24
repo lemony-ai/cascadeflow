@@ -48,8 +48,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
-from ..schema.config import ModelConfig
 from ..quality import AdaptiveThreshold, ComparativeValidator, QualityConfig, QualityValidator
+from ..schema.config import ModelConfig
 
 # Import text complexity detection
 try:

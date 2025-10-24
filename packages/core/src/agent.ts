@@ -19,6 +19,7 @@ import {
   createStreamEvent,
   type StreamOptions,
 } from './streaming';
+import { QualityValidator } from './quality';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -68,7 +69,49 @@ export interface RunOptions {
  */
 export class CascadeAgent {
   private models: ModelConfig[];
+  private qualityValidator: QualityValidator;
 
+  /**
+   * Create a new CascadeFlow agent
+   *
+   * The agent automatically cascades queries through multiple AI models,
+   * starting with cheaper models and escalating to more expensive ones
+   * only when necessary based on quality validation.
+   *
+   * @param config - Agent configuration with models and quality settings
+   *
+   * @throws {Error} When no models are provided
+   *
+   * @example Basic usage
+   * ```typescript
+   * import { CascadeAgent } from '@cascadeflow/core';
+   *
+   * const agent = new CascadeAgent({
+   *   models: [
+   *     { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+   *     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 }
+   *   ]
+   * });
+   * ```
+   *
+   * @example With presets
+   * ```typescript
+   * import { CascadeAgent, PRESET_BEST_OVERALL } from '@cascadeflow/core';
+   *
+   * const agent = new CascadeAgent(PRESET_BEST_OVERALL);
+   * ```
+   *
+   * @example With quality configuration
+   * ```typescript
+   * const agent = new CascadeAgent({
+   *   models: [...],
+   *   quality: {
+   *     threshold: 0.8,  // Higher = stricter quality checks
+   *     requireMinimumTokens: 10
+   *   }
+   * });
+   * ```
+   */
   constructor(config: AgentConfig) {
     if (!config.models || config.models.length === 0) {
       throw new Error('At least one model is required');
@@ -76,10 +119,91 @@ export class CascadeAgent {
 
     // Sort models by cost (cheapest first)
     this.models = [...config.models].sort((a, b) => a.cost - b.cost);
+
+    // Initialize quality validator
+    // Map AgentConfig.quality to QualityValidator config format
+    const validatorConfig = config.quality
+      ? {
+          minConfidence: config.quality.threshold ?? 0.7,
+          minWordCount: config.quality.requireMinimumTokens ?? 10,
+          useLogprobs: true,
+          fallbackToHeuristic: true,
+          strictMode: false,
+        }
+      : undefined;
+    this.qualityValidator = new QualityValidator(validatorConfig);
   }
 
   /**
-   * Run a query through the cascade
+   * Execute a query through the AI model cascade
+   *
+   * This is the main method for running queries. It automatically:
+   * 1. Tries the cheapest model first (draft)
+   * 2. Validates the response quality
+   * 3. Escalates to better models if quality is insufficient
+   * 4. Returns detailed cost and timing metrics
+   *
+   * @param input - Query as string or message array
+   * @param options - Optional configuration for this run
+   * @param options.maxTokens - Maximum tokens to generate (default: provider default)
+   * @param options.temperature - Temperature 0-2 for randomness (default: provider default)
+   * @param options.systemPrompt - System prompt to guide the model
+   * @param options.tools - Tools/functions available to the model
+   * @param options.forceDirect - Skip cascade and use best model directly
+   *
+   * @returns Promise resolving to detailed cascade result with content, costs, and metrics
+   *
+   * @throws {ProviderError} When provider API calls fail
+   * @throws {AuthenticationError} When API keys are missing or invalid
+   * @throws {RateLimitError} When provider rate limits are exceeded
+   * @throws {TimeoutError} When requests timeout
+   *
+   * @example Simple text query
+   * ```typescript
+   * const result = await agent.run('What is TypeScript?');
+   * console.log(result.content);
+   * console.log(`Cost: $${result.totalCost}`);
+   * console.log(`Latency: ${result.latencyMs}ms`);
+   * ```
+   *
+   * @example With options
+   * ```typescript
+   * const result = await agent.run('Explain quantum computing', {
+   *   maxTokens: 500,
+   *   temperature: 0.7,
+   *   systemPrompt: 'You are a physics teacher'
+   * });
+   * ```
+   *
+   * @example With conversation history
+   * ```typescript
+   * const result = await agent.run([
+   *   { role: 'user', content: 'What is 2+2?' },
+   *   { role: 'assistant', content: '4' },
+   *   { role: 'user', content: 'What about 3+3?' }
+   * ]);
+   * ```
+   *
+   * @example With tools
+   * ```typescript
+   * const result = await agent.run('What\'s the weather?', {
+   *   tools: [{
+   *     name: 'get_weather',
+   *     description: 'Get weather for a location',
+   *     parameters: { type: 'object', properties: { location: { type: 'string' } } }
+   *   }]
+   * });
+   * ```
+   *
+   * @example Force direct execution (skip cascade)
+   * ```typescript
+   * const result = await agent.run('Complex query', {
+   *   forceDirect: true  // Always use best model
+   * });
+   * ```
+   *
+   * @see {CascadeResult} for result structure
+   * @see {RunOptions} for all available options
    */
   async run(input: string | Message[], options: RunOptions = {}): Promise<CascadeResult> {
     const startTime = Date.now();
@@ -104,6 +228,7 @@ export class CascadeAgent {
     let draftAccepted = false;
     let finalContent = '';
     let modelUsed = '';
+    let finalToolCalls: any[] | undefined;
 
     // Try draft model (cheapest)
     const draftModelConfig = this.models[0];
@@ -125,6 +250,7 @@ export class CascadeAgent {
       draftModel = draftResponse.model;
       finalContent = draftResponse.content;
       modelUsed = draftModel;
+      finalToolCalls = draftResponse.tool_calls;
 
       // Calculate draft cost
       if (draftResponse.usage) {
@@ -135,9 +261,14 @@ export class CascadeAgent {
         );
       }
 
-      // Simple quality check: if response is too short, cascade
-      const wordCount = draftResponse.content.split(/\s+/).length;
-      const qualityPassed = wordCount >= 10; // Simple heuristic
+      // Quality validation using logprobs and heuristics
+      const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
+      const qualityResult = this.qualityValidator.validate(
+        draftResponse.content,
+        query,
+        draftResponse.logprobs
+      );
+      const qualityPassed = qualityResult.passed;
 
       if (!qualityPassed && this.models.length > 1 && !options.forceDirect) {
         // Escalate to verifier (next model)
@@ -165,6 +296,7 @@ export class CascadeAgent {
         verifierModel = verifierResponse.model;
         finalContent = verifierResponse.content;
         modelUsed = verifierModel;
+        finalToolCalls = verifierResponse.tool_calls;
 
         // Calculate verifier cost
         if (verifierResponse.usage) {
@@ -202,7 +334,8 @@ export class CascadeAgent {
         draftAccepted,
         routingStrategy: cascaded ? 'cascade' : 'direct',
         reason: cascaded ? 'Draft quality insufficient, escalated' : 'Draft accepted',
-        hasToolCalls: false, // MVP: no tool calling yet
+        toolCalls: finalToolCalls,
+        hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,
         draftModel,
         draftCost,
         draftLatencyMs: draftLatency,
@@ -257,6 +390,9 @@ export class CascadeAgent {
     let verifierContent = '';
     let finalContent = '';
     let modelUsed = '';
+    let finalToolCalls: any[] | undefined;
+    let draftToolCalls: any[] | undefined;
+    let verifierToolCalls: any[] | undefined;
 
     // Emit ROUTING event
     yield createStreamEvent(StreamEventType.ROUTING, '', {
@@ -286,7 +422,8 @@ export class CascadeAgent {
       const draftStart = Date.now();
       draftModel = draftModelConfig.name;
 
-      // Stream from draft model
+      // Stream from draft model, collecting logprobs and tool calls
+      const draftLogprobs: number[] = [];
       for await (const chunk of draftProvider.stream({
         messages,
         model: draftModelConfig.name,
@@ -296,6 +433,16 @@ export class CascadeAgent {
         tools: options.tools,
       })) {
         draftContent += chunk.content;
+
+        // Collect logprobs if available
+        if (chunk.logprob !== undefined) {
+          draftLogprobs.push(chunk.logprob);
+        }
+
+        // Collect tool calls if available
+        if (chunk.tool_calls) {
+          draftToolCalls = chunk.tool_calls;
+        }
 
         // Yield CHUNK event
         yield createStreamEvent(StreamEventType.CHUNK, chunk.content, {
@@ -316,22 +463,27 @@ export class CascadeAgent {
       const estimatedTokens = Math.ceil(wordCount * 1.3);
       draftCost = (estimatedTokens / 1000) * draftModelConfig.cost;
 
-      // Simple quality check (MVP heuristic)
-      const qualityThreshold = options.qualityThreshold || 10; // minimum word count
-      const qualityPassed = wordCount >= qualityThreshold;
+      // Quality validation using logprobs and heuristics
+      const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
+      const qualityResult = this.qualityValidator.validate(
+        draftContent,
+        query,
+        draftLogprobs.length > 0 ? draftLogprobs : undefined
+      );
+      const qualityPassed = qualityResult.passed;
 
       draftAccepted = qualityPassed || this.models.length === 1 || options.forceDirect === true;
 
-      // Emit DRAFT_DECISION event
+      // Emit DRAFT_DECISION event with real quality scores
       yield createStreamEvent(StreamEventType.DRAFT_DECISION, '', {
         accepted: draftAccepted,
-        score: qualityPassed ? 0.8 : 0.5,
-        confidence: qualityPassed ? 0.75 : 0.6,
+        score: qualityResult.score,
+        confidence: qualityResult.confidence,
         draft_model: draftModel,
         verifier_model: this.models.length > 1 ? this.models[1].name : undefined,
         reason: draftAccepted ? 'quality_passed' : 'quality_failed',
         checks_passed: qualityPassed,
-        quality_threshold: qualityThreshold,
+        quality_threshold: this.qualityValidator.getConfig().minConfidence,
       });
 
       if (!draftAccepted && this.models.length > 1) {
@@ -347,9 +499,9 @@ export class CascadeAgent {
           {
             from_model: draftModel,
             to_model: verifierModel,
-            reason: 'Quality threshold not met',
-            draft_confidence: 0.6,
-            quality_threshold: qualityThreshold,
+            reason: qualityResult.reason,
+            draft_confidence: qualityResult.confidence,
+            quality_threshold: this.qualityValidator.getConfig().minConfidence,
           }
         );
 
@@ -372,6 +524,11 @@ export class CascadeAgent {
             tools: options.tools,
           })) {
             verifierContent += chunk.content;
+
+            // Collect tool calls if available
+            if (chunk.tool_calls) {
+              verifierToolCalls = chunk.tool_calls;
+            }
 
             // Yield CHUNK event
             yield createStreamEvent(StreamEventType.CHUNK, chunk.content, {
@@ -398,6 +555,7 @@ export class CascadeAgent {
             tools: options.tools,
           });
           verifierContent = verifierResponse.content;
+          verifierToolCalls = verifierResponse.tool_calls;
           verifierLatency = Date.now() - verifierStart;
 
           yield createStreamEvent(StreamEventType.CHUNK, verifierContent, {
@@ -415,9 +573,11 @@ export class CascadeAgent {
 
         finalContent = verifierContent;
         modelUsed = verifierModel;
+        finalToolCalls = verifierToolCalls;
       } else {
         finalContent = draftContent;
         modelUsed = draftModel;
+        finalToolCalls = draftToolCalls;
       }
 
       totalCost = draftCost + verifierCost;
@@ -444,7 +604,8 @@ export class CascadeAgent {
         reason: cascaded
           ? 'Draft quality insufficient, escalated'
           : 'Draft accepted',
-        hasToolCalls: false,
+        toolCalls: finalToolCalls,
+        hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,
         draftModel,
         draftCost,
         draftLatencyMs: draftLatency,
@@ -475,14 +636,56 @@ export class CascadeAgent {
   }
 
   /**
-   * Get available models
+   * Get the list of configured models
+   *
+   * Returns a copy of the models array sorted by cost (cheapest first).
+   * Useful for inspecting the cascade configuration.
+   *
+   * @returns Array of model configurations (sorted by cost)
+   *
+   * @example
+   * ```typescript
+   * const agent = new CascadeAgent(PRESET_BEST_OVERALL);
+   * const models = agent.getModels();
+   *
+   * console.log('Available models:');
+   * for (const model of models) {
+   *   console.log(`  - ${model.name} (${model.provider}): $${model.cost}/1K tokens`);
+   * }
+   * ```
+   *
+   * @example Check draft and verifier models
+   * ```typescript
+   * const models = agent.getModels();
+   * const draftModel = models[0];  // Cheapest (draft)
+   * const verifierModel = models[models.length - 1];  // Most expensive (verifier)
+   *
+   * console.log(`Draft: ${draftModel.name}`);
+   * console.log(`Verifier: ${verifierModel.name}`);
+   * ```
    */
   getModels(): ModelConfig[] {
     return [...this.models];
   }
 
   /**
-   * Get model count
+   * Get the number of models in the cascade
+   *
+   * A count of 1 means no cascading (direct execution only).
+   * A count of 2+ enables cascade behavior.
+   *
+   * @returns Number of configured models
+   *
+   * @example
+   * ```typescript
+   * const agent = new CascadeAgent(PRESET_BEST_OVERALL);
+   *
+   * if (agent.getModelCount() === 1) {
+   *   console.log('No cascade - direct execution only');
+   * } else {
+   *   console.log(`Cascade enabled with ${agent.getModelCount()} models`);
+   * }
+   * ```
    */
   getModelCount(): number {
     return this.models.length;

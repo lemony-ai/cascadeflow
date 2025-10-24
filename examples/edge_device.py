@@ -106,14 +106,14 @@ Documentation:
 import asyncio
 import os
 import time
-from typing import List, Dict, Any
+from typing import Any
 
 from cascadeflow import CascadeAgent, ModelConfig, QualityConfig
-
 
 # ============================================================
 # EDGE DEVICE CONFIGURATION
 # ============================================================
+
 
 # Define edge cascade: Local vLLM → Cloud Claude
 def create_edge_agent() -> CascadeAgent:
@@ -138,10 +138,9 @@ def create_edge_agent() -> CascadeAgent:
                 "device": "jetson-thor",
                 "location": "edge",
                 "vram_required": "3GB",
-                "avg_latency_ms": 100
-            }
+                "avg_latency_ms": 100,
+            },
         ),
-
         # Tier 2: Cloud fallback for complex queries
         # - Claude Sonnet 4.5 for advanced reasoning
         # - Only used when local model insufficient (~20-30% of queries)
@@ -151,11 +150,7 @@ def create_edge_agent() -> CascadeAgent:
             name="claude-sonnet-4-5-20250929",
             provider="anthropic",
             cost=0.003,  # $3 per 1M tokens
-            metadata={
-                "device": "cloud",
-                "location": "anthropic-datacenter",
-                "avg_latency_ms": 800
-            }
+            metadata={"device": "cloud", "location": "anthropic-datacenter", "avg_latency_ms": 800},
         ),
     ]
 
@@ -164,14 +159,11 @@ def create_edge_agent() -> CascadeAgent:
         min_confidence=0.65,  # Lower threshold for fast local responses
         require_validation=True,
         enable_adaptive=True,  # Adapt based on query complexity
-        comparative_threshold=0.15
+        comparative_threshold=0.15,
     )
 
     agent = CascadeAgent(
-        models=models,
-        quality_config=quality_config,
-        enable_cascade=True,
-        verbose=True
+        models=models, quality_config=quality_config, enable_cascade=True, verbose=True
     )
 
     return agent
@@ -181,7 +173,8 @@ def create_edge_agent() -> CascadeAgent:
 # TEST QUERIES FOR EDGE DEVICES
 # ============================================================
 
-def get_test_queries() -> List[Dict[str, Any]]:
+
+def get_test_queries() -> list[dict[str, Any]]:
     """
     Test queries spanning edge device use cases.
 
@@ -198,64 +191,57 @@ def get_test_queries() -> List[Dict[str, Any]]:
             "query": "What is the speed of light?",
             "expected_tier": 1,
             "category": "factual",
-            "use_case": "Quick reference lookup"
+            "use_case": "Quick reference lookup",
         },
-
         {
             "query": "Convert 100 degrees Fahrenheit to Celsius.",
             "expected_tier": 1,
             "category": "calculation",
-            "use_case": "Simple math computation"
+            "use_case": "Simple math computation",
         },
-
         # CATEGORY 2: Moderate reasoning (might cascade)
         {
             "query": "A factory sensor reads 75°C. Is this within normal operating range for a hydraulic pump?",
             "expected_tier": 1,  # May cascade if model uncertain
             "category": "domain-reasoning",
-            "use_case": "Industrial monitoring"
+            "use_case": "Industrial monitoring",
         },
-
         {
             "query": "List three common causes of conveyor belt misalignment in manufacturing.",
             "expected_tier": 1,
             "category": "knowledge-retrieval",
-            "use_case": "Maintenance assistance"
+            "use_case": "Maintenance assistance",
         },
-
         # CATEGORY 3: Complex analysis (cloud cascade)
         {
             "query": "Analyze the following sensor readings and predict potential failures: "
-                     "Motor temp: 85°C (normal: 60-75°C), Vibration: 12mm/s (normal: <10mm/s), "
-                     "Current draw: 45A (normal: 35-40A). Provide root cause analysis and maintenance recommendations.",
+            "Motor temp: 85°C (normal: 60-75°C), Vibration: 12mm/s (normal: <10mm/s), "
+            "Current draw: 45A (normal: 35-40A). Provide root cause analysis and maintenance recommendations.",
             "expected_tier": 2,
             "category": "complex-analysis",
-            "use_case": "Predictive maintenance"
+            "use_case": "Predictive maintenance",
         },
-
         {
             "query": "Given these production metrics from the last 30 days (units: 10k, 12k, 8k, 15k, 9k per week), "
-                     "predict next week's output considering seasonal trends and recommend staffing adjustments.",
+            "predict next week's output considering seasonal trends and recommend staffing adjustments.",
             "expected_tier": 2,
             "category": "forecasting",
-            "use_case": "Production planning"
+            "use_case": "Production planning",
         },
-
         # CATEGORY 4: Real-time edge scenarios
         {
             "query": "Object detected in restricted zone. Current: 2:45 PM, Location: Assembly Line 3, "
-                     "Object type: Unknown. Recommend immediate action.",
+            "Object type: Unknown. Recommend immediate action.",
             "expected_tier": 1,  # Fast response needed
             "category": "safety-alert",
-            "use_case": "Security monitoring"
+            "use_case": "Security monitoring",
         },
-
         {
             "query": "Quality control: Part #A1234 measured dimensions are 10.02mm x 5.01mm (spec: 10.00mm ± 0.05mm x 5.00mm ± 0.05mm). "
-                     "Is this part within tolerance? Should it be approved or rejected?",
+            "Is this part within tolerance? Should it be approved or rejected?",
             "expected_tier": 1,
             "category": "quality-control",
-            "use_case": "Automated inspection"
+            "use_case": "Automated inspection",
         },
     ]
 
@@ -263,6 +249,7 @@ def get_test_queries() -> List[Dict[str, Any]]:
 # ============================================================
 # MAIN DEMONSTRATION
 # ============================================================
+
 
 async def main():
     """
@@ -349,10 +336,12 @@ async def main():
             print(f"  🎯 Confidence: {result.confidence:.2f}")
 
             if result.cascaded:
-                print(f"  🔄 Cascaded: Yes (local model insufficient)")
+                print("  🔄 Cascaded: Yes (local model insufficient)")
 
             # Show abbreviated response
-            response_preview = result.content[:150] + "..." if len(result.content) > 150 else result.content
+            response_preview = (
+                result.content[:150] + "..." if len(result.content) > 150 else result.content
+            )
             print(f"  📤 Response: {response_preview}")
             print()
 
@@ -376,8 +365,8 @@ async def main():
 
     print(f"Total Cost:              ${total_cost:.6f}")
     print(f"Average Latency:         {total_latency/len(queries):.0f}ms")
-    print(f"Local Avg Latency:       ~100ms (estimated)")
-    print(f"Cloud Avg Latency:       ~800ms (estimated)")
+    print("Local Avg Latency:       ~100ms (estimated)")
+    print("Cloud Avg Latency:       ~800ms (estimated)")
     print()
 
     # Cost comparison

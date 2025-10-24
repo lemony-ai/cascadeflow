@@ -131,6 +131,9 @@ export interface StreamChunk {
   /** Tool calls (if any) */
   tool_calls?: any[];
 
+  /** Log probability for this chunk (if available) */
+  logprob?: number;
+
   /** Raw chunk from provider */
   raw?: any;
 }

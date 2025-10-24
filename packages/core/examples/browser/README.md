@@ -99,10 +99,11 @@ Best for: Public-facing apps, global users, low latency
 import { CascadeAgent } from '@cascadeflow/core';
 
 export default async function handler(req: Request) {
+  // Recommended: Claude Haiku + GPT-5
   const agent = new CascadeAgent({
     models: [
-      { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: process.env.OPENAI_API_KEY },
-      { name: 'gpt-4o', provider: 'openai', cost: 0.00625, apiKey: process.env.OPENAI_API_KEY }
+      { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008, apiKey: process.env.ANTHROPIC_API_KEY },
+      { name: 'gpt-5', provider: 'openai', cost: 0.00125, apiKey: process.env.OPENAI_API_KEY }
     ]
   });
 
@@ -146,16 +147,16 @@ import { CascadeAgent } from '@cascadeflow/core';
 const agent = new CascadeAgent({
   models: [
     {
-      name: 'gpt-4o-mini',
-      provider: 'openai',
-      cost: 0.00015,
-      proxyUrl: '/api/openai-proxy'  // Your proxy endpoint
+      name: 'claude-3-5-haiku-20241022',
+      provider: 'anthropic',
+      cost: 0.0008,
+      proxyUrl: '/api/anthropic-proxy'  // Your proxy endpoint
     },
     {
-      name: 'claude-3-haiku',
-      provider: 'anthropic',
-      cost: 0.00075,
-      proxyUrl: '/api/anthropic-proxy'  // Your proxy endpoint
+      name: 'gpt-5',
+      provider: 'openai',
+      cost: 0.00125,
+      proxyUrl: '/api/openai-proxy'  // Your proxy endpoint
     }
   ]
 });

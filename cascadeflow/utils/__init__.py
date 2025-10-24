@@ -7,6 +7,9 @@ This module provides:
 - Convenience presets for quick setup (presets.py)
 """
 
+# Caching
+from .caching import ResponseCache
+
 # Helpers (was utils.py)
 from .helpers import (
     calculate_cosine_similarity,
@@ -18,11 +21,20 @@ from .helpers import (
     truncate_text,
 )
 
-# Caching
-from .caching import ResponseCache
-
 # Presets
-from .presets import CascadePresets
+from .presets import (
+    PRESET_ANTHROPIC_ONLY,
+    PRESET_BEST_OVERALL,
+    PRESET_FREE_LOCAL,
+    PRESET_OPENAI_ONLY,
+    PRESET_ULTRA_CHEAP,
+    PRESET_ULTRA_FAST,
+    PRESETS,
+    CascadePresets,
+    PerformanceMode,
+    QualityMode,
+    create_preset,
+)
 
 __all__ = [
     # Helpers
@@ -37,4 +49,14 @@ __all__ = [
     "ResponseCache",
     # Presets
     "CascadePresets",
+    "PRESET_BEST_OVERALL",
+    "PRESET_ULTRA_FAST",
+    "PRESET_ULTRA_CHEAP",
+    "PRESET_OPENAI_ONLY",
+    "PRESET_ANTHROPIC_ONLY",
+    "PRESET_FREE_LOCAL",
+    "PRESETS",
+    "create_preset",
+    "QualityMode",
+    "PerformanceMode",
 ]

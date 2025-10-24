@@ -60,16 +60,16 @@ from typing import Any, Optional
 
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
-from .schema.config import ModelConfig
-from .schema.exceptions import CascadeFlowError
+from .core.cascade import WholeResponseCascade
 from .providers import PROVIDER_REGISTRY, get_available_providers
 from .quality import QualityConfig
-from .schema.result import CascadeResult
 
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
 from .routing import PreRouter, ToolRouter
-from .core.cascade import WholeResponseCascade
+from .schema.config import ModelConfig
+from .schema.exceptions import CascadeFlowError
+from .schema.result import CascadeResult
 
 # Streaming imports - BOTH managers (v2.4 FIX)
 from .streaming import StreamEvent, StreamEventType, StreamManager

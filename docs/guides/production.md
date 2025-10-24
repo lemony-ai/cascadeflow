@@ -6,34 +6,52 @@ Complete guide to deploying CascadeFlow in production environments.
 
 ## 📋 Table of Contents
 
-1. [Overview](#overview)
-2. [Error Handling](#error-handling)
-3. [Rate Limiting](#rate-limiting)
-4. [Budget Management](#budget-management)
-5. [Circuit Breakers](#circuit-breakers)
-6. [Caching Strategies](#caching-strategies)
-7. [Health Monitoring](#health-monitoring)
-8. [Deployment](#deployment)
-9. [Best Practices](#best-practices)
+### **Basic (Essential Patterns)**
+1. [Getting Started](#getting-started)
+2. [Error Handling](#error-handling-basic)
+3. [Basic Monitoring](#basic-monitoring)
+4. [Deployment](#basic-deployment)
+
+### **Advanced (Enterprise Features)**
+5. [Rate Limiting](#rate-limiting)
+6. [Advanced Budget Management](#advanced-budget-management)
+7. [Circuit Breakers](#circuit-breakers)
+8. [Caching Strategies](#caching-strategies)
+9. [Advanced Monitoring](#advanced-monitoring)
+10. [Kubernetes Deployment](#kubernetes-deployment)
+11. [Best Practices](#best-practices)
 
 ---
 
-## Overview
+# Basic Usage
+
+Essential patterns for getting CascadeFlow running in production.
+
+---
+
+## Getting Started
 
 Production deployments require robust patterns for reliability, performance, and cost control.
 
-### Production Checklist
+### Production Checklist (Basic)
 
 - ✅ **Error Handling** - Retry logic, graceful degradation
+- ✅ **Basic Logging** - Request/response logging
+- ✅ **Health Monitoring** - Simple health checks
+- ✅ **Deployment** - Docker/container deployment
+- ✅ **Security** - API key management
+
+### Production Checklist (Advanced)
+
 - ✅ **Rate Limiting** - Prevent abuse, manage load
 - ✅ **Budget Management** - Cost controls, alerts
 - ✅ **Circuit Breakers** - Fault tolerance
 - ✅ **Caching** - Performance optimization
-- ✅ **Monitoring** - Health checks, metrics
-- ✅ **Logging** - Audit trail, debugging
-- ✅ **Security** - API keys, authentication
+- ✅ **Advanced Monitoring** - Metrics, distributed tracing
 
 ---
+
+<a name="error-handling-basic"></a>
 
 ## Error Handling
 
@@ -138,6 +156,68 @@ async def query_with_fallback(
         # Return fallback
         return fallback_response
 ```
+
+---
+
+<a name="basic-monitoring"></a>
+
+## Basic Monitoring
+
+Simple health checks for production deployments.
+
+```python
+from typing import Dict
+import asyncio
+
+async def health_check(agent: CascadeAgent) -> Dict[str, any]:
+    """Simple health check for production."""
+    try:
+        # Quick test query
+        start = time.time()
+        result = await agent.run("test", options={"max_tokens": 5})
+        latency = (time.time() - start) * 1000
+
+        return {
+            "status": "healthy",
+            "latency_ms": latency,
+            "model": result.model_used
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+```
+
+<a name="basic-deployment"></a>
+
+## Basic Deployment
+
+### Docker
+
+Simple Docker deployment:
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Run
+CMD ["python", "main.py"]
+```
+
+---
+
+# Advanced Usage
+
+Enterprise-grade features for scale, reliability, and performance.
 
 ---
 

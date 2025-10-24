@@ -34,6 +34,16 @@ Note on Costs:
 
     Savings depend on your query mix and response lengths.
 
+Note on Latency:
+    95% of latency comes from provider API calls, NOT from CascadeFlow!
+    - Provider API: 95% (waiting for OpenAI/Anthropic/etc to respond)
+    - CascadeFlow overhead: 5% (routing, quality checks, etc.)
+
+    To reduce latency:
+    1. Choose faster providers (Groq is 5-10x faster than OpenAI)
+    2. Use streaming for perceived speed improvement
+    3. Don't worry about cascade overhead (it's minimal)
+
 Documentation:
     For complete setup instructions and detailed explanations, see:
     docs/guides/quickstart.md
@@ -219,9 +229,24 @@ async def main():
         cost = getattr(result, "total_cost", 0.0)
         print(f"   💰 Cost: ${cost:.6f}")
 
-        # Safely get latency
-        latency = getattr(result, "latency_ms", 0.0)
-        print(f"   ⚡ Latency: {latency:.0f}ms")
+        # Safely get latency with breakdown
+        total_latency = getattr(result, "latency_ms", 0.0)
+        draft_latency = getattr(result, "draft_latency_ms", 0.0)
+        verifier_latency = getattr(result, "verifier_latency_ms", 0.0)
+
+        # Calculate provider vs cascade latency
+        provider_latency = draft_latency + verifier_latency
+        cascade_latency = max(0, total_latency - provider_latency)
+
+        if provider_latency > 0:
+            provider_pct = (provider_latency / total_latency * 100) if total_latency > 0 else 0
+            cascade_pct = (cascade_latency / total_latency * 100) if total_latency > 0 else 0
+            print(f"   ⚡ Latency Breakdown:")
+            print(f"      Total: {total_latency:.0f}ms")
+            print(f"      ├─ Provider API: {provider_latency:.0f}ms ({provider_pct:.1f}%)")
+            print(f"      └─ CascadeFlow: {cascade_latency:.0f}ms ({cascade_pct:.1f}%)")
+        else:
+            print(f"   ⚡ Latency: {total_latency:.0f}ms")
 
         # Safely get complexity
         complexity = getattr(result, "complexity", "unknown")

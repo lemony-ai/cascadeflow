@@ -9,15 +9,23 @@ We welcome contributions of all kinds: bug reports, documentation improvements, 
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
+- [Monorepo Structure](#monorepo-structure)
 - [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
+- **Python Development**
+  - [Python Development Setup](#python-development-setup)
+  - [Python Code Formatting](#python-code-formatting)
+  - [Python Testing](#python-testing)
+  - [Python Code Style](#python-code-style)
+- **TypeScript Development**
+  - [TypeScript Development Setup](#typescript-development-setup)
+  - [TypeScript Code Formatting](#typescript-code-formatting)
+  - [TypeScript Testing](#typescript-testing)
+  - [TypeScript Building](#typescript-building)
 - [Making Changes](#making-changes)
-- [Code Formatting](#code-formatting)
-- [Testing](#testing)
-- [Code Style](#code-style)
 - [Pull Request Process](#pull-request-process)
 - [Reporting Bugs](#reporting-bugs)
 - [Suggesting Features](#suggesting-features)
+- [Quick Reference](#quick-reference)
 
 ---
 
@@ -32,13 +40,50 @@ This project follows a Code of Conduct to ensure a welcoming environment for eve
 
 ---
 
+## Monorepo Structure
+
+CascadeFlow is a monorepo containing both **Python** and **TypeScript/JavaScript** implementations:
+
+```
+cascadeflow/
+├── cascadeflow/              # Python package
+│   ├── core/                 # Core cascade logic
+│   ├── providers/            # Provider integrations
+│   ├── quality/              # Quality validation
+│   └── utils/                # Utilities & presets
+├── packages/
+│   ├── core/                 # TypeScript/JavaScript core
+│   │   └── src/              # TypeScript source
+│   └── integrations/
+│       └── n8n/              # n8n community node
+├── docs/                     # Documentation
+├── examples/                 # Python examples
+└── tests/                    # Python tests
+```
+
+**Choose your track:**
+- 🐍 **Python contributors**: Work in `cascadeflow/` directory
+- 📘 **TypeScript contributors**: Work in `packages/core/` directory
+- 🔌 **n8n contributors**: Work in `packages/integrations/n8n/` directory
+
+---
+
 ## Getting Started
 
 ### Prerequisites
 
+**For Python Development:**
 - Python 3.9 or higher
 - Git
 - Virtual environment tool (venv, virtualenv, or conda)
+
+**For TypeScript Development:**
+- Node.js 18 or higher
+- pnpm (recommended) or npm
+- Git
+
+**For Both:**
+- API keys for testing (OpenAI, Anthropic, Groq, etc.)
 
 ### Quick Start
 
@@ -54,7 +99,7 @@ git remote add upstream https://github.com/lemony-ai/cascadeflow.git
 
 ---
 
-## Development Setup
+## Python Development Setup
 
 ### 1. Create Virtual Environment
 
@@ -100,6 +145,185 @@ ruff check cascadeflow/
 # Run type checker
 mypy cascadeflow/
 ```
+
+---
+
+## TypeScript Development Setup
+
+### 1. Install Dependencies
+
+```bash
+# Install pnpm if you don't have it
+npm install -g pnpm
+
+# Install all dependencies (from project root)
+pnpm install
+```
+
+### 2. Build TypeScript Package
+
+```bash
+# Build the core package
+pnpm --filter @cascadeflow/core build
+
+# Or build in watch mode for development
+pnpm --filter @cascadeflow/core dev
+```
+
+### 3. Set Up API Keys
+
+```bash
+# Create .env file in packages/core/
+cd packages/core
+cp .env.example .env
+# Add your API keys to .env
+```
+
+### 4. Verify Setup
+
+```bash
+# Run TypeScript compiler check
+pnpm --filter @cascadeflow/core typecheck
+
+# Run linter
+pnpm --filter @cascadeflow/core lint
+
+# Run tests
+pnpm --filter @cascadeflow/core test
+```
+
+---
+
+## TypeScript Code Formatting
+
+TypeScript code is automatically formatted using **ESLint** and **TypeScript**.
+
+### Formatting Tools
+
+```bash
+# Lint and auto-fix
+pnpm --filter @cascadeflow/core lint
+
+# Type check
+pnpm --filter @cascadeflow/core typecheck
+
+# Format specific file
+npx eslint src/yourfile.ts --fix
+```
+
+### Style Guidelines
+
+- **Indentation**: 2 spaces
+- **Quotes**: Single quotes for strings
+- **Semicolons**: Required
+- **Line length**: 100 characters
+- **Type annotations**: Required for function parameters and return types
+
+### Example TypeScript Code
+
+```typescript
+import { CascadeAgent, type ModelConfig } from './types';
+
+/**
+ * Initialize a cascade agent with the given configuration
+ *
+ * @param models - Array of model configurations
+ * @returns Initialized cascade agent
+ */
+export function createAgent(models: ModelConfig[]): CascadeAgent {
+  if (models.length === 0) {
+    throw new Error('At least one model is required');
+  }
+
+  return new CascadeAgent({ models });
+}
+```
+
+---
+
+## TypeScript Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+pnpm --filter @cascadeflow/core test
+
+# Run tests in watch mode
+pnpm --filter @cascadeflow/core test:watch
+
+# Run specific test file
+pnpm --filter @cascadeflow/core test src/agent.test.ts
+```
+
+### Writing Tests
+
+We use **Vitest** for TypeScript testing:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { CascadeAgent } from './agent';
+
+describe('CascadeAgent', () => {
+  it('should initialize with models', () => {
+    const agent = new CascadeAgent({
+      models: [
+        { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+      ],
+    });
+
+    expect(agent).toBeDefined();
+    expect(agent.models).toHaveLength(1);
+  });
+
+  it('should run a query', async () => {
+    const agent = new CascadeAgent({
+      models: [
+        { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+      ],
+    });
+
+    const result = await agent.run('What is TypeScript?');
+
+    expect(result.content).toBeDefined();
+    expect(result.totalCost).toBeGreaterThan(0);
+  });
+});
+```
+
+---
+
+## TypeScript Building
+
+### Build Commands
+
+```bash
+# Build for production
+pnpm --filter @cascadeflow/core build
+
+# Build in development mode (with watch)
+pnpm --filter @cascadeflow/core dev
+
+# Clean build artifacts
+pnpm --filter @cascadeflow/core clean
+```
+
+### Build Output
+
+The build creates multiple formats:
+- **CommonJS** (`dist/index.js`) - For Node.js
+- **ESM** (`dist/index.mjs`) - For modern bundlers
+- **Type Definitions** (`dist/index.d.ts`) - For TypeScript users
+
+### Package Publishing
+
+Before publishing:
+
+1. Update version in `package.json`
+2. Build the package: `pnpm build`
+3. Test the build: `pnpm test`
+4. Check types: `pnpm typecheck`
+5. Publish: `npm publish` (maintainers only)
 
 ---
 
@@ -152,9 +376,9 @@ git commit -m "docs: update installation guide"
 
 ---
 
-## Code Formatting
+## Python Code Formatting
 
-**⚠️ IMPORTANT: Always format your code before committing!**
+**⚠️ IMPORTANT: Always format your Python code before committing!**
 
 We use automated formatting tools to maintain consistent code style across the project.
 
@@ -263,7 +487,7 @@ pre-commit install
 
 ---
 
-## Testing
+## Python Testing
 
 ### Running Tests
 
@@ -321,7 +545,7 @@ async def test_agent_run():
 
 ---
 
-## Code Style
+## Python Code Style
 
 ### Formatting
 
@@ -333,7 +557,7 @@ We use automated tools to maintain consistent code style. **Always run the forma
 scripts\format_code.bat   # Windows
 ```
 
-See the [Code Formatting](#code-formatting) section for details.
+See the [Python Code Formatting](#python-code-formatting) section for details.
 
 ### Style Guidelines
 
@@ -542,7 +766,7 @@ Any mockups, examples, or related features?
 
 ## Quick Reference
 
-### Common Commands
+### Python Commands
 
 ```bash
 # Setup
@@ -561,8 +785,33 @@ pytest --cov=cascadeflow       # With coverage
 black --check cascadeflow/     # Check formatting
 ruff check cascadeflow/        # Check linting
 mypy cascadeflow/              # Check types
+```
 
-# Git workflow
+### TypeScript Commands
+
+```bash
+# Setup
+pnpm install                   # Install dependencies
+
+# Build
+pnpm --filter @cascadeflow/core build   # Production build
+pnpm --filter @cascadeflow/core dev     # Development build (watch)
+
+# Test
+pnpm --filter @cascadeflow/core test         # Run all tests
+pnpm --filter @cascadeflow/core test:watch  # Watch mode
+
+# Check code
+pnpm --filter @cascadeflow/core lint       # Lint and auto-fix
+pnpm --filter @cascadeflow/core typecheck  # Type check
+
+# Clean
+pnpm --filter @cascadeflow/core clean      # Remove build artifacts
+```
+
+### Git Workflow (Both)
+
+```bash
 git checkout -b feature/name   # Create branch
 git add .                      # Stage changes
 git commit -m "feat: message"  # Commit with conventional format

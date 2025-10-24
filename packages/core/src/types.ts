@@ -83,6 +83,7 @@ export interface ProviderResponse {
   };
   finish_reason?: string;
   tool_calls?: ToolCall[];
+  logprobs?: number[]; // Log probabilities for confidence scoring
   raw?: any; // Provider-specific raw response
 }
 

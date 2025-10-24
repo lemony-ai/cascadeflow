@@ -7,10 +7,11 @@
  * ```typescript
  * import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
  *
+ * // Recommended: Claude Haiku + GPT-5
  * const agent = new CascadeAgent({
  *   models: [
- *     { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
- *     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 }
+ *     { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
+ *     { name: 'gpt-5', provider: 'openai', cost: 0.00125 }
  *   ]
  * });
  *
@@ -58,6 +59,18 @@ export type {
   StreamOptions,
 } from './streaming';
 
+// Quality validation
+export {
+  QualityValidator,
+  calculateConfidenceFromLogprobs,
+  estimateConfidenceFromContent,
+  DEFAULT_QUALITY_CONFIG as DEFAULT_QUALITY_VALIDATOR_CONFIG,
+} from './quality';
+export type {
+  QualityResult,
+  QualityConfig as QualityValidatorConfig,
+} from './quality';
+
 // Types
 export type {
   Provider as ProviderType,
@@ -83,6 +96,55 @@ export { TogetherProvider } from './providers/together';
 export { OllamaProvider } from './providers/ollama';
 export { HuggingFaceProvider, HuggingFaceEndpointType } from './providers/huggingface';
 export { VLLMProvider } from './providers/vllm';
+
+// Presets
+export {
+  PRESET_BEST_OVERALL,
+  PRESET_ULTRA_FAST,
+  PRESET_ULTRA_CHEAP,
+  PRESET_OPENAI_ONLY,
+  PRESET_ANTHROPIC_ONLY,
+  PRESET_FREE_LOCAL,
+  PRESETS,
+  createPreset,
+} from './presets';
+export type {
+  QualityMode,
+  PerformanceMode,
+  PresetConfig,
+  PresetName,
+} from './presets';
+
+// Validators (v0.1.2)
+export {
+  validateModel,
+  validateConfig,
+  testConnection,
+  testConnections,
+  validateSetup,
+} from './validators';
+export type {
+  ValidationError,
+  ValidationResult,
+  ConnectionTestResult,
+} from './validators';
+
+// Error classes (v0.1.2)
+export {
+  CascadeFlowError,
+  ConfigurationError,
+  ProviderError,
+  AuthenticationError,
+  RateLimitError,
+  QualityValidationError,
+  TimeoutError,
+  ToolExecutionError,
+  isCascadeFlowError,
+  isProviderError,
+  isConfigurationError,
+  isAuthenticationError,
+  isRateLimitError,
+} from './errors';
 
 // Version
 export const VERSION = '1.0.0';

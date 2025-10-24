@@ -6,16 +6,25 @@ Complete guide to using tools (function calling) with CascadeFlow.
 
 ## 📋 Table of Contents
 
+### **Basic (Getting Started)**
 1. [Introduction](#introduction)
 2. [Quick Start](#quick-start)
 3. [Core Concepts](#core-concepts)
 4. [Defining Tools](#defining-tools)
 5. [Tool Execution](#tool-execution)
 6. [Multi-Turn Conversations](#multi-turn-conversations)
+
+### **Advanced (Power Features)**
 7. [Tool Streaming](#tool-streaming)
 8. [Advanced Patterns](#advanced-patterns)
 9. [Best Practices](#best-practices)
 10. [Troubleshooting](#troubleshooting)
+
+---
+
+# Basic Usage
+
+Essential tool calling patterns for CascadeFlow.
 
 ---
 
@@ -443,6 +452,12 @@ Different providers use different formats for tool results:
 tool_result.to_provider_message("openai")   # OpenAI format
 tool_result.to_provider_message("anthropic") # Anthropic format
 ```
+
+---
+
+# Advanced Usage
+
+Power features for tool calling in production.
 
 ---
 

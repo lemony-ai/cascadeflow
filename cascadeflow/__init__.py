@@ -33,6 +33,8 @@ __license__ = "MIT"
 
 # ==================== CORE CONFIGURATION ====================
 
+import sys
+
 # Visual feedback for streaming (Phase 3)
 from cascadeflow.interface.visual_consumer import (
     SilentConsumer,  # NEW: Silent consumer (no visual)
@@ -49,19 +51,42 @@ from cascadeflow.telemetry.callbacks import CallbackData, CallbackEvent, Callbac
 # ==================== BACKWARD COMPATIBILITY (MUST BE EARLY) ====================
 # Set up backward compatibility BEFORE importing agent/providers
 # This allows old imports like: from cascadeflow.exceptions import ...
-from . import schema, core
-import sys
-sys.modules['cascadeflow.exceptions'] = schema.exceptions
-sys.modules['cascadeflow.result'] = schema.result
-sys.modules['cascadeflow.config'] = schema.config
-sys.modules['cascadeflow.execution'] = core.execution
-sys.modules['cascadeflow.speculative'] = core.cascade  # Old name
-sys.modules['cascadeflow.cascade'] = core.cascade      # New name (optional)
+from . import core, schema
+
+sys.modules["cascadeflow.exceptions"] = schema.exceptions
+sys.modules["cascadeflow.result"] = schema.result
+sys.modules["cascadeflow.config"] = schema.config
+sys.modules["cascadeflow.execution"] = core.execution
+sys.modules["cascadeflow.speculative"] = core.cascade  # Old name
+sys.modules["cascadeflow.cascade"] = core.cascade  # New name (optional)
 
 from .agent import CascadeAgent
 
-# Response caching (now in utils/)
-from .utils import ResponseCache
+# MVP Speculative cascades with quality validation
+from .core.cascade import (
+    SpeculativeCascade,  # Legacy wrapper (for compatibility)
+    SpeculativeResult,  # Result object
+    WholeResponseCascade,  # NEW: MVP whole-response cascade
+)
+
+# Execution planning with domain detection
+from .core.execution import (
+    DomainDetector,
+    ExecutionPlan,
+    ExecutionStrategy,
+    LatencyAwareExecutionPlanner,
+    ModelScorer,
+)
+from .providers import PROVIDER_REGISTRY, BaseProvider, ModelResponse
+
+# Quality validation (NEW in MVP)
+from .quality import (
+    AdaptiveThreshold,  # Adaptive threshold learning
+    ComparativeValidator,  # Optional comparative validation
+    QualityConfig,  # Quality configuration profiles
+    QualityValidator,  # Quality validation logic
+    ValidationResult,  # Validation result object
+)
 
 # Original config classes
 from .schema.config import (
@@ -85,36 +110,7 @@ from .schema.exceptions import (
     RoutingError,
     ValidationError,
 )
-
-# Execution planning with domain detection
-from .core.execution import (
-    DomainDetector,
-    ExecutionPlan,
-    ExecutionStrategy,
-    LatencyAwareExecutionPlanner,
-    ModelScorer,
-)
-
-# Smart presets for easy setup (now in utils/)
-from .utils import CascadePresets
-from .providers import PROVIDER_REGISTRY, BaseProvider, ModelResponse
-
-# Quality validation (NEW in MVP)
-from .quality import (
-    AdaptiveThreshold,  # Adaptive threshold learning
-    ComparativeValidator,  # Optional comparative validation
-    QualityConfig,  # Quality configuration profiles
-    QualityValidator,  # Quality validation logic
-    ValidationResult,  # Validation result object
-)
 from .schema.result import CascadeResult
-
-# MVP Speculative cascades with quality validation
-from .core.cascade import (
-    SpeculativeCascade,  # Legacy wrapper (for compatibility)
-    SpeculativeResult,  # Result object
-    WholeResponseCascade,  # NEW: MVP whole-response cascade
-)
 
 # Streaming support (Phase 2)
 from .streaming import (
@@ -124,7 +120,25 @@ from .streaming import (
 )
 
 # Utilities (now in utils/)
-from .utils import estimate_tokens, format_cost, setup_logging
+# Smart presets for easy setup (now in utils/)
+# Response caching (now in utils/)
+from .utils import (
+    PRESET_ANTHROPIC_ONLY,
+    PRESET_BEST_OVERALL,
+    PRESET_FREE_LOCAL,
+    PRESET_OPENAI_ONLY,
+    PRESET_ULTRA_CHEAP,
+    PRESET_ULTRA_FAST,
+    PRESETS,
+    CascadePresets,
+    PerformanceMode,
+    QualityMode,
+    ResponseCache,
+    create_preset,
+    estimate_tokens,
+    format_cost,
+    setup_logging,
+)
 
 # ==================== MAIN AGENT & RESULT ====================
 
@@ -132,14 +146,7 @@ from .utils import estimate_tokens, format_cost, setup_logging
 # ==================== INTELLIGENCE LAYER ====================
 
 
-
-
-
 # ==================== SUPPORTING FEATURES ====================
-
-
-
-
 
 
 # ==================== PROVIDERS ====================
@@ -202,6 +209,16 @@ __all__ = [
     "TerminalVisualConsumer",  # NEW: Phase 3
     "SilentConsumer",  # NEW: Phase 3
     "CascadePresets",
+    "PRESET_BEST_OVERALL",  # NEW: v0.1.1
+    "PRESET_ULTRA_FAST",  # NEW: v0.1.1
+    "PRESET_ULTRA_CHEAP",  # NEW: v0.1.1
+    "PRESET_OPENAI_ONLY",  # NEW: v0.1.1
+    "PRESET_ANTHROPIC_ONLY",  # NEW: v0.1.1
+    "PRESET_FREE_LOCAL",  # NEW: v0.1.1
+    "PRESETS",  # NEW: v0.1.1
+    "create_preset",  # NEW: v0.1.1
+    "QualityMode",  # NEW: v0.1.1
+    "PerformanceMode",  # NEW: v0.1.1
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",

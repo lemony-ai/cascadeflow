@@ -63,12 +63,35 @@ export interface ModelConfig {
 
 /**
  * Quality configuration for validation
+ *
+ * Controls how strictly the cascade validates draft responses before accepting them.
+ * Higher thresholds mean more responses will be escalated to better models.
+ *
+ * @example Basic quality config
+ * ```typescript
+ * const config: QualityConfig = {
+ *   threshold: 0.8,  // Higher = stricter (more escalations)
+ *   requireMinimumTokens: 10  // Reject very short responses
+ * };
+ * ```
+ *
+ * @example Adaptive thresholds by complexity
+ * ```typescript
+ * const config: QualityConfig = {
+ *   confidenceThresholds: {
+ *     simple: 0.6,    // Lower bar for simple queries
+ *     moderate: 0.7,  // Medium bar
+ *     complex: 0.8,   // High bar for complex queries
+ *     expert: 0.9     // Very high bar for expert-level
+ *   }
+ * };
+ * ```
  */
 export interface QualityConfig {
-  /** Minimum confidence threshold to accept result (0-1) */
+  /** Minimum confidence threshold to accept result (0-1, default: 0.7) */
   threshold?: number;
 
-  /** Confidence thresholds by complexity level */
+  /** Confidence thresholds by complexity level (overrides global threshold) */
   confidenceThresholds?: {
     simple?: number;
     moderate?: number;
@@ -76,56 +99,134 @@ export interface QualityConfig {
     expert?: number;
   };
 
-  /** Require minimum response length in tokens */
+  /** Require minimum response length in tokens (default: 10) */
   requireMinimumTokens?: number;
 
-  /** Enable validation */
+  /** Enable quality validation (default: true) */
   requireValidation?: boolean;
 
-  /** Enable adaptive thresholds */
+  /** Enable adaptive thresholds based on query complexity (default: false) */
   enableAdaptive?: boolean;
 }
 
 /**
  * Cascade configuration
+ *
+ * Advanced settings for controlling cascade behavior, cost limits, retries, and logging.
+ * Most users should use presets instead of manually configuring these settings.
+ *
+ * @example Basic cascade config
+ * ```typescript
+ * const config: CascadeConfig = {
+ *   maxBudget: 0.10,  // Max $0.10 per query
+ *   maxRetries: 3,    // Retry failed requests 3 times
+ *   trackCosts: true  // Track detailed cost metrics
+ * };
+ * ```
+ *
+ * @example Production config with quality settings
+ * ```typescript
+ * const config: CascadeConfig = {
+ *   quality: {
+ *     threshold: 0.8,
+ *     requireMinimumTokens: 20
+ *   },
+ *   maxBudget: 0.25,
+ *   timeout: 60,
+ *   trackMetrics: true,
+ *   verbose: false
+ * };
+ * ```
  */
 export interface CascadeConfig {
-  /** Quality configuration */
+  /** Quality validation configuration */
   quality?: QualityConfig;
 
-  /** Maximum budget per query in USD */
+  /** Maximum budget per query in USD (default: no limit) */
   maxBudget?: number;
 
-  /** Enable cost tracking */
+  /** Enable detailed cost tracking (default: true) */
   trackCosts?: boolean;
 
-  /** Maximum retries per model */
+  /** Maximum retries per model on failure (default: 0) */
   maxRetries?: number;
 
-  /** Timeout per model call in seconds */
+  /** Timeout per model call in seconds (default: 60) */
   timeout?: number;
 
-  /** Routing strategy */
+  /** Routing strategy: 'cost', 'quality', 'speed' (default: 'cost') */
   routingStrategy?: RoutingStrategy;
 
-  /** Use speculative cascades */
+  /** Enable speculative cascade execution (default: false, experimental) */
   useSpeculative?: boolean;
 
-  /** Verbose logging */
+  /** Enable verbose logging for debugging (default: false) */
   verbose?: boolean;
 
-  /** Track metrics */
+  /** Track detailed performance metrics (default: true) */
   trackMetrics?: boolean;
 }
 
 /**
  * Agent configuration combining models and cascade settings
+ *
+ * This is the main configuration interface for creating a CascadeAgent.
+ * You can either configure manually or use presets (recommended).
+ *
+ * @example Using presets (recommended)
+ * ```typescript
+ * import { CascadeAgent, PRESET_BEST_OVERALL } from '@cascadeflow/core';
+ *
+ * const agent = new CascadeAgent(PRESET_BEST_OVERALL);
+ * ```
+ *
+ * @example Manual configuration
+ * ```typescript
+ * import { CascadeAgent, ModelConfig, AgentConfig } from '@cascadeflow/core';
+ *
+ * const config: AgentConfig = {
+ *   models: [
+ *     { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+ *     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 }
+ *   ]
+ * };
+ *
+ * const agent = new CascadeAgent(config);
+ * ```
+ *
+ * @example With quality settings
+ * ```typescript
+ * const config: AgentConfig = {
+ *   models: [...],
+ *   quality: {
+ *     threshold: 0.8,
+ *     requireMinimumTokens: 20
+ *   }
+ * };
+ * ```
+ *
+ * @example With full cascade config
+ * ```typescript
+ * const config: AgentConfig = {
+ *   models: [...],
+ *   cascade: {
+ *     maxBudget: 0.10,
+ *     timeout: 30,
+ *     trackMetrics: true,
+ *     quality: { threshold: 0.75 }
+ *   }
+ * };
+ * ```
+ *
+ * @see {ModelConfig} for model configuration options
+ * @see {QualityConfig} for quality validation settings
+ * @see {CascadeConfig} for advanced cascade settings
  */
 export interface AgentConfig {
-  /** Array of model configurations (ordered by cost: cheap → expensive) */
+  /** Array of model configurations (will be automatically sorted by cost) */
   models: ModelConfig[];
 
-  /** Optional cascade configuration */
+  /** Optional cascade configuration (advanced settings) */
   cascade?: CascadeConfig;
 
   /** Optional quality configuration (shorthand for cascade.quality) */

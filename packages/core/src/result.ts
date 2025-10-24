@@ -7,12 +7,81 @@ import type { ToolCall } from './types';
 /**
  * Comprehensive result from cascade agent execution
  *
- * @example
+ * Contains the generated content plus detailed metrics about costs, latency,
+ * quality validation, and cascade behavior.
+ *
+ * @example Basic usage
  * ```typescript
  * const result = await agent.run('What is TypeScript?');
+ * console.log(result.content);  // Generated response
  * console.log(`Model: ${result.modelUsed}`);
- * console.log(`Cost: $${result.totalCost}`);
+ * console.log(`Cost: $${result.totalCost.toFixed(6)}`);
+ * ```
+ *
+ * @example Cascade metrics
+ * ```typescript
+ * const result = await agent.run('Explain quantum computing');
+ *
+ * if (result.cascaded) {
+ *   console.log(`Draft model: ${result.draftModel}`);
+ *   console.log(`Draft accepted: ${result.draftAccepted}`);
+ *
+ *   if (!result.draftAccepted) {
+ *     console.log(`Escalated to: ${result.verifierModel}`);
+ *     console.log(`Reason: ${result.rejectionReason}`);
+ *   }
+ * }
+ * ```
+ *
+ * @example Cost and savings
+ * ```typescript
+ * const result = await agent.run(query);
+ *
+ * console.log(`Total cost: $${result.totalCost.toFixed(6)}`);
+ * console.log(`Cost saved: $${result.costSaved?.toFixed(6)}`);
  * console.log(`Savings: ${result.savingsPercentage}%`);
+ *
+ * if (result.draftCost && result.verifierCost) {
+ *   console.log(`Draft: $${result.draftCost.toFixed(6)}`);
+ *   console.log(`Verifier: $${result.verifierCost.toFixed(6)}`);
+ * }
+ * ```
+ *
+ * @example Latency breakdown
+ * ```typescript
+ * const result = await agent.run(query);
+ *
+ * const providerLatency = (result.draftLatencyMs || 0) + (result.verifierLatencyMs || 0);
+ * const cascadeOverhead = result.latencyMs - providerLatency;
+ *
+ * console.log(`Total latency: ${result.latencyMs}ms`);
+ * console.log(`Provider API: ${providerLatency}ms (${(providerLatency/result.latencyMs*100).toFixed(1)}%)`);
+ * console.log(`Cascade overhead: ${cascadeOverhead}ms (${(cascadeOverhead/result.latencyMs*100).toFixed(1)}%)`);
+ * ```
+ *
+ * @example Quality metrics
+ * ```typescript
+ * const result = await agent.run(query);
+ *
+ * console.log(`Quality score: ${result.qualityScore}`);
+ * console.log(`Threshold: ${result.qualityThreshold}`);
+ * console.log(`Quality passed: ${result.qualityCheckPassed}`);
+ *
+ * if (!result.qualityCheckPassed) {
+ *   console.log(`Rejection reason: ${result.rejectionReason}`);
+ * }
+ * ```
+ *
+ * @example Tool calls
+ * ```typescript
+ * const result = await agent.run('What\'s the weather?', { tools: [...] });
+ *
+ * if (result.hasToolCalls && result.toolCalls) {
+ *   for (const call of result.toolCalls) {
+ *     console.log(`Tool: ${call.name}`);
+ *     console.log(`Args: ${JSON.stringify(call.arguments)}`);
+ *   }
+ * }
  * ```
  */
 export interface CascadeResult {
