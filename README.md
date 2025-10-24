@@ -25,7 +25,7 @@
 
 40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
 
-*CascadeFlow fixes this with intelligent model cascading, available as both Python and TypeScript Library.*
+*CascadeFlow fixes this with intelligent model cascading, available in Python and TypeScript.*
 
 ```python
 pip install cascadeflow
@@ -113,7 +113,7 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 
 ## **🚀 Quick Start**
 
-**Your First Cascade**
+### **Your First Cascade**
 
 <img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> **Python**
 
@@ -371,6 +371,7 @@ We ❤️ contributions!
 - **User Tier Management** - Cost controls and limits per user tier with advanced routing
 - **Semantic Quality Validators** - Optional lightweight local quality scoring (200MB CPU model, no external API calls)
 - **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
+- **Domain Aware Cascading** - Multi-stage pipelines tailored to specific domains
 - **Benchmark Report**s
 
 ---
