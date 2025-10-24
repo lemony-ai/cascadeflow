@@ -1,9 +1,9 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../../../.github/assets/CF_logo_dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="../../../.github/assets/CF_logo_bright.svg">
-  <img alt="CascadeFlow Logo" src="../../../.github/assets/CF_logo_bright.svg" width="400">
+  <source media="(prefers-color-scheme: dark)" srcset="../../../.github/assets/CF_logo_bright.svg">
+  <source media="(prefers-color-scheme: light)" srcset="../../../.github/assets/CF_logo_dark.svg">
+  <img alt="CascadeFlow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="400">
 </picture>
 
 # n8n-nodes-cascadeflow

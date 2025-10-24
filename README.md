@@ -1,9 +1,9 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_logo_dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_logo_bright.svg">
-  <img alt="CascadeFlow Logo" src=".github/assets/CF_logo_bright.svg" width="400">
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_logo_bright.svg">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_logo_dark.svg">
+  <img alt="CascadeFlow Logo" src=".github/assets/CF_logo_dark.svg" width="400">
 </picture>
 
 # Smart AI model cascading for cost optimization
@@ -35,7 +35,7 @@ pip install cascadeflow
 npm install @cascadeflow/core
 ```
 
-## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_dark.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_bright.svg"><img src=".github/assets/CF_icon_bright.svg" width="24" height="24" alt="CascadeFlow"></picture> Why use CascadeFlow?
+## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_bright.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_dark.svg"><img src=".github/assets/CF_icon_dark.svg" width="24" height="24" alt="CascadeFlow"></picture> Why use CascadeFlow?
 
 ---
 
@@ -51,7 +51,7 @@ Use CascadeFlow for:
 
 > **ℹ️ Note:** SLMs (under 10B parameters) are sufficiently powerful for 60-70% of agentic AI tasks. [Research paper](https://www.researchgate.net/publication/392371267_Small_Language_Models_are_the_Future_of_Agentic_AI)
 
-## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_dark.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_bright.svg"><img src=".github/assets/CF_icon_bright.svg" width="24" height="24" alt="CascadeFlow"></picture> How CascadeFlow works
+## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_bright.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_dark.svg"><img src=".github/assets/CF_icon_dark.svg" width="24" height="24" alt="CascadeFlow"></picture> How CascadeFlow works
 
 ---
 
