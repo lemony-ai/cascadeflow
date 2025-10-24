@@ -35,6 +35,8 @@ pip install cascadeflow
 npm install @cascadeflow/core
 ```
 
+---
+
 ## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_bright.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_dark.svg"><img src=".github/assets/CF_icon_dark.svg" width="24" height="24" alt="CascadeFlow"></picture> Why use CascadeFlow?
 
 CascadeFlow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, CascadeFlow automatically escalates to flagship models if needed.
@@ -48,6 +50,8 @@ Use CascadeFlow for:
 - **Edge & Local-Hosted AI Deployment.** Use best of both worlds: handle most queries with local models (vLLM, Ollama), then automatically escalate complex queries to cloud providers only when needed.
 
 > **ℹ️ Note:** SLMs (under 10B parameters) are sufficiently powerful for 60-70% of agentic AI tasks. [Research paper](https://www.researchgate.net/publication/392371267_Small_Language_Models_are_the_Future_of_Agentic_AI)
+
+---
 
 ## <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_icon_bright.svg"><source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_icon_dark.svg"><img src=".github/assets/CF_icon_dark.svg" width="24" height="24" alt="CascadeFlow"></picture> How CascadeFlow works
 
@@ -104,6 +108,8 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
 
 ## **🚀 Quick Start**
 
@@ -190,6 +196,8 @@ result = await agent.run("What's 2+2?")
 
 📊 [**Cost Tracking Guide →**](./docs/guides/)
 
+---
+
 ## <img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/> **n8n Integration**
 
 Use CascadeFlow in n8n workflows for no-code AI automation with automatic cost optimization!
@@ -228,6 +236,8 @@ Configure CascadeFlow node:
 - ✅ Easy debugging with metrics
 
 🔌 [**n8n Integration Guide →**](./packages/integrations/n8n/)
+
+---
 
 ## **📚 Resources**
 
@@ -324,6 +334,8 @@ Configure CascadeFlow node:
 
 📚 **[View All Documentation →](./docs/)**
 
+---
+
 ## **✨ Features**
 
 | **Feature** | **Benefit** |
@@ -339,18 +351,21 @@ Configure CascadeFlow node:
 | 🚀 3**-Line Integration** | Zero architecture changes needed |
 | 🏭 **Production Ready** | Streaming, caching, error handling, monitoring |
 
+---
 ## **📜 License**
 
 MIT ©  see [LICENSE](https://github.com/lemony-ai/cascadeflow/blob/main/LICENSE) file.
 
 Free for commercial use. Attribution appreciated but not required.
 
+---
 ## **🙏 Contributing**
 
 We ❤️ contributions!
 
 📝 [**Contributing Guide**](./CONTRIBUTING.md) - Python & TypeScript development setup
 
+---
 ## **🎯 Roadmap**
 
 - **User Tier Management** - Cost controls and limits per user tier with advanced routing
@@ -358,12 +373,14 @@ We ❤️ contributions!
 - **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
 - **Benchmark Report**s
 
+---
 ## **🤝 Support**
 
 - 📖 [**GitHub Discussions**](https://github.com/lemony-ai/cascadeflow/discussions) - Searchable Q&A
 - 🐛 [**GitHub Issues**](https://github.com/lemony-ai/cascadeflow/issues) - Bug reports & feature requests
 - 📧 [**Email Support**](mailto:hello@lemony.ai) - Direct support
 
+---
 ## **📝 Citation**
 
 If you use CascadeFlow in your research or project, please cite:
@@ -390,6 +407,7 @@ npm install @cascadeflow/core
 
 [Read the Docs](https://docs.lemony.ai/cascadeflow) • [View Examples](https://github.com/lemony-ai/cascadeflow/tree/main/examples) • Star us!
 
+---
 
 ### **Built with ❤️ by [Lemony Inc.](https://lemony.ai/) and the CascadeFlow Community**
 
