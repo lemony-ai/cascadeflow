@@ -251,6 +251,29 @@ class WholeResponseCascade:
         else:
             self.complexity_detector = None
 
+        # SEMANTIC QUALITY CHECKER (ML-based, optional)
+        try:
+            from ..quality.semantic import SemanticQualityChecker
+            from ..ml.embedding import UnifiedEmbeddingService
+
+            # Create shared embedding service for all ML features
+            self.embedder = UnifiedEmbeddingService()
+
+            if self.embedder.is_available:
+                self.semantic_quality_checker = SemanticQualityChecker(
+                    embedder=self.embedder,
+                    similarity_threshold=quality_config.quality_thresholds.get("similarity", 0.5),
+                    use_cache=True,
+                )
+                if self.verbose:
+                    logger.info("✅ Semantic quality checking enabled (ML)")
+            else:
+                self.semantic_quality_checker = None
+                self.embedder = None
+        except ImportError:
+            self.semantic_quality_checker = None
+            self.embedder = None
+
         # PHASE 4 TOOL ROUTING (NEW)
         if TOOL_ROUTING_AVAILABLE:
             self.tool_complexity_analyzer = ToolComplexityAnalyzer()
@@ -1266,6 +1289,30 @@ class WholeResponseCascade:
         )
 
         passed = getattr(validation_result, "passed", False)
+
+        # Additional semantic quality check if available
+        if passed and self.semantic_quality_checker and self.semantic_quality_checker.is_available():
+            try:
+                semantic_result = self.semantic_quality_checker.validate(
+                    query=query,
+                    response=draft_content,
+                    check_toxicity=True,
+                )
+
+                if not semantic_result.passed:
+                    # Semantic check failed → reject draft
+                    passed = False
+                    # Update validation result reason
+                    if hasattr(validation_result, "reason"):
+                        validation_result.reason = f"semantic_check_failed: {semantic_result.reason}"
+                    if self.verbose:
+                        logger.info(
+                            f"❌ Draft rejected by semantic quality check: {semantic_result.reason} "
+                            f"(similarity={semantic_result.similarity:.2f})"
+                        )
+            except Exception as e:
+                # Don't fail the whole cascade if semantic check errors
+                logger.warning(f"Semantic quality check failed: {e}")
 
         return passed, validation_result, complexity
 
