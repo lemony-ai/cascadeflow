@@ -1,32 +1,68 @@
 # CascadeFlow Documentation
 
-Welcome to CascadeFlow! 🌊
+Welcome to CascadeFlow documentation! 🌊
 
-## Quick Links
+## 📖 Quick Links
 
 - [Installation Guide](INSTALLATION.md)
 - [Quick Start Guide](guides/quickstart.md)
-- [Contributing](CONTRIBUTING.md)
+- [GPT-5 Setup Guide](GPT-5-SETUP.md)
+- [Model Availability](MODEL-AVAILABILITY.md)
+- [TypeScript vs Python Comparison](TYPESCRIPT_PYTHON_COMPARISON.md)
 
-## User Guides
+## 🚀 Getting Started
 
-- [Basic Usage](guides/quickstart.md)
-- [Configuration Options](guides/configuration.md)
-- [User Tiers](guides/user-tiers.md)
-- [Deployment](guides/deployment.md)
+### Core Concepts
+- [Quickstart](guides/quickstart.md) - Get started with CascadeFlow in 5 minutes
+- [Providers](guides/providers.md) - Configure and use different AI providers (OpenAI, Anthropic, Groq, Ollama, etc.)
+- [Presets](guides/presets.md) - Use built-in presets for common use cases
 
-## API Reference
+### Core Features
+- [Streaming](guides/streaming.md) - Stream responses from cascade agents
+- [Tools](guides/tools.md) - Function calling and tool usage with cascades
+- [Cost Tracking](guides/cost_tracking.md) - Track and analyze API costs across queries
 
-- [CascadeAgent](api/agent.md)
-- [Providers](api/providers.md)
-- [Configuration](api/config.md)
-- [Quality System](api/quality.md)
+## 🏭 Production & Advanced
 
-## Examples
+### Production Deployment
+- [Production Guide](guides/production.md) - Best practices for production deployments
+- [Performance Guide](guides/performance.md) - Optimize cascade performance and latency
+- [FastAPI Integration](guides/fastapi.md) - Integrate CascadeFlow with FastAPI applications
 
-See the [examples/](../examples/) directory for working code samples.
+### Advanced Topics
+- [Custom Cascades](guides/custom_cascade.md) - Build custom cascade strategies
+- [Custom Validation](guides/custom_validation.md) - Implement custom quality validators
+- [Edge Device Deployment](guides/edge_device.md) - Deploy cascades on edge devices (Jetson, etc.)
+- [Browser/Edge Runtime](guides/browser_cascading.md) - Run cascades in browser or edge environments
 
-## Need Help?
+### Integrations
+- [n8n Integration](guides/n8n_integration.md) - Use CascadeFlow in n8n workflows
 
-- [GitHub Issues](https://github.com/lemony-ai/cascadeflow/issues)
-- [Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
+## 📚 Examples
+
+See the [examples/](../examples/) directory for comprehensive working code samples:
+
+**Python Examples:**
+- Basic usage, preset usage, multi-provider
+- Tool execution, streaming, cost tracking
+- Production patterns, FastAPI integration
+- Edge device deployment, vLLM integration
+- Custom cascades and validation
+
+**TypeScript Examples:**
+- Basic usage, tool calling, multi-provider
+- Streaming responses
+- Production patterns
+- Browser/Vercel Edge deployment
+
+## 🤝 Need Help?
+
+- 📖 [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions) - Q&A and community support
+- 🐛 [GitHub Issues](https://github.com/lemony-ai/cascadeflow/issues) - Bug reports and feature requests
+- 📧 [Email Support](mailto:hello@lemony.ai) - Direct support
+
+## 📦 API Reference
+
+Coming soon: Detailed API documentation for all classes and methods.
+
+For now, see the comprehensive examples and inline documentation in the source code.
