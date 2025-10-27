@@ -47,7 +47,7 @@
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.42.0",
     "eslint-plugin-n8n-nodes-base": "^1.11.0",
-    "gulp": "^4.0.2",
+    "gulp": "^5.0.1",
     "n8n-workflow": "^1.0.0",
     "prettier": "^2.7.1",
     "typescript": "^5.1.6"
