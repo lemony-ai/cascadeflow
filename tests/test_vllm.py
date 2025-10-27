@@ -140,6 +140,69 @@ class TestVLLMProvider:
             assert len(models) == 2
             assert "meta-llama/Llama-3-8B-Instruct" in models
 
+    # ============================================================================
+    # NEW TESTS: Local Providers Enhancement
+    # ============================================================================
+
+    def test_init_with_api_key_parameter(self):
+        """Test initialization with API key parameter for remote servers."""
+        provider = VLLMProvider(api_key="test-vllm-key-123")
+        assert provider.api_key == "test-vllm-key-123"
+        # Verify Authorization header is set
+        assert "Authorization" in provider.client.headers
+        assert provider.client.headers["Authorization"] == "Bearer test-vllm-key-123"
+
+    def test_init_with_api_key_from_env(self):
+        """Test API key loading from VLLM_API_KEY environment variable."""
+        with patch.dict(os.environ, {"VLLM_API_KEY": "env-vllm-key-456"}, clear=True):
+            provider = VLLMProvider()
+            assert provider.api_key == "env-vllm-key-456"
+            assert "Authorization" in provider.client.headers
+            assert provider.client.headers["Authorization"] == "Bearer env-vllm-key-456"
+
+    def test_init_local_deployment_example(self):
+        """Test configuration for local deployment (default)."""
+        provider = VLLMProvider()
+        assert provider.base_url == "http://localhost:8000/v1"
+        # No API key needed for local deployment
+        assert provider.api_key is None
+
+    def test_init_network_deployment_example(self):
+        """Test configuration for network deployment scenario."""
+        # Simulate network deployment (another machine on LAN)
+        with patch.dict(os.environ, {
+            "VLLM_BASE_URL": "http://192.168.1.200:8000/v1"
+        }, clear=True):
+            provider = VLLMProvider()
+            assert provider.base_url == "http://192.168.1.200:8000/v1"
+            # No API key needed for trusted network
+            assert provider.api_key is None
+
+    def test_init_remote_deployment_example(self):
+        """Test configuration for remote deployment with authentication."""
+        # Simulate remote deployment (external server with auth)
+        with patch.dict(os.environ, {
+            "VLLM_BASE_URL": "https://vllm.yourdomain.com/v1",
+            "VLLM_API_KEY": "secure-vllm-key-789"
+        }, clear=True):
+            provider = VLLMProvider()
+            assert provider.base_url == "https://vllm.yourdomain.com/v1"
+            assert provider.api_key == "secure-vllm-key-789"
+            assert provider.client.headers["Authorization"] == "Bearer secure-vllm-key-789"
+
+    def test_init_parameter_override_env(self):
+        """Test that constructor parameters override environment variables."""
+        with patch.dict(os.environ, {
+            "VLLM_BASE_URL": "http://env-server:8000/v1",
+            "VLLM_API_KEY": "env-key"
+        }, clear=True):
+            provider = VLLMProvider(
+                base_url="http://custom-server:8000/v1",
+                api_key="custom-key"
+            )
+            assert provider.base_url == "http://custom-server:8000/v1"
+            assert provider.api_key == "custom-key"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

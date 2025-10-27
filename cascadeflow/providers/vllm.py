@@ -95,8 +95,14 @@ class VLLMProvider(BaseProvider):
         Initialize vLLM provider with tool calling support.
 
         Args:
-            api_key: Optional API key (usually not needed for local vLLM)
-            base_url: vLLM server URL (default: http://localhost:8000/v1)
+            api_key: Optional API key for remote vLLM servers with authentication.
+                     Not needed for local installations. Can also be set via VLLM_API_KEY env var.
+            base_url: vLLM server URL. Defaults to http://localhost:8000/v1.
+                      Can also be set via VLLM_BASE_URL env var.
+                      Examples:
+                        - Local: http://localhost:8000/v1
+                        - Network: http://192.168.1.200:8000/v1
+                        - Remote: https://vllm.yourdomain.com/v1
             retry_config: Custom retry configuration (optional)
             timeout: Request timeout in seconds (default: 120s for large models)
         """

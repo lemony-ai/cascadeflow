@@ -100,8 +100,14 @@ class OllamaProvider(BaseProvider):
         Initialize Ollama provider with automatic retry logic.
 
         Args:
-            api_key: Not needed for Ollama (kept for interface compatibility)
-            base_url: Ollama server URL. Defaults to http://localhost:11434
+            api_key: Optional API key for remote Ollama servers with authentication.
+                     Not needed for local installations. Can also be set via OLLAMA_API_KEY env var.
+            base_url: Ollama server URL. Defaults to http://localhost:11434.
+                      Can also be set via OLLAMA_BASE_URL or OLLAMA_HOST env vars.
+                      Examples:
+                        - Local: http://localhost:11434
+                        - Network: http://192.168.1.100:11434
+                        - Remote: https://ollama.yourdomain.com
             retry_config: Custom retry configuration (optional). If None, uses defaults:
                 - max_attempts: 3
                 - initial_delay: 1.0s (longer delays work better for Ollama)
@@ -112,26 +118,36 @@ class OllamaProvider(BaseProvider):
         # Call parent init to load API key, check logprobs support, and setup retry
         super().__init__(api_key=api_key, retry_config=retry_config)
 
-        self.base_url = base_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        # Support both OLLAMA_BASE_URL (standard) and OLLAMA_HOST (legacy)
+        self.base_url = (
+            base_url
+            or os.getenv("OLLAMA_BASE_URL")
+            or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        )
         self.timeout = timeout
         self.keep_alive = keep_alive
 
-        # Initialize HTTP client (no auth needed for Ollama)
+        # Initialize HTTP client with optional auth for remote Ollama
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            # Support custom auth for remote/network Ollama servers
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
         self.client = httpx.AsyncClient(
-            timeout=self.timeout  # Generous timeout for local inference
+            headers=headers, timeout=self.timeout  # Generous timeout for local inference
         )
 
     def _load_api_key(self) -> Optional[str]:
         """
         Load API key from environment.
 
-        Ollama doesn't require an API key (runs locally).
-        This method exists for base class compatibility.
+        Ollama doesn't require an API key for local installations,
+        but may need one for remote/network deployments with authentication.
 
         Returns:
-            None - Ollama doesn't use API keys
+            API key from OLLAMA_API_KEY environment variable, or None
         """
-        return None
+        return os.getenv("OLLAMA_API_KEY")
 
     def _check_logprobs_support(self) -> bool:
         """

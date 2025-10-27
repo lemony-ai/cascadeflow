@@ -184,6 +184,70 @@ class TestOllamaProvider:
         # Should still return reasonable confidence
         assert 0 <= confidence <= 1
 
+    # ============================================================================
+    # NEW TESTS: Local Providers Enhancement
+    # ============================================================================
+
+    def test_init_from_ollama_base_url_env(self):
+        """Test initialization from OLLAMA_BASE_URL env var (standard)."""
+        with patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://network-ollama:11434"}, clear=True):
+            provider = OllamaProvider()
+            assert provider.base_url == "http://network-ollama:11434"
+
+    def test_init_env_var_priority(self):
+        """Test OLLAMA_BASE_URL takes priority over OLLAMA_HOST."""
+        with patch.dict("os.environ", {
+            "OLLAMA_BASE_URL": "http://priority:11434",
+            "OLLAMA_HOST": "http://fallback:11434"
+        }, clear=True):
+            provider = OllamaProvider()
+            assert provider.base_url == "http://priority:11434"
+
+    def test_init_ollama_host_fallback(self):
+        """Test OLLAMA_HOST is used when OLLAMA_BASE_URL not set."""
+        with patch.dict("os.environ", {"OLLAMA_HOST": "http://legacy:11434"}, clear=True):
+            provider = OllamaProvider()
+            assert provider.base_url == "http://legacy:11434"
+
+    def test_init_with_api_key_parameter(self):
+        """Test initialization with API key parameter for remote servers."""
+        provider = OllamaProvider(api_key="test-api-key-123")
+        assert provider.api_key == "test-api-key-123"
+        # Verify Authorization header is set
+        assert "Authorization" in provider.client.headers
+        assert provider.client.headers["Authorization"] == "Bearer test-api-key-123"
+
+    def test_init_with_api_key_from_env(self):
+        """Test API key loading from OLLAMA_API_KEY environment variable."""
+        with patch.dict("os.environ", {"OLLAMA_API_KEY": "env-api-key-456"}, clear=True):
+            provider = OllamaProvider()
+            assert provider.api_key == "env-api-key-456"
+            assert "Authorization" in provider.client.headers
+            assert provider.client.headers["Authorization"] == "Bearer env-api-key-456"
+
+    def test_init_network_deployment_example(self):
+        """Test configuration for network deployment scenario."""
+        # Simulate network deployment (another machine on LAN)
+        with patch.dict("os.environ", {
+            "OLLAMA_BASE_URL": "http://192.168.1.100:11434"
+        }, clear=True):
+            provider = OllamaProvider()
+            assert provider.base_url == "http://192.168.1.100:11434"
+            # No API key needed for trusted network
+            assert provider.api_key is None
+
+    def test_init_remote_deployment_example(self):
+        """Test configuration for remote deployment with authentication."""
+        # Simulate remote deployment (external server with auth)
+        with patch.dict("os.environ", {
+            "OLLAMA_BASE_URL": "https://ollama.example.com",
+            "OLLAMA_API_KEY": "secure-api-key-789"
+        }, clear=True):
+            provider = OllamaProvider()
+            assert provider.base_url == "https://ollama.example.com"
+            assert provider.api_key == "secure-api-key-789"
+            assert provider.client.headers["Authorization"] == "Bearer secure-api-key-789"
+
 
 # Integration test (requires Ollama to be running)
 @pytest.mark.integration
