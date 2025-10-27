@@ -7,7 +7,7 @@
   "dependencies": {
     "@cascadeflow/core": "workspace:*",
     "openai": "^4.73.1",
-    "@anthropic-ai/sdk": "^0.30.0",
+    "@anthropic-ai/sdk": "^0.67.0",
     "groq-sdk": "^0.5.0"
   },
   "devDependencies": {
