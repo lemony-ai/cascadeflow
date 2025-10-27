@@ -157,6 +157,10 @@ WORK_*.md
 /.marketing/
 MARKETING_GUIDE.md
 
+# Internal development documentation
+.github/COMMIT_POLICY.md
+.github/BRANCHING_STRATEGY.md
+
 # IDE files
 *.iml
 
