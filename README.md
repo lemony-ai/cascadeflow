@@ -20,7 +20,7 @@
 **[<img src=".github/assets/CF_python_color.svg" width="20" height="20" alt="Python"/> Python](#python) • [<img src=".github/assets/CF_ts_color.svg" width="20" height="20" alt="TypeScript"/> TypeScript](#typescript) • [<img src=".github/assets/CF_n8n_color.svg" width="20" height="20" alt="n8n"/> n8n](#n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
 
 </div>
-
+---
 **Stop Bleeding Money on AI Calls. Cut Costs 30-65% in 3 Lines of Code.**
 
 40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
@@ -77,6 +77,7 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │                                                             │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  Cascade Agent                                        │  │
+│  │                                                       │  │
 │  │  Orchestrates the entire cascade execution            │  │
 │  │  • Query routing & model selection                    │  │
 │  │  • Drafter -> Verifier coordination                   │  │
@@ -85,6 +86,7 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │                          ↓                                  │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  Quality Validation Engine                            │  │
+│  │                                                       │  │
 │  │  Multi-dimensional quality checks                     │  │
 │  │  • Length validation (too short/verbose)              │  │
 │  │  • Confidence scoring (logprobs analysis)             │  │
@@ -93,7 +95,8 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │  └───────────────────────────────────────────────────────┘  │
 │                          ↓                                  │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  Cascading Engine                                     │  │
+│  │  Cascading Engine                                     │  │ 
+│  │                                                       │  │
 │  │  Smart model escalation strategy                      │  │
 │  │  • Try cheap models first (speculative execution)     │  │
 │  │  • Validate quality instantly                         │  │
@@ -103,6 +106,7 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │                          ↓                                  │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  Provider Abstraction Layer                           │  │
+│  │                                                       │  │
 │  │  Unified interface for 7+ providers                   │  │
 │  │  • OpenAI • Anthropic • Groq • Ollama                 │  │
 │  │  • Together • vLLM • HuggingFace                      │  │
