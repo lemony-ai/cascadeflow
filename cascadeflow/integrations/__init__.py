@@ -14,9 +14,13 @@ try:
     from .litellm import (
         SUPPORTED_PROVIDERS,
         LiteLLMCostProvider,
+        LiteLLMBudgetTracker,
+        CascadeFlowLiteLLMCallback,
+        setup_litellm_callbacks,
         get_model_cost,
         calculate_cost,
         validate_provider,
+        get_provider_info,
     )
 
     LITELLM_AVAILABLE = True
@@ -24,9 +28,13 @@ except ImportError:
     LITELLM_AVAILABLE = False
     SUPPORTED_PROVIDERS = None
     LiteLLMCostProvider = None
+    LiteLLMBudgetTracker = None
+    CascadeFlowLiteLLMCallback = None
+    setup_litellm_callbacks = None
     get_model_cost = None
     calculate_cost = None
     validate_provider = None
+    get_provider_info = None
 
 __all__ = []
 
@@ -34,9 +42,13 @@ if LITELLM_AVAILABLE:
     __all__.extend([
         "SUPPORTED_PROVIDERS",
         "LiteLLMCostProvider",
+        "LiteLLMBudgetTracker",
+        "CascadeFlowLiteLLMCallback",
+        "setup_litellm_callbacks",
         "get_model_cost",
         "calculate_cost",
         "validate_provider",
+        "get_provider_info",
     ])
 
 # Integration capabilities
