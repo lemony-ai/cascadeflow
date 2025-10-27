@@ -63,6 +63,29 @@ except ImportError:
     CostEntry = None
     BudgetConfig = None
 
+# Import enforcement if available
+try:
+    from .enforcement import (
+        EnforcementAction,
+        EnforcementCallback,
+        EnforcementCallbacks,
+        EnforcementContext,
+        graceful_degradation,
+        strict_budget_enforcement,
+        tier_based_enforcement,
+    )
+
+    ENFORCEMENT_AVAILABLE = True
+except ImportError:
+    ENFORCEMENT_AVAILABLE = False
+    EnforcementAction = None
+    EnforcementCallback = None
+    EnforcementCallbacks = None
+    EnforcementContext = None
+    graceful_degradation = None
+    strict_budget_enforcement = None
+    tier_based_enforcement = None
+
 # Import callbacks if available
 try:
     from .callbacks import CallbackManager
@@ -86,6 +109,17 @@ __all__ = [
 if COST_TRACKER_AVAILABLE:
     __all__.extend(["CostTracker", "CostEntry", "BudgetConfig"])
 
+if ENFORCEMENT_AVAILABLE:
+    __all__.extend([
+        "EnforcementAction",
+        "EnforcementCallback",
+        "EnforcementCallbacks",
+        "EnforcementContext",
+        "graceful_degradation",
+        "strict_budget_enforcement",
+        "tier_based_enforcement",
+    ])
+
 if CALLBACKS_AVAILABLE:
     __all__.append("CallbackManager")
 
@@ -103,6 +137,7 @@ TELEMETRY_CAPABILITIES = {
     "metrics_collection": True,
     "cost_calculation": True,
     "cost_tracking": COST_TRACKER_AVAILABLE,
+    "enforcement": ENFORCEMENT_AVAILABLE,
     "callbacks": CALLBACKS_AVAILABLE,
 }
 
