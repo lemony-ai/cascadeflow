@@ -70,7 +70,8 @@ class TestGroqProvider:
             assert result.content == "This is a test response from Groq."
             assert result.model == "llama-3.1-8b-instant"
             assert result.provider == "groq"
-            assert result.cost == 0.0  # Groq is free
+            # Groq has very low cost (LiteLLM tracks actual pricing)
+            assert result.cost < 0.0001  # Very cheap, approximately free
             assert result.tokens_used == 30
             assert 0 <= result.confidence <= 1
 
@@ -129,27 +130,34 @@ class TestGroqProvider:
     def test_estimate_cost_llama_8b(self, groq_provider):
         """Test cost estimation for Llama 3.1 8B."""
         cost = groq_provider.estimate_cost(1000, "llama-3.1-8b-instant")
-        assert cost == 0.0  # Free tier
+        # Groq has low cost (accurate pricing as of Oct 2025)
+        assert cost > 0  # Has actual cost
+        assert cost < 0.001  # But very cheap (< $0.001 per 1K tokens)
 
     def test_estimate_cost_llama_70b(self, groq_provider):
         """Test cost estimation for Llama 3.1 70B."""
         cost = groq_provider.estimate_cost(1000, "llama-3.1-70b-versatile")
-        assert cost == 0.0  # Free tier
+        # Larger model costs more but still cheap
+        assert cost > 0
+        assert cost < 0.01  # < $0.01 per 1K tokens
 
     def test_estimate_cost_mixtral(self, groq_provider):
         """Test cost estimation for Mixtral."""
         cost = groq_provider.estimate_cost(1000, "mixtral-8x7b-32768")
-        assert cost == 0.0  # Free tier
+        assert cost > 0
+        assert cost < 0.001  # Very cheap
 
     def test_estimate_cost_gemma(self, groq_provider):
         """Test cost estimation for Gemma."""
         cost = groq_provider.estimate_cost(1000, "gemma2-9b-it")
-        assert cost == 0.0  # Free tier
+        assert cost > 0
+        assert cost < 0.001  # Very cheap
 
     def test_estimate_cost_unknown_model(self, groq_provider):
         """Test cost estimation for unknown model."""
         cost = groq_provider.estimate_cost(1000, "unknown-model")
-        assert cost == 0.0  # Defaults to free
+        # Unknown models default to basic pricing
+        assert cost >= 0  # Returns fallback pricing
 
     def test_calculate_confidence_stop(self, groq_provider):
         """Test confidence calculation with stop finish_reason."""

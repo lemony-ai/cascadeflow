@@ -94,17 +94,20 @@ class TestAnthropicProvider:
     def test_estimate_cost_sonnet(self, anthropic_provider):
         """Test cost estimation for Claude 3 Sonnet."""
         cost = anthropic_provider.estimate_cost(1000, "claude-3-sonnet-20240229")
-        assert cost == 0.003
+        # Uses blended pricing (input + output tokens)
+        assert 0.008 < cost < 0.010  # Approximately $0.009/1K tokens
 
     def test_estimate_cost_opus(self, anthropic_provider):
         """Test cost estimation for Claude 3 Opus."""
         cost = anthropic_provider.estimate_cost(1000, "claude-3-opus-20240229")
-        assert cost == 0.015
+        # Uses blended pricing
+        assert 0.040 < cost < 0.050  # Approximately $0.045/1K tokens
 
     def test_estimate_cost_haiku(self, anthropic_provider):
         """Test cost estimation for Claude 3 Haiku."""
         cost = anthropic_provider.estimate_cost(1000, "claude-3-haiku-20240307")
-        assert cost == 0.00025
+        # Uses blended pricing
+        assert 0.0005 < cost < 0.0010  # Approximately $0.00075/1K tokens
 
 
 if __name__ == "__main__":

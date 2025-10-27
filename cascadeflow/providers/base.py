@@ -233,6 +233,11 @@ class BaseProvider(ABC):
 
             self._litellm_cost_provider = LiteLLMCostProvider(fallback_enabled=False)
             self._use_litellm_pricing = True
+
+            # Determine if this provider needs a prefix for LiteLLM
+            # Providers that match LiteLLM's native format don't need prefixes
+            self._litellm_provider_prefix = self._get_litellm_prefix()
+
             logger.info(
                 f"LiteLLM detected - using accurate pricing for {self.__class__.__name__}"
             )
@@ -240,6 +245,7 @@ class BaseProvider(ABC):
             # LiteLLM not installed or not available - use fallback
             self._litellm_cost_provider = None
             self._use_litellm_pricing = False
+            self._litellm_provider_prefix = None
             logger.debug(
                 f"LiteLLM not available - using fallback pricing for {self.__class__.__name__}"
             )
@@ -609,6 +615,33 @@ class BaseProvider(ABC):
             f"Override _complete_with_tools_impl() to add support."
         )
 
+    def _get_litellm_prefix(self) -> Optional[str]:
+        """
+        Get the LiteLLM provider prefix for this provider.
+
+        LiteLLM expects model names in specific formats:
+        - openai: "gpt-4" (no prefix needed)
+        - anthropic: "claude-3-opus" (no prefix needed)
+        - groq: "groq/llama-3.1-8b-instant"
+        - together: "together_ai/..."
+        - huggingface: "huggingface/..."
+
+        Returns:
+            Provider prefix string or None if not needed
+        """
+        # Map provider class names to LiteLLM prefixes
+        provider_prefixes = {
+            "OpenAIProvider": None,  # Native format
+            "AnthropicProvider": None,  # Native format
+            "GroqProvider": "groq",
+            "TogetherProvider": "together_ai",
+            "HuggingFaceProvider": "huggingface",
+            "OllamaProvider": "ollama",
+            "VLLMProvider": "openai",  # vLLM uses OpenAI-compatible format
+        }
+
+        return provider_prefixes.get(self.__class__.__name__)
+
     @abstractmethod
     def estimate_cost(self, tokens: int, model: str) -> float:
         """
@@ -658,9 +691,16 @@ class BaseProvider(ABC):
         """
         if self._use_litellm_pricing and self._litellm_cost_provider:
             try:
+                # Prepend provider prefix if needed for LiteLLM
+                litellm_model = model
+                if self._litellm_provider_prefix:
+                    # Only add prefix if model doesn't already have it
+                    if not model.startswith(f"{self._litellm_provider_prefix}/"):
+                        litellm_model = f"{self._litellm_provider_prefix}/{model}"
+
                 # Use LiteLLM for accurate pricing
                 return self._litellm_cost_provider.calculate_cost(
-                    model=model,
+                    model=litellm_model,
                     input_tokens=prompt_tokens,
                     output_tokens=completion_tokens,
                 )
