@@ -5,6 +5,7 @@ MERGED VERSION: Combines existing fixes with NO-MODEL enhancements
 - Preserves all existing functionality
 - Adds optional enhancements (synonyms, important words, answer patterns)
 - Backward compatible with existing tests
+- Optional ML-based semantic alignment using embeddings
 
 CHANGELOG:
 - Oct 6, 2025 (v1): Word length filter changed from > 3 to > 2 characters
@@ -16,6 +17,7 @@ CHANGELOG:
 - Oct 20, 2025 (v7): PRODUCTION FIX - Smart filtering with number/abbreviation support
 - Oct 20, 2025 (v7.1): PERFORMANCE FIX - Replaced regex with split() (30-50% faster)
 - Oct 20, 2025 (v7.11): QUICK FIX - Fixed off-topic penalty for short valid answers
+- Oct 27, 2025 (v8): Added optional ML-based semantic alignment enhancement
 
 PRODUCTION TEST RESULTS:
 After v7.11:
@@ -33,6 +35,15 @@ CRITICAL FIX (v7.11):
 
 import re
 from dataclasses import dataclass
+from typing import Optional
+
+# Optional ML imports
+try:
+    from ..ml.embedding import UnifiedEmbeddingService
+    HAS_ML = True
+except ImportError:
+    HAS_ML = False
+    UnifiedEmbeddingService = None
 
 
 @dataclass
@@ -812,3 +823,115 @@ if __name__ == "__main__":
         print("⚠️  SOME TESTS FAILED")
         print("   Review failed tests above")
         sys.exit(1)
+
+
+# ============================================================================
+# SEMANTIC ALIGNMENT SCORING (ML-BASED)
+# ============================================================================
+
+class SemanticAlignmentScorer:
+    """
+    Optional ML-based alignment scorer using semantic embeddings.
+
+    Enhances the rule-based QueryResponseAlignmentScorer with semantic similarity.
+    Can be used standalone or combined for hybrid scoring.
+
+    Features:
+    - Semantic similarity between query and response
+    - Graceful degradation without FastEmbed
+    - Can enhance rule-based scores
+    - Shares UnifiedEmbeddingService with other ML features
+
+    Attributes:
+        embedder: UnifiedEmbeddingService for embeddings
+        is_available: Whether ML scoring is available
+    """
+
+    def __init__(
+        self,
+        embedder: Optional["UnifiedEmbeddingService"] = None,
+        similarity_weight: float = 0.5,
+    ):
+        """
+        Initialize semantic alignment scorer.
+
+        Args:
+            embedder: Optional UnifiedEmbeddingService (creates new if None)
+            similarity_weight: Weight for semantic similarity (0-1, default: 0.5)
+        """
+        self.similarity_weight = similarity_weight
+
+        # Use provided embedder or create new one
+        if embedder is not None:
+            self.embedder = embedder
+        elif HAS_ML:
+            self.embedder = UnifiedEmbeddingService()
+        else:
+            self.embedder = None
+
+        # Optional rule-based scorer for hybrid mode
+        self.rule_scorer = None
+
+        # Check availability
+        self.is_available = (
+            self.embedder is not None and
+            self.embedder.is_available
+        )
+
+    def score_alignment(
+        self,
+        query: str,
+        response: str,
+        use_hybrid: bool = False,
+    ) -> float:
+        """
+        Score semantic alignment between query and response.
+
+        Args:
+            query: Query text
+            response: Response text
+            use_hybrid: Whether to combine with rule-based (default: False)
+
+        Returns:
+            Alignment score (0-1)
+
+        Example:
+            >>> scorer = SemanticAlignmentScorer()
+            >>> if scorer.is_available:
+            ...     score = scorer.score_alignment(
+            ...         "What is Python?",
+            ...         "Python is a programming language"
+            ...     )
+            ...     print(f"Alignment: {score:.2%}")
+        """
+        if not self.is_available:
+            # Fall back to rule-based if requested
+            if use_hybrid and self.rule_scorer is None:
+                self.rule_scorer = QueryResponseAlignmentScorer()
+            if self.rule_scorer:
+                return self.rule_scorer.score(query, response)
+            return 0.5  # Neutral score
+
+        # Get semantic similarity
+        similarity = self.embedder.similarity(query, response)
+        if similarity is None:
+            similarity = 0.5
+
+        # Optionally combine with rule-based
+        if use_hybrid:
+            if self.rule_scorer is None:
+                self.rule_scorer = QueryResponseAlignmentScorer()
+
+            rule_score = self.rule_scorer.score(query, response)
+
+            # Weighted average: similarity_weight for ML, rest for rule-based
+            ml_weight = self.similarity_weight
+            rule_weight = 1.0 - self.similarity_weight
+
+            combined_score = (
+                similarity * ml_weight +
+                rule_score * rule_weight
+            )
+            return float(combined_score)
+
+        return float(similarity)
