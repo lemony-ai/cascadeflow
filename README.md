@@ -253,7 +253,7 @@ Configure CascadeFlow node:
 
 ### Examples
 
-**Python Examples:**
+**<img src=".github/assets/CF_python_color.svg" width="20" height="20" alt="Python" style="vertical-align: middle;"/> Python Examples:**
 
 <details open>
 <summary><b>Basic Examples</b> - Get started quickly</summary>
@@ -284,7 +284,7 @@ Configure CascadeFlow node:
 
 </details>
 
-**TypeScript Examples:**
+**<img src=".github/assets/CF_ts_color.svg" width="20" height="20" alt="TypeScript" style="vertical-align: middle;"/> TypeScript Examples:**
 
 <details open>
 <summary><b>Basic Examples</b> - Get started quickly</summary>
