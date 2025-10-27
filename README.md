@@ -206,9 +206,7 @@ result = await agent.run("What's 2+2?")
 
 ---
 
-## n8n Integration
-
-<img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/>
+## <img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/> n8n Integration
 
 Use CascadeFlow in n8n workflows for no-code AI automation with automatic cost optimization!
 
