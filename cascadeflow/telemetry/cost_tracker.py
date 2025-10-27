@@ -103,6 +103,7 @@ class CostTracker:
         warn_threshold: float = 0.8,
         verbose: bool = False,
         user_budgets: Optional[dict[str, BudgetConfig]] = None,
+        enforcement_mode: str = "warn",
     ):
         """
         Initialize cost tracker.
@@ -112,6 +113,7 @@ class CostTracker:
             warn_threshold: Warn when cost reaches this % of budget
             verbose: Enable verbose logging
             user_budgets: Optional per-user budget configs (NEW in v0.2.0)
+            enforcement_mode: Enforcement mode - 'warn', 'block', or 'degrade' (NEW in v0.2.0)
 
         Example:
             >>> # v0.1.1 style (backward compatible)
@@ -125,9 +127,17 @@ class CostTracker:
             ...     }
             ... )
         """
+        # Validate enforcement_mode
+        valid_modes = ("warn", "block", "degrade")
+        if enforcement_mode not in valid_modes:
+            raise ValueError(
+                f"Invalid enforcement_mode: {enforcement_mode}. Must be one of {valid_modes}"
+            )
+
         self.budget_limit = budget_limit
         self.warn_threshold = warn_threshold
         self.verbose = verbose
+        self.enforcement_mode = enforcement_mode
 
         # Cost tracking (v0.1.1 - backward compatible)
         self.total_cost = 0.0
@@ -495,6 +505,205 @@ class CostTracker:
                 users.append(user_id)
 
         return users
+
+    def can_afford(
+        self, user_id: str, estimated_cost: float, user_tier: Optional[str] = None
+    ) -> bool:
+        """
+        Check if user can afford estimated cost within their budget (NEW in v0.2.0).
+
+        Args:
+            user_id: User identifier
+            estimated_cost: Estimated cost of the request in USD
+            user_tier: Optional user tier name (required if using user_budgets)
+
+        Returns:
+            True if user can afford the cost, False otherwise
+
+        Example:
+            >>> tracker = CostTracker(user_budgets={"free": BudgetConfig(daily=0.10)})
+            >>> tracker.add_cost(..., user_id="user_1", user_tier="free", cost=0.08)
+            >>>
+            >>> # Check if user can afford $0.03 more
+            >>> if tracker.can_afford("user_1", 0.03, "free"):
+            ...     print("Can afford")
+            ... else:
+            ...     print("Would exceed budget")
+        """
+        # If no user_tier provided or no budgets configured, allow
+        if not user_tier or not self.user_budgets:
+            return True
+
+        # Get budget config for tier
+        budget_config = self.user_budgets.get(user_tier)
+        if not budget_config or not budget_config.has_any_limit():
+            return True  # No limits, always allow
+
+        # Get current user cost
+        current_cost = self.by_user.get(user_id, 0.0)
+        projected_cost = current_cost + estimated_cost
+
+        # Check against daily budget (most common)
+        if budget_config.daily is not None:
+            # Get daily period cost
+            if user_id in self.user_period_start and "daily" in self.user_period_start[user_id]:
+                period_start = self.user_period_start[user_id]["daily"]
+                from datetime import datetime
+
+                period_cost = self._get_user_period_cost(user_id, period_start, datetime.now())
+                projected_period_cost = period_cost + estimated_cost
+
+                if projected_period_cost > budget_config.daily:
+                    return False
+
+        # Check against total budget if no daily budget
+        elif budget_config.total is not None:
+            if projected_cost > budget_config.total:
+                return False
+
+        return True
+
+    def export_to_json(self, filepath: str) -> None:
+        """
+        Export cost tracking data to JSON file (NEW in v0.2.0).
+
+        Args:
+            filepath: Path to JSON file
+
+        Example:
+            >>> tracker.export_to_json("costs.json")
+        """
+        import json
+
+        data = {
+            "metadata": {
+                "budget_limit": self.budget_limit,
+                "enforcement_mode": self.enforcement_mode,
+                "total_cost": self.total_cost,
+                "total_entries": len(self.entries),
+            },
+            "by_model": dict(self.by_model),
+            "by_provider": dict(self.by_provider),
+            "by_user": dict(self.by_user),
+            "entries": [
+                {
+                    "timestamp": entry.timestamp.isoformat(),
+                    "model": entry.model,
+                    "provider": entry.provider,
+                    "tokens": entry.tokens,
+                    "cost": entry.cost,
+                    "query_id": entry.query_id,
+                    "metadata": entry.metadata,
+                }
+                for entry in self.entries
+            ],
+        }
+
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+
+        logger.info(f"Exported {len(self.entries)} entries to {filepath}")
+
+    def export_to_csv(self, filepath: str) -> None:
+        """
+        Export cost tracking data to CSV file (NEW in v0.2.0).
+
+        Args:
+            filepath: Path to CSV file
+
+        Example:
+            >>> tracker.export_to_csv("costs.csv")
+        """
+        import csv
+
+        with open(filepath, "w", newline="") as f:
+            writer = csv.writer(f)
+
+            # Header
+            writer.writerow(
+                [
+                    "timestamp",
+                    "model",
+                    "provider",
+                    "tokens",
+                    "cost",
+                    "query_id",
+                    "metadata",
+                ]
+            )
+
+            # Rows
+            for entry in self.entries:
+                writer.writerow(
+                    [
+                        entry.timestamp.isoformat(),
+                        entry.model,
+                        entry.provider,
+                        entry.tokens,
+                        entry.cost,
+                        entry.query_id or "",
+                        str(entry.metadata) if entry.metadata else "",
+                    ]
+                )
+
+        logger.info(f"Exported {len(self.entries)} entries to {filepath}")
+
+    def export_to_sqlite(self, filepath: str) -> None:
+        """
+        Export cost tracking data to SQLite database (NEW in v0.2.0).
+
+        Creates a 'cost_entries' table with all cost data.
+
+        Args:
+            filepath: Path to SQLite database file
+
+        Example:
+            >>> tracker.export_to_sqlite("costs.db")
+        """
+        import sqlite3
+        import json
+
+        conn = sqlite3.connect(filepath)
+        cursor = conn.cursor()
+
+        # Create table
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cost_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                model TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                tokens INTEGER,
+                cost REAL NOT NULL,
+                query_id TEXT,
+                metadata TEXT
+            )
+        """
+        )
+
+        # Insert entries
+        for entry in self.entries:
+            cursor.execute(
+                """
+                INSERT INTO cost_entries (timestamp, model, provider, tokens, cost, query_id, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    entry.timestamp.isoformat(),
+                    entry.model,
+                    entry.provider,
+                    entry.tokens,
+                    entry.cost,
+                    entry.query_id,
+                    json.dumps(entry.metadata) if entry.metadata else None,
+                ),
+            )
+
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Exported {len(self.entries)} entries to {filepath}")
 
     def reset(self) -> None:
         """Reset all cost tracking (v0.1.1 - backward compatible)."""

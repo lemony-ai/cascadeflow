@@ -86,6 +86,23 @@ except ImportError:
     strict_budget_enforcement = None
     tier_based_enforcement = None
 
+# Import degradation if available
+try:
+    from .degradation import (
+        DEFAULT_DEGRADATION_MAP,
+        estimate_cost_savings,
+        get_cheaper_model,
+        get_degradation_chain,
+    )
+
+    DEGRADATION_AVAILABLE = True
+except ImportError:
+    DEGRADATION_AVAILABLE = False
+    DEFAULT_DEGRADATION_MAP = None
+    estimate_cost_savings = None
+    get_cheaper_model = None
+    get_degradation_chain = None
+
 # Import callbacks if available
 try:
     from .callbacks import CallbackManager
@@ -120,6 +137,14 @@ if ENFORCEMENT_AVAILABLE:
         "tier_based_enforcement",
     ])
 
+if DEGRADATION_AVAILABLE:
+    __all__.extend([
+        "DEFAULT_DEGRADATION_MAP",
+        "get_cheaper_model",
+        "get_degradation_chain",
+        "estimate_cost_savings",
+    ])
+
 if CALLBACKS_AVAILABLE:
     __all__.append("CallbackManager")
 
@@ -138,6 +163,7 @@ TELEMETRY_CAPABILITIES = {
     "cost_calculation": True,
     "cost_tracking": COST_TRACKER_AVAILABLE,
     "enforcement": ENFORCEMENT_AVAILABLE,
+    "degradation": DEGRADATION_AVAILABLE,
     "callbacks": CALLBACKS_AVAILABLE,
 }
 
