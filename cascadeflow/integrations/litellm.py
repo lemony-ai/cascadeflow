@@ -788,7 +788,7 @@ class CascadeFlowLiteLLMCallback:
         """
         Called after successful LiteLLM API call.
 
-        Tracks costs and metrics automatically.
+        Tracks costs and metrics automatically, including logprobs if available.
 
         Args:
             kwargs: Request parameters
@@ -812,6 +812,51 @@ class CascadeFlowLiteLLMCallback:
             # Calculate latency
             latency_ms = (end_time - start_time) * 1000
 
+            # Extract logprobs if available (NEW)
+            logprobs_data = None
+            has_logprobs = False
+            avg_logprob = None
+
+            try:
+                # LiteLLM returns logprobs in response_obj.choices[0].logprobs
+                if hasattr(response_obj, "choices") and len(response_obj.choices) > 0:
+                    choice = response_obj.choices[0]
+                    if hasattr(choice, "logprobs") and choice.logprobs:
+                        has_logprobs = True
+                        logprobs_data = choice.logprobs
+
+                        # Extract content logprobs for confidence scoring
+                        if hasattr(logprobs_data, "content") and logprobs_data.content:
+                            logprob_values = [
+                                item.logprob
+                                for item in logprobs_data.content
+                                if hasattr(item, "logprob")
+                            ]
+                            if logprob_values:
+                                avg_logprob = sum(logprob_values) / len(logprob_values)
+
+                                logger.debug(
+                                    f"LiteLLM logprobs extracted: {len(logprob_values)} tokens, "
+                                    f"avg logprob: {avg_logprob:.3f}"
+                                )
+            except Exception as e:
+                logger.debug(f"Could not extract logprobs from LiteLLM response: {e}")
+
+            # Build metadata with logprobs info
+            metadata = {
+                "latency_ms": latency_ms,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "has_logprobs": has_logprobs,
+            }
+
+            if avg_logprob is not None:
+                metadata["avg_logprob"] = avg_logprob
+                # Convert logprob to confidence (e^logprob)
+                import math
+
+                metadata["confidence"] = min(0.99, max(0.01, math.exp(avg_logprob)))
+
             # Track cost if tracker available
             if self.cost_tracker and cost > 0:
                 self.cost_tracker.add_cost(
@@ -820,21 +865,22 @@ class CascadeFlowLiteLLMCallback:
                     tokens=total_tokens,
                     cost=cost,
                     user_id=user_id,
-                    metadata={
-                        "latency_ms": latency_ms,
-                        "prompt_tokens": prompt_tokens,
-                        "completion_tokens": completion_tokens,
-                    },
+                    metadata=metadata,
                 )
 
-                logger.debug(
+                log_msg = (
                     f"LiteLLM success tracked: {model}, ${cost:.6f}, "
                     f"{total_tokens} tokens, {latency_ms:.0f}ms"
                 )
+                if has_logprobs and avg_logprob is not None:
+                    log_msg += f", confidence: {metadata['confidence']:.2f}"
+
+                logger.debug(log_msg)
 
             # Track metrics if collector available
             if self.metrics_collector:
                 # Would integrate with MetricsCollector here
+                # Could use logprobs for quality metrics
                 pass
 
             # Trigger custom callbacks if manager available
