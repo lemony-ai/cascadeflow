@@ -34,7 +34,6 @@ CascadeFlow's TypeScript library enables **browser-based AI applications** with 
 | Vercel Edge | ✅ Production | Global web apps |
 | Cloudflare Workers | ✅ Production | Ultra-low latency |
 | Browser (direct) | ⚠️ With proxy | When you control the proxy |
-| Deno | 🔜 Coming soon | Edge runtime |
 
 ---
 

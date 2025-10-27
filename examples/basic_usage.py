@@ -358,7 +358,7 @@ async def main():
     print("📚 Resources:")
     print("   • Full Guide: docs/guides/quickstart.md")
     print("   • API Reference: docs/api/")
-    print("   • GitHub: https://github.com/yourusername/cascadeflow")
+    print("   • GitHub: https://github.com/lemony-ai/CascadeFlow")
     print()
 
     print("=" * 80)

@@ -649,4 +649,4 @@ See [`examples/custom_cascade.py`](../../examples/custom_cascade.py) for complet
 
 ---
 
-**Questions?** Check the [FAQ](faq.md) or [Production Guide](production.md).
+**Questions?** Check the [Production Guide](production.md) or open an issue on [GitHub](https://github.com/lemony-ai/CascadeFlow/issues).

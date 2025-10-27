@@ -1336,8 +1336,8 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed guidelines.
 - 🔌 **[Edge Device Guide](../docs/guides/edge_device.md)** - Jetson/Pi deployment **NEW**
 
 ### Community
-- 💬 **[GitHub Discussions](https://github.com/yourusername/cascadeflow/discussions)** - Ask questions
-- 🐛 **[GitHub Issues](https://github.com/yourusername/cascadeflow/issues)** - Report bugs
+- 💬 **[GitHub Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)** - Ask questions
+- 🐛 **[GitHub Issues](https://github.com/lemony-ai/CascadeFlow/issues)** - Report bugs
 - 💡 **Questions**: Open an issue with the "question" label
 
 ---

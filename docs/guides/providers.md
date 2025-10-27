@@ -609,4 +609,4 @@ models.append(ModelConfig("claude-3-5-haiku", provider="anthropic", cost=0.001))
 
 ---
 
-**Questions?** Open an issue on GitHub or check the [FAQ](faq.md).
+**Questions?** Open an issue on [GitHub](https://github.com/lemony-ai/CascadeFlow/issues).

@@ -70,8 +70,8 @@ Comprehensive API documentation for all classes and methods:
   - [CascadeAgent](./api/python/agent.md) - Main agent class
   - [ModelConfig](./api/python/config.md) - Model and cascade configuration
   - [CascadeResult](./api/python/result.md) - Result object with 30+ diagnostic fields
-- **TypeScript API** (coming soon)
-  - CascadeAgent, ModelConfig, CascadeResult interfaces
+- **TypeScript API**
+  - See [TypeScript Package](../packages/core/README.md) for API documentation
 
 See also: Comprehensive examples in [/examples](../examples/) directory
 

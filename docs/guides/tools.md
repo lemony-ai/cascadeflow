@@ -800,4 +800,4 @@ print(f"Total: ${total_cost:.6f}")
 
 ---
 
-**Questions?** Open an issue on GitHub or check the [FAQ](faq.md).
+**Questions?** Open an issue on [GitHub](https://github.com/lemony-ai/CascadeFlow/issues).

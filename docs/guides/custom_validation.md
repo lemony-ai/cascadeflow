@@ -856,4 +856,4 @@ See [`examples/custom_validation.py`](../../examples/custom_validation.py) for c
 
 ---
 
-**Questions?** Check the [FAQ](faq.md) or open an issue on GitHub.
+**Questions?** Open an issue on [GitHub](https://github.com/lemony-ai/CascadeFlow/issues).

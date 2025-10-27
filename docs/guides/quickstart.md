@@ -500,9 +500,9 @@ python examples/basic_usage.py
 - Add your queries
 
 ### 3. Read Advanced Guides
-- [Streaming Responses](./streaming.md) (coming soon)
-- [Tool Calling](./tools.md) (coming soon)
-- [Multi-Provider Setup](./multi-provider.md) (coming soon)
+- [Streaming Responses](./streaming.md)
+- [Tool Calling](./tools.md)
+- [Multi-Provider Setup](./providers.md)
 
 ### 4. Deploy to Production
 - Set up monitoring
@@ -511,8 +511,8 @@ python examples/basic_usage.py
 - Track costs
 
 ### 5. Join the Community
-- ⭐ Star the [GitHub repo](https://github.com/yourusername/cascadeflow)
-- 💬 Join [Discussions](https://github.com/yourusername/cascadeflow/discussions)
+- ⭐ Star the [GitHub repo](https://github.com/lemony-ai/CascadeFlow)
+- 💬 Join [Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)
 - 🐛 Report issues
 - 🤝 Contribute examples
 
@@ -569,10 +569,8 @@ print(f"Total: ${total:.6f}")
 ## Support
 
 Need help?
-- 📖 Read the [FAQ](./faq.md)
-- 💬 Ask in [Discussions](https://github.com/yourusername/cascadeflow/discussions)
-- 🐛 Report a [bug](https://github.com/yourusername/cascadeflow/issues)
-- 📧 Email: support@cascadeflow.ai
+- 💬 Ask in [Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)
+- 🐛 Report a [bug](https://github.com/lemony-ai/CascadeFlow/issues)
 
 ---
 

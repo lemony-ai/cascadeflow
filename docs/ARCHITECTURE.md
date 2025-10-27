@@ -173,7 +173,7 @@ console.log(`Savings: ${result.savingsPercentage}%`);
 
 **Supported Environments:**
 - Node.js 18+ ✅
-- Browser (with API proxy) - Coming soon
+- Browser (with API proxy) ✅
 
 **When to modify:**
 - Adding TypeScript/JavaScript specific features
@@ -897,13 +897,11 @@ pnpm build  # Uses Turborepo to build all packages
 
 ## Next Steps
 
-- **New Contributors:** Start with [CONTRIBUTING.md](CONTRIBUTING.md) (coming soon)
-- **Adding Features:** Review this document + [CLAUDE.md](CLAUDE.md)
-- **Architecture Deep Dive:** See [CLAUDE.md](CLAUDE.md) for detailed component descriptions
+- **New Contributors:** Open an issue on GitHub to get started
+- **Adding Features:** Review this document for architecture guidance
 - **Questions:** Open an issue on GitHub
 
 ---
 
-**Last Updated:** December 2024
-**Version:** v0.2.0 (monorepo + production readiness)
-**Commit:** Coming soon - TypeScript library + monorepo architecture
+**Last Updated:** October 2025
+**Version:** v0.1.1
