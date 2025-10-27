@@ -63,6 +63,14 @@ See the [examples/](../examples/) directory for comprehensive working code sampl
 
 ## 📦 API Reference
 
-Coming soon: Detailed API documentation for all classes and methods.
+Comprehensive API documentation for all classes and methods:
 
-For now, see the comprehensive examples and inline documentation in the source code.
+- **[API Overview](./api/README.md)** - Complete API reference for Python and TypeScript
+- **Python API**
+  - [CascadeAgent](./api/python/agent.md) - Main agent class
+  - [ModelConfig](./api/python/config.md) - Model and cascade configuration
+  - [CascadeResult](./api/python/result.md) - Result object with 30+ diagnostic fields
+- **TypeScript API** (coming soon)
+  - CascadeAgent, ModelConfig, CascadeResult interfaces
+
+See also: Comprehensive examples in [/examples](../examples/) directory
