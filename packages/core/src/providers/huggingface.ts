@@ -269,12 +269,16 @@ export class HuggingFaceProvider extends BaseProvider {
 
   /**
    * Get base URL for endpoint type
+   *
+   * Note: Migrated from deprecated api-inference.huggingface.co (deprecated Jan 2025)
+   * to new router.huggingface.co endpoint as per HuggingFace migration notice.
    */
   private getHFBaseUrl(customUrl?: string): string {
     if (customUrl) {
       return customUrl;
     }
-    return 'https://api-inference.huggingface.co';
+    // New endpoint as of November 2025 (old api-inference.huggingface.co deprecated)
+    return 'https://router.huggingface.co/hf-inference';
   }
 
   /**

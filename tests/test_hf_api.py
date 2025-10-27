@@ -16,8 +16,11 @@ async def test_hf():
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
+                # Updated to new HuggingFace Inference Providers API endpoint
+                # Old: https://api-inference.huggingface.co (deprecated Jan 2025)
+                # New: https://router.huggingface.co/hf-inference (as of Nov 2025)
                 response = await client.post(
-                    f"https://api-inference.huggingface.co/models/{model}",
+                    f"https://router.huggingface.co/hf-inference/models/{model}",
                     headers={"Authorization": f"Bearer {token}"},
                     json={"inputs": "Hello"},
                 )

@@ -475,8 +475,13 @@ class HuggingFaceProvider(BaseProvider):
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
 
-            # Calculate cost
-            cost = self.estimate_cost(tokens_used, model)
+            # Calculate cost using LiteLLM if available, otherwise fallback
+            cost = self.calculate_accurate_cost(
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=tokens_used,
+            )
 
             # Parse tool calls if present
             tool_calls = self._parse_tool_calls(choice)
@@ -792,9 +797,14 @@ class HuggingFaceProvider(BaseProvider):
         return HuggingFaceEndpointType.SERVERLESS
 
     def _get_default_base_url(self, endpoint_type: HuggingFaceEndpointType) -> str:
-        """Get default base URL for endpoint type."""
+        """Get default base URL for endpoint type.
+
+        Note: Migrated from deprecated api-inference.huggingface.co (deprecated Jan 2025)
+        to new router.huggingface.co endpoint as per HuggingFace migration notice.
+        """
         if endpoint_type == HuggingFaceEndpointType.SERVERLESS:
-            return "https://api-inference.huggingface.co"
+            # New endpoint as of November 2025 (old api-inference.huggingface.co deprecated)
+            return "https://router.huggingface.co/hf-inference"
         elif endpoint_type == HuggingFaceEndpointType.INFERENCE_ENDPOINT:
             raise ValueError(
                 "Inference Endpoint requires custom endpoint_url. "
