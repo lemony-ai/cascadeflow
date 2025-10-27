@@ -381,11 +381,12 @@ We ❤️ contributions!
 
 ## Roadmap
 
+- **Cascade Profiler** - Analyzes your AI API logs to calculate cost savings potential and generate optimized CascadeFlow configurations automatically
 - **User Tier Management** - Cost controls and limits per user tier with advanced routing
 - **Semantic Quality Validators** - Optional lightweight local quality scoring (200MB CPU model, no external API calls)
 - **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
 - **Domain Aware Cascading** - Multi-stage pipelines tailored to specific domains
-- **Benchmark Report**s
+- **Benchmark Reports** - Automated performance and cost benchmarking
 
 ---
 

@@ -3,17 +3,23 @@
 ## 🎯 Quick Launch Checklist
 
 ### Pre-Launch (Day -3 to -1)
-- [ ] Ensure all examples pass (✅ Done - 100% pass rate)
-- [ ] Finalize README and documentation (✅ Done)
+- [x] Ensure all examples pass (✅ Done - 100% pass rate)
+- [x] Finalize README and documentation (✅ Done)
 - [ ] Create Product Hunt account and page
 - [ ] Prepare social media accounts (@CascadeFlowAI)
 - [ ] Set up email list (Substack/ConvertKit)
 - [ ] Create demo GIF/video
 - [ ] Write launch blog post
 - [ ] Schedule posts for launch day
+- [ ] Prepare n8n node for npm upload
+- [ ] Test n8n node installation locally
 
 ### Launch Day (Day 0)
-- [ ] **9 AM ET**: Make repository public
+- [ ] **8:45 AM ET**: Publish @cascadeflow/core to npm
+- [ ] **8:50 AM ET**: Publish cascadeflow to PyPI
+- [ ] **8:55 AM ET**: Publish n8n-nodes-cascadeflow to npm
+- [ ] **9:00 AM ET**: Make repository public
+- [ ] **9:05 AM ET**: Create GitHub Release v0.1.1
 - [ ] **9:05 AM**: Twitter thread
 - [ ] **9:10 AM**: LinkedIn post
 - [ ] **9:15 AM**: Dev.to article

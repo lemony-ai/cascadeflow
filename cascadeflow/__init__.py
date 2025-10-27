@@ -27,7 +27,7 @@ Example:
     >>> print(f"Used {result.model_used} - Cost: ${result.cost:.6f}")
 """
 
-__version__ = "0.1.0"  # Updated for MVP cascade
+__version__ = "0.1.1"  # Pre-launch cleanup
 __author__ = "Sascha Buehrle"
 __license__ = "MIT"
 

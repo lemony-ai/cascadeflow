@@ -153,6 +153,10 @@ WORK_*.md
 # Analysis directory (keep locally for reference)
 /.analysis/
 
+# Marketing materials (keep locally, publish separately)
+/.marketing/
+MARKETING_GUIDE.md
+
 # IDE files
 *.iml
 
