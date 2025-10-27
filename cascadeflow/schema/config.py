@@ -80,6 +80,18 @@ class ModelConfig(BaseModel):
     # Phase 3: Tool calling support
     supports_tools: bool = Field(True, description="Whether model supports tool/function calling")
 
+    def __init__(self, name: Optional[str] = None, **kwargs):
+        """
+        Initialize ModelConfig with support for positional name argument.
+
+        This allows both:
+            ModelConfig(name="gpt-4", provider="openai", cost=0.03)
+            ModelConfig("gpt-4", provider="openai", cost=0.03)
+        """
+        if name is not None:
+            kwargs["name"] = name
+        super().__init__(**kwargs)
+
     @field_validator("cost")
     @classmethod
     def validate_cost(cls, v):
