@@ -1,0 +1,33 @@
+# OpenTelemetry Collector Configuration for CascadeFlow
+#
+# This configuration:
+# 1. Receives metrics via OTLP HTTP (port 4318)
+# 2. Exports metrics to Prometheus (port 8889)
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: cascadeflow
+
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, logging]
