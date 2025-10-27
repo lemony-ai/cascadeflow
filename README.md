@@ -115,9 +115,7 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 
 ## Quick Start
 
-### Python
-
-<img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> **Installation**
+### <img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> Python
 
 ```python
 pip install cascadeflow[all]
@@ -144,9 +142,7 @@ print(f"Cost: ${result.total_cost:.6f}")
 
 📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
-### TypeScript
-
-<img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> **Installation**
+### <img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> TypeScript
 
 ```bash
 npm install @cascadeflow/core
