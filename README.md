@@ -140,7 +140,7 @@ agent = CascadeAgent(models=[
 result = await agent.run("What's the capital of France?")
 
 print(f"Answer: {result.content}")
-print(f"Model used: {result.final_model}")
+print(f"Model used: {result.model_used}")
 print(f"Cost: ${result.total_cost:.6f}")
 ```
 

@@ -1,3 +1,4 @@
 packages:
   - 'packages/*'
   - 'packages/integrations/*'
+  - 'packages/core/examples'
