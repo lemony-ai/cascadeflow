@@ -104,8 +104,8 @@ importers:
         specifier: ^1.0.0
         version: 1.114.0
       prettier:
-        specifier: ^2.7.1
-        version: 2.8.8
+        specifier: ^3.6.2
+        version: 3.6.2
       typescript:
         specifier: ^5.1.6
         version: 5.9.3
@@ -4078,9 +4078,9 @@ packages:
     engines: {node: '>= 0.8.0'}
     dev: true
 
-  /prettier@2.8.8:
-    resolution: {integrity: sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q==}
-    engines: {node: '>=10.13.0'}
+  /prettier@3.6.2:
+    resolution: {integrity: sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==}
+    engines: {node: '>=14'}
     hasBin: true
     dev: true
 
