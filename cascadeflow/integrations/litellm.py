@@ -284,12 +284,25 @@ class LiteLLMCostProvider:
                 )
 
         try:
-            # Use LiteLLM's completion_cost function
-            # This handles all pricing details automatically
-            cost = completion_cost(
+            # Create a mock completion response object for LiteLLM
+            # LiteLLM's API expects a response object with usage information
+            from litellm import ModelResponse
+
+            mock_response = ModelResponse(
+                id="mock",
                 model=model,
-                prompt_tokens=input_tokens,
-                completion_tokens=output_tokens,
+                choices=[{"message": {"content": ""}, "finish_reason": "stop"}],
+                usage={
+                    "prompt_tokens": input_tokens,
+                    "completion_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                },
+            )
+
+            # Calculate cost using the mock response
+            cost = completion_cost(
+                completion_response=mock_response,
+                model=model,
                 **kwargs,
             )
 

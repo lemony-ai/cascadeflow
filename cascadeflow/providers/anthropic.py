@@ -342,8 +342,13 @@ class AnthropicProvider(BaseProvider):
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
 
-            # Calculate cost
-            cost = self.estimate_cost(tokens_used, model)
+            # Calculate cost using LiteLLM if available, otherwise fallback
+            cost = self.calculate_accurate_cost(
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=tokens_used,
+            )
 
             # ============================================================
             # Determine confidence method based on tool call outcomes
@@ -567,8 +572,13 @@ class AnthropicProvider(BaseProvider):
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
 
-            # Calculate cost
-            cost = self.estimate_cost(tokens_used, model)
+            # Calculate cost using LiteLLM if available, otherwise fallback
+            cost = self.calculate_accurate_cost(
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=tokens_used,
+            )
 
             # ============================================================
             # Now captures full analysis for test validation

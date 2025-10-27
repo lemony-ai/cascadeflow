@@ -227,6 +227,23 @@ class BaseProvider(ABC):
         if self._supports_tools:
             logger.info(f"Provider {self.__class__.__name__} supports tool calling.")
 
+        # Initialize LiteLLM cost provider (auto-detect if installed)
+        try:
+            from cascadeflow.integrations.litellm import LiteLLMCostProvider
+
+            self._litellm_cost_provider = LiteLLMCostProvider(fallback_enabled=False)
+            self._use_litellm_pricing = True
+            logger.info(
+                f"LiteLLM detected - using accurate pricing for {self.__class__.__name__}"
+            )
+        except (ImportError, RuntimeError):
+            # LiteLLM not installed or not available - use fallback
+            self._litellm_cost_provider = None
+            self._use_litellm_pricing = False
+            logger.debug(
+                f"LiteLLM not available - using fallback pricing for {self.__class__.__name__}"
+            )
+
         # Initialize production confidence estimator
         try:
             from cascadeflow.quality.confidence import ProductionConfidenceEstimator
@@ -595,7 +612,10 @@ class BaseProvider(ABC):
     @abstractmethod
     def estimate_cost(self, tokens: int, model: str) -> float:
         """
-        Estimate cost for given token count.
+        Estimate cost for given token count (fallback method).
+
+        This is the fallback pricing used when LiteLLM is not available.
+        Each provider must implement this with rough cost estimates.
 
         Args:
             tokens: Number of tokens
@@ -605,6 +625,54 @@ class BaseProvider(ABC):
             Estimated cost in USD
         """
         pass
+
+    def calculate_accurate_cost(
+        self,
+        model: str,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        total_tokens: Optional[int] = None,
+    ) -> float:
+        """
+        Calculate cost using LiteLLM if available, otherwise fallback.
+
+        This method automatically uses LiteLLM for accurate pricing when installed,
+        or falls back to provider-specific estimates.
+
+        Args:
+            model: Model name
+            prompt_tokens: Input tokens (preferred)
+            completion_tokens: Output tokens (preferred)
+            total_tokens: Total tokens (fallback if split not available)
+
+        Returns:
+            Cost in USD (accurate if LiteLLM installed, estimated otherwise)
+
+        Example:
+            >>> # Automatically uses LiteLLM if installed
+            >>> cost = provider.calculate_accurate_cost(
+            ...     model="gpt-4o-mini",
+            ...     prompt_tokens=100,
+            ...     completion_tokens=50
+            ... )
+        """
+        if self._use_litellm_pricing and self._litellm_cost_provider:
+            try:
+                # Use LiteLLM for accurate pricing
+                return self._litellm_cost_provider.calculate_cost(
+                    model=model,
+                    input_tokens=prompt_tokens,
+                    output_tokens=completion_tokens,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"LiteLLM cost calculation failed: {e}. Using fallback pricing."
+                )
+                # Fall through to fallback
+
+        # Fallback to provider-specific estimates
+        tokens = total_tokens or (prompt_tokens + completion_tokens)
+        return self.estimate_cost(tokens, model)
 
     # ========================================================================
     # PUBLIC API (Automatically includes retry logic)
