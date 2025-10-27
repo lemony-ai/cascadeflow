@@ -79,7 +79,7 @@ See also: Comprehensive examples in [/examples](../examples/) directory
 
 For contributors and advanced users:
 
-- **[Architecture Guide](../.analysis/STRUCTURE.md)** - Detailed architecture, data flow, and code organization
+- **[Architecture Guide](ARCHITECTURE.md)** - Detailed architecture, data flow, and code organization
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute to CascadeFlow
 
 The architecture guide covers:
