@@ -112,6 +112,28 @@ except ImportError:
     CALLBACKS_AVAILABLE = False
     CallbackManager = None
 
+# Import forecasting if available (NEW - Phase 2.3)
+try:
+    from .forecasting import CostForecaster, CostPrediction
+
+    FORECASTING_AVAILABLE = True
+except ImportError:
+    FORECASTING_AVAILABLE = False
+    CostForecaster = None
+    CostPrediction = None
+
+# Import anomaly detection if available (NEW - Phase 2.3)
+try:
+    from .anomaly import Anomaly, AnomalyDetector, AnomalySeverity, create_anomaly_alerts
+
+    ANOMALY_AVAILABLE = True
+except ImportError:
+    ANOMALY_AVAILABLE = False
+    Anomaly = None
+    AnomalyDetector = None
+    AnomalySeverity = None
+    create_anomaly_alerts = None
+
 # Build __all__ dynamically based on what's available
 __all__ = [
     # Core components (always available)
@@ -148,12 +170,18 @@ if DEGRADATION_AVAILABLE:
 if CALLBACKS_AVAILABLE:
     __all__.append("CallbackManager")
 
+if FORECASTING_AVAILABLE:
+    __all__.extend(["CostForecaster", "CostPrediction"])
+
+if ANOMALY_AVAILABLE:
+    __all__.extend(["Anomaly", "AnomalyDetector", "AnomalySeverity", "create_anomaly_alerts"])
+
 
 # ============================================================================
 # VERSION INFO
 # ============================================================================
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"  # Bumped for Phase 2.3 features
 __author__ = "CascadeFlow Team"
 __updated__ = "2025-10-20"
 
@@ -165,6 +193,8 @@ TELEMETRY_CAPABILITIES = {
     "enforcement": ENFORCEMENT_AVAILABLE,
     "degradation": DEGRADATION_AVAILABLE,
     "callbacks": CALLBACKS_AVAILABLE,
+    "forecasting": FORECASTING_AVAILABLE,  # NEW - Phase 2.3
+    "anomaly_detection": ANOMALY_AVAILABLE,  # NEW - Phase 2.3
 }
 
 

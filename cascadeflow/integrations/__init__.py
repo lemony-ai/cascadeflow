@@ -36,6 +36,23 @@ except ImportError:
     validate_provider = None
     get_provider_info = None
 
+# Try to import OpenTelemetry integration
+try:
+    from .otel import (
+        OpenTelemetryExporter,
+        MetricDimensions,
+        CascadeFlowMetrics,
+        create_exporter_from_env,
+    )
+
+    OPENTELEMETRY_AVAILABLE = True
+except ImportError:
+    OPENTELEMETRY_AVAILABLE = False
+    OpenTelemetryExporter = None
+    MetricDimensions = None
+    CascadeFlowMetrics = None
+    create_exporter_from_env = None
+
 __all__ = []
 
 if LITELLM_AVAILABLE:
@@ -51,10 +68,18 @@ if LITELLM_AVAILABLE:
         "get_provider_info",
     ])
 
+if OPENTELEMETRY_AVAILABLE:
+    __all__.extend([
+        "OpenTelemetryExporter",
+        "MetricDimensions",
+        "CascadeFlowMetrics",
+        "create_exporter_from_env",
+    ])
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
-    "opentelemetry": False,  # To be implemented in Milestone 2.2
+    "opentelemetry": OPENTELEMETRY_AVAILABLE,
 }
 
 
@@ -74,4 +99,5 @@ def get_integration_info():
     return {
         "capabilities": INTEGRATION_CAPABILITIES,
         "litellm_available": LITELLM_AVAILABLE,
+        "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
     }
