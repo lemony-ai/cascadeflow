@@ -74,3 +74,17 @@ Comprehensive API documentation for all classes and methods:
   - CascadeAgent, ModelConfig, CascadeResult interfaces
 
 See also: Comprehensive examples in [/examples](../examples/) directory
+
+## 🏗️ Architecture & Contributing
+
+For contributors and advanced users:
+
+- **[Architecture Guide](../.analysis/STRUCTURE.md)** - Detailed architecture, data flow, and code organization
+- **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute to CascadeFlow
+
+The architecture guide covers:
+- Directory structure (monorepo layout)
+- Core components and design patterns
+- Data flow and execution paths
+- Adding new providers, quality checks, and routing strategies
+- Testing strategy and development workflow
