@@ -54,13 +54,14 @@ from .cost_calculator import CostBreakdown, CostCalculator
 
 # Import existing cost tracker if available
 try:
-    from .cost_tracker import CostEntry, CostTracker
+    from .cost_tracker import BudgetConfig, CostEntry, CostTracker
 
     COST_TRACKER_AVAILABLE = True
 except ImportError:
     COST_TRACKER_AVAILABLE = False
     CostTracker = None
     CostEntry = None
+    BudgetConfig = None
 
 # Import callbacks if available
 try:
@@ -83,7 +84,7 @@ __all__ = [
 
 # Add optional components
 if COST_TRACKER_AVAILABLE:
-    __all__.extend(["CostTracker", "CostEntry"])
+    __all__.extend(["CostTracker", "CostEntry", "BudgetConfig"])
 
 if CALLBACKS_AVAILABLE:
     __all__.append("CallbackManager")
