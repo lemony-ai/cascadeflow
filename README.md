@@ -20,7 +20,9 @@
 **[<img src=".github/assets/CF_python_color.svg" width="20" height="20" alt="Python"/> Python](#python) • [<img src=".github/assets/CF_ts_color.svg" width="20" height="20" alt="TypeScript"/> TypeScript](#typescript) • [<img src=".github/assets/CF_n8n_color.svg" width="20" height="20" alt="n8n"/> n8n](#n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
 
 </div>
+
 ---
+
 **Stop Bleeding Money on AI Calls. Cut Costs 30-65% in 3 Lines of Code.**
 
 40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
@@ -171,7 +173,7 @@ console.log(`Saved: ${result.savingsPercentage}%`);
 
 📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
 
-### Migration Example
+### 🔄 Migration Example
 
 **Migrate in 5min from direct Provider implementation to cost savings and full cost control and transparency.**
 
