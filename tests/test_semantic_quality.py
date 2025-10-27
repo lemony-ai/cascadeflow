@@ -73,7 +73,9 @@ def test_semantic_checker_init_without_fastembed(mock_fastembed_unavailable):
     checker = SemanticQualityChecker()
 
     assert not checker.is_available()
-    assert checker.model is None
+    # checker.model is now an UnifiedEmbeddingService instance, check embedder instead
+    assert checker.embedder is not None  # Service exists
+    assert not checker.embedder.is_available  # But FastEmbed not available
 
 
 def test_semantic_checker_custom_thresholds(mock_fastembed_available):
@@ -94,10 +96,12 @@ def test_semantic_checker_custom_thresholds(mock_fastembed_available):
 
 def test_check_similarity_high(mock_fastembed_available):
     """Test high semantic similarity between related texts."""
+    import numpy as np
     checker = SemanticQualityChecker()
 
     # Mock identical embeddings (perfect similarity)
-    checker.model.embed = lambda texts: [[0.5, 0.5, 0.5]] * len(texts)
+    # Mock at embedder level, returning numpy arrays
+    checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     similarity = checker.check_similarity(
         query="What is machine learning?",
@@ -110,23 +114,21 @@ def test_check_similarity_high(mock_fastembed_available):
 
 def test_check_similarity_low(mock_fastembed_available):
     """Test low semantic similarity between unrelated texts."""
+    import numpy as np
     checker = SemanticQualityChecker()
 
     # Mock orthogonal embeddings (zero similarity)
-    def mock_embed(texts):
-        if len(texts) == 1:
-            # Return different embeddings for each call
-            if not hasattr(mock_embed, 'call_count'):
-                mock_embed.call_count = 0
-            mock_embed.call_count += 1
+    # Track call count to return different embeddings
+    call_count = [0]
 
-            if mock_embed.call_count == 1:
-                return [[1.0, 0.0, 0.0]]  # Query embedding
-            else:
-                return [[0.0, 1.0, 0.0]]  # Response embedding (orthogonal)
-        return [[0.0] * 3] * len(texts)
+    def mock_embed(text):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return np.array([1.0, 0.0, 0.0])  # Query embedding
+        else:
+            return np.array([0.0, 1.0, 0.0])  # Response embedding (orthogonal)
 
-    checker.model.embed = mock_embed
+    checker.embedder.embed = mock_embed
 
     similarity = checker.check_similarity(
         query="What is machine learning?",
@@ -147,10 +149,11 @@ def test_check_similarity_unavailable(mock_fastembed_unavailable):
 
 def test_check_similarity_empty_strings(mock_fastembed_available):
     """Test similarity check with empty strings."""
+    import numpy as np
     checker = SemanticQualityChecker()
 
     # Mock zero embeddings
-    checker.model.embed = lambda texts: [[0.0, 0.0, 0.0]] * len(texts)
+    checker.embedder.embed = lambda text: np.array([0.0, 0.0, 0.0])
 
     similarity = checker.check_similarity("", "")
 
@@ -227,10 +230,11 @@ def test_check_toxicity_unavailable(mock_fastembed_unavailable):
 
 def test_validate_pass(mock_fastembed_available):
     """Test validation passes with high similarity and no toxicity."""
+    import numpy as np
     checker = SemanticQualityChecker(similarity_threshold=0.5)
 
     # Mock high similarity embeddings
-    checker.model.embed = lambda texts: [[0.5, 0.5, 0.5]] * len(texts)
+    checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate(
         query="What is Python?",
@@ -245,22 +249,20 @@ def test_validate_pass(mock_fastembed_available):
 
 def test_validate_fail_low_similarity(mock_fastembed_available):
     """Test validation fails due to low similarity."""
+    import numpy as np
     checker = SemanticQualityChecker(similarity_threshold=0.8)
 
-    # Mock medium similarity embeddings
-    def mock_embed(texts):
-        if len(texts) == 1:
-            if not hasattr(mock_embed, 'call_count'):
-                mock_embed.call_count = 0
-            mock_embed.call_count += 1
+    # Mock medium similarity embeddings - use different vectors for query/response
+    call_count = [0]
 
-            if mock_embed.call_count == 1:
-                return [[1.0, 0.5, 0.0]]
-            else:
-                return [[0.5, 1.0, 0.0]]
-        return [[0.0] * 3] * len(texts)
+    def mock_embed(text):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return np.array([1.0, 0.5, 0.0])  # Query
+        else:
+            return np.array([0.5, 1.0, 0.0])  # Response (different)
 
-    checker.model.embed = mock_embed
+    checker.embedder.embed = mock_embed
 
     result = checker.validate(
         query="What is AI?",
@@ -274,10 +276,11 @@ def test_validate_fail_low_similarity(mock_fastembed_available):
 
 def test_validate_fail_toxic(mock_fastembed_available):
     """Test validation fails due to toxic content."""
+    import numpy as np
     checker = SemanticQualityChecker(similarity_threshold=0.5)
 
     # Mock high similarity embeddings
-    checker.model.embed = lambda texts: [[0.5, 0.5, 0.5]] * len(texts)
+    checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate(
         query="Explain the concept.",
@@ -292,10 +295,11 @@ def test_validate_fail_toxic(mock_fastembed_available):
 
 def test_validate_skip_toxicity(mock_fastembed_available):
     """Test validation can skip toxicity check."""
+    import numpy as np
     checker = SemanticQualityChecker()
 
     # Mock high similarity embeddings
-    checker.model.embed = lambda texts: [[0.5, 0.5, 0.5]] * len(texts)
+    checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate(
         query="Query",
@@ -323,6 +327,7 @@ def test_validate_unavailable(mock_fastembed_unavailable):
 
 def test_validate_metadata(mock_fastembed_available):
     """Test validation includes proper metadata."""
+    import numpy as np
     checker = SemanticQualityChecker(
         model_name="BAAI/bge-small-en-v1.5",
         similarity_threshold=0.6,
@@ -330,7 +335,7 @@ def test_validate_metadata(mock_fastembed_available):
     )
 
     # Mock high similarity embeddings
-    checker.model.embed = lambda texts: [[0.5, 0.5, 0.5]] * len(texts)
+    checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate("query", "response")
 
@@ -382,28 +387,37 @@ def test_check_semantic_quality_unavailable(mock_fastembed_unavailable):
 
 def test_cosine_similarity_zero_vectors(mock_fastembed_available):
     """Test cosine similarity handles zero vectors."""
-    checker = SemanticQualityChecker()
+    import numpy as np
+    from cascadeflow.ml.embedding import UnifiedEmbeddingService
 
-    similarity = checker._cosine_similarity([0, 0, 0], [0, 0, 0])
+    # Test the static method directly
+    similarity = UnifiedEmbeddingService._cosine_similarity(
+        np.array([0, 0, 0]), np.array([0, 0, 0])
+    )
 
     assert similarity == 0.0
 
 
 def test_cosine_similarity_one_zero_vector(mock_fastembed_available):
     """Test cosine similarity handles one zero vector."""
-    checker = SemanticQualityChecker()
+    import numpy as np
+    from cascadeflow.ml.embedding import UnifiedEmbeddingService
 
-    similarity = checker._cosine_similarity([1, 1, 1], [0, 0, 0])
+    # Test the static method directly
+    similarity = UnifiedEmbeddingService._cosine_similarity(
+        np.array([1, 1, 1]), np.array([0, 0, 0])
+    )
 
     assert similarity == 0.0
 
 
 def test_very_long_text(mock_fastembed_available):
     """Test semantic checking handles very long texts."""
+    import numpy as np
     checker = SemanticQualityChecker()
 
     # Mock embeddings
-    checker.model.embed = lambda texts: [[0.5, 0.5, 0.5]] * len(texts)
+    checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     long_text = "This is a very long text. " * 1000  # ~5000 words
 
@@ -418,10 +432,11 @@ def test_very_long_text(mock_fastembed_available):
 
 def test_unicode_text(mock_fastembed_available):
     """Test semantic checking handles unicode text."""
+    import numpy as np
     checker = SemanticQualityChecker()
 
     # Mock embeddings
-    checker.model.embed = lambda texts: [[0.5, 0.5, 0.5]] * len(texts)
+    checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate(
         query="Qu'est-ce que l'IA?",
