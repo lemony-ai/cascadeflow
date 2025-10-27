@@ -135,18 +135,9 @@ async def main():
         ]
     )
 
-    # ✅ FIX: Check if streaming is available (requires 2+ models)
-    if not agent.text_streaming_manager:
-        print("❌ Text streaming requires 2+ models in cascade")
-        return
-
-    if not agent.tool_streaming_manager:
-        print("❌ Tool streaming requires 2+ models in cascade")
-        return
-
+    # Streaming is automatically available with 2+ models
     print("✓ Agent ready with 2-model cascade")
-    print("✓ Text streaming: enabled")
-    print("✓ Tool streaming: enabled\n")
+    print("✓ Streaming enabled (text and tools)\n")
 
     # ═══════════════════════════════════════════════════════════════════════
     # EXAMPLE 1: Single Tool Call (Streaming Events)
@@ -226,9 +217,8 @@ async def main():
     print("  ├─ Works with ALL providers (OpenAI, Anthropic, Groq)")
     print("  └─ DON'T wrap in {'type': 'function', 'function': {...}}")
     print("\n  Streaming Requirements:")
-    print("  ├─ Need 2+ models for cascade (streaming requirement)")
-    print("  ├─ Use agent.stream_events() for streaming")
-    print("  └─ Check agent.tool_streaming_manager is not None")
+    print("  ├─ Need 2+ models for cascade")
+    print("  └─ Use agent.stream() or agent.stream_events() for streaming")
     print("\n  Tool Events:")
     print("  ├─ TOOL_CALL_START: Tool call detected")
     print("  ├─ TOOL_CALL_COMPLETE: Full JSON parsed")

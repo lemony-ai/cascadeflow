@@ -62,14 +62,10 @@ async def main():
     )
 
     # ═══════════════════════════════════════════════════════════════════════
-    # STEP 3: Verify Streaming is Available
+    # STEP 3: Agent Ready
     # ═══════════════════════════════════════════════════════════════════════
-    # Streaming requires 2+ models (cascade enabled)
-    # Single-model agents can't stream
-
-    if not agent.can_stream:
-        print("❌ Streaming requires 2+ models")
-        return
+    # The agent is configured with 2 models for cascading
+    # Streaming is automatically available
 
     print("✓ Agent ready with 2-tier cascade")
     print("✓ Streaming enabled\n")
@@ -85,9 +81,7 @@ async def main():
     print("Q: What is Python?\nA: ", end="", flush=True)
 
     # Stream the response with real-time events
-    async for event in agent.text_streaming_manager.stream(
-        "What is Python? Answer in one sentence.", max_tokens=100
-    ):
+    async for event in agent.stream("What is Python? Answer in one sentence.", max_tokens=100):
         # ───────────────────────────────────────────────────────────────────
         # EVENT: CHUNK - New text token arrived
         # ───────────────────────────────────────────────────────────────────
@@ -137,7 +131,7 @@ async def main():
     print("Q: Explain quantum computing and its implications.\nA: ", end="", flush=True)
 
     # Stream with the same event handling
-    async for event in agent.text_streaming_manager.stream(
+    async for event in agent.stream(
         "Explain quantum computing and its implications for cryptography.", max_tokens=200
     ):
         # ───────────────────────────────────────────────────────────────────

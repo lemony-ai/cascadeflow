@@ -835,6 +835,57 @@ class CascadeAgent:
                 self.telemetry.stats["tool_queries"] = 0
             self.telemetry.stats["tool_queries"] += 1
 
+    async def stream(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        system_prompt: Optional[str] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
+        **kwargs,
+    ) -> AsyncIterator[StreamEvent]:
+        """
+        Stream responses with real-time events.
+
+        This is an alias for stream_events() with a simpler interface that matches
+        the documented API. Use this method for most streaming needs.
+
+        Args:
+            prompt: User query or prompt
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0-2)
+            system_prompt: System prompt override (not used in streaming yet)
+            tools: List of tools in universal format
+            **kwargs: Additional parameters passed to stream_events()
+
+        Yields:
+            StreamEvent objects with incremental content
+
+        Example:
+            ```python
+            async for event in agent.stream("Tell me a story"):
+                if event.type == StreamEventType.CHUNK:
+                    print(event.content, end="", flush=True)
+                elif event.type == StreamEventType.COMPLETE:
+                    print(f"\\nCost: ${event.data.get('total_cost', 0):.6f}")
+            ```
+        """
+        # Set defaults
+        if max_tokens is None:
+            max_tokens = 100
+        if temperature is None:
+            temperature = 0.7
+
+        # Delegate to stream_events
+        async for event in self.stream_events(
+            query=prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            tools=tools,
+            **kwargs,
+        ):
+            yield event
+
     # ========================================================================
     # EXECUTION METHODS - WITH TOOL SUPPORT
     # ========================================================================
