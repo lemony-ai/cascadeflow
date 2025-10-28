@@ -1,6 +1,49 @@
 # CascadeFlow Examples
 
-**Complete collection of examples** demonstrating CascadeFlow from basics to production deployment. Start with `basic_usage.py` and progress through increasingly advanced patterns.
+**Complete collection of examples** demonstrating CascadeFlow from basics to production deployment.
+
+## 🆕 NEW in v0.2.0: Presets 2.0
+
+**One-line agent initialization!** Start here if you're new to v0.2.0:
+
+### Quick Start with Presets 2.0 (Recommended) ⭐
+
+```bash
+# 1. Set API keys
+export OPENAI_API_KEY="sk-..."
+export GROQ_API_KEY="gsk_..."  # optional but recommended
+
+# 2. Run the new quickstart example
+python examples/quickstart_v2.py
+```
+
+**New v0.2.0 Examples:**
+- **[`quickstart_v2.py`](quickstart_v2.py)** - One-line initialization with `get_balanced_agent()`
+- **[`migration_example.py`](migration_example.py)** - Side-by-side v0.1.x vs v0.2.0 comparison
+- **[`preset_comparison.py`](preset_comparison.py)** - Compare all 5 presets (cost, speed, quality)
+
+**Documentation:**
+- [Presets 2.0 Guide](../docs/guides/presets.md) - Complete preset reference
+- [Migration Guide](../docs/MIGRATION_GUIDE_V0.2.0.md) - v0.1.x → v0.2.0 upgrade
+- [Release Notes](../docs/RELEASE_NOTES_V0.2.0.md) - What's new in v0.2.0
+
+**Quick Comparison:**
+
+| Approach | Code | Setup Time | Features |
+|----------|------|------------|----------|
+| **v0.2.0 Presets** | 1 line | <1 min | Automatic detection, production-ready |
+| **Manual Config** | 20+ lines | ~10 min | Full control, advanced use cases |
+
+**Choose Presets 2.0 if:**
+- ✅ You want the simplest setup
+- ✅ You're starting a new project
+- ✅ You want production-ready defaults
+- ✅ You want 80-90% cost savings automatically
+
+**Choose Manual Config if:**
+- ✅ You need custom models
+- ✅ You need fine-grained control
+- ✅ You have advanced routing logic
 
 ---
 
