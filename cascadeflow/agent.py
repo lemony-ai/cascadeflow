@@ -1792,5 +1792,148 @@ class CascadeAgent:
             verbose=verbose,
         )
 
+    @classmethod
+    def from_profile(
+        cls,
+        profile: 'UserProfile',
+        quality_config: Optional[QualityConfig] = None,
+        verbose: bool = False,
+    ):
+        """
+        Create CascadeAgent from UserProfile (v0.2.1+).
+
+        This factory method configures the agent based on a user's profile,
+        including tier limits, preferred models, and quality settings.
+
+        Args:
+            profile: UserProfile instance with tier and preferences
+            quality_config: Optional quality config (overrides profile settings)
+            verbose: Enable verbose logging
+
+        Returns:
+            CascadeAgent configured for the user's tier and preferences
+
+        Example:
+            >>> from cascadeflow.profiles import UserProfile, TierLevel
+            >>> from cascadeflow import CascadeAgent
+            >>>
+            >>> # Create profile from tier
+            >>> profile = UserProfile.from_tier(TierLevel.PRO, user_id="user_123")
+            >>>
+            >>> # Create agent from profile
+            >>> agent = CascadeAgent.from_profile(profile)
+            >>>
+            >>> # Run queries with tier limits applied
+            >>> result = await agent.run("What is Python?")
+        """
+        from .profiles import UserProfile
+
+        # Auto-discover providers from environment
+        providers = get_available_providers()
+        if not providers:
+            raise CascadeFlowError("No providers available. Set API keys in environment.")
+
+        # Build model list based on profile preferences
+        models = []
+
+        # Filter by preferred models if specified
+        preferred_models_set = set(profile.preferred_models) if profile.preferred_models else None
+
+        # Add models from available providers
+        if "openai" in providers:
+            openai_models = [
+                ModelConfig(
+                    name="gpt-4o-mini",
+                    provider="openai",
+                    cost=0.0002,
+                    speed_ms=600,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="gpt-3.5-turbo",
+                    provider="openai",
+                    cost=0.002,
+                    speed_ms=800,
+                    supports_tools=False,
+                ),
+                ModelConfig(
+                    name="gpt-4",
+                    provider="openai",
+                    cost=0.03,
+                    speed_ms=2500,
+                    supports_tools=True,
+                ),
+            ]
+            for model in openai_models:
+                if preferred_models_set is None or model.name in preferred_models_set:
+                    models.append(model)
+
+        if "anthropic" in providers:
+            anthropic_models = [
+                ModelConfig(
+                    name="claude-3-haiku-20240307",
+                    provider="anthropic",
+                    cost=0.00125,
+                    speed_ms=700,
+                    supports_tools=True,
+                )
+            ]
+            for model in anthropic_models:
+                if preferred_models_set is None or model.name in preferred_models_set:
+                    models.append(model)
+
+        if "groq" in providers:
+            groq_models = [
+                ModelConfig(
+                    name="llama-3.3-70b-versatile",
+                    provider="groq",
+                    cost=0.0,
+                    speed_ms=300,
+                    supports_tools=True,
+                )
+            ]
+            for model in groq_models:
+                if preferred_models_set is None or model.name in preferred_models_set:
+                    models.append(model)
+
+        if not models:
+            raise CascadeFlowError(
+                "No models available. Check preferred_models or provider availability."
+            )
+
+        # Configure quality based on profile tier
+        if quality_config is None:
+            # Use tier's quality settings
+            quality_config = QualityConfig(
+                confidence_thresholds={
+                    QueryComplexity.TRIVIAL: profile.tier.min_quality,
+                    QueryComplexity.SIMPLE: profile.tier.min_quality,
+                    QueryComplexity.MODERATE: profile.tier.target_quality,
+                    QueryComplexity.HARD: profile.tier.target_quality,
+                    QueryComplexity.EXPERT: profile.tier.target_quality,
+                }
+            )
+
+        # Determine cascade enablement based on tier features
+        enable_cascade = len(models) >= 2 and profile.tier.enable_streaming
+
+        logger.info(
+            f"Created agent from profile (tier={profile.tier.name}, "
+            f"models={len(models)}, cascade={enable_cascade})"
+        )
+
+        # Create agent
+        agent = cls(
+            models=models,
+            quality_config=quality_config,
+            enable_cascade=enable_cascade,
+            verbose=verbose,
+        )
+
+        # Store profile reference for future use (rate limiting, guardrails, etc.)
+        agent._user_profile = profile
+
+        return agent
+
 
 __all__ = ["CascadeAgent", "CascadeResult"]

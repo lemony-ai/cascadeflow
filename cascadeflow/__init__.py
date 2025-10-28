@@ -155,6 +155,15 @@ from .presets import (
 from .core.batch_config import BatchConfig, BatchStrategy
 from .core.batch import BatchResult, BatchProcessingError
 
+# NEW: User Profile System (v0.2.1 - Milestone 3)
+from .profiles import (
+    TierConfig,
+    TierLevel,
+    TIER_PRESETS,
+    UserProfile,
+    UserProfileManager,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -246,6 +255,12 @@ __all__ = [
     "BatchStrategy",  # NEW: v0.2.1 - Batch strategy enum
     "BatchResult",  # NEW: v0.2.1 - Batch result with statistics
     "BatchProcessingError",  # NEW: v0.2.1 - Batch processing exception
+    # User Profile System (v0.2.1 - Milestone 3)
+    "TierConfig",  # NEW: v0.2.1 - Tier configuration
+    "TierLevel",  # NEW: v0.2.1 - Tier level enum (FREE, STARTER, PRO, BUSINESS, ENTERPRISE)
+    "TIER_PRESETS",  # NEW: v0.2.1 - Predefined tier configurations
+    "UserProfile",  # NEW: v0.2.1 - Multi-dimensional user profile
+    "UserProfileManager",  # NEW: v0.2.1 - Profile manager for scaling
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
