@@ -164,6 +164,13 @@ from .profiles import (
     UserProfileManager,
 )
 
+# NEW: Rate Limiting (v0.2.1 - Milestone 4)
+from .limits import (
+    RateLimiter,
+    RateLimitState,
+    RateLimitError,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -261,6 +268,10 @@ __all__ = [
     "TIER_PRESETS",  # NEW: v0.2.1 - Predefined tier configurations
     "UserProfile",  # NEW: v0.2.1 - Multi-dimensional user profile
     "UserProfileManager",  # NEW: v0.2.1 - Profile manager for scaling
+    # Rate Limiting (v0.2.1 - Milestone 4)
+    "RateLimiter",  # NEW: v0.2.1 - Sliding window rate limiter
+    "RateLimitState",  # NEW: v0.2.1 - Rate limit state tracking
+    "RateLimitError",  # NEW: v0.2.1 - Rate limit exception
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
