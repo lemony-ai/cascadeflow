@@ -111,6 +111,9 @@ from .cascade_pipeline import (
 )
 from .cascade_executor import MultiStepCascadeExecutor
 
+# Phase 5: Tier-based Routing (OPTIONAL - backwards compatibility)
+from .tier_routing import TierAwareRouter
+
 __all__ = [
     # ═══════════════════════════════════════════════════
     # Base Classes
@@ -164,6 +167,10 @@ __all__ = [
     # Router-Specific Classes
     # ═══════════════════════════════════════════════════
     "ToolFilterResult",  # Tool capability filter result (Phase 3)
+    # ═══════════════════════════════════════════════════
+    # Phase 5: Tier-based Routing (OPTIONAL)
+    # ═══════════════════════════════════════════════════
+    "TierAwareRouter",  # User tier-based model filtering (backwards compat)
 ]
 
 __version__ = "0.6.0"  # Phase 4 (Multi-Step Cascading)

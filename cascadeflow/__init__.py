@@ -56,6 +56,7 @@ from . import core, schema
 sys.modules["cascadeflow.exceptions"] = schema.exceptions
 sys.modules["cascadeflow.result"] = schema.result
 sys.modules["cascadeflow.config"] = schema.config
+sys.modules["cascadeflow.core.config"] = schema.config  # Also support cascadeflow.core.config
 sys.modules["cascadeflow.execution"] = core.execution
 sys.modules["cascadeflow.speculative"] = core.cascade  # Old name
 sys.modules["cascadeflow.cascade"] = core.cascade  # New name (optional)
@@ -140,6 +141,16 @@ from .utils import (
     setup_logging,
 )
 
+# NEW: Presets 2.0 - One-line agent initialization (WEEK 3 - Milestone 3.1)
+from .presets import (
+    auto_agent,
+    get_balanced_agent,
+    get_cost_optimized_agent,
+    get_development_agent,
+    get_quality_optimized_agent,
+    get_speed_optimized_agent,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -219,6 +230,13 @@ __all__ = [
     "create_preset",  # NEW: v0.1.1
     "QualityMode",  # NEW: v0.1.1
     "PerformanceMode",  # NEW: v0.1.1
+    # Presets 2.0 (WEEK 3 - Milestone 3.1)
+    "get_cost_optimized_agent",  # NEW: v0.2.0 - One-line cost optimized setup
+    "get_balanced_agent",  # NEW: v0.2.0 - One-line balanced setup
+    "get_speed_optimized_agent",  # NEW: v0.2.0 - One-line speed optimized setup
+    "get_quality_optimized_agent",  # NEW: v0.2.0 - One-line quality optimized setup
+    "get_development_agent",  # NEW: v0.2.0 - One-line development setup
+    "auto_agent",  # NEW: v0.2.0 - Helper to select preset by name
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",

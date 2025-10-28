@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from cascadeflow.config import (
+from cascadeflow.schema.config import (
     LatencyProfile,
     ModelConfig,
     OptimizationWeights,
@@ -133,10 +133,6 @@ async def mock_agent(mock_models, mock_tiers, mock_workflows):
 
         agent = CascadeAgent(
             models=mock_models,
-            tiers=mock_tiers,
-            workflows=mock_workflows,
-            enable_caching=True,
-            enable_callbacks=True,
             verbose=True,
         )
 

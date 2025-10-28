@@ -260,9 +260,15 @@ class WholeResponseCascade:
             self.embedder = UnifiedEmbeddingService()
 
             if self.embedder.is_available:
+                # Get similarity threshold - use confidence threshold for moderate queries as default
+                similarity_threshold = getattr(quality_config, 'similarity_threshold', None)
+                if similarity_threshold is None:
+                    # Fall back to moderate confidence threshold if available
+                    similarity_threshold = quality_config.confidence_thresholds.get("moderate", 0.5)
+
                 self.semantic_quality_checker = SemanticQualityChecker(
                     embedder=self.embedder,
-                    similarity_threshold=quality_config.quality_thresholds.get("similarity", 0.5),
+                    similarity_threshold=similarity_threshold,
                     use_cache=True,
                 )
                 if self.verbose:

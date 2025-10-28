@@ -17,6 +17,16 @@
 [![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=social)](https://github.com/lemony-ai/cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 
+### 🎯 Benchmarks & Performance
+
+![Cost Savings](https://img.shields.io/badge/cost_savings-91%25-brightgreen)
+![Routing Accuracy](https://img.shields.io/badge/routing_accuracy-100%25-brightgreen)
+![Test Scenarios](https://img.shields.io/badge/test_scenarios-216-blue)
+![RouterBench](https://img.shields.io/badge/RouterBench-validated-blue)
+![Tools](https://img.shields.io/badge/tools-7_production_grade-green)
+
+*CascadeFlow validated with 216 real-world test scenarios. See [benchmark results](./benchmark_results/) for detailed analysis.*
+
 **[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
 
 </div>

@@ -1,0 +1,26 @@
+{
+  "total_queries": 111,
+  "correct_routing": 101,
+  "incorrect_routing": 10,
+  "routing_by_complexity": {
+    "trivial": 32,
+    "simple": 34,
+    "complex": 23,
+    "expert": 12
+  },
+  "cost_analysis": {
+    "total_cost": 13.418803700000003,
+    "cost_if_always_premium": 134.18803700000004,
+    "savings_percent": 90.0
+  },
+  "domain_accuracy": {
+    "general": 95.65217391304348,
+    "code": 82.35294117647058,
+    "math": 91.66666666666666,
+    "medical": 100.0,
+    "legal": 100.0,
+    "finance": 100.0,
+    "science": 87.5,
+    "data": 100.0
+  }
+}
