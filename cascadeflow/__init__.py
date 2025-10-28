@@ -171,6 +171,16 @@ from .limits import (
     RateLimitError,
 )
 
+# NEW: Guardrails (v0.2.1 - Milestone 5)
+from .guardrails import (
+    ContentModerator,
+    ModerationResult,
+    PIIDetector,
+    PIIMatch,
+    GuardrailsManager,
+    GuardrailViolation,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -272,6 +282,13 @@ __all__ = [
     "RateLimiter",  # NEW: v0.2.1 - Sliding window rate limiter
     "RateLimitState",  # NEW: v0.2.1 - Rate limit state tracking
     "RateLimitError",  # NEW: v0.2.1 - Rate limit exception
+    # Guardrails (v0.2.1 - Milestone 5)
+    "ContentModerator",  # NEW: v0.2.1 - Content moderation
+    "ModerationResult",  # NEW: v0.2.1 - Moderation result
+    "PIIDetector",  # NEW: v0.2.1 - PII detection
+    "PIIMatch",  # NEW: v0.2.1 - PII match
+    "GuardrailsManager",  # NEW: v0.2.1 - Centralized guardrails
+    "GuardrailViolation",  # NEW: v0.2.1 - Guardrail violation exception
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
