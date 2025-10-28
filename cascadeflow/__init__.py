@@ -151,6 +151,10 @@ from .presets import (
     get_speed_optimized_agent,
 )
 
+# NEW: Batch Processing (v0.2.1 - Milestone 1)
+from .core.batch_config import BatchConfig, BatchStrategy
+from .core.batch import BatchResult, BatchProcessingError
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -237,6 +241,11 @@ __all__ = [
     "get_quality_optimized_agent",  # NEW: v0.2.0 - One-line quality optimized setup
     "get_development_agent",  # NEW: v0.2.0 - One-line development setup
     "auto_agent",  # NEW: v0.2.0 - Helper to select preset by name
+    # Batch Processing (v0.2.1 - Milestone 1)
+    "BatchConfig",  # NEW: v0.2.1 - Batch configuration
+    "BatchStrategy",  # NEW: v0.2.1 - Batch strategy enum
+    "BatchResult",  # NEW: v0.2.1 - Batch result with statistics
+    "BatchProcessingError",  # NEW: v0.2.1 - Batch processing exception
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",

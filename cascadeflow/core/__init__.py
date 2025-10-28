@@ -5,6 +5,7 @@ This module contains:
 - Execution planning and strategy selection
 - Domain detection and model scoring
 - Speculative cascade implementation
+- Batch processing (v0.2.1+)
 """
 
 from .cascade import (
@@ -19,6 +20,8 @@ from .execution import (
     LatencyAwareExecutionPlanner,
     ModelScorer,
 )
+from .batch_config import BatchConfig, BatchStrategy
+from .batch import BatchProcessor, BatchResult, BatchProcessingError
 
 __all__ = [
     # Execution
@@ -31,4 +34,10 @@ __all__ = [
     "WholeResponseCascade",
     "SpeculativeCascade",
     "SpeculativeResult",
+    # Batch Processing (v0.2.1+)
+    "BatchConfig",
+    "BatchStrategy",
+    "BatchProcessor",
+    "BatchResult",
+    "BatchProcessingError",
 ]

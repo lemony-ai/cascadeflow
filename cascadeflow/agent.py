@@ -56,7 +56,7 @@ import logging
 import sys
 import time
 from collections.abc import AsyncIterator
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
@@ -1674,6 +1674,55 @@ class CascadeAgent:
                 print(f"  {complexity:12s}: {count}{acceptance_info}")
 
         print("=" * 80 + "\n")
+
+    # ========================================================================
+    # 🆕 v0.2.1: BATCH PROCESSING
+    # ========================================================================
+
+    async def run_batch(
+        self,
+        queries: List[str],
+        batch_config: Optional['BatchConfig'] = None,
+        **kwargs
+    ) -> 'BatchResult':
+        """
+        Process multiple queries in batch.
+
+        🆕 NEW in v0.2.1: Efficient batch processing with LiteLLM + fallback
+
+        Features:
+        - LiteLLM native batch (preferred, automatic)
+        - Sequential fallback with concurrency control
+        - Cost tracking per query
+        - Quality validation per query
+        - Automatic retry on failures
+
+        Args:
+            queries: List of query strings
+            batch_config: Batch configuration (default: BatchConfig())
+            **kwargs: Additional arguments passed to run()
+
+        Returns:
+            BatchResult with all results and statistics
+
+        Example:
+            queries = ["What is Python?", "What is JS?", "What is Rust?"]
+            result = await agent.run_batch(queries)
+
+            print(f"Success: {result.success_count}/{len(queries)}")
+            print(f"Total cost: ${result.total_cost:.4f}")
+            print(f"Strategy: {result.strategy_used}")
+
+            for i, cascade_result in enumerate(result.results):
+                if cascade_result:
+                    print(f"{i}: {cascade_result.content[:100]}...")
+        """
+        from .core.batch import BatchProcessor
+
+        if not hasattr(self, '_batch_processor') or self._batch_processor is None:
+            self._batch_processor = BatchProcessor(self)
+
+        return await self._batch_processor.process_batch(queries, batch_config, **kwargs)
 
     @classmethod
     def from_env(cls, quality_config=None, enable_cascade=True, verbose=False):
