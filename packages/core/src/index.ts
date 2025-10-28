@@ -84,6 +84,17 @@ export type {
   CostBreakdown,
   TimingBreakdown,
   QualityValidation,
+  // v0.2.1+ Multi-tenant types
+  TierLevel,
+  TierConfig,
+  UserProfile,
+  RateLimitState,
+  PiiMatch,
+  ModerationResult,
+  GuardrailsCheck,
+  BatchStrategy,
+  BatchConfig,
+  BatchItemResult,
 } from './types';
 
 // Providers
@@ -145,6 +156,27 @@ export {
   isAuthenticationError,
   isRateLimitError,
 } from './errors';
+
+// User Profiles (v0.2.1+)
+export {
+  TIER_PRESETS,
+  createUserProfile,
+  UserProfileManager,
+  serializeProfile,
+  deserializeProfile,
+} from './profiles';
+
+// Rate Limiting (v0.2.1+)
+export { RateLimiter } from './rate-limiter';
+export { RateLimitError as RateLimitErrorV2 } from './rate-limiter';
+
+// Guardrails (v0.2.1+)
+export {
+  ContentModerator,
+  PiiDetector,
+  GuardrailsManager,
+  GuardrailViolation,
+} from './guardrails';
 
 // Version
 export const VERSION = '1.0.0';
