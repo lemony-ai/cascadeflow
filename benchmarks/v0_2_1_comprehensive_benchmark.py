@@ -499,7 +499,7 @@ class ComprehensiveBenchmark:
 
             batch_config = BatchConfig(
                 strategy=strategy,
-                max_concurrency=5,
+                max_parallel=5,
                 stop_on_error=False
             )
 
