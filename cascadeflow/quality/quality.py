@@ -543,7 +543,10 @@ class QualityValidator:
 
             # === ALIGNMENT SAFETY FLOOR ===
             # Critical safety check: Prevent off-topic responses
-            ALIGNMENT_FLOOR = 0.25
+            # v7.1 CALIBRATED: Lowered from 0.25 to 0.15 to match confidence.py thresholds
+            # Only rejects SEVERELY off-topic responses (< 0.15)
+            # Moderate off-topic (0.15-0.25) gets confidence cap in confidence.py instead
+            ALIGNMENT_FLOOR = 0.15  # CHANGED from 0.25
 
             if alignment < ALIGNMENT_FLOOR:
                 checks["alignment"] = False
