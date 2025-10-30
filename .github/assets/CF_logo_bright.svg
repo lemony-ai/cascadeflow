@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 592.4 95.1">
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580.99 95.1">
   <defs>
     <style>
       .cls-1 {
@@ -15,6 +15,10 @@
       .cls-3 {
         letter-spacing: 0em;
       }
+
+      .cls-4 {
+        letter-spacing: 0em;
+      }
     </style>
   </defs>
   <path class="cls-2" d="M38.19,54.36c-4.15-4.15-4.15-10.87,0-15.02,4.15-4.15,10.87-4.15,15.02,0,4.15,4.15,4.15,10.87,0,15.02s-10.87,4.15-15.02,0Z"/>
@@ -22,5 +26,5 @@
   <path class="cls-2" d="M14.35,77.41c-7.93,0-14.35-6.42-14.35-14.35V29.8h14.35v47.61Z"/>
   <path class="cls-2" d="M28.36,0h34.7c7.93,0,14.35,6.42,14.35,14.35H28.36V0Z"/>
   <path class="cls-2" d="M77.41,14.35c7.93,0,14.35,6.42,14.35,14.35v33.26h-14.35V14.35Z"/>
-  <text class="cls-1" transform="translate(122.84 75.35)"><tspan x="0" y="0">CascadeF</tspan><tspan class="cls-3" x="346.85" y="0">l</tspan><tspan x="367.98" y="0">ow</tspan></text>
+  <text class="cls-1" transform="translate(122.84 75.35)"><tspan x="0" y="0">Cascade</tspan><tspan class="cls-4" x="306.11" y="0">fl</tspan><tspan class="cls-3" x="356.57" y="0">ow</tspan></text>
 </svg>
