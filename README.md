@@ -17,16 +17,6 @@
 [![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=social)](https://github.com/lemony-ai/cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 
-### 🎯 Benchmarks & Performance
-
-![Cost Savings](https://img.shields.io/badge/cost_savings-91%25-brightgreen)
-![Routing Accuracy](https://img.shields.io/badge/routing_accuracy-100%25-brightgreen)
-![Test Scenarios](https://img.shields.io/badge/test_scenarios-216-blue)
-![RouterBench](https://img.shields.io/badge/RouterBench-validated-blue)
-![Tools](https://img.shields.io/badge/tools-7_production_grade-green)
-
-*CascadeFlow validated with 216 real-world test scenarios. See [benchmark results](./benchmark_results/) for detailed analysis.*
-
 **[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
 
 </div>
@@ -37,7 +27,7 @@
 
 40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
 
-*CascadeFlow fixes this with intelligent model cascading, available in Python and TypeScript.*
+*Cascadeflow fixes this with intelligent model cascading, available in Python and TypeScript.*
 
 ```python
 pip install cascadeflow
@@ -49,27 +39,27 @@ npm install @cascadeflow/core
 
 ---
 
-## Why CascadeFlow?
+## Why Cascadeflow?
 
-CascadeFlow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, CascadeFlow automatically escalates to flagship models if needed.
+Cascadeflow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, Cascadeflow automatically escalates to flagship models if needed.
 
 ### Use Cases
 
-Use CascadeFlow for:
+Use Cascadeflow for:
 
 - **Cost Optimization.** Reduce API costs by 40-85% through intelligent model cascading and speculative execution with automatic per-query cost tracking.
 - **Cost Control and Transparency.** Built-in telemetry for query, model, and provider-level cost tracking with configurable budget limits and programmable spending caps.
-- **Speed Optimization**. Cascade simple queries to fast models (sub-50ms) while reserving expensive models for complex reasoning, achieving 2-10x latency reduction. (use preset `PRESET_ULTRA_FAST` )
-- **Multi-Provider Flexibility.** Unified API across **`OpenAI`, `Anthropic`, `Groq`, `Ollama`, `vLLM`, `Together`, and `Hugging Face`** with automatic provider detection and zero vendor lock-in.
+- **Low Latency & Speed Optimization**. Sub-2ms framework overhead with fast provider routing (Groq sub-50ms). Cascade simple queries to fast models while reserving expensive models for complex reasoning, achieving 2-10x latency reduction overall. (use preset `PRESET_ULTRA_FAST`)
+- **Multi-Provider Flexibility.** Unified API across **`OpenAI`, `Anthropic`, `Groq`, `Ollama`, `vLLM`, `Together`, and `Hugging Face`** with automatic provider detection and zero vendor lock-in. Optional **`LiteLLM`** integration for 100+ additional providers.
 - **Edge & Local-Hosted AI Deployment.** Use best of both worlds: handle most queries with local models (vLLM, Ollama), then automatically escalate complex queries to cloud providers only when needed.
 
 > **ℹ️ Note:** SLMs (under 10B parameters) are sufficiently powerful for 60-70% of agentic AI tasks. [Research paper](https://www.researchgate.net/publication/392371267_Small_Language_Models_are_the_Future_of_Agentic_AI)
 
 ---
 
-## How CascadeFlow Works
+## How Cascadeflow Works
 
-CascadeFlow uses **speculative execution with quality validation**:
+Cascadeflow uses **speculative execution with quality validation**:
 
 1. **Speculatively executes** small, fast models first - optimistic execution ($0.15-0.30/1M tokens)
 2. **Validates quality** of responses using configurable thresholds (completeness, confidence, correctness)
@@ -84,7 +74,7 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      CascadeFlow Stack                      │
+│                      Cascadeflow Stack                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌───────────────────────────────────────────────────────┐  │
@@ -94,6 +84,15 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │  │  • Query routing & model selection                    │  │
 │  │  • Drafter -> Verifier coordination                   │  │
 │  │  • Cost tracking & telemetry                          │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                          ↓                                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Domain Pipeline                                      │  │
+│  │                                                       │  │
+│  │  Automatic domain classification                      │  │
+│  │  • Rule-based detection (CODE, MATH, DATA, etc.)      │  │
+│  │  • Optional ML semantic classification                │  │
+│  │  • Domain-optimized pipelines & model selection       │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                          ↓                                  │
 │  ┌───────────────────────────────────────────────────────┐  │
@@ -107,22 +106,22 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │  └───────────────────────────────────────────────────────┘  │
 │                          ↓                                  │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  Cascading Engine                                     │  │ 
+│  │  Cascading Engine (<2ms overhead)                     │  │
 │  │                                                       │  │
 │  │  Smart model escalation strategy                      │  │
 │  │  • Try cheap models first (speculative execution)     │  │
 │  │  • Validate quality instantly                         │  │
 │  │  • Escalate only when needed                          │  │
 │  │  • Automatic retry & fallback                         │  │
-│  └───────────────────────────────────────────────────────┘  │ 
+│  └───────────────────────────────────────────────────────┘  │
 │                          ↓                                  │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  Provider Abstraction Layer                           │  │
 │  │                                                       │  │
 │  │  Unified interface for 7+ providers                   │  │
 │  │  • OpenAI • Anthropic • Groq • Ollama                 │  │
-│  │  • Together • vLLM • HuggingFace                      │  │
-│  └───────────────────────────────────────────────────────┘  │ 
+│  │  • Together • vLLM • HuggingFace • LiteLLM            │  │
+│  └───────────────────────────────────────────────────────┘  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -154,6 +153,48 @@ print(f"Model used: {result.model_used}")
 print(f"Cost: ${result.total_cost:.6f}")
 ```
 
+<details>
+<summary><b>💡 Optional: Enable ML-based Quality Engine & Domain Detection for Higher Accuracy</b></summary>
+
+**Step 1:** Install the optional ML package:
+
+```bash
+pip install cascadeflow[ml]  # Adds semantic similarity detection via FastEmbed
+```
+
+**Step 2:** Enable semantic detection in your agent:
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+
+# Enable ML-based semantic detection (optional parameter)
+agent = CascadeAgent(
+    models=[
+        ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
+        ModelConfig(name="gpt-5", provider="openai", cost=0.00125),
+    ],
+    enable_semantic_detection=True  # Optional: Uses ML for domain detection
+)
+
+# ML semantic detection is now active for all queries
+result = await agent.run("Calculate the eigenvalues of matrix [[1,2],[3,4]]")
+
+# Check which detection method was used
+print(f"Domain: {result.metadata.get('domain_detected')}")
+print(f"Method: {result.metadata.get('detection_method')}")  # 'semantic' or 'rule-based'
+print(f"Confidence: {result.metadata.get('domain_confidence', 0):.1%}")
+```
+
+**What you get:**
+- 🎯 84-87% confidence on complex domains (MATH, CODE, DATA, STRUCTURED)
+- 🔄 Automatic fallback to rule-based if ML dependencies unavailable
+- 📈 Improved routing accuracy for specialized queries
+- 🚀 Works seamlessly with your existing cascade setup
+
+**Note:** If `enable_semantic_detection=True` but FastEmbed is not installed, CascadeFlow automatically falls back to rule-based detection without errors.
+
+</details>
+
 > **⚠️ GPT-5 Note:** GPT-5 requires OpenAI organization verification. Go to [OpenAI Settings](https://platform.openai.com/settings/organization/general) and click "Verify Organization". Access is granted within ~15 minutes. Alternatively, use the recommended setup below which works immediately.
 
 📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
@@ -180,6 +221,64 @@ console.log(`Model: ${result.modelUsed}`);
 console.log(`Cost: $${result.totalCost}`);
 console.log(`Saved: ${result.savingsPercentage}%`);
 ```
+
+<details>
+<summary><b>💡 Optional: Enable ML-based Quality Engine & Domain Detection for Higher Accuracy</b></summary>
+
+> **Note:** ML semantic detection is currently available in Python only. TypeScript support is planned for a future release. Rule-based detection provides excellent accuracy out of the box.
+
+**For Python users:**
+
+**Step 1:** Install the ML package:
+```bash
+pip install cascadeflow[ml]
+```
+
+**Step 2:** Enable semantic detection:
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+
+agent = CascadeAgent(
+    models=[...],
+    enable_semantic_detection=True  # Enables ML-based detection
+)
+```
+
+**Future TypeScript Support (Planned):**
+
+```tsx
+// Will be available in a future release
+npm install @cascadeflow/ml
+
+import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
+
+// Step 1: Enable semantic detection in configuration
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+  enableSemanticDetection: true  // Optional: Uses ML for domain detection
+});
+
+// Step 2: Query with ML-enhanced detection
+const result = await agent.run('Parse this JSON and validate the schema');
+
+// Check which detection method was used
+console.log(`Domain: ${result.metadata.domainDetected}`);
+console.log(`Method: ${result.metadata.detectionMethod}`);  // 'semantic' or 'rule-based'
+console.log(`Confidence: ${(result.metadata.domainConfidence * 100).toFixed(1)}%`);
+```
+
+**What you'll get (when available):**
+- 🎯 84-87% confidence on complex domains (MATH, CODE, DATA, STRUCTURED)
+- 🔄 Automatic fallback to rule-based if ML unavailable
+- 📈 Improved routing accuracy for specialized queries
+- 🚀 Works seamlessly with your existing cascade setup
+
+Currently, CascadeFlow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
+
+</details>
 
 📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
 
@@ -273,6 +372,7 @@ Configure CascadeFlow node:
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
 | **Preset Usage** | Use built-in presets for quick setup | [View](./examples/preset_usage.py) |
 | **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
+| **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
 | **Streaming Text** | Stream responses from cascade agents | [View](./examples/streaming_text.py) |
 | **Cost Tracking** | Track and analyze costs across queries | [View](./examples/cost_tracking.py) |
@@ -287,10 +387,19 @@ Configure CascadeFlow node:
 | **Production Patterns** | Best practices for production deployments | [View](./examples/production_patterns.py) |
 | **FastAPI Integration** | Integrate cascades with FastAPI | [View](./examples/fastapi_integration.py) |
 | **Streaming Tools** | Stream tool calls and responses | [View](./examples/streaming_tools.py) |
+| **Batch Processing** | Process multiple queries efficiently | [View](./examples/batch_processing.py) |
+| **Multi-Step Cascade** | Build complex multi-step cascades | [View](./examples/multi_step_cascade.py) |
 | **Edge Device** | Run cascades on edge devices with local models | [View](./examples/edge_device.py) |
 | **vLLM Example** | Use vLLM for local model deployment | [View](./examples/vllm_example.py) |
 | **Custom Cascade** | Build custom cascade strategies | [View](./examples/custom_cascade.py) |
 | **Custom Validation** | Implement custom quality validators | [View](./examples/custom_validation.py) |
+| **User Budget Tracking** | Per-user budget enforcement and tracking | [View](./examples/user_budget_tracking.py) |
+| **User Profile Usage** | User-specific routing and configurations | [View](./examples/user_profile_usage.py) |
+| **Rate Limiting** | Implement rate limiting for cascades | [View](./examples/rate_limiting_usage.py) |
+| **Guardrails** | Add safety and content guardrails | [View](./examples/guardrails_usage.py) |
+| **Cost Forecasting** | Forecast costs and detect anomalies | [View](./examples/cost_forecasting_anomaly_detection.py) |
+| **Semantic Quality Detection** | ML-based domain and quality detection | [View](./examples/semantic_quality_domain_detection.py) |
+| **Profile Database Integration** | Integrate user profiles with databases | [View](./examples/profile_database_integration.py) |
 
 </details>
 
@@ -304,6 +413,7 @@ Configure CascadeFlow node:
 | **Basic Usage** | Simple cascade setup (Node.js) | [View](./packages/core/examples/nodejs/basic-usage.ts) |
 | **Tool Calling** | Function calling with tools (Node.js) | [View](./packages/core/examples/nodejs/tool-calling.ts) |
 | **Multi-Provider** | Mix providers in TypeScript (Node.js) | [View](./packages/core/examples/nodejs/multi-provider.ts) |
+| **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./packages/core/examples/nodejs/reasoning-models.ts) |
 | **Streaming** | Stream responses in TypeScript | [View](./packages/core/examples/streaming.ts) |
 
 </details>
@@ -358,18 +468,22 @@ Configure CascadeFlow node:
 
 ## Features
 
-| **Feature** | **Benefit** |
-| --- | --- |
-| 🎯 **Speculative Cascading** | Tries cheap models first, escalates intelligently |
-| 💰 **40-85% Cost Savings** | Research-backed, proven in production |
-| ⚡ **2-10x Faster** | Small models respond in <50ms vs 500-2000ms |
-| 🔄 **Mix Any Providers** | OpenAI, Anthropic, Groq, Ollama, vLLM, Together |
-| ✅ **Quality Validation** | Automatic quality checks |
-| 🤖 **Drafter/Validator Pattern** | 20-60% savings for agent/tool systems |
-| 📊 **Cost Tracking** | Built-in analytics per query, model, provider |
-| 🌐 **Universal Support** | 20+ providers, 100+ models |
-| 🚀 3**-Line Integration** | Zero architecture changes needed |
-| 🏭 **Production Ready** | Streaming, caching, error handling, monitoring |
+| **Feature** | **Benefit**                                                                                                                            |
+| --- |----------------------------------------------------------------------------------------------------------------------------------------|
+| 🎯 **Speculative Cascading** | Tries cheap models first, escalates intelligently                                                                                      |
+| 💰 **40-85% Cost Savings** | Research-backed, proven in production                                                                                                  |
+| ⚡ **2-10x Faster** | Small models respond in <50ms vs 500-2000ms                                                                                            |
+| ⚡ **Low Latency** 🆕 | Sub-2ms framework overhead, negligible performance impact                                                                              |
+| 🔄 **Mix Any Providers** 🆕 | OpenAI, Anthropic, Groq, Ollama, vLLM, Together + LiteLLM (optional)                                                                   |
+| 👤 **User Profile System** 🆕 | Per-user budgets, tier-aware routing, enforcement callbacks                                                                            |
+| ✅ **Quality Validation** 🆕 | Automatic checks + semantic similarity (optional ML, ~80MB, CPU)                                                                       |
+| 🎨 **Cascading Policies** 🆕 | Domain-specific pipelines, multi-step validation strategies                                                                            |
+| 🧠 **Domain Understanding** 🆕 | Auto-detects code/medical/legal/math/structured data, routes to specialists                                                            |
+| 🤖 **Drafter/Validator Pattern** | 20-60% savings for agent/tool systems                                                                                                  |
+| 🔧 **Tool Calling Support** 🆕 | Universal format, works across all providers                                                                                           |
+| 📊 **Cost Tracking** 🆕 | Built-in analytics + OpenTelemetry export (vendor-neutral)                                                                             |
+| 🚀 **3-Line Integration** | Zero architecture changes needed                                                                                                       |
+| 🏭 **Production Ready** 🆕 | Streaming, batch processing, tool handling, reasoning model support, caching, error recovery, anomaly detection |
 
 ---
 
@@ -414,7 +528,7 @@ If you use CascadeFlow in your research or project, please cite:
 
 ```bibtex
 @software{cascadeflow2025,
-  author = {Lemony Inc.},
+  author = {Lemony Inc., Sascha Buehrle and Contributors},
   title = {CascadeFlow: Smart AI model cascading for cost optimization},
   year = {2025},
   publisher = {GitHub},

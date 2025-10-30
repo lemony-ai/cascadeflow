@@ -9,6 +9,10 @@
 - [ ] Enable GitHub Discussions for community Q&A
 - [ ] Disable Wiki (use /docs folder instead)
 - [ ] Create public Projects board for roadmap transparency
+- [ ] **Deploy organization profile README**:
+  - [ ] Copy `LEMONY_ORG_README.md` to `lemony-ai/.github/profile/README.md`
+  - [ ] Configure pinned repositories (only Cascadeflow)
+  - [ ] Verify organization landing page displays correctly
 
 ### 2. GitHub Secrets (CI/CD)
 - [ ] Add `PYPI_API_TOKEN` for Python package publishing
