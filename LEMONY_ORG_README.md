@@ -1,6 +1,10 @@
 <div align="center">
 
-# Lemony
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lemony-ai/CascadeFlow/main/.github/assets/Lemony_logo_dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/lemony-ai/CascadeFlow/main/.github/assets/Lemony_logo_dark.svg">
+  <img alt="Lemony Logo" src="https://raw.githubusercontent.com/lemony-ai/CascadeFlow/main/.github/assets/Lemony_logo_dark.svg" width="300">
+</picture>
 
 **Open, developer-focused AI infrastructure**
 
