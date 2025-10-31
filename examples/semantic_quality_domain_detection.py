@@ -221,7 +221,8 @@ def demo_model_recommendations():
 
         for i, model in enumerate(models[:3], 1):  # Show top 3
             print(f"{i}. {model['name']}")
-            print(f"   Reason: {model['reason']}")
+            reason = model.get('reason', 'Recommended for this domain')
+            print(f"   Reason: {reason}")
 
         print()
 

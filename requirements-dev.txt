@@ -74,6 +74,13 @@ pip-audit>=2.4.0
 # Rich terminal output (for development/debugging)
 rich>=13.0.0
 
+# Web framework for API examples
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# HTTP client (for health checks in examples)
+httpx>=0.25.0
+
 # Type stubs
 types-requests>=2.31.0
 
