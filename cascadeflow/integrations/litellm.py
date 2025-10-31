@@ -110,7 +110,7 @@ SUPPORTED_PROVIDERS = {
         value_prop="Cost-effective, wide model selection, good for experimentation",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["together/llama-3-70b", "together/llama-3-8b", "together/qwen-2-72b"],
+        example_models=["together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "together_ai/meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo"],
     ),
     "huggingface": ProviderInfo(
         name="huggingface",
