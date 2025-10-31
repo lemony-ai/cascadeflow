@@ -10,7 +10,7 @@
  */
 
 import { BaseProvider, type ProviderRequest } from './base';
-import type { ProviderResponse, Tool, Message } from '../types';
+import type { ProviderResponse, Tool, Message, ReasoningModelInfo } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
 
@@ -52,6 +52,40 @@ const ANTHROPIC_PRICING: Record<string, number> = {
   'claude-3-sonnet': 9.0, // $3 in + $15 out = $9 blended
   'claude-3-haiku': 0.75, // $0.25 in + $1.25 out = $0.75 blended
 };
+
+/**
+ * Detect if model supports extended thinking and get its capabilities
+ *
+ * @param modelName - Model name to check
+ * @returns Model capabilities
+ */
+export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
+  const name = modelName.toLowerCase();
+
+  // Claude 3.7 Sonnet - Hybrid reasoning model with extended thinking
+  if (name.includes('claude-3-7-sonnet') || name.includes('claude-sonnet-3.7') || name.includes('claude-sonnet-3-7')) {
+    return {
+      isReasoning: true,
+      provider: 'anthropic',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsSystemMessages: true,
+      supportsExtendedThinking: true,
+      requiresThinkingBudget: true,
+    };
+  }
+
+  // Standard Claude models (no extended thinking)
+  return {
+    isReasoning: false,
+    provider: 'anthropic',
+    supportsStreaming: true,
+    supportsTools: true,
+    supportsSystemMessages: true,
+    supportsExtendedThinking: false,
+    requiresThinkingBudget: false,
+  };
+}
 
 /**
  * Anthropic provider with automatic environment detection
@@ -253,15 +287,40 @@ export class AnthropicProvider extends BaseProvider {
       const anthropicMessages = this.convertToAnthropicMessages(messages);
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
-      const completion = await this.client.messages.create({
-        model: request.model || this.config.name,
+      // Auto-detect extended thinking support
+      const modelName = request.model || this.config.name;
+      const modelInfo = getReasoningModelInfo(modelName);
+
+      // Build request payload
+      const payload: any = {
+        model: modelName,
         max_tokens: request.maxTokens || this.config.maxTokens || 1000,
         temperature: request.temperature ?? this.config.temperature ?? 0.7,
         messages: anthropicMessages,
         system: request.systemPrompt,
         tools,
         ...request.extra,
-      });
+      };
+
+      // Add extended thinking configuration for Claude 3.7
+      if (modelInfo.supportsExtendedThinking && request.extra?.thinking) {
+        payload.thinking = request.extra.thinking;
+      }
+
+      const completion = await this.client.messages.create(payload);
+
+      // Extract thinking content (Claude 3.7 extended thinking)
+      const thinkingBlocks = completion.content
+        .filter((block: any) => block.type === 'thinking')
+        .map((block: any) => ({
+          type: 'thinking' as const,
+          thinking: block.thinking,
+          signature: block.signature,
+        }));
+
+      const thinking = thinkingBlocks.length > 0
+        ? thinkingBlocks.map((b: any) => b.thinking).join('\n\n')
+        : undefined;
 
       // Extract text content
       const textContent = completion.content
@@ -291,6 +350,8 @@ export class AnthropicProvider extends BaseProvider {
         },
         finish_reason: completion.stop_reason || undefined,
         tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+        thinking,
+        content_blocks: completion.content,
         raw: completion,
       };
     } catch (error) {

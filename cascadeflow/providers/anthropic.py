@@ -12,6 +12,95 @@ from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, ModelResponse, RetryConfig
 
 
+# ==============================================================================
+# REASONING MODEL SUPPORT
+# ==============================================================================
+
+class ReasoningModelInfo:
+    """
+    Information about reasoning model capabilities and limitations.
+
+    Used for auto-detection and configuration across all providers.
+    Unified type that matches TypeScript ReasoningModelInfo interface.
+    """
+
+    def __init__(
+        self,
+        is_reasoning: bool = False,
+        provider: str = "anthropic",
+        supports_streaming: bool = True,
+        supports_tools: bool = True,
+        supports_system_messages: bool = True,
+        supports_reasoning_effort: bool = False,
+        supports_extended_thinking: bool = False,
+        requires_max_completion_tokens: bool = False,
+        requires_thinking_budget: bool = False,
+    ):
+        self.is_reasoning = is_reasoning
+        self.provider = provider
+        self.supports_streaming = supports_streaming
+        self.supports_tools = supports_tools
+        self.supports_system_messages = supports_system_messages
+        self.supports_reasoning_effort = supports_reasoning_effort  # OpenAI o1/o3
+        self.supports_extended_thinking = supports_extended_thinking  # Anthropic Claude 3.7
+        self.requires_max_completion_tokens = requires_max_completion_tokens  # OpenAI specific
+        self.requires_thinking_budget = requires_thinking_budget  # Anthropic specific
+
+
+def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
+    """
+    Detect if model supports extended thinking and get its capabilities.
+
+    This function provides automatic detection of reasoning models and their
+    capabilities, enabling zero-configuration usage. Just specify the model name
+    and all limitations/features are handled automatically.
+
+    Args:
+        model_name: Model name to check (case-insensitive)
+
+    Returns:
+        ReasoningModelInfo with capability flags
+
+    Examples:
+        >>> info = get_reasoning_model_info('claude-3-7-sonnet')
+        >>> print(info.is_reasoning)  # True
+        >>> print(info.supports_extended_thinking)  # True
+
+        >>> info = get_reasoning_model_info('claude-3-5-sonnet')
+        >>> print(info.is_reasoning)  # False
+        >>> print(info.supports_tools)  # True
+    """
+    name = model_name.lower()
+
+    # Claude 3.7 Sonnet - Hybrid reasoning model with extended thinking
+    if 'claude-3-7-sonnet' in name or 'claude-sonnet-3.7' in name or 'claude-sonnet-3-7' in name:
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            provider='anthropic',
+            supports_streaming=True,
+            supports_tools=True,
+            supports_system_messages=True,
+            supports_extended_thinking=True,
+            requires_thinking_budget=True,
+        )
+
+    # Standard Claude models (no extended thinking)
+    return ReasoningModelInfo(
+        is_reasoning=False,
+        provider='anthropic',
+        supports_streaming=True,
+        supports_tools=True,
+        supports_system_messages=True,
+        supports_extended_thinking=False,
+        requires_thinking_budget=False,
+    )
+
+
+# ==============================================================================
+# PROVIDER IMPLEMENTATION
+# ==============================================================================
+
+
 class AnthropicProvider(BaseProvider):
     """
     Anthropic provider for Claude models with tool calling support.
@@ -540,6 +629,9 @@ class AnthropicProvider(BaseProvider):
         logprobs_requested = kwargs.pop("logprobs", False)
         kwargs.pop("top_logprobs", 5)
 
+        # Auto-detect extended thinking support
+        model_info = get_reasoning_model_info(model)
+
         # Build request payload (Anthropic format is different from OpenAI)
         payload = {
             "model": model,
@@ -553,6 +645,10 @@ class AnthropicProvider(BaseProvider):
         if system_prompt:
             payload["system"] = system_prompt
 
+        # Add extended thinking configuration for Claude 3.7
+        if model_info.supports_extended_thinking and "thinking" in kwargs:
+            payload["thinking"] = kwargs.pop("thinking")
+
         try:
             # Make API request (retry handled by parent class)
             response = await self.client.post(f"{self.base_url}/messages", json=payload)
@@ -560,8 +656,15 @@ class AnthropicProvider(BaseProvider):
 
             data = response.json()
 
+            # Extract thinking content (Claude 3.7 extended thinking)
+            thinking_blocks = [
+                block for block in data["content"] if block.get("type") == "thinking"
+            ]
+            thinking = "\n\n".join(block.get("thinking", "") for block in thinking_blocks) if thinking_blocks else None
+
             # Extract response (Anthropic format)
-            content = data["content"][0]["text"]
+            text_blocks = [block for block in data["content"] if block.get("type") == "text"]
+            content = text_blocks[0]["text"] if text_blocks else ""
 
             # Anthropic provides token counts in usage
             usage = data.get("usage", {})
@@ -634,6 +737,10 @@ class AnthropicProvider(BaseProvider):
                 "confidence_method": confidence_method,
                 "confidence_components": confidence_components,
             }
+
+            # Add thinking to metadata if available (Claude 3.7 extended thinking)
+            if thinking:
+                response_metadata["thinking"] = thinking
 
             # Create base response
             model_response = ModelResponse(

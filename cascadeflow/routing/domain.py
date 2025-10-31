@@ -126,15 +126,18 @@ DOMAIN_KEYWORDS: Dict[Domain, DomainKeywords] = {
 
     Domain.STRUCTURED: DomainKeywords(
         very_strong=[  # Format-specific keywords (Research-backed)
-            "json", "xml", "yaml", "pydantic", "schema validation"
+            "json", "xml", "yaml", "pydantic", "schema validation",
+            "protobuf", "avro", "JSON Schema", "dataclass"
         ],
         strong=[
             "extract", "parse", "schema", "fields", "entity", "structure",
-            "format", "convert", "normalize", "CSV", "Excel", "spreadsheet"
+            "format", "convert", "normalize", "CSV", "Excel", "spreadsheet",
+            "serialize", "deserialize", "validate", "attrs"
         ],
         moderate=[
-            "form", "template", "validate", "transform", "map",
-            "serialize", "deserialize", "property", "field mapping"
+            "form", "template", "transform", "map", "property",
+            "field mapping", "record", "document structure", "nested",
+            "flatten", "key-value", "attribute", "TOML", "msgpack"
         ],
         weak=[],  # Removed generic terms
     ),
@@ -221,16 +224,22 @@ DOMAIN_KEYWORDS: Dict[Domain, DomainKeywords] = {
     ),
 
     Domain.MATH: DomainKeywords(
+        very_strong=[  # Highly discriminative (math-specific)
+            "derivative", "integral", "theorem", "proof", "eigenvalue",
+            "differential equation", "matrix multiplication", "calculus",
+            "trigonometry", "logarithm"
+        ],
         strong=[
             "calculate", "equation", "formula", "mathematics", "algebra",
-            "geometry", "calculus", "statistics", "probability", "theorem",
-            "proof", "solve", "derivative", "integral"
+            "geometry", "statistics", "probability", "solve",
+            "vector", "matrix", "optimization", "polynomial"
         ],
         moderate=[
-            "compute", "number", "graph", "variable", "function",
-            "coefficient", "expression"
+            "compute", "graph", "variable", "function", "coefficient",
+            "expression", "numeric", "symbolic", "scientific notation",
+            "exponent", "factorial", "summation"
         ],
-        weak=["add", "subtract", "multiply", "divide", "math"],
+        weak=["add", "subtract", "multiply", "divide", "number", "math"],
     ),
 
     Domain.MEDICAL: DomainKeywords(
@@ -585,11 +594,14 @@ DOMAIN_EXEMPLARS: Dict[Domain, List[str]] = {
         "Create a pivot table from this dataset",
     ],
     Domain.STRUCTURED: [
-        "Extract JSON from this text",
-        "Parse this XML configuration file",
-        "Convert this HTML form to structured data",
-        "Extract key-value pairs from invoice",
-        "Normalize this nested JSON structure",
+        "Extract JSON from this text and validate schema",
+        "Parse this XML configuration file and convert to YAML",
+        "Convert this HTML form to Pydantic dataclass",
+        "Extract key-value pairs from invoice using field mapping",
+        "Normalize this nested JSON structure and flatten hierarchy",
+        "Parse Protobuf definition and generate Python schema",
+        "Deserialize Avro data and convert to CSV format",
+        "Validate JSON against JSON Schema specification",
     ],
     Domain.RAG: [
         "Search documents for information about taxes",
@@ -634,11 +646,14 @@ DOMAIN_EXEMPLARS: Dict[Domain, List[str]] = {
         "Translate this legal document from Italian",
     ],
     Domain.MATH: [
-        "Solve this differential equation",
+        "Solve this differential equation: dy/dx = 2x + 3",
         "Calculate the probability of rolling two sixes",
         "Find the derivative of x^2 + 3x + 2",
-        "Prove the Pythagorean theorem",
-        "Compute the area under this curve",
+        "Prove the Pythagorean theorem using geometric reasoning",
+        "Compute the area under this curve using integration",
+        "Calculate the eigenvalues of matrix [[1,2],[3,4]]",
+        "Solve the quadratic equation 3x^2 + 5x - 2 = 0",
+        "Find the limit as x approaches infinity of (x^2+1)/x",
     ],
     Domain.MEDICAL: [
         "Explain the symptoms of diabetes",

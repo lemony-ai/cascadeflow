@@ -12,6 +12,74 @@ from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, ModelResponse, RetryConfig
 
 
+class ReasoningModelInfo:
+    """
+    Information about reasoning model capabilities and limitations.
+
+    Used for auto-detection and configuration across all providers.
+    Unified type that matches TypeScript ReasoningModelInfo interface.
+    """
+
+    def __init__(
+        self,
+        is_reasoning: bool = False,
+        provider: str = "ollama",
+        supports_streaming: bool = True,
+        supports_tools: bool = True,
+        supports_system_messages: bool = True,
+        supports_reasoning_effort: bool = False,
+        supports_extended_thinking: bool = False,
+        requires_max_completion_tokens: bool = False,
+        requires_thinking_budget: bool = False,
+    ):
+        self.is_reasoning = is_reasoning
+        self.provider = provider
+        self.supports_streaming = supports_streaming
+        self.supports_tools = supports_tools
+        self.supports_system_messages = supports_system_messages
+        self.supports_reasoning_effort = supports_reasoning_effort  # OpenAI o1/o3
+        self.supports_extended_thinking = supports_extended_thinking  # Anthropic Claude 3.7
+        self.requires_max_completion_tokens = requires_max_completion_tokens  # OpenAI specific
+        self.requires_thinking_budget = requires_thinking_budget  # Anthropic specific
+
+
+def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
+    """
+    Detect if model is DeepSeek-R1 reasoning model.
+
+    Args:
+        model_name: Model name to check
+
+    Returns:
+        Model capabilities
+    """
+    name = model_name.lower()
+
+    # DeepSeek-R1 - Chain-of-thought reasoning model
+    # Variations: deepseek-r1, deepseek-r1:latest, deepseek-r1:8b, deepseek-r1:32b, deepseek-r1:70b
+    if "deepseek-r1" in name or "deepseek_r1" in name:
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            provider="ollama",
+            supports_streaming=True,
+            supports_tools=True,
+            supports_system_messages=True,
+            supports_extended_thinking=False,
+            requires_thinking_budget=False,
+        )
+
+    # Standard models (no reasoning)
+    return ReasoningModelInfo(
+        is_reasoning=False,
+        provider="ollama",
+        supports_streaming=True,
+        supports_tools=True,
+        supports_system_messages=True,
+        supports_extended_thinking=False,
+        requires_thinking_budget=False,
+    )
+
+
 class OllamaProvider(BaseProvider):
     """
     Ollama provider for local LLM serving with tool calling support.

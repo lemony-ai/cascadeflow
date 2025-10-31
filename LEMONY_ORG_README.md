@@ -6,7 +6,7 @@
   <img alt="Lemony Logo" src="https://raw.githubusercontent.com/lemony-ai/CascadeFlow/main/.github/assets/Lemony_logo_dark.svg" width="300">
 </picture>
 
-**Open, developer-focused AI infrastructure**
+**One cascade. Hundreds of specialists.**
 
 [![Website](https://img.shields.io/badge/Website-lemony.ai-blue)](https://lemony.ai)
 [![X Follow](https://img.shields.io/twitter/follow/SaschaBuehrle?style=social)](https://x.com/SaschaBuehrle)

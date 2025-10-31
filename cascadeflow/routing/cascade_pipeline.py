@@ -433,6 +433,88 @@ def get_data_strategy() -> DomainCascadeStrategy:
     )
 
 
+def get_math_strategy() -> DomainCascadeStrategy:
+    """
+    Get MATH domain cascade strategy.
+
+    Pipeline:
+    1. GPT-4o-mini (draft) → syntax check (mathematical notation)
+    2. GPT-4o (verify, fallback) → full quality check
+
+    Returns 85-90% cost savings vs direct GPT-4.
+    Optimized for accurate calculations and proofs.
+    """
+    return DomainCascadeStrategy(
+        domain=Domain.MATH,
+        description="Mathematical reasoning with calculation validation",
+        steps=[
+            CascadeStep(
+                name="draft",
+                model="gpt-4o-mini",
+                provider="openai",
+                validation=ValidationMethod.SYNTAX_CHECK,
+                quality_threshold=0.75,
+                fallback_only=False,
+                temperature=0.2,  # Precise calculations
+                metadata={"step_type": "draft", "domain": "math"}
+            ),
+            CascadeStep(
+                name="verify",
+                model="gpt-4o",
+                provider="openai",
+                validation=ValidationMethod.FULL_QUALITY,
+                quality_threshold=0.90,  # High accuracy for math
+                fallback_only=True,
+                temperature=0.1,  # Deterministic
+                metadata={"step_type": "verify", "precision": "high"}
+            )
+        ]
+    )
+
+
+def get_structured_strategy() -> DomainCascadeStrategy:
+    """
+    Get STRUCTURED domain cascade strategy.
+
+    Pipeline:
+    1. GPT-4o-mini (draft) → syntax check (JSON/XML validation)
+    2. GPT-4o (verify, fallback) → quality check
+
+    Returns 90-95% cost savings vs direct GPT-4.
+    Optimized for data extraction and format conversion.
+    """
+    return DomainCascadeStrategy(
+        domain=Domain.STRUCTURED,
+        description="Structured data extraction with format validation",
+        steps=[
+            CascadeStep(
+                name="draft",
+                model="gpt-4o-mini",
+                provider="openai",
+                validation=ValidationMethod.SYNTAX_CHECK,  # JSON/XML validation
+                quality_threshold=0.70,
+                fallback_only=False,
+                temperature=0.3,  # Precise formatting
+                metadata={
+                    "step_type": "draft",
+                    "domain": "structured",
+                    "json_mode": True  # Enable JSON mode
+                }
+            ),
+            CascadeStep(
+                name="verify",
+                model="gpt-4o",
+                provider="openai",
+                validation=ValidationMethod.QUALITY_CHECK,
+                quality_threshold=0.85,
+                fallback_only=True,
+                temperature=0.2,
+                metadata={"step_type": "verify", "schema_validation": True}
+            )
+        ]
+    )
+
+
 # ============================================================================
 # STRATEGY REGISTRY
 # ============================================================================
@@ -443,6 +525,8 @@ BUILT_IN_STRATEGIES = {
     Domain.MEDICAL: get_medical_strategy,
     Domain.GENERAL: get_general_strategy,
     Domain.DATA: get_data_strategy,
+    Domain.MATH: get_math_strategy,
+    Domain.STRUCTURED: get_structured_strategy,
 }
 
 

@@ -21,19 +21,14 @@ from .helpers import (
     truncate_text,
 )
 
-# Presets
+# Presets (v0.2.0 - function-based presets)
 from .presets import (
-    PRESET_ANTHROPIC_ONLY,
-    PRESET_BEST_OVERALL,
-    PRESET_FREE_LOCAL,
-    PRESET_OPENAI_ONLY,
-    PRESET_ULTRA_CHEAP,
-    PRESET_ULTRA_FAST,
-    PRESETS,
-    CascadePresets,
-    PerformanceMode,
-    QualityMode,
-    create_preset,
+    auto_agent,
+    get_balanced_agent,
+    get_cost_optimized_agent,
+    get_development_agent,
+    get_quality_optimized_agent,
+    get_speed_optimized_agent,
 )
 
 __all__ = [
@@ -47,16 +42,11 @@ __all__ = [
     "parse_model_identifier",
     # Caching
     "ResponseCache",
-    # Presets
-    "CascadePresets",
-    "PRESET_BEST_OVERALL",
-    "PRESET_ULTRA_FAST",
-    "PRESET_ULTRA_CHEAP",
-    "PRESET_OPENAI_ONLY",
-    "PRESET_ANTHROPIC_ONLY",
-    "PRESET_FREE_LOCAL",
-    "PRESETS",
-    "create_preset",
-    "QualityMode",
-    "PerformanceMode",
+    # Presets (v0.2.0 - function-based)
+    "get_cost_optimized_agent",
+    "get_balanced_agent",
+    "get_speed_optimized_agent",
+    "get_quality_optimized_agent",
+    "get_development_agent",
+    "auto_agent",
 ]

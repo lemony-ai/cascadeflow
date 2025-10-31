@@ -12,6 +12,113 @@ from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, ModelResponse, RetryConfig
 
 
+# ==============================================================================
+# REASONING MODEL SUPPORT
+# ==============================================================================
+
+class ReasoningModelInfo:
+    """
+    Information about reasoning model capabilities and limitations.
+
+    Used for auto-detection and configuration across all providers.
+    Unified type that matches TypeScript ReasoningModelInfo interface.
+    """
+
+    def __init__(
+        self,
+        is_reasoning: bool = False,
+        provider: str = "openai",
+        supports_streaming: bool = True,
+        supports_tools: bool = True,
+        supports_system_messages: bool = True,
+        supports_reasoning_effort: bool = False,
+        supports_extended_thinking: bool = False,
+        requires_max_completion_tokens: bool = False,
+        requires_thinking_budget: bool = False,
+    ):
+        self.is_reasoning = is_reasoning
+        self.provider = provider
+        self.supports_streaming = supports_streaming
+        self.supports_tools = supports_tools
+        self.supports_system_messages = supports_system_messages
+        self.supports_reasoning_effort = supports_reasoning_effort  # OpenAI o1/o3
+        self.supports_extended_thinking = supports_extended_thinking  # Anthropic Claude 3.7
+        self.requires_max_completion_tokens = requires_max_completion_tokens  # OpenAI specific
+        self.requires_thinking_budget = requires_thinking_budget  # Anthropic specific
+
+
+def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
+    """
+    Detect if model is a reasoning model and get its capabilities.
+
+    This function provides automatic detection of reasoning models and their
+    capabilities, enabling zero-configuration usage. Just specify the model name
+    and all limitations/features are handled automatically.
+
+    Args:
+        model_name: Model name to check (case-insensitive)
+
+    Returns:
+        ReasoningModelInfo with capability flags
+
+    Examples:
+        >>> info = get_reasoning_model_info('o1-mini')
+        >>> print(info.is_reasoning)  # True
+        >>> print(info.supports_tools)  # False
+
+        >>> info = get_reasoning_model_info('gpt-4o')
+        >>> print(info.is_reasoning)  # False
+        >>> print(info.supports_tools)  # True
+    """
+    name = model_name.lower()
+
+    # O1 preview/mini (original reasoning models)
+    if 'o1-preview' in name or 'o1-mini' in name:
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            supports_streaming=True,
+            supports_tools=False,
+            supports_system_messages=False,
+            supports_reasoning_effort=False,
+            requires_max_completion_tokens=False,
+        )
+
+    # O1 (2024-12-17) - more capable with reasoning_effort
+    if 'o1-2024-12-17' in name or name == 'o1':
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            supports_streaming=False,  # Not supported
+            supports_tools=False,
+            supports_system_messages=False,
+            supports_reasoning_effort=True,
+            requires_max_completion_tokens=True,
+        )
+
+    # O3-mini (future reasoning model)
+    if 'o3-mini' in name:
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            supports_streaming=True,
+            supports_tools=True,
+            supports_system_messages=False,
+            supports_reasoning_effort=True,
+            requires_max_completion_tokens=True,
+        )
+
+    # Not a reasoning model - standard GPT model
+    return ReasoningModelInfo(
+        is_reasoning=False,
+        supports_streaming=True,
+        supports_tools=True,
+        supports_system_messages=True,
+        supports_reasoning_effort=False,
+        requires_max_completion_tokens=False,
+    )
+
+
+# ==============================================================================
+
+
 class OpenAIProvider(BaseProvider):
     """
     OpenAI provider for GPT models with tool calling support.
@@ -481,20 +588,41 @@ class OpenAIProvider(BaseProvider):
         logprobs_enabled = kwargs.pop("logprobs", False)
         top_logprobs = kwargs.pop("top_logprobs", 5)  # Default to 5
 
-        # Build messages
+        # Get reasoning model info for auto-configuration
+        model_info = get_reasoning_model_info(model)
+
+        # Build messages (handle system prompt for reasoning models)
         messages = []
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+            if model_info.supports_system_messages:
+                messages.append({"role": "system", "content": system_prompt})
+            else:
+                # Prepend system prompt to first user message
+                prompt = f"{system_prompt}\n\n{prompt}"
         messages.append({"role": "user", "content": prompt})
 
-        # Build request payload
+        # Check if this is GPT-5 model for correct token parameter
+        is_gpt5 = model.lower().startswith('gpt-5')
+
+        # Build request payload with correct parameters
         payload = {
             "model": model,
             "messages": messages,
-            "max_tokens": max_tokens,
             "temperature": temperature,
-            **kwargs,
         }
+
+        # Use correct token limit parameter
+        if is_gpt5 or model_info.requires_max_completion_tokens:
+            payload["max_completion_tokens"] = max_tokens
+        else:
+            payload["max_tokens"] = max_tokens
+
+        # Add reasoning_effort if supported and provided
+        if model_info.supports_reasoning_effort and "reasoning_effort" in kwargs:
+            payload["reasoning_effort"] = kwargs.pop("reasoning_effort")
+
+        # Add remaining kwargs
+        payload.update(kwargs)
 
         # Add logprobs if requested (now typically True by default)
         if logprobs_enabled:
@@ -515,6 +643,13 @@ class OpenAIProvider(BaseProvider):
             prompt_tokens = data["usage"]["prompt_tokens"]
             completion_tokens = data["usage"]["completion_tokens"]
             tokens_used = data["usage"]["total_tokens"]
+
+            # Extract reasoning tokens for o1/o3 models (if available)
+            reasoning_tokens = None
+            if "completion_tokens_details" in data["usage"]:
+                completion_details = data["usage"]["completion_tokens_details"]
+                if "reasoning_tokens" in completion_details:
+                    reasoning_tokens = completion_details["reasoning_tokens"]
 
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
@@ -608,6 +743,10 @@ class OpenAIProvider(BaseProvider):
                 "confidence_method": confidence_method,
                 "confidence_components": confidence_components,
             }
+
+            # Add reasoning tokens if available (for o1/o3 models)
+            if reasoning_tokens is not None:
+                response_metadata["reasoning_tokens"] = reasoning_tokens
 
             # Build base response
             model_response = ModelResponse(
@@ -812,6 +951,13 @@ class OpenAIProvider(BaseProvider):
             # GPT-4o series (previous flagship)
             "gpt-4o": {"input": 0.0025, "output": 0.010},
             "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+            # O1 series (reasoning models)
+            "o1-preview": {"input": 0.015, "output": 0.060},
+            "o1-mini": {"input": 0.003, "output": 0.012},
+            "o1": {"input": 0.015, "output": 0.060},
+            "o1-2024-12-17": {"input": 0.015, "output": 0.060},
+            # O3 series (reasoning models)
+            "o3-mini": {"input": 0.001, "output": 0.005},
             # GPT-4 series (previous generation)
             "gpt-4-turbo": {"input": 0.010, "output": 0.030},
             "gpt-4": {"input": 0.030, "output": 0.060},

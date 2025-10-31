@@ -518,7 +518,10 @@ class ToolStreamManager:
                 tool_quality_passed = True
                 quality_score = 0.95 if all_valid else 0.3
 
-                if hasattr(self.cascade, "tool_quality_validator"):
+                if (
+                    hasattr(self.cascade, "tool_quality_validator")
+                    and self.cascade.tool_quality_validator is not None
+                ):
                     validation_result = self.cascade.tool_quality_validator.validate(
                         tool_calls=tool_calls_found, available_tools=tools
                     )

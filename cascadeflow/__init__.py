@@ -124,25 +124,14 @@ from .streaming import (
 # Smart presets for easy setup (now in utils/)
 # Response caching (now in utils/)
 from .utils import (
-    PRESET_ANTHROPIC_ONLY,
-    PRESET_BEST_OVERALL,
-    PRESET_FREE_LOCAL,
-    PRESET_OPENAI_ONLY,
-    PRESET_ULTRA_CHEAP,
-    PRESET_ULTRA_FAST,
-    PRESETS,
-    CascadePresets,
-    PerformanceMode,
-    QualityMode,
     ResponseCache,
-    create_preset,
     estimate_tokens,
     format_cost,
     setup_logging,
 )
 
 # NEW: Presets 2.0 - One-line agent initialization (WEEK 3 - Milestone 3.1)
-from .presets import (
+from .utils.presets import (
     auto_agent,
     get_balanced_agent,
     get_cost_optimized_agent,
@@ -249,17 +238,6 @@ __all__ = [
     "VisualIndicator",  # NEW: Phase 3
     "TerminalVisualConsumer",  # NEW: Phase 3
     "SilentConsumer",  # NEW: Phase 3
-    "CascadePresets",
-    "PRESET_BEST_OVERALL",  # NEW: v0.1.1
-    "PRESET_ULTRA_FAST",  # NEW: v0.1.1
-    "PRESET_ULTRA_CHEAP",  # NEW: v0.1.1
-    "PRESET_OPENAI_ONLY",  # NEW: v0.1.1
-    "PRESET_ANTHROPIC_ONLY",  # NEW: v0.1.1
-    "PRESET_FREE_LOCAL",  # NEW: v0.1.1
-    "PRESETS",  # NEW: v0.1.1
-    "create_preset",  # NEW: v0.1.1
-    "QualityMode",  # NEW: v0.1.1
-    "PerformanceMode",  # NEW: v0.1.1
     # Presets 2.0 (WEEK 3 - Milestone 3.1)
     "get_cost_optimized_agent",  # NEW: v0.2.0 - One-line cost optimized setup
     "get_balanced_agent",  # NEW: v0.2.0 - One-line balanced setup
