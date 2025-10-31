@@ -90,12 +90,12 @@ def main():
     # Create cost provider
     cost_provider = LiteLLMCostProvider()
 
-    # Calculate costs for different models
+    # Calculate costs for different models (use provider prefixes for accurate pricing)
     models = [
         {"name": "gpt-4", "in": 1000, "out": 500},
         {"name": "gpt-4o-mini", "in": 1000, "out": 500},
-        {"name": "claude-3-opus", "in": 1000, "out": 500},
-        {"name": "claude-3-haiku", "in": 1000, "out": 500},
+        {"name": "anthropic/claude-3-opus-20240229", "in": 1000, "out": 500},
+        {"name": "anthropic/claude-3-haiku-20240307", "in": 1000, "out": 500},
     ]
 
     print("▶ Cost comparison (1000 input, 500 output tokens):")
@@ -229,8 +229,8 @@ def main():
         "gpt-4",
         "gpt-4o-mini",
         "gpt-3.5-turbo",
-        "claude-3-opus",
-        "claude-3-haiku",
+        "anthropic/claude-3-opus-20240229",
+        "anthropic/claude-3-haiku-20240307",
     ]
 
     costs = []

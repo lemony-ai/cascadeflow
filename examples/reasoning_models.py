@@ -27,7 +27,7 @@ Zero configuration required - CascadeFlow auto-detects capabilities!
 """
 
 import asyncio
-from cascadeflow import CascadeAgent
+from cascadeflow import CascadeAgent, ModelConfig
 
 
 async def main():
@@ -35,10 +35,10 @@ async def main():
     print("\n=== Example 1: o1-mini (original reasoning model) ===")
     agent1 = CascadeAgent(
         models=[
-            {
-                "name": "o1-mini",  # Auto-detected as reasoning model
-                "provider": "openai",
-            }
+            ModelConfig(
+                name="o1-mini",  # Auto-detected as reasoning model
+                provider="openai",
+            )
         ],
     )
 
@@ -58,10 +58,10 @@ async def main():
     print("\n=== Example 2: o1-2024-12-17 with reasoning_effort ===")
     agent2 = CascadeAgent(
         models=[
-            {
-                "name": "o1-2024-12-17",
-                "provider": "openai",
-            }
+            ModelConfig(
+                name="o1-2024-12-17",
+                provider="openai",
+            )
         ],
         default_provider="openai",
     )
@@ -81,14 +81,14 @@ async def main():
     print("\n=== Example 3: Cascade with reasoning model fallback ===")
     agent3 = CascadeAgent(
         models=[
-            {
-                "name": "gpt-4o-mini",  # Fast, cheap model tries first
-                "provider": "openai",
-            },
-            {
-                "name": "o1-mini",  # Falls back to reasoning model if needed
-                "provider": "openai",
-            },
+            ModelConfig(
+                name="gpt-4o-mini",  # Fast, cheap model tries first
+                provider="openai",
+            ),
+            ModelConfig(
+                name="o1-mini",  # Falls back to reasoning model if needed
+                provider="openai",
+            ),
         ],
         default_provider="openai",
         min_quality=0.8,  # High quality threshold
@@ -123,10 +123,10 @@ async def main():
     print("\n=== Example 5: Claude 3.7 Sonnet (Extended Thinking) ===")
     agent4 = CascadeAgent(
         models=[
-            {
-                "name": "claude-3-7-sonnet-20250219",
-                "provider": "anthropic",
-            }
+            ModelConfig(
+                name="claude-3-7-sonnet-20250219",
+                provider="anthropic",
+            )
         ],
         default_provider="anthropic",
     )
@@ -153,10 +153,10 @@ async def main():
     try:
         agent5 = CascadeAgent(
             models=[
-                {
-                    "name": "deepseek-r1:8b",  # Auto-detected as reasoning model
-                    "provider": "ollama",
-                }
+                ModelConfig(
+                    name="deepseek-r1:8b",  # Auto-detected as reasoning model
+                    provider="ollama",
+                )
             ],
             default_provider="ollama",
         )
@@ -183,11 +183,11 @@ async def main():
     try:
         agent6 = CascadeAgent(
             models=[
-                {
-                    "name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-                    "provider": "vllm",
-                    "base_url": "http://localhost:8000/v1",
-                }
+                ModelConfig(
+                    name="deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+                    provider="vllm",
+                    base_url="http://localhost:8000/v1",
+                )
             ],
             default_provider="vllm",
         )
@@ -208,19 +208,19 @@ async def main():
     print("\n=== Example 8: Multi-Provider Reasoning Cascade ===")
     agent7 = CascadeAgent(
         models=[
-            {
-                "name": "deepseek-r1:8b",
-                "provider": "ollama",
-                "cost": 0,  # Free local inference
-            },
-            {
-                "name": "o1-mini",
-                "provider": "openai",
-            },
-            {
-                "name": "claude-3-7-sonnet-20250219",
-                "provider": "anthropic",
-            },
+            ModelConfig(
+                name="deepseek-r1:8b",
+                provider="ollama",
+                cost=0,  # Free local inference
+            ),
+            ModelConfig(
+                name="o1-mini",
+                provider="openai",
+            ),
+            ModelConfig(
+                name="claude-3-7-sonnet-20250219",
+                provider="anthropic",
+            ),
         ],
         min_quality=0.85,
     )

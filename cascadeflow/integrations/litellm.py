@@ -94,7 +94,7 @@ SUPPORTED_PROVIDERS = {
         value_prop="Best for reasoning and analysis, strong safety features",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["claude-3-opus", "claude-3-5-sonnet", "claude-3-sonnet", "claude-3-haiku"],
+        example_models=["anthropic/claude-3-opus-20240229", "anthropic/claude-3-5-sonnet-20241022", "anthropic/claude-3-sonnet-20240229", "anthropic/claude-3-haiku-20240307"],
     ),
     "groq": ProviderInfo(
         name="groq",
@@ -102,7 +102,7 @@ SUPPORTED_PROVIDERS = {
         value_prop="Fastest inference speed, ultra-low latency, free tier",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["llama-3.1-70b", "llama-3.1-8b", "mixtral-8x7b"],
+        example_models=["groq/llama-3.1-70b-versatile", "groq/llama-3.1-8b-instant", "groq/mixtral-8x7b-32768"],
     ),
     "together": ProviderInfo(
         name="together",
@@ -118,7 +118,7 @@ SUPPORTED_PROVIDERS = {
         value_prop="Open-source models, community-driven, flexible deployment",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["mistralai/Mistral-7B-Instruct-v0.2", "meta-llama/Llama-2-70b-chat"],
+        example_models=["huggingface/mistralai/Mistral-7B-Instruct-v0.2", "huggingface/meta-llama/Llama-2-70b-chat"],
     ),
     "ollama": ProviderInfo(
         name="ollama",
@@ -142,7 +142,7 @@ SUPPORTED_PROVIDERS = {
         value_prop="Enterprise integration, GCP ecosystem, Gemini models",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["gemini-pro", "gemini-1.5-pro", "gemini-1.5-flash"],
+        example_models=["gemini/gemini-pro", "gemini/gemini-1.5-pro", "gemini/gemini-1.5-flash"],
     ),
     "azure": ProviderInfo(
         name="azure",
@@ -158,7 +158,7 @@ SUPPORTED_PROVIDERS = {
         value_prop="Specialized code models, very cost-effective for coding tasks",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["deepseek-coder", "deepseek-chat"],
+        example_models=["deepseek/deepseek-coder", "deepseek/deepseek-chat"],
     ),
 }
 

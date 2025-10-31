@@ -349,27 +349,22 @@ async def example_4_hybrid_setup():
     print("SCENARIO 4: Hybrid Setup (Ollama + vLLM)")
     print("=" * 80)
 
-    from cascadeflow import CascadeAgent
-    from cascadeflow.providers.ollama import OllamaProvider
-    from cascadeflow.providers.vllm import VLLMProvider
-
-    # Configure both providers
-    ollama = OllamaProvider()  # Local development
-    vllm = VLLMProvider(base_url="http://192.168.1.200:8000/v1")  # Production GPU
+    from cascadeflow import CascadeAgent, ModelConfig
 
     # Create agent with cascading fallback
     agent = CascadeAgent(
         models=[
-            {
-                "provider": vllm,
-                "model": "meta-llama/Llama-3-70B-Instruct",
-                "priority": 1,  # Try vLLM first (best quality)
-            },
-            {
-                "provider": ollama,
-                "model": "llama3.2:1b",
-                "priority": 2,  # Fallback to Ollama if vLLM unavailable
-            },
+            ModelConfig(
+                name="meta-llama/Llama-3-70B-Instruct",
+                provider="vllm",
+                base_url="http://192.168.1.200:8000/v1",
+                cost=0,  # Free self-hosted
+            ),
+            ModelConfig(
+                name="llama3.2:1b",
+                provider="ollama",
+                cost=0,  # Free local
+            ),
         ]
     )
 
@@ -381,9 +376,6 @@ async def example_4_hybrid_setup():
     print("  ✓ Always works (fallback to Ollama)")
     print("  ✓ Zero API costs for both")
     print("  ✓ Complete privacy (all local/network)")
-
-    await ollama.client.aclose()
-    await vllm.client.aclose()
 
 
 # ============================================================================
