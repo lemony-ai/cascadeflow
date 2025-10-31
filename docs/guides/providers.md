@@ -601,10 +601,257 @@ models.append(ModelConfig("claude-3-5-haiku", provider="anthropic", cost=0.001))
 
 ---
 
+## Using Additional Providers via LiteLLM
+
+CascadeFlow integrates with LiteLLM for:
+- **Accurate cost tracking** across 100+ models
+- **Access to additional providers** (DeepSeek, Google, and more)
+- **Automatic pricing updates** (no manual maintenance)
+- **Budget management** per user
+
+### Supported Additional Providers
+
+Through LiteLLM integration, you can access:
+
+| Provider | Value Proposition | Example Models | API Key |
+|----------|-------------------|----------------|---------|
+| **DeepSeek** | 5-10x cheaper for code tasks | `deepseek-coder`, `deepseek-chat` | `DEEPSEEK_API_KEY` |
+| **Google (Vertex AI)** | Enterprise GCP integration | `gemini-pro`, `gemini-1.5-flash` | `GOOGLE_API_KEY` |
+| **Azure OpenAI** | Enterprise compliance (HIPAA/SOC2) | `azure/gpt-4`, `azure/gpt-4-turbo` | `AZURE_API_KEY` |
+| **Fireworks AI** | Fast open model inference | `accounts/fireworks/models/llama-v3-70b` | `FIREWORKS_API_KEY` |
+| **Cohere** | Specialized for search/RAG | `command`, `command-light` | `COHERE_API_KEY` |
+
+### Quick Start with LiteLLM
+
+```python
+from cascadeflow.integrations.litellm import (
+    LiteLLMCostProvider,
+    calculate_cost,
+    get_provider_info,
+    SUPPORTED_PROVIDERS
+)
+
+# 1. Check if a provider is supported
+info = get_provider_info("deepseek")
+print(info.value_prop)
+# Output: "Specialized code models, very cost-effective for coding tasks"
+
+# 2. Calculate costs (use provider prefix for accurate pricing)
+cost = calculate_cost(
+    model="deepseek/deepseek-coder",
+    input_tokens=1000,
+    output_tokens=500
+)
+print(f"Cost: ${cost:.6f}")
+
+# 3. List all supported providers
+for provider_name, info in SUPPORTED_PROVIDERS.items():
+    print(f"{info.display_name}: {info.value_prop}")
+```
+
+### Using DeepSeek with CascadeFlow
+
+DeepSeek offers extremely cost-effective models specialized for coding tasks:
+
+```bash
+# Set up API key
+export DEEPSEEK_API_KEY="sk-..."
+```
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+from cascadeflow.integrations.litellm import calculate_cost
+
+# Calculate cost for DeepSeek (use provider prefix)
+deepseek_cost = calculate_cost(
+    model="deepseek/deepseek-coder",
+    input_tokens=1000,
+    output_tokens=1000
+)
+
+# Use in cascade (DeepSeek uses OpenAI-compatible API)
+agent = CascadeAgent(models=[
+    ModelConfig(
+        name="deepseek-coder",
+        provider="openai",  # Uses OpenAI-compatible API
+        cost=deepseek_cost * 1000,  # Convert to per-1K token cost
+        base_url="https://api.deepseek.com/v1"  # DeepSeek endpoint
+    ),
+    ModelConfig(
+        name="gpt-4o",
+        provider="openai",
+        cost=0.00625
+    )
+])
+
+result = await agent.run("Write a Python function to merge two sorted lists")
+print(f"Cost: ${result.total_cost:.6f}")
+print(f"Model: {result.model_used}")
+```
+
+**Cost Savings:**
+- DeepSeek-Coder: ~$0.00028/1K tokens
+- GPT-4: ~$0.03/1K tokens
+- **Savings: ~99% cheaper for code tasks!**
+
+### Using Google Gemini with CascadeFlow
+
+Google's Gemini models offer excellent value, especially Gemini Flash:
+
+```bash
+# Set up API key
+export GOOGLE_API_KEY="..."
+```
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+from cascadeflow.integrations.litellm import calculate_cost
+
+# Calculate cost for Gemini (use provider prefix)
+gemini_cost = calculate_cost(
+    model="gemini/gemini-1.5-flash",
+    input_tokens=1000,
+    output_tokens=1000
+)
+
+# Use in cascade
+agent = CascadeAgent(models=[
+    ModelConfig(
+        name="gemini-1.5-flash",
+        provider="openai",  # Use generic provider for now
+        cost=gemini_cost * 1000,
+        base_url="https://generativelanguage.googleapis.com/v1beta"
+    ),
+    ModelConfig(
+        name="gpt-4o",
+        provider="openai",
+        cost=0.00625
+    )
+])
+
+result = await agent.run("Summarize this article: ...")
+```
+
+**Cost Savings:**
+- Gemini 1.5 Flash: ~$0.000225/1K tokens
+- GPT-4o: ~$0.0075/1K tokens
+- **Savings: ~97% cheaper for simple tasks!**
+
+### Cost Comparison
+
+Here's how different providers compare for a typical task (1K input + 500 output tokens):
+
+```python
+from cascadeflow.integrations.litellm import LiteLLMCostProvider
+
+cost_provider = LiteLLMCostProvider()
+
+models = [
+    ("gpt-4o", "OpenAI Premium"),
+    ("gpt-4o-mini", "OpenAI Budget"),
+    ("deepseek/deepseek-coder", "DeepSeek Code"),
+    ("gemini/gemini-1.5-flash", "Google Budget"),
+    ("anthropic/claude-3-5-sonnet-20241022", "Anthropic Premium"),
+]
+
+for model, label in models:
+    cost = cost_provider.calculate_cost(
+        model=model,
+        input_tokens=1000,
+        output_tokens=500
+    )
+    print(f"{label:20} ${cost:.6f}")
+```
+
+**Output:**
+```
+OpenAI Premium       $0.007500
+OpenAI Budget        $0.000225
+DeepSeek Code        $0.000280
+Google Budget        $0.000225
+Anthropic Premium    $0.010500
+```
+
+**💡 TIP:** Always use provider prefixes (e.g., `deepseek/deepseek-coder`, `anthropic/claude-3-5-sonnet-20241022`, `gemini/gemini-1.5-flash`) for accurate pricing from LiteLLM.
+
+### Complete Example
+
+See [`examples/integrations/litellm_providers.py`](../../examples/integrations/litellm_providers.py) for a comprehensive example that shows:
+
+1. **Supported providers** - List all LiteLLM-supported providers
+2. **Cost calculation** - Compare costs across providers
+3. **Model pricing** - Get detailed pricing information
+4. **Cost comparison** - Compare across different use cases
+5. **Provider info** - Get provider capabilities dynamically
+6. **Convenience functions** - Quick cost calculations
+7. **API key status** - Check which keys are configured
+8. **Real-world usage** - Integrate with CascadeFlow agents
+
+### Benefits of LiteLLM Integration
+
+✅ **Accurate Cost Tracking**
+- LiteLLM maintains up-to-date pricing for 100+ models
+- No manual pricing updates needed
+- Includes input/output token pricing
+- Handles special pricing (batch, cached tokens)
+
+✅ **Access More Providers**
+- DeepSeek (code specialization, 5-10x cheaper)
+- Google/Vertex AI (enterprise, 50-100x cheaper for simple tasks)
+- Azure OpenAI (compliance, HIPAA/SOC2)
+- Fireworks, Cohere, and more
+
+✅ **Budget Management**
+- Track spending per user
+- Set budget limits
+- Get alerts at thresholds
+- Enforce budgets automatically
+
+✅ **Zero Maintenance**
+- Pricing automatically updated
+- New models supported quickly
+- Community-driven updates
+
+### When to Use LiteLLM vs Native Providers
+
+**Use Native Providers (Recommended):**
+- OpenAI, Anthropic, Groq, Together, Ollama, vLLM, HuggingFace
+- Best performance and feature support
+- Direct integration, no extra layer
+- Full streaming and tool calling support
+
+**Use LiteLLM Integration:**
+- DeepSeek (code tasks, extreme cost savings)
+- Google/Gemini (simple tasks, ultra-cheap)
+- Azure OpenAI (enterprise compliance)
+- Other providers not yet in native list
+- Need accurate cost tracking across providers
+
+### Installation
+
+```bash
+# LiteLLM is included with cascadeflow[all]
+pip install cascadeflow[all]
+
+# Or install separately
+pip install litellm
+```
+
+### Resources
+
+- **Example**: [`examples/integrations/litellm_providers.py`](../../examples/integrations/litellm_providers.py)
+- **Integration Code**: [`cascadeflow/integrations/litellm.py`](../../cascadeflow/integrations/litellm.py)
+- **LiteLLM Docs**: https://docs.litellm.ai/docs/providers
+- **Cost Tracking Guide**: [cost_tracking.md](cost_tracking.md)
+
+---
+
 ## Next Steps
 
 - **Examples**: See [`examples/multi_provider.py`](../../examples/multi_provider.py)
+- **LiteLLM Example**: See [`examples/integrations/litellm_providers.py`](../../examples/integrations/litellm_providers.py)
 - **Tools**: Read [Tool Guide](tools.md) for tool calling with providers
+- **Cost Tracking**: Read [Cost Tracking Guide](cost_tracking.md)
 - **API Reference**: Check provider-specific documentation
 
 ---

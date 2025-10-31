@@ -398,7 +398,7 @@ export class EmbeddingCache {
       return null;
     }
 
-    return this.embedder['cosineSimilarity'](emb1.data, emb2.data);
+    return this.embedder['cosineSimilarity'](embedding vectors);
   }
 
   /**

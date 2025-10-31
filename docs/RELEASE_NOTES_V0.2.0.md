@@ -304,7 +304,7 @@ print(result.content)
 
 ### Migration Guide:
 
-For detailed migration steps, see: [MIGRATION_GUIDE_V0.2.0.md](./MIGRATION_GUIDE_V0.2.0.md)
+For detailed migration steps, see: [Presets Guide](./guides/presets.md)
 
 **TL;DR**: Your v0.1.x code works unchanged, but you'll want to upgrade to Presets 2.0!
 
@@ -341,10 +341,8 @@ For detailed migration steps, see: [MIGRATION_GUIDE_V0.2.0.md](./MIGRATION_GUIDE
 
 ### New Documentation:
 
-- ✅ [Migration Guide](./MIGRATION_GUIDE_V0.2.0.md) - Step-by-step v0.1.x → v0.2.0
+- ✅ [Presets Guide](./guides/presets.md) - Step-by-step v0.1.x → v0.2.0
 - ✅ [Presets 2.0 Guide](./guides/presets.md) - Complete preset reference
-- ✅ [Developer Experience Report](./DEVELOPER_EXPERIENCE_REPORT.md) - DX improvements
-- ✅ [Implementation Status](./V0.2.0_IMPLEMENTATION_STATUS.md) - Feature cross-reference
 
 ### Updated Documentation:
 
@@ -440,8 +438,8 @@ Special thanks to:
 
 - 🐛 **Report Issues**: [GitHub Issues](https://github.com/lemony-ai/CascadeFlow/issues)
 - 💡 **Feature Requests**: [GitHub Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)
-- 🤝 **Contribute**: [Contributing Guide](./CONTRIBUTING.md)
-- 📚 **Documentation**: [Full docs available](./docs/)
+- 🤝 **Contribute**: [GitHub Issues](https://github.com/lemony-ai/CascadeFlow/issues)
+- 📚 **Documentation**: [Full docs](./README.md)
 
 ---
 
@@ -485,7 +483,7 @@ if __name__ == "__main__":
 - **Documentation**: [/docs](./docs/)
 - **Examples**: [/examples](../examples/)
 - **Benchmarks**: [/benchmarks](../benchmarks/)
-- **Migration Guide**: [MIGRATION_GUIDE_V0.2.0.md](./MIGRATION_GUIDE_V0.2.0.md)
+- **Migration Guide**: [Presets Guide](./guides/presets.md)
 - **GitHub**: [github.com/lemony-ai/CascadeFlow](https://github.com/lemony-ai/CascadeFlow)
 
 ---
@@ -553,7 +551,7 @@ pip install --upgrade cascadeflow
 
 ### Learn More:
 
-- [Migration Guide](./MIGRATION_GUIDE_V0.2.0.md) - Detailed upgrade steps
+- [Presets Guide](./guides/presets.md) - Detailed upgrade steps
 - [Presets Guide](./guides/presets.md) - Complete preset reference
 - [Examples](../examples/) - Working code examples
 - [Benchmarks](../benchmarks/) - Performance validation

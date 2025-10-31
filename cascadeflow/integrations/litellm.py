@@ -349,8 +349,58 @@ class LiteLLMCostProvider:
             pricing = model_cost.get(model, {})
 
             if not pricing:
-                logger.warning(f"No pricing found for {model} in LiteLLM")
-                return self._fallback_pricing(model)
+                # Try using completion_cost to derive pricing (handles provider prefixes better)
+                try:
+                    from litellm import ModelResponse
+
+                    # Test with 1M tokens to get per-token costs
+                    mock_response = ModelResponse(
+                        id="mock",
+                        model=model,
+                        choices=[{"message": {"content": ""}, "finish_reason": "stop"}],
+                        usage={
+                            "prompt_tokens": 1_000_000,
+                            "completion_tokens": 1_000_000,
+                            "total_tokens": 2_000_000,
+                        },
+                    )
+
+                    total_cost = completion_cost(completion_response=mock_response, model=model)
+
+                    # Derive per-token costs (assuming equal input/output in the mock)
+                    # completion_cost will use actual model pricing
+                    per_token_cost = total_cost / 2_000_000
+
+                    # Get separate costs by testing with just input tokens
+                    mock_input_only = ModelResponse(
+                        id="mock",
+                        model=model,
+                        choices=[{"message": {"content": ""}, "finish_reason": "stop"}],
+                        usage={
+                            "prompt_tokens": 1_000_000,
+                            "completion_tokens": 0,
+                            "total_tokens": 1_000_000,
+                        },
+                    )
+                    input_cost = completion_cost(completion_response=mock_input_only, model=model)
+                    input_cost_per_token = input_cost / 1_000_000
+
+                    # Calculate output cost per token
+                    output_cost = total_cost - input_cost
+                    output_cost_per_token = output_cost / 1_000_000
+
+                    logger.debug(f"Derived pricing for {model} using completion_cost")
+
+                    return {
+                        "input_cost_per_token": input_cost_per_token,
+                        "output_cost_per_token": output_cost_per_token,
+                        "max_tokens": 4096,  # Default
+                        "supports_streaming": True,
+                    }
+
+                except Exception as e:
+                    logger.debug(f"Could not derive pricing for {model}: {e}")
+                    return self._fallback_pricing(model)
 
             return {
                 "input_cost_per_token": pricing.get("input_cost_per_token", 0),

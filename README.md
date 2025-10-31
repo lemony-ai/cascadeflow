@@ -370,7 +370,7 @@ Configure CascadeFlow node:
 | Example | Description | Link |
 |---------|-------------|------|
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
-| **Preset Usage** | Use built-in presets for quick setup | [View](./examples/preset_usage.py) |
+| **Preset Usage** | Use built-in presets for quick setup | [View Guide](./docs/guides/presets.md) |
 | **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
 | **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
