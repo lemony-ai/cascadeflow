@@ -173,19 +173,20 @@ POST_LAUNCH_*.md
 *_REPORT.md
 *_SUMMARY.md
 *_STATUS.md
-*_CHECKLIST.md
-*_PLAN.md
-*_GUIDE.md
-*_ANALYSIS.md
 *_DESIGN.md
 *_IMPLEMENTATION_PLAN.md
-*_READINESS.md
 *_VALIDATION_*.md
 DEPLOY_INSTRUCTIONS.md
 PUBLISHING_SETUP_GUIDE.md
 MILESTONE_*.md
 STRATEGIC_*.md
 V0.*.md
+
+# Exception: Keep useful checklists in .github
+!.github/*_CHECKLIST.md
+!.github/*_READINESS.md
+!.github/*_GUIDE.md
+!.github/*_PLAN.md
 
 # Test scripts (root level)
 /comprehensive_test.py
