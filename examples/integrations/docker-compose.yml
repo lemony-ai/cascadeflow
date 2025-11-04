@@ -1,0 +1,78 @@
+# Docker Compose for CascadeFlow OpenTelemetry + Grafana Stack
+#
+# This stack includes:
+# - OpenTelemetry Collector (receives metrics)
+# - Prometheus (stores metrics)
+# - Grafana (visualizes metrics)
+#
+# Usage:
+#   docker-compose up -d       # Start stack
+#   docker-compose down        # Stop stack
+#   docker-compose logs -f     # View logs
+#
+# Access:
+#   - Grafana: http://localhost:3000 (admin/admin)
+#   - Prometheus: http://localhost:9090
+
+version: '3.8'
+
+services:
+  # OpenTelemetry Collector - Receives metrics from CascadeFlow
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: cascadeflow-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4318:4318"   # OTLP HTTP receiver
+      - "4317:4317"   # OTLP gRPC receiver
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+    networks:
+      - cascadeflow
+
+  # Prometheus - Stores metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cascadeflow-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - cascadeflow
+    depends_on:
+      - otel-collector
+
+  # Grafana - Visualizes metrics
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cascadeflow-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+    ports:
+      - "3000:3000"
+    networks:
+      - cascadeflow
+    depends_on:
+      - prometheus
+
+networks:
+  cascadeflow:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

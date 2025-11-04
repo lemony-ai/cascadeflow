@@ -51,6 +51,9 @@ from typing import Any, Optional
 from ..quality import AdaptiveThreshold, ComparativeValidator, QualityConfig, QualityValidator
 from ..schema.config import ModelConfig
 
+# Initialize logger FIRST (before try-except blocks that use it)
+logger = logging.getLogger(__name__)
+
 # Import text complexity detection
 try:
     from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
@@ -58,21 +61,36 @@ try:
     COMPLEXITY_AVAILABLE = True
 except ImportError:
     COMPLEXITY_AVAILABLE = False
-    logger = logging.getLogger(__name__)
     logger.warning("complexity.py not available - using basic validation mode")
 
-# Import Phase 4 tool routing (NEW)
-try:
-    from ..quality.tool_validator import ToolQualityScore, ToolQualityValidator
-    from ..routing.tool_complexity import ToolComplexityAnalyzer, ToolComplexityLevel
+# Phase 4 tool routing availability (checked lazily to avoid circular dependencies)
+# Initially set to None (unchecked), will be set to True/False when first needed
+TOOL_ROUTING_AVAILABLE = None
 
-    TOOL_ROUTING_AVAILABLE = True
-except ImportError:
-    TOOL_ROUTING_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("Phase 4 tool routing not available - tools will use basic validation")
 
-logger = logging.getLogger(__name__)
+def _check_tool_routing_available():
+    """
+    Check if Phase 4 tool routing is available.
+
+    This is done lazily (not at module import time) to avoid circular dependencies
+    during cascadeflow package initialization.
+    """
+    global TOOL_ROUTING_AVAILABLE
+
+    if TOOL_ROUTING_AVAILABLE is not None:
+        return TOOL_ROUTING_AVAILABLE
+
+    try:
+        from ..quality.tool_validator import ToolQualityValidator  # noqa: F401
+        from ..routing.tool_complexity import ToolComplexityAnalyzer  # noqa: F401
+
+        TOOL_ROUTING_AVAILABLE = True
+        logger.debug("✅ Phase 4 tool routing available")
+        return True
+    except ImportError as e:
+        TOOL_ROUTING_AVAILABLE = False
+        logger.debug(f"Phase 4 tool routing not available: {e}")
+        return False
 
 
 class DeferralStrategy(Enum):
@@ -251,17 +269,54 @@ class WholeResponseCascade:
         else:
             self.complexity_detector = None
 
-        # PHASE 4 TOOL ROUTING (NEW)
-        if TOOL_ROUTING_AVAILABLE:
-            self.tool_complexity_analyzer = ToolComplexityAnalyzer()
-            self.tool_quality_validator = ToolQualityValidator(verbose=verbose)
-            if self.verbose:
-                logger.info("✅ Phase 4 tool routing enabled")
+        # SEMANTIC QUALITY CHECKER (ML-based, optional)
+        try:
+            from ..quality.semantic import SemanticQualityChecker
+            from ..ml.embedding import UnifiedEmbeddingService
+
+            # Create shared embedding service for all ML features
+            self.embedder = UnifiedEmbeddingService()
+
+            if self.embedder.is_available:
+                # Get similarity threshold - use confidence threshold for moderate queries as default
+                similarity_threshold = getattr(quality_config, 'similarity_threshold', None)
+                if similarity_threshold is None:
+                    # Fall back to moderate confidence threshold if available
+                    similarity_threshold = quality_config.confidence_thresholds.get("moderate", 0.5)
+
+                self.semantic_quality_checker = SemanticQualityChecker(
+                    embedder=self.embedder,
+                    similarity_threshold=similarity_threshold,
+                    use_cache=True,
+                )
+                if self.verbose:
+                    logger.info("✅ Semantic quality checking enabled (ML)")
+            else:
+                self.semantic_quality_checker = None
+                self.embedder = None
+        except ImportError:
+            self.semantic_quality_checker = None
+            self.embedder = None
+
+        # PHASE 4 TOOL ROUTING (NEW) - Lazy import to avoid circular dependencies
+        if _check_tool_routing_available():
+            try:
+                from ..quality.tool_validator import ToolQualityValidator
+                from ..routing.tool_complexity import ToolComplexityAnalyzer
+
+                self.tool_complexity_analyzer = ToolComplexityAnalyzer()
+                self.tool_quality_validator = ToolQualityValidator(verbose=verbose)
+                if self.verbose:
+                    logger.info("✅ Phase 4 tool routing enabled")
+            except ImportError as e:
+                logger.warning(f"⚠️  Phase 4 tool routing failed to load: {e}")
+                self.tool_complexity_analyzer = None
+                self.tool_quality_validator = None
         else:
             self.tool_complexity_analyzer = None
             self.tool_quality_validator = None
             if self.verbose:
-                logger.warning("⚠️  Phase 4 tool routing unavailable")
+                logger.info("Phase 4 tool routing not available (will use basic validation)")
 
         # Statistics
         self.stats = {
@@ -1266,6 +1321,30 @@ class WholeResponseCascade:
         )
 
         passed = getattr(validation_result, "passed", False)
+
+        # Additional semantic quality check if available
+        if passed and self.semantic_quality_checker and self.semantic_quality_checker.is_available():
+            try:
+                semantic_result = self.semantic_quality_checker.validate(
+                    query=query,
+                    response=draft_content,
+                    check_toxicity=True,
+                )
+
+                if not semantic_result.passed:
+                    # Semantic check failed → reject draft
+                    passed = False
+                    # Update validation result reason
+                    if hasattr(validation_result, "reason"):
+                        validation_result.reason = f"semantic_check_failed: {semantic_result.reason}"
+                    if self.verbose:
+                        logger.info(
+                            f"❌ Draft rejected by semantic quality check: {semantic_result.reason} "
+                            f"(similarity={semantic_result.similarity:.2f})"
+                        )
+            except Exception as e:
+                # Don't fail the whole cascade if semantic check errors
+                logger.warning(f"Semantic quality check failed: {e}")
 
         return passed, validation_result, complexity
 

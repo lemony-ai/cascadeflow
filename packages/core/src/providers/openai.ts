@@ -6,7 +6,7 @@
  */
 
 import { BaseProvider, type ProviderRequest } from './base';
-import type { ProviderResponse, Tool, Message } from '../types';
+import type { ProviderResponse, Tool, Message, ReasoningModelInfo } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
 
@@ -46,6 +46,15 @@ const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-4o-2024-08-06': { input: 0.0025, output: 0.010 },
   'gpt-4o-2024-05-13': { input: 0.005, output: 0.015 },
 
+  // O1 series (reasoning models)
+  'o1-preview': { input: 0.015, output: 0.060 },
+  'o1-mini': { input: 0.003, output: 0.012 },
+  'o1': { input: 0.015, output: 0.060 }, // o1-2024-12-17
+  'o1-2024-12-17': { input: 0.015, output: 0.060 },
+
+  // O3 series (reasoning models - future)
+  'o3-mini': { input: 0.001, output: 0.005 },
+
   // GPT-4 series (previous generation)
   'gpt-4-turbo': { input: 0.010, output: 0.030 },
   'gpt-4-turbo-2024-04-09': { input: 0.010, output: 0.030 },
@@ -58,6 +67,66 @@ const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-3.5-turbo-0125': { input: 0.0005, output: 0.0015 },
   'gpt-3.5-turbo-1106': { input: 0.001, output: 0.002 },
 };
+
+/**
+ * Detect if model is a reasoning model and get its capabilities
+ *
+ * @param modelName - Model name to check
+ * @returns Model capabilities
+ */
+export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
+  const name = modelName.toLowerCase();
+
+  // O1 preview/mini (original reasoning models)
+  if (name.includes('o1-preview') || name.includes('o1-mini')) {
+    return {
+      isReasoning: true,
+      provider: 'openai',
+      supportsStreaming: true,
+      supportsTools: false,
+      supportsSystemMessages: false,
+      supportsReasoningEffort: false,
+      requiresMaxCompletionTokens: false,
+    };
+  }
+
+  // O1 (2024-12-17) - more capable
+  if (name.includes('o1-2024-12-17') || (name === 'o1')) {
+    return {
+      isReasoning: true,
+      provider: 'openai',
+      supportsStreaming: false, // Not supported
+      supportsTools: false,
+      supportsSystemMessages: false,
+      supportsReasoningEffort: true,
+      requiresMaxCompletionTokens: true,
+    };
+  }
+
+  // O3-mini (future reasoning model)
+  if (name.includes('o3-mini')) {
+    return {
+      isReasoning: true,
+      provider: 'openai',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsSystemMessages: false,
+      supportsReasoningEffort: true,
+      requiresMaxCompletionTokens: true,
+    };
+  }
+
+  // Not a reasoning model
+  return {
+    isReasoning: false,
+    provider: 'openai',
+    supportsStreaming: true,
+    supportsTools: true,
+    supportsSystemMessages: true,
+    supportsReasoningEffort: false,
+    requiresMaxCompletionTokens: false,
+  };
+}
 
 /**
  * OpenAI provider with automatic environment detection
@@ -300,12 +369,34 @@ export class OpenAIProvider extends BaseProvider {
   private async generateWithSDK(request: ProviderRequest): Promise<ProviderResponse> {
     try {
       const messages = this.normalizeMessages(request.messages);
-      const chatMessages = this.convertToChatMessages(messages, request.systemPrompt);
-      const tools = request.tools ? this.convertTools(request.tools) : undefined;
-
       const modelName = request.model || this.config.name;
+
+      // Auto-detect reasoning model capabilities
+      const modelInfo = getReasoningModelInfo(modelName);
+
+      // Convert messages based on model capabilities
+      const chatMessages = this.convertToChatMessages(
+        messages,
+        modelInfo.supportsSystemMessages ? request.systemPrompt : undefined
+      );
+
+      // If system prompt provided but not supported, prepend to first user message
+      if (!modelInfo.supportsSystemMessages && request.systemPrompt) {
+        for (let i = 0; i < chatMessages.length; i++) {
+          if (chatMessages[i].role === 'user') {
+            chatMessages[i].content = `${request.systemPrompt}\n\n${chatMessages[i].content}`;
+            break;
+          }
+        }
+      }
+
+      // Don't pass tools if not supported (reasoning models)
+      const tools = modelInfo.supportsTools && request.tools
+        ? this.convertTools(request.tools)
+        : undefined;
+
       // GPT-5 series doesn't support logprobs yet (as of January 2025)
-      const supportsLogprobs = !modelName.startsWith('gpt-5');
+      const supportsLogprobs = !modelName.startsWith('gpt-5') && !modelInfo.isReasoning;
       const isGpt5 = modelName.startsWith('gpt-5');
       const maxTokens = request.maxTokens || this.config.maxTokens || 1000;
 
@@ -317,15 +408,20 @@ export class OpenAIProvider extends BaseProvider {
       };
 
       // GPT-5 only supports temperature=1 (default), doesn't allow custom values
-      if (!isGpt5) {
+      if (!isGpt5 && !modelInfo.isReasoning) {
         completionConfig.temperature = request.temperature ?? this.config.temperature ?? 0.7;
       }
 
-      // GPT-5 uses max_completion_tokens instead of max_tokens
-      if (isGpt5) {
+      // Reasoning models and GPT-5 use max_completion_tokens
+      if (isGpt5 || modelInfo.requiresMaxCompletionTokens) {
         completionConfig.max_completion_tokens = maxTokens;
       } else {
         completionConfig.max_tokens = maxTokens;
+      }
+
+      // Add reasoning_effort if supported and provided
+      if (modelInfo.supportsReasoningEffort && request.extra?.reasoning_effort) {
+        completionConfig.reasoning_effort = request.extra.reasoning_effort;
       }
 
       if (supportsLogprobs) {
@@ -348,16 +444,21 @@ export class OpenAIProvider extends BaseProvider {
           .map((item: any) => item.logprob);
       }
 
+      // Extract reasoning tokens if available
+      const usage = completion.usage
+        ? {
+            prompt_tokens: completion.usage.prompt_tokens,
+            completion_tokens: completion.usage.completion_tokens,
+            total_tokens: completion.usage.total_tokens,
+            reasoning_tokens: completion.usage.completion_tokens_details?.reasoning_tokens,
+            completion_tokens_details: completion.usage.completion_tokens_details,
+          }
+        : undefined;
+
       return {
         content: choice.message.content || '',
         model: completion.model,
-        usage: completion.usage
-          ? {
-              prompt_tokens: completion.usage.prompt_tokens,
-              completion_tokens: completion.usage.completion_tokens,
-              total_tokens: completion.usage.total_tokens,
-            }
-          : undefined,
+        usage,
         finish_reason: choice.finish_reason,
         tool_calls: choice.message.tool_calls?.map((tc: any) => ({
           id: tc.id,
@@ -469,17 +570,50 @@ export class OpenAIProvider extends BaseProvider {
     }
   }
 
-  calculateCost(promptTokens: number, completionTokens: number, model: string): number {
-    const pricing = OPENAI_PRICING[model];
+  /**
+   * Calculate cost including reasoning tokens
+   *
+   * @param promptTokens - Input tokens
+   * @param completionTokens - Output tokens (includes reasoning tokens for o1/o3)
+   * @param model - Model name
+   * @param reasoningTokens - Reasoning tokens (optional, already included in completionTokens)
+   * @returns Cost in USD
+   */
+  calculateCost(
+    promptTokens: number,
+    completionTokens: number,
+    model: string,
+    _reasoningTokens?: number
+  ): number {
+    // Normalize model name to lowercase for case-insensitive matching
+    const modelLower = model.toLowerCase();
+
+    // Find model-specific pricing (exact match, case-insensitive)
+    let pricing = OPENAI_PRICING[modelLower];
+
+    // Try prefix matching for versioned models
     if (!pricing) {
-      // Use gpt-4o-mini as fallback for unknown models
-      const fallback = OPENAI_PRICING['gpt-4o-mini'];
-      return (
-        (promptTokens / 1000) * fallback.input + (completionTokens / 1000) * fallback.output
-      );
+      for (const [key, value] of Object.entries(OPENAI_PRICING)) {
+        if (modelLower.startsWith(key)) {
+          pricing = value;
+          break;
+        }
+      }
     }
 
-    return (promptTokens / 1000) * pricing.input + (completionTokens / 1000) * pricing.output;
+    // Fallback to gpt-4o-mini for unknown models
+    if (!pricing) {
+      pricing = OPENAI_PRICING['gpt-4o-mini'];
+    }
+
+    // Note: For o1/o3 models, reasoning tokens are already included in completion_tokens
+    // from the API, so we don't need to add them separately. The API returns:
+    // - completion_tokens: total output tokens (including reasoning)
+    // - completion_tokens_details.reasoning_tokens: breakdown of reasoning portion
+    const inputCost = (promptTokens / 1000) * pricing.input;
+    const outputCost = (completionTokens / 1000) * pricing.output;
+
+    return inputCost + outputCost;
   }
 
   /**

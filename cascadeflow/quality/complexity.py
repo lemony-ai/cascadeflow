@@ -8,17 +8,27 @@ NEW FEATURES:
 4. Multi-language scientific term support
 5. Specialized physics, mathematics, and CS terminology databases
 6. Optional metadata return (backward compatible with return_metadata flag)
+7. Optional ML-based semantic complexity detection using embeddings
 
 Based on research:
 - NER (Named Entity Recognition) for scientific terms
 - Unicode mathematical symbol detection
 - Domain-specific vocabulary scoring from academic sources
+- Semantic similarity for ML-based complexity classification
 """
 
 import logging
 import re
 from enum import Enum
-from typing import Optional, Union
+from typing import Optional, Union, Tuple, Dict, Any, List
+
+# Optional ML imports
+try:
+    from ..ml.embedding import UnifiedEmbeddingService
+    HAS_ML = True
+except ImportError:
+    HAS_ML = False
+    UnifiedEmbeddingService = None
 
 logger = logging.getLogger(__name__)
 
@@ -1196,3 +1206,205 @@ if __name__ == "__main__":
     print("\nDistribution:")
     for complexity_level, percentage in stats["distribution"].items():
         print(f"  {complexity_level:8}: {percentage*100:5.1f}%")
+
+
+# ============================================================================
+# SEMANTIC COMPLEXITY DETECTION (ML-BASED)
+# ============================================================================
+
+# Complexity exemplar queries for embedding-based detection
+COMPLEXITY_EXEMPLARS: Dict[QueryComplexity, List[str]] = {
+    QueryComplexity.TRIVIAL: [
+        "What is 2+2?",
+        "What color is the sky?",
+        "What is the capital of France?",
+        "How do you spell 'hello'?",
+        "What day is it?",
+    ],
+    QueryComplexity.SIMPLE: [
+        "Explain photosynthesis in simple terms",
+        "What are the primary colors?",
+        "How does a microwave work?",
+        "What is the difference between HTTP and HTTPS?",
+        "List the planets in our solar system",
+    ],
+    QueryComplexity.MODERATE: [
+        "Explain the concept of recursion in programming",
+        "How does machine learning differ from traditional programming?",
+        "Describe the process of photosynthesis at the cellular level",
+        "What are the key differences between REST and GraphQL?",
+        "Explain how blockchain technology ensures data integrity",
+    ],
+    QueryComplexity.HARD: [
+        "Implement a self-balancing binary search tree with AVL rotations",
+        "Explain quantum entanglement and its implications for quantum computing",
+        "Derive the Navier-Stokes equations from first principles",
+        "Analyze the time complexity of Dijkstra's algorithm with a Fibonacci heap",
+        "Design a distributed consensus algorithm for Byzantine fault tolerance",
+    ],
+    QueryComplexity.EXPERT: [
+        "Prove the incompleteness theorems using Gödel numbering",
+        "Derive the quantum chromodynamics Lagrangian with gauge invariance",
+        "Implement a lock-free concurrent hash table using compare-and-swap",
+        "Solve the Yang-Mills existence and mass gap problem",
+        "Design a cryptographic protocol resistant to quantum attacks using lattice-based cryptography",
+    ],
+}
+
+
+class SemanticComplexityDetector:
+    """
+    Optional ML-based complexity detector using semantic embeddings.
+
+    Uses cosine similarity between query embedding and pre-computed complexity
+    exemplar embeddings to detect complexity. More accurate than rule-based for
+    nuanced queries, but requires FastEmbed installed.
+
+    Features:
+    - Semantic similarity-based complexity detection
+    - Lazy initialization (model loads on first use)
+    - Graceful degradation without FastEmbed
+    - Optional hybrid mode (combines with rule-based)
+
+    Attributes:
+        embedder: UnifiedEmbeddingService for embeddings
+        complexity_embeddings: Pre-computed exemplar embeddings per level
+        is_available: Whether ML detection is available
+    """
+
+    def __init__(
+        self,
+        embedder: Optional["UnifiedEmbeddingService"] = None,
+        use_hybrid: bool = False,
+    ):
+        """
+        Initialize semantic complexity detector.
+
+        Args:
+            embedder: Optional UnifiedEmbeddingService (creates new if None)
+            use_hybrid: Whether to combine with rule-based detection (default: False)
+        """
+        self.use_hybrid = use_hybrid
+
+        # Use provided embedder or create new one
+        if embedder is not None:
+            self.embedder = embedder
+        elif HAS_ML:
+            self.embedder = UnifiedEmbeddingService()
+        else:
+            self.embedder = None
+
+        # Initialize rule-based detector for hybrid mode
+        self.rule_detector = ComplexityDetector() if use_hybrid else None
+
+        # Complexity embeddings (lazy-computed)
+        self._complexity_embeddings: Optional[Dict[QueryComplexity, Any]] = None
+        self._embeddings_computed = False
+
+        # Check availability
+        self.is_available = (
+            self.embedder is not None and
+            self.embedder.is_available
+        )
+
+        if not self.is_available:
+            logger.warning(
+                "⚠️ Semantic complexity detection unavailable. "
+                "Install FastEmbed: pip install fastembed"
+            )
+
+    def _compute_complexity_embeddings(self):
+        """Pre-compute embeddings for all complexity exemplars (lazy)."""
+        if self._embeddings_computed or not self.is_available:
+            return
+
+        logger.info("Computing complexity exemplar embeddings...")
+        self._complexity_embeddings = {}
+
+        for complexity, exemplars in COMPLEXITY_EXEMPLARS.items():
+            # Get embeddings for all exemplars
+            embeddings = self.embedder.embed_batch(exemplars)
+            if embeddings:
+                # Average exemplar embeddings to get complexity centroid
+                try:
+                    import numpy as np
+                    complexity_embedding = np.mean(embeddings, axis=0)
+                    self._complexity_embeddings[complexity] = complexity_embedding
+                except Exception as e:
+                    logger.warning(f"Failed to compute embedding for {complexity}: {e}")
+
+        self._embeddings_computed = True
+        logger.info(f"✓ Computed embeddings for {len(self._complexity_embeddings)} complexity levels")
+
+    def detect(self, query: str) -> Tuple[QueryComplexity, float]:
+        """
+        Detect query complexity using semantic similarity.
+
+        Args:
+            query: Query text to analyze
+
+        Returns:
+            Tuple of (complexity, confidence)
+
+        Example:
+            >>> detector = SemanticComplexityDetector()
+            >>> if detector.is_available:
+            ...     complexity, conf = detector.detect("Implement a binary tree")
+            ...     print(f"{complexity.value}: {conf:.2%}")
+        """
+        if not self.is_available:
+            # Fall back to rule-based if ML unavailable
+            if self.rule_detector:
+                return self.rule_detector.detect(query)
+            else:
+                return QueryComplexity.MODERATE, 0.5
+
+        # Compute complexity embeddings if not done yet
+        self._compute_complexity_embeddings()
+
+        # Get query embedding
+        query_embedding = self.embedder.embed(query)
+        if query_embedding is None:
+            return QueryComplexity.MODERATE, 0.5
+
+        # Calculate similarity to each complexity level
+        scores: Dict[QueryComplexity, float] = {}
+        for complexity, complexity_embedding in self._complexity_embeddings.items():
+            similarity = self.embedder._cosine_similarity(
+                query_embedding, complexity_embedding
+            )
+            scores[complexity] = float(similarity) if similarity is not None else 0.0
+
+        # Find best match
+        detected_complexity = max(scores, key=scores.get)
+        confidence = scores[detected_complexity]
+
+        # Optionally combine with rule-based (hybrid mode)
+        if self.use_hybrid and self.rule_detector:
+            rule_complexity, rule_confidence = self.rule_detector.detect(query)
+
+            # Weight: 60% ML, 40% rule-based
+            ml_weight = 0.6
+            rule_weight = 0.4
+
+            # Convert complexities to scores (0-4)
+            complexity_to_score = {
+                QueryComplexity.TRIVIAL: 0,
+                QueryComplexity.SIMPLE: 1,
+                QueryComplexity.MODERATE: 2,
+                QueryComplexity.HARD: 3,
+                QueryComplexity.EXPERT: 4,
+            }
+            score_to_complexity = {v: k for k, v in complexity_to_score.items()}
+
+            ml_score = complexity_to_score[detected_complexity]
+            rule_score = complexity_to_score[rule_complexity]
+
+            # Weighted average
+            hybrid_score = round(ml_score * ml_weight + rule_score * rule_weight)
+            detected_complexity = score_to_complexity[hybrid_score]
+
+            # Average confidences
+            confidence = confidence * ml_weight + rule_confidence * rule_weight
+
+        return detected_complexity, confidence

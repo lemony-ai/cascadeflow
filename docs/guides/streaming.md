@@ -904,7 +904,7 @@ python examples/tool_execution.py
 
 ## Next Steps
 
-- 📖 Read the [API Reference](../api/streaming.md)
+- 📖 Read the [Streaming Examples](../../examples/streaming_text.py)
 - 🎯 Try the [Examples](../../examples/)
 - 🔧 See [Comprehensive Test Suite](../../tests/2.py)
 - 💬 Join [Discord](https://discord.gg/cascadeflow) for help

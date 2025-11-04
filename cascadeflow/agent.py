@@ -56,7 +56,7 @@ import logging
 import sys
 import time
 from collections.abc import AsyncIterator
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
@@ -67,7 +67,7 @@ from .quality import QualityConfig
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
 from .routing import PreRouter, ToolRouter
-from .schema.config import ModelConfig
+from .schema.config import ModelConfig, UserTier, WorkflowProfile, CascadeConfig
 from .schema.exceptions import CascadeFlowError
 from .schema.result import CascadeResult
 
@@ -75,7 +75,7 @@ from .schema.result import CascadeResult
 from .streaming import StreamEvent, StreamEventType, StreamManager
 
 # Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
-from .telemetry import CostCalculator, MetricsCollector
+from .telemetry import CostCalculator, MetricsCollector, CallbackManager
 
 # 🚀 NEW: Import ToolStreamManager for tool calling
 try:
@@ -145,6 +145,15 @@ class CascadeAgent:
         quality_config: Optional[QualityConfig] = None,
         enable_cascade: bool = True,
         verbose: bool = False,
+        # ========================================================================
+        # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
+        # ========================================================================
+        config: Optional[CascadeConfig] = None,  # DEPRECATED - use quality_config
+        tiers: Optional[dict[str, UserTier]] = None,  # DEPRECATED - tier system being re-implemented
+        workflows: Optional[dict[str, WorkflowProfile]] = None,  # DEPRECATED - workflow system
+        enable_caching: bool = False,  # DEPRECATED - caching system being re-implemented
+        cache_size: int = 1000,  # DEPRECATED - caching system being re-implemented
+        enable_callbacks: bool = True,  # DEPRECATED - callbacks now always enabled
     ):
         """
         Initialize cascade agent with dual streaming managers and cost calculator.
@@ -154,6 +163,14 @@ class CascadeAgent:
             quality_config: Quality validation config
             enable_cascade: Enable cascade system
             verbose: Enable verbose logging
+
+        Deprecated Args (v0.1.x compatibility):
+            config: Old CascadeConfig (use quality_config instead)
+            tiers: User tier definitions (tier system being re-implemented)
+            workflows: Workflow profiles (workflow system being re-implemented)
+            enable_caching: Enable response caching (being re-implemented)
+            cache_size: Cache size (being re-implemented)
+            enable_callbacks: Enable callbacks (now always enabled)
         """
         if not models:
             raise CascadeFlowError("At least one model is required")
@@ -163,6 +180,78 @@ class CascadeAgent:
                 f"Cascade requires 2+ models but got {len(models)}. " f"Disabling cascade."
             )
             enable_cascade = False
+
+        # ========================================================================
+        # 🔄 BACKWARDS COMPATIBILITY LAYER (v0.1.x → v2.5)
+        # ========================================================================
+
+        # Handle old 'config' parameter → quality_config mapping
+        if config is not None and quality_config is None:
+            logger.warning(
+                "⚠️  DEPRECATION WARNING: Parameter 'config' (CascadeConfig) is deprecated.\n"
+                "   Use 'quality_config' (QualityConfig) instead.\n"
+                "   This parameter will be removed in v0.3.0.\n"
+                "   Converting config to quality_config automatically..."
+            )
+            # Convert CascadeConfig to QualityConfig
+            # QualityConfig takes confidence_thresholds (dict), not confidence_threshold (single value)
+            quality_config = QualityConfig.for_cascade()  # Use default cascade config
+            # Note: CascadeConfig quality_threshold is ignored since QualityConfig uses complexity-aware thresholds
+
+        # Handle old 'tiers' parameter
+        if tiers is not None:
+            logger.warning(
+                "⚠️  DEPRECATION WARNING: Parameter 'tiers' is deprecated.\n"
+                "   The tier system is being re-implemented with TierAwareRouter.\n"
+                "   This parameter will be removed in v0.3.0.\n"
+                "   Tiers are now functional via TierAwareRouter."
+            )
+            self._legacy_tiers = tiers
+            # Initialize TierAwareRouter (OPTIONAL - only if tiers provided)
+            from .routing import TierAwareRouter
+            self.tier_router = TierAwareRouter(
+                tiers=tiers,
+                models=sorted(models, key=lambda m: m.cost),  # Use models before self.models is set
+                verbose=verbose
+            )
+        else:
+            self._legacy_tiers = None
+            self.tier_router = None  # No tiers = no tier router
+
+        # Handle old 'workflows' parameter
+        if workflows is not None:
+            logger.warning(
+                "⚠️  DEPRECATION WARNING: Parameter 'workflows' is deprecated.\n"
+                "   The workflow system is being replaced with domain strategies.\n"
+                "   This parameter will be removed in v0.3.0.\n"
+                "   For now, workflow definitions are stored but not actively used."
+            )
+            self._legacy_workflows = workflows
+            # TODO: Convert to DomainCascadeStrategy when implemented
+        else:
+            self._legacy_workflows = None
+
+        # Handle old 'enable_caching' parameter
+        if enable_caching:
+            logger.warning(
+                "⚠️  DEPRECATION WARNING: Parameter 'enable_caching' is deprecated.\n"
+                "   Caching support is being re-implemented in v0.2.1.\n"
+                "   For now, caching is disabled."
+            )
+            # TODO: Re-implement ResponseCache in v0.2.1
+            self._cache_enabled = False
+            self._cache_size = cache_size
+        else:
+            self._cache_enabled = False
+            self._cache_size = cache_size
+
+        # Handle 'enable_callbacks' parameter - callbacks are now always enabled
+        if not enable_callbacks:
+            logger.warning(
+                "⚠️  DEPRECATION WARNING: Callbacks are now always enabled in v2.5.\n"
+                "   Parameter 'enable_callbacks=False' is ignored.\n"
+                "   Use callback_manager.clear() to disable specific events."
+            )
 
         # Sort models by cost (cheap → expensive)
         self.models = sorted(models, key=lambda m: m.cost)
@@ -176,6 +265,9 @@ class CascadeAgent:
 
         # Use cascade-optimized config by default
         self.quality_config = quality_config or QualityConfig.for_cascade()
+
+        # 🆕 v2.5: Always initialize CallbackManager (backwards compatibility)
+        self.callback_manager = CallbackManager(verbose=verbose)
 
         # Initialize routers
         self.complexity_detector = ComplexityDetector()
@@ -241,8 +333,19 @@ class CascadeAgent:
         # Count tool-capable models
         tool_capable_count = sum(1 for m in self.models if getattr(m, "supports_tools", False))
 
+        # Build compatibility status message
+        compat_notes = []
+        if self._legacy_tiers:
+            compat_notes.append(f"tiers={len(self._legacy_tiers)} (stored, not yet active)")
+        if self._legacy_workflows:
+            compat_notes.append(f"workflows={len(self._legacy_workflows)} (stored, not yet active)")
+        if self._cache_enabled:
+            compat_notes.append(f"caching=requested (not yet implemented)")
+
+        compat_status = f"\n  Legacy v0.1.x: {', '.join(compat_notes)}" if compat_notes else ""
+
         logger.info(
-            f"CascadeAgent v2.5 initialized (Cost Calculator Integration):\n"
+            f"CascadeAgent v2.5 initialized (Cost Calculator + Backwards Compatibility):\n"
             f"  Models: {len(models)} ({tool_capable_count} tool-capable)\n"
             f"  Drafter: {self.models[0].name} (${self.models[0].cost:.6f})\n"
             f"  Verifier: {self.models[-1].name} (${self.models[-1].cost:.6f})\n"
@@ -251,10 +354,12 @@ class CascadeAgent:
             f"  Router: PreRouter (complexity-based)\n"
             f"  ToolRouter: {'enabled' if tool_capable_count > 0 else 'no tool-capable models'}\n"
             f"  CostCalculator: enabled (telemetry/)\n"  # 🆕
+            f"  CallbackManager: enabled (telemetry/)\n"  # 🆕 v2.5
             f"  Telemetry: MetricsCollector\n"
             f"  Interface: TerminalVisualConsumer\n"
             f"  Text Streaming: {'enabled' if self.text_streaming_manager else 'disabled'}\n"
             f"  Tool Streaming: {'enabled' if self.tool_streaming_manager else 'disabled'}"
+            f"{compat_status}"
         )
 
     # ========================================================================
@@ -347,6 +452,7 @@ class CascadeAgent:
         force_direct: bool = False,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
+        user_tier: Optional[str] = None,  # 🔄 OPTIONAL: v0.1.x backwards compatibility
         **kwargs,
     ) -> CascadeResult:
         """
@@ -360,6 +466,7 @@ class CascadeAgent:
             force_direct: Force direct routing
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
+            user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
             **kwargs: Additional provider parameters
 
         Returns:
@@ -411,6 +518,30 @@ class CascadeAgent:
             logger.info(
                 f"Tool filtering: {len(available_models)}/{len(self.models)} models capable. "
                 f"Models: {[m.name for m in available_models]}"
+            )
+
+        # 🔄 OPTIONAL: Filter models by user tier (v0.1.x backwards compatibility)
+        if user_tier and self.tier_router:
+            # Apply tier-based filtering
+            tier_filtered_models = self.tier_router.filter_models(user_tier, available_models)
+
+            if self.verbose:
+                print(
+                    f"[Tier Filtering ('{user_tier}'): {len(tier_filtered_models)}/{len(available_models)} models allowed]"
+                )
+
+            logger.info(
+                f"Tier '{user_tier}' filtering: {len(available_models)} → {len(tier_filtered_models)} models. "
+                f"Allowed: {[m.name for m in tier_filtered_models]}"
+            )
+
+            available_models = tier_filtered_models
+        elif user_tier and not self.tier_router:
+            # User specified tier but no tier router configured
+            logger.warning(
+                f"user_tier='{user_tier}' specified but no tiers configured. "
+                f"Ignoring tier parameter. "
+                f"To use tiers, initialize agent with: CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
             )
 
         # Get routing decision
@@ -1544,6 +1675,55 @@ class CascadeAgent:
 
         print("=" * 80 + "\n")
 
+    # ========================================================================
+    # 🆕 v0.2.1: BATCH PROCESSING
+    # ========================================================================
+
+    async def run_batch(
+        self,
+        queries: List[str],
+        batch_config: Optional['BatchConfig'] = None,
+        **kwargs
+    ) -> 'BatchResult':
+        """
+        Process multiple queries in batch.
+
+        🆕 NEW in v0.2.1: Efficient batch processing with LiteLLM + fallback
+
+        Features:
+        - LiteLLM native batch (preferred, automatic)
+        - Sequential fallback with concurrency control
+        - Cost tracking per query
+        - Quality validation per query
+        - Automatic retry on failures
+
+        Args:
+            queries: List of query strings
+            batch_config: Batch configuration (default: BatchConfig())
+            **kwargs: Additional arguments passed to run()
+
+        Returns:
+            BatchResult with all results and statistics
+
+        Example:
+            queries = ["What is Python?", "What is JS?", "What is Rust?"]
+            result = await agent.run_batch(queries)
+
+            print(f"Success: {result.success_count}/{len(queries)}")
+            print(f"Total cost: ${result.total_cost:.4f}")
+            print(f"Strategy: {result.strategy_used}")
+
+            for i, cascade_result in enumerate(result.results):
+                if cascade_result:
+                    print(f"{i}: {cascade_result.content[:100]}...")
+        """
+        from .core.batch import BatchProcessor
+
+        if not hasattr(self, '_batch_processor') or self._batch_processor is None:
+            self._batch_processor = BatchProcessor(self)
+
+        return await self._batch_processor.process_batch(queries, batch_config, **kwargs)
+
     @classmethod
     def from_env(cls, quality_config=None, enable_cascade=True, verbose=False):
         """Auto-discover providers from environment with tool support."""
@@ -1611,6 +1791,149 @@ class CascadeAgent:
             enable_cascade=enable_cascade,
             verbose=verbose,
         )
+
+    @classmethod
+    def from_profile(
+        cls,
+        profile: 'UserProfile',
+        quality_config: Optional[QualityConfig] = None,
+        verbose: bool = False,
+    ):
+        """
+        Create CascadeAgent from UserProfile (v0.2.1+).
+
+        This factory method configures the agent based on a user's profile,
+        including tier limits, preferred models, and quality settings.
+
+        Args:
+            profile: UserProfile instance with tier and preferences
+            quality_config: Optional quality config (overrides profile settings)
+            verbose: Enable verbose logging
+
+        Returns:
+            CascadeAgent configured for the user's tier and preferences
+
+        Example:
+            >>> from cascadeflow.profiles import UserProfile, TierLevel
+            >>> from cascadeflow import CascadeAgent
+            >>>
+            >>> # Create profile from tier
+            >>> profile = UserProfile.from_tier(TierLevel.PRO, user_id="user_123")
+            >>>
+            >>> # Create agent from profile
+            >>> agent = CascadeAgent.from_profile(profile)
+            >>>
+            >>> # Run queries with tier limits applied
+            >>> result = await agent.run("What is Python?")
+        """
+        from .profiles import UserProfile
+
+        # Auto-discover providers from environment
+        providers = get_available_providers()
+        if not providers:
+            raise CascadeFlowError("No providers available. Set API keys in environment.")
+
+        # Build model list based on profile preferences
+        models = []
+
+        # Filter by preferred models if specified
+        preferred_models_set = set(profile.preferred_models) if profile.preferred_models else None
+
+        # Add models from available providers
+        if "openai" in providers:
+            openai_models = [
+                ModelConfig(
+                    name="gpt-4o-mini",
+                    provider="openai",
+                    cost=0.0002,
+                    speed_ms=600,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="gpt-3.5-turbo",
+                    provider="openai",
+                    cost=0.002,
+                    speed_ms=800,
+                    supports_tools=False,
+                ),
+                ModelConfig(
+                    name="gpt-4",
+                    provider="openai",
+                    cost=0.03,
+                    speed_ms=2500,
+                    supports_tools=True,
+                ),
+            ]
+            for model in openai_models:
+                if preferred_models_set is None or model.name in preferred_models_set:
+                    models.append(model)
+
+        if "anthropic" in providers:
+            anthropic_models = [
+                ModelConfig(
+                    name="claude-3-haiku-20240307",
+                    provider="anthropic",
+                    cost=0.00125,
+                    speed_ms=700,
+                    supports_tools=True,
+                )
+            ]
+            for model in anthropic_models:
+                if preferred_models_set is None or model.name in preferred_models_set:
+                    models.append(model)
+
+        if "groq" in providers:
+            groq_models = [
+                ModelConfig(
+                    name="llama-3.3-70b-versatile",
+                    provider="groq",
+                    cost=0.0,
+                    speed_ms=300,
+                    supports_tools=True,
+                )
+            ]
+            for model in groq_models:
+                if preferred_models_set is None or model.name in preferred_models_set:
+                    models.append(model)
+
+        if not models:
+            raise CascadeFlowError(
+                "No models available. Check preferred_models or provider availability."
+            )
+
+        # Configure quality based on profile tier
+        if quality_config is None:
+            # Use tier's quality settings
+            quality_config = QualityConfig(
+                confidence_thresholds={
+                    QueryComplexity.TRIVIAL: profile.tier.min_quality,
+                    QueryComplexity.SIMPLE: profile.tier.min_quality,
+                    QueryComplexity.MODERATE: profile.tier.target_quality,
+                    QueryComplexity.HARD: profile.tier.target_quality,
+                    QueryComplexity.EXPERT: profile.tier.target_quality,
+                }
+            )
+
+        # Determine cascade enablement based on tier features
+        enable_cascade = len(models) >= 2 and profile.tier.enable_streaming
+
+        logger.info(
+            f"Created agent from profile (tier={profile.tier.name}, "
+            f"models={len(models)}, cascade={enable_cascade})"
+        )
+
+        # Create agent
+        agent = cls(
+            models=models,
+            quality_config=quality_config,
+            enable_cascade=enable_cascade,
+            verbose=verbose,
+        )
+
+        # Store profile reference for future use (rate limiting, guardrails, etc.)
+        agent._user_profile = profile
+
+        return agent
 
 
 __all__ = ["CascadeAgent", "CascadeResult"]

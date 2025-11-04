@@ -321,6 +321,23 @@ Tested with n8n version 1.0+
 
 ## Version history
 
+### 1.1.0 (v0.2.1) - Coming Soon
+
+**Multi-Tenant Production Features:**
+- User profile system with 5 subscription tiers (FREE, STARTER, PRO, BUSINESS, ENTERPRISE)
+- Per-user rate limiting (hourly/daily request limits + budget enforcement)
+- Content safety guardrails (content moderation + PII detection)
+- Batch processing for high-volume workflows
+- Domain-specific model routing (medical, legal, code, etc.)
+
+**Python Library Features** (use via Python subprocess or HTTP API):
+- `UserProfile` for multi-tenant applications
+- `RateLimiter` with sliding window algorithm
+- `GuardrailsManager` for content moderation and PII detection
+- `BatchConfig` for efficient bulk processing
+
+*Note: Full n8n node integration coming in future release. Currently available in Python API.*
+
 ### 1.0.0
 
 - Initial release

@@ -227,6 +227,29 @@ class BaseProvider(ABC):
         if self._supports_tools:
             logger.info(f"Provider {self.__class__.__name__} supports tool calling.")
 
+        # Initialize LiteLLM cost provider (auto-detect if installed)
+        try:
+            from cascadeflow.integrations.litellm import LiteLLMCostProvider
+
+            self._litellm_cost_provider = LiteLLMCostProvider(fallback_enabled=False)
+            self._use_litellm_pricing = True
+
+            # Determine if this provider needs a prefix for LiteLLM
+            # Providers that match LiteLLM's native format don't need prefixes
+            self._litellm_provider_prefix = self._get_litellm_prefix()
+
+            logger.info(
+                f"LiteLLM detected - using accurate pricing for {self.__class__.__name__}"
+            )
+        except (ImportError, RuntimeError):
+            # LiteLLM not installed or not available - use fallback
+            self._litellm_cost_provider = None
+            self._use_litellm_pricing = False
+            self._litellm_provider_prefix = None
+            logger.debug(
+                f"LiteLLM not available - using fallback pricing for {self.__class__.__name__}"
+            )
+
         # Initialize production confidence estimator
         try:
             from cascadeflow.quality.confidence import ProductionConfidenceEstimator
@@ -592,10 +615,40 @@ class BaseProvider(ABC):
             f"Override _complete_with_tools_impl() to add support."
         )
 
+    def _get_litellm_prefix(self) -> Optional[str]:
+        """
+        Get the LiteLLM provider prefix for this provider.
+
+        LiteLLM expects model names in specific formats:
+        - openai: "gpt-4" (no prefix needed)
+        - anthropic: "claude-3-opus" (no prefix needed)
+        - groq: "groq/llama-3.1-8b-instant"
+        - together: "together_ai/..."
+        - huggingface: "huggingface/..."
+
+        Returns:
+            Provider prefix string or None if not needed
+        """
+        # Map provider class names to LiteLLM prefixes
+        provider_prefixes = {
+            "OpenAIProvider": None,  # Native format
+            "AnthropicProvider": None,  # Native format
+            "GroqProvider": "groq",
+            "TogetherProvider": "together_ai",
+            "HuggingFaceProvider": "huggingface",
+            "OllamaProvider": "ollama",
+            "VLLMProvider": "openai",  # vLLM uses OpenAI-compatible format
+        }
+
+        return provider_prefixes.get(self.__class__.__name__)
+
     @abstractmethod
     def estimate_cost(self, tokens: int, model: str) -> float:
         """
-        Estimate cost for given token count.
+        Estimate cost for given token count (fallback method).
+
+        This is the fallback pricing used when LiteLLM is not available.
+        Each provider must implement this with rough cost estimates.
 
         Args:
             tokens: Number of tokens
@@ -605,6 +658,61 @@ class BaseProvider(ABC):
             Estimated cost in USD
         """
         pass
+
+    def calculate_accurate_cost(
+        self,
+        model: str,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        total_tokens: Optional[int] = None,
+    ) -> float:
+        """
+        Calculate cost using LiteLLM if available, otherwise fallback.
+
+        This method automatically uses LiteLLM for accurate pricing when installed,
+        or falls back to provider-specific estimates.
+
+        Args:
+            model: Model name
+            prompt_tokens: Input tokens (preferred)
+            completion_tokens: Output tokens (preferred)
+            total_tokens: Total tokens (fallback if split not available)
+
+        Returns:
+            Cost in USD (accurate if LiteLLM installed, estimated otherwise)
+
+        Example:
+            >>> # Automatically uses LiteLLM if installed
+            >>> cost = provider.calculate_accurate_cost(
+            ...     model="gpt-4o-mini",
+            ...     prompt_tokens=100,
+            ...     completion_tokens=50
+            ... )
+        """
+        if self._use_litellm_pricing and self._litellm_cost_provider:
+            try:
+                # Prepend provider prefix if needed for LiteLLM
+                litellm_model = model
+                if self._litellm_provider_prefix:
+                    # Only add prefix if model doesn't already have it
+                    if not model.startswith(f"{self._litellm_provider_prefix}/"):
+                        litellm_model = f"{self._litellm_provider_prefix}/{model}"
+
+                # Use LiteLLM for accurate pricing
+                return self._litellm_cost_provider.calculate_cost(
+                    model=litellm_model,
+                    input_tokens=prompt_tokens,
+                    output_tokens=completion_tokens,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"LiteLLM cost calculation failed: {e}. Using fallback pricing."
+                )
+                # Fall through to fallback
+
+        # Fallback to provider-specific estimates
+        tokens = total_tokens or (prompt_tokens + completion_tokens)
+        return self.estimate_cost(tokens, model)
 
     # ========================================================================
     # PUBLIC API (Automatically includes retry logic)

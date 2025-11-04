@@ -22,6 +22,11 @@ TOOL QUALITY SYSTEM (Phase 4):
 - ToolQualityValidator: 5-level validation for tool calls
 - ToolQualityScore: Tool validation results
 
+OPTIONAL SEMANTIC ML QUALITY (Phase 3.1):
+- SemanticQualityChecker: ML-based semantic validation using FastEmbed
+- SemanticQualityResult: Semantic quality check results
+- check_semantic_quality: Convenience function for one-off checks
+
 INTEGRATION:
 All components work together seamlessly:
 1. ComplexityDetector detects query complexity
@@ -29,8 +34,9 @@ All components work together seamlessly:
 3. QueryResponseAlignmentScorer measures alignment
 4. QualityValidator uses all signals for validation
 5. ProductionConfidenceEstimator provides multi-signal confidence
+6. SemanticQualityChecker (optional) provides ML-based validation
 
-Version: 0.4.0 (Phase 4 - Week 2)
+Version: 0.5.0 (Phase 3 - Semantic Quality)
 """
 
 import logging
@@ -103,6 +109,38 @@ except ImportError as e:
 
 
 # ============================================================================
+# OPTIONAL SEMANTIC ML QUALITY (Phase 3.1) - WITH ERROR HANDLING
+# ============================================================================
+
+try:
+    from .semantic import (
+        SemanticQualityChecker,
+        SemanticQualityResult,
+        check_semantic_quality,
+    )
+
+    SEMANTIC_QUALITY_AVAILABLE = True
+except ImportError as e:
+    SEMANTIC_QUALITY_AVAILABLE = False
+    logger.warning(f"semantic.py not fully available: {e}")
+
+    # Create minimal stubs for backward compatibility
+    class SemanticQualityChecker:
+        """Stub for SemanticQualityChecker when not available."""
+
+        pass
+
+    class SemanticQualityResult:
+        """Stub for SemanticQualityResult when not available."""
+
+        pass
+
+    def check_semantic_quality(*args, **kwargs):
+        """Stub for check_semantic_quality when not available."""
+        return None
+
+
+# ============================================================================
 # PUBLIC API
 # ============================================================================
 
@@ -128,9 +166,13 @@ __all__ = [
     # Tool quality system
     "ToolQualityValidator",
     "ToolQualityScore",
+    # Optional semantic ML quality (Phase 3.1)
+    "SemanticQualityChecker",
+    "SemanticQualityResult",
+    "check_semantic_quality",
 ]
 
-__version__ = "0.4.0"  # Phase 4 (Week 2) - Complete integration
+__version__ = "0.5.0"  # Phase 3 (Semantic Quality)
 
 # ============================================================================
 # QUICK VALIDATION TEST

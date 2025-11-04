@@ -56,6 +56,7 @@ from . import core, schema
 sys.modules["cascadeflow.exceptions"] = schema.exceptions
 sys.modules["cascadeflow.result"] = schema.result
 sys.modules["cascadeflow.config"] = schema.config
+sys.modules["cascadeflow.core.config"] = schema.config  # Also support cascadeflow.core.config
 sys.modules["cascadeflow.execution"] = core.execution
 sys.modules["cascadeflow.speculative"] = core.cascade  # Old name
 sys.modules["cascadeflow.cascade"] = core.cascade  # New name (optional)
@@ -123,21 +124,50 @@ from .streaming import (
 # Smart presets for easy setup (now in utils/)
 # Response caching (now in utils/)
 from .utils import (
-    PRESET_ANTHROPIC_ONLY,
-    PRESET_BEST_OVERALL,
-    PRESET_FREE_LOCAL,
-    PRESET_OPENAI_ONLY,
-    PRESET_ULTRA_CHEAP,
-    PRESET_ULTRA_FAST,
-    PRESETS,
-    CascadePresets,
-    PerformanceMode,
-    QualityMode,
     ResponseCache,
-    create_preset,
     estimate_tokens,
     format_cost,
     setup_logging,
+)
+
+# NEW: Presets 2.0 - One-line agent initialization (WEEK 3 - Milestone 3.1)
+from .utils.presets import (
+    auto_agent,
+    get_balanced_agent,
+    get_cost_optimized_agent,
+    get_development_agent,
+    get_quality_optimized_agent,
+    get_speed_optimized_agent,
+)
+
+# NEW: Batch Processing (v0.2.1 - Milestone 1)
+from .core.batch_config import BatchConfig, BatchStrategy
+from .core.batch import BatchResult, BatchProcessingError
+
+# NEW: User Profile System (v0.2.1 - Milestone 3)
+from .profiles import (
+    TierConfig,
+    TierLevel,
+    TIER_PRESETS,
+    UserProfile,
+    UserProfileManager,
+)
+
+# NEW: Rate Limiting (v0.2.1 - Milestone 4)
+from .limits import (
+    RateLimiter,
+    RateLimitState,
+    RateLimitError,
+)
+
+# NEW: Guardrails (v0.2.1 - Milestone 5)
+from .guardrails import (
+    ContentModerator,
+    ModerationResult,
+    PIIDetector,
+    PIIMatch,
+    GuardrailsManager,
+    GuardrailViolation,
 )
 
 # ==================== MAIN AGENT & RESULT ====================
@@ -208,17 +238,35 @@ __all__ = [
     "VisualIndicator",  # NEW: Phase 3
     "TerminalVisualConsumer",  # NEW: Phase 3
     "SilentConsumer",  # NEW: Phase 3
-    "CascadePresets",
-    "PRESET_BEST_OVERALL",  # NEW: v0.1.1
-    "PRESET_ULTRA_FAST",  # NEW: v0.1.1
-    "PRESET_ULTRA_CHEAP",  # NEW: v0.1.1
-    "PRESET_OPENAI_ONLY",  # NEW: v0.1.1
-    "PRESET_ANTHROPIC_ONLY",  # NEW: v0.1.1
-    "PRESET_FREE_LOCAL",  # NEW: v0.1.1
-    "PRESETS",  # NEW: v0.1.1
-    "create_preset",  # NEW: v0.1.1
-    "QualityMode",  # NEW: v0.1.1
-    "PerformanceMode",  # NEW: v0.1.1
+    # Presets 2.0 (WEEK 3 - Milestone 3.1)
+    "get_cost_optimized_agent",  # NEW: v0.2.0 - One-line cost optimized setup
+    "get_balanced_agent",  # NEW: v0.2.0 - One-line balanced setup
+    "get_speed_optimized_agent",  # NEW: v0.2.0 - One-line speed optimized setup
+    "get_quality_optimized_agent",  # NEW: v0.2.0 - One-line quality optimized setup
+    "get_development_agent",  # NEW: v0.2.0 - One-line development setup
+    "auto_agent",  # NEW: v0.2.0 - Helper to select preset by name
+    # Batch Processing (v0.2.1 - Milestone 1)
+    "BatchConfig",  # NEW: v0.2.1 - Batch configuration
+    "BatchStrategy",  # NEW: v0.2.1 - Batch strategy enum
+    "BatchResult",  # NEW: v0.2.1 - Batch result with statistics
+    "BatchProcessingError",  # NEW: v0.2.1 - Batch processing exception
+    # User Profile System (v0.2.1 - Milestone 3)
+    "TierConfig",  # NEW: v0.2.1 - Tier configuration
+    "TierLevel",  # NEW: v0.2.1 - Tier level enum (FREE, STARTER, PRO, BUSINESS, ENTERPRISE)
+    "TIER_PRESETS",  # NEW: v0.2.1 - Predefined tier configurations
+    "UserProfile",  # NEW: v0.2.1 - Multi-dimensional user profile
+    "UserProfileManager",  # NEW: v0.2.1 - Profile manager for scaling
+    # Rate Limiting (v0.2.1 - Milestone 4)
+    "RateLimiter",  # NEW: v0.2.1 - Sliding window rate limiter
+    "RateLimitState",  # NEW: v0.2.1 - Rate limit state tracking
+    "RateLimitError",  # NEW: v0.2.1 - Rate limit exception
+    # Guardrails (v0.2.1 - Milestone 5)
+    "ContentModerator",  # NEW: v0.2.1 - Content moderation
+    "ModerationResult",  # NEW: v0.2.1 - Moderation result
+    "PIIDetector",  # NEW: v0.2.1 - PII detection
+    "PIIMatch",  # NEW: v0.2.1 - PII match
+    "GuardrailsManager",  # NEW: v0.2.1 - Centralized guardrails
+    "GuardrailViolation",  # NEW: v0.2.1 - Guardrail violation exception
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",

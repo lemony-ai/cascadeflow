@@ -385,9 +385,12 @@ class GroqProvider(BaseProvider):
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
 
-            # Calculate cost
-            cost = self.estimate_cost(
-                tokens_used, model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+            # Calculate cost using LiteLLM if available, otherwise fallback
+            cost = self.calculate_accurate_cost(
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=tokens_used,
             )
 
             # Parse tool calls if present
@@ -656,9 +659,12 @@ class GroqProvider(BaseProvider):
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
 
-            # Calculate cost with accurate split pricing
-            cost = self.estimate_cost(
-                tokens_used, model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+            # Calculate cost using LiteLLM if available, otherwise fallback
+            cost = self.calculate_accurate_cost(
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=tokens_used,
             )
 
             # Parse tool calls if present (NEW!)

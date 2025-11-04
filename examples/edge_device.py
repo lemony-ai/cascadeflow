@@ -105,10 +105,19 @@ Documentation:
 
 import asyncio
 import os
+import sys
 import time
 from typing import Any
 
 from cascadeflow import CascadeAgent, ModelConfig, QualityConfig
+
+try:
+    import httpx
+except ImportError:
+    print("⚠️  httpx not installed. Installing...")
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "httpx"])
+    import httpx
 
 # ============================================================
 # EDGE DEVICE CONFIGURATION
@@ -156,10 +165,14 @@ def create_edge_agent() -> CascadeAgent:
 
     # Configure quality thresholds optimized for edge devices
     quality_config = QualityConfig(
-        min_confidence=0.65,  # Lower threshold for fast local responses
-        require_validation=True,
+        confidence_thresholds={
+            "trivial": 0.65,   # Lower thresholds for fast local responses
+            "simple": 0.60,
+            "moderate": 0.55,
+            "hard": 0.50,
+            "expert": 0.45,
+        },
         enable_adaptive=True,  # Adapt based on query complexity
-        comparative_threshold=0.15,
     )
 
     agent = CascadeAgent(
@@ -270,6 +283,36 @@ async def main():
     # Check if vLLM server is running
     vllm_url = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
     print(f"🔌 Checking vLLM server at {vllm_url}...")
+
+    try:
+        # Try to connect to vLLM server
+        response = httpx.get(f"{vllm_url.replace('/v1', '')}/health", timeout=5)
+        if response.status_code == 200:
+            print("✅ vLLM server is running")
+        else:
+            print(f"⚠️  vLLM server returned status {response.status_code}")
+            print("\n❌ This example requires a local vLLM server.")
+            print("\n💡 To run this example:")
+            print("   1. Install vLLM: pip install vllm")
+            print("   2. Start server:")
+            print("      python -m vllm.entrypoints.openai.api_server \\")
+            print("          --model meta-llama/Llama-3.2-3B-Instruct \\")
+            print("          --dtype half \\")
+            print("          --max-model-len 4096")
+            print("\n✅ Exiting gracefully (this is not an error)")
+            sys.exit(0)
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        print(f"❌ Cannot connect to vLLM server: {e}")
+        print("\n💡 This example requires a local vLLM server for edge device simulation.")
+        print("\n📖 Setup instructions:")
+        print("   1. Install vLLM: pip install vllm")
+        print("   2. Start server:")
+        print("      python -m vllm.entrypoints.openai.api_server \\")
+        print("          --model meta-llama/Llama-3.2-3B-Instruct \\")
+        print("          --dtype half \\")
+        print("          --max-model-len 4096")
+        print("\n✅ Exiting gracefully (this is not an error)")
+        sys.exit(0)
 
     # Check if Anthropic API key is set
     if not os.getenv("ANTHROPIC_API_KEY"):

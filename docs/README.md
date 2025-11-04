@@ -6,9 +6,6 @@ Welcome to CascadeFlow documentation! 🌊
 
 - [Installation Guide](INSTALLATION.md)
 - [Quick Start Guide](guides/quickstart.md)
-- [GPT-5 Setup Guide](GPT-5-SETUP.md)
-- [Model Availability](MODEL-AVAILABILITY.md)
-- [TypeScript vs Python Comparison](TYPESCRIPT_PYTHON_COMPARISON.md)
 
 ## 🚀 Getting Started
 

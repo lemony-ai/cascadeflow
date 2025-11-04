@@ -227,7 +227,7 @@ async def pattern_2_cross_provider():
         # Groq as fast drafter
         models.append(
             ModelConfig(
-                name="llama-3.1-70b-versatile",
+                name="llama-3.3-70b-versatile",
                 provider="groq",
                 cost=0.0,
                 speed_ms=300,
@@ -424,7 +424,7 @@ async def pattern_4_reliability():
     if os.getenv("GROQ_API_KEY"):
         models.append(
             ModelConfig(
-                name="llama-3.1-70b-versatile",
+                name="llama-3.3-70b-versatile",
                 provider="groq",
                 cost=0.0,
             )

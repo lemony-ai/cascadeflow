@@ -14,8 +14,43 @@
  */
 
 import { BaseProvider, type ProviderRequest } from './base';
-import type { ProviderResponse, Tool, Message } from '../types';
+import type { ProviderResponse, Tool, Message, ReasoningModelInfo } from '../types';
 import type { ModelConfig } from '../config';
+
+/**
+ * Detect if model is DeepSeek-R1 reasoning model
+ *
+ * @param modelName - Model name to check
+ * @returns Model capabilities
+ */
+export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
+  const name = modelName.toLowerCase();
+
+  // DeepSeek-R1 - Chain-of-thought reasoning model
+  // Variations: deepseek-r1, deepseek-r1-distill, etc.
+  if (name.includes('deepseek-r1') || name.includes('deepseek_r1')) {
+    return {
+      isReasoning: true,
+      provider: 'vllm',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsSystemMessages: true,
+      supportsExtendedThinking: false,
+      requiresThinkingBudget: false,
+    };
+  }
+
+  // Standard models (no reasoning)
+  return {
+    isReasoning: false,
+    provider: 'vllm',
+    supportsStreaming: true,
+    supportsTools: true,
+    supportsSystemMessages: true,
+    supportsExtendedThinking: false,
+    requiresThinkingBudget: false,
+  };
+}
 
 /**
  * vLLM provider for high-performance local inference

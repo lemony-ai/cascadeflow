@@ -1,12 +1,12 @@
 version: 2
 updates:
-  # Python dependencies
+  # Python dependencies - DISABLED: No automatic PRs
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "lang: python"
@@ -14,13 +14,13 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
 
-  # TypeScript/npm dependencies (root)
+  # TypeScript/npm dependencies (root) - DISABLED: No automatic PRs
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "lang: typescript"
@@ -28,13 +28,13 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
 
-  # TypeScript Core package
+  # TypeScript Core package - DISABLED: No automatic PRs
   - package-ecosystem: "npm"
     directory: "/packages/core"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "lang: typescript"
@@ -43,13 +43,13 @@ updates:
       prefix: "chore(deps-core)"
       include: "scope"
 
-  # n8n Integration package
+  # n8n Integration package - DISABLED: No automatic PRs
   - package-ecosystem: "npm"
     directory: "/packages/integrations/n8n"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "integration: n8n"
@@ -57,13 +57,13 @@ updates:
       prefix: "chore(deps-n8n)"
       include: "scope"
 
-  # GitHub Actions
+  # GitHub Actions - DISABLED: No automatic PRs
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "ci/cd"

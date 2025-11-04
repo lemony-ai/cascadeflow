@@ -12,6 +12,74 @@ from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, ModelResponse, RetryConfig
 
 
+class ReasoningModelInfo:
+    """
+    Information about reasoning model capabilities and limitations.
+
+    Used for auto-detection and configuration across all providers.
+    Unified type that matches TypeScript ReasoningModelInfo interface.
+    """
+
+    def __init__(
+        self,
+        is_reasoning: bool = False,
+        provider: str = "ollama",
+        supports_streaming: bool = True,
+        supports_tools: bool = True,
+        supports_system_messages: bool = True,
+        supports_reasoning_effort: bool = False,
+        supports_extended_thinking: bool = False,
+        requires_max_completion_tokens: bool = False,
+        requires_thinking_budget: bool = False,
+    ):
+        self.is_reasoning = is_reasoning
+        self.provider = provider
+        self.supports_streaming = supports_streaming
+        self.supports_tools = supports_tools
+        self.supports_system_messages = supports_system_messages
+        self.supports_reasoning_effort = supports_reasoning_effort  # OpenAI o1/o3
+        self.supports_extended_thinking = supports_extended_thinking  # Anthropic Claude 3.7
+        self.requires_max_completion_tokens = requires_max_completion_tokens  # OpenAI specific
+        self.requires_thinking_budget = requires_thinking_budget  # Anthropic specific
+
+
+def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
+    """
+    Detect if model is DeepSeek-R1 reasoning model.
+
+    Args:
+        model_name: Model name to check
+
+    Returns:
+        Model capabilities
+    """
+    name = model_name.lower()
+
+    # DeepSeek-R1 - Chain-of-thought reasoning model
+    # Variations: deepseek-r1, deepseek-r1:latest, deepseek-r1:8b, deepseek-r1:32b, deepseek-r1:70b
+    if "deepseek-r1" in name or "deepseek_r1" in name:
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            provider="ollama",
+            supports_streaming=True,
+            supports_tools=True,
+            supports_system_messages=True,
+            supports_extended_thinking=False,
+            requires_thinking_budget=False,
+        )
+
+    # Standard models (no reasoning)
+    return ReasoningModelInfo(
+        is_reasoning=False,
+        provider="ollama",
+        supports_streaming=True,
+        supports_tools=True,
+        supports_system_messages=True,
+        supports_extended_thinking=False,
+        requires_thinking_budget=False,
+    )
+
+
 class OllamaProvider(BaseProvider):
     """
     Ollama provider for local LLM serving with tool calling support.
@@ -100,8 +168,14 @@ class OllamaProvider(BaseProvider):
         Initialize Ollama provider with automatic retry logic.
 
         Args:
-            api_key: Not needed for Ollama (kept for interface compatibility)
-            base_url: Ollama server URL. Defaults to http://localhost:11434
+            api_key: Optional API key for remote Ollama servers with authentication.
+                     Not needed for local installations. Can also be set via OLLAMA_API_KEY env var.
+            base_url: Ollama server URL. Defaults to http://localhost:11434.
+                      Can also be set via OLLAMA_BASE_URL or OLLAMA_HOST env vars.
+                      Examples:
+                        - Local: http://localhost:11434
+                        - Network: http://192.168.1.100:11434
+                        - Remote: https://ollama.yourdomain.com
             retry_config: Custom retry configuration (optional). If None, uses defaults:
                 - max_attempts: 3
                 - initial_delay: 1.0s (longer delays work better for Ollama)
@@ -112,26 +186,36 @@ class OllamaProvider(BaseProvider):
         # Call parent init to load API key, check logprobs support, and setup retry
         super().__init__(api_key=api_key, retry_config=retry_config)
 
-        self.base_url = base_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        # Support both OLLAMA_BASE_URL (standard) and OLLAMA_HOST (legacy)
+        self.base_url = (
+            base_url
+            or os.getenv("OLLAMA_BASE_URL")
+            or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        )
         self.timeout = timeout
         self.keep_alive = keep_alive
 
-        # Initialize HTTP client (no auth needed for Ollama)
+        # Initialize HTTP client with optional auth for remote Ollama
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            # Support custom auth for remote/network Ollama servers
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
         self.client = httpx.AsyncClient(
-            timeout=self.timeout  # Generous timeout for local inference
+            headers=headers, timeout=self.timeout  # Generous timeout for local inference
         )
 
     def _load_api_key(self) -> Optional[str]:
         """
         Load API key from environment.
 
-        Ollama doesn't require an API key (runs locally).
-        This method exists for base class compatibility.
+        Ollama doesn't require an API key for local installations,
+        but may need one for remote/network deployments with authentication.
 
         Returns:
-            None - Ollama doesn't use API keys
+            API key from OLLAMA_API_KEY environment variable, or None
         """
-        return None
+        return os.getenv("OLLAMA_API_KEY")
 
     def _check_logprobs_support(self) -> bool:
         """

@@ -282,7 +282,7 @@ async def execute_tool_calls(tool_calls, executor):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-async def run_tool_conversation(agent, executor, query, tools, max_turns=3):
+async def run_tool_conversation(agent, executor, query, tools, max_turns=7):
     """
     Run a complete tool conversation with multiple turns.
 
@@ -443,7 +443,6 @@ async def main():
         executor=executor,
         query="What's the weather in Paris?",
         tools=tools,
-        max_turns=3,
     )
 
     print("\n📊 Example 1 Stats:")
@@ -464,7 +463,6 @@ async def main():
         executor=executor,
         query="Compare the weather in Paris and Tokyo, then tell me the time in JST.",
         tools=tools,
-        max_turns=3,
     )
 
     print("\n📊 Example 2 Stats:")
@@ -485,7 +483,6 @@ async def main():
         executor=executor,
         query="What is 12.5 multiplied by 8.3?",
         tools=tools,
-        max_turns=3,
     )
 
     print("\n📊 Example 3 Stats:")

@@ -12,6 +12,74 @@ from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, ModelResponse, RetryConfig
 
 
+class ReasoningModelInfo:
+    """
+    Information about reasoning model capabilities and limitations.
+
+    Used for auto-detection and configuration across all providers.
+    Unified type that matches TypeScript ReasoningModelInfo interface.
+    """
+
+    def __init__(
+        self,
+        is_reasoning: bool = False,
+        provider: str = "vllm",
+        supports_streaming: bool = True,
+        supports_tools: bool = True,
+        supports_system_messages: bool = True,
+        supports_reasoning_effort: bool = False,
+        supports_extended_thinking: bool = False,
+        requires_max_completion_tokens: bool = False,
+        requires_thinking_budget: bool = False,
+    ):
+        self.is_reasoning = is_reasoning
+        self.provider = provider
+        self.supports_streaming = supports_streaming
+        self.supports_tools = supports_tools
+        self.supports_system_messages = supports_system_messages
+        self.supports_reasoning_effort = supports_reasoning_effort  # OpenAI o1/o3
+        self.supports_extended_thinking = supports_extended_thinking  # Anthropic Claude 3.7
+        self.requires_max_completion_tokens = requires_max_completion_tokens  # OpenAI specific
+        self.requires_thinking_budget = requires_thinking_budget  # Anthropic specific
+
+
+def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
+    """
+    Detect if model is DeepSeek-R1 reasoning model.
+
+    Args:
+        model_name: Model name to check
+
+    Returns:
+        Model capabilities
+    """
+    name = model_name.lower()
+
+    # DeepSeek-R1 - Chain-of-thought reasoning model
+    # Variations: deepseek-r1, deepseek-r1-distill, etc.
+    if "deepseek-r1" in name or "deepseek_r1" in name:
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            provider="vllm",
+            supports_streaming=True,
+            supports_tools=True,
+            supports_system_messages=True,
+            supports_extended_thinking=False,
+            requires_thinking_budget=False,
+        )
+
+    # Standard models (no reasoning)
+    return ReasoningModelInfo(
+        is_reasoning=False,
+        provider="vllm",
+        supports_streaming=True,
+        supports_tools=True,
+        supports_system_messages=True,
+        supports_extended_thinking=False,
+        requires_thinking_budget=False,
+    )
+
+
 class VLLMProvider(BaseProvider):
     """
     vLLM provider for high-performance inference with tool calling.
@@ -95,8 +163,14 @@ class VLLMProvider(BaseProvider):
         Initialize vLLM provider with tool calling support.
 
         Args:
-            api_key: Optional API key (usually not needed for local vLLM)
-            base_url: vLLM server URL (default: http://localhost:8000/v1)
+            api_key: Optional API key for remote vLLM servers with authentication.
+                     Not needed for local installations. Can also be set via VLLM_API_KEY env var.
+            base_url: vLLM server URL. Defaults to http://localhost:8000/v1.
+                      Can also be set via VLLM_BASE_URL env var.
+                      Examples:
+                        - Local: http://localhost:8000/v1
+                        - Network: http://192.168.1.200:8000/v1
+                        - Remote: https://vllm.yourdomain.com/v1
             retry_config: Custom retry configuration (optional)
             timeout: Request timeout in seconds (default: 120s for large models)
         """

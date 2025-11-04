@@ -54,13 +54,54 @@ from .cost_calculator import CostBreakdown, CostCalculator
 
 # Import existing cost tracker if available
 try:
-    from .cost_tracker import CostEntry, CostTracker
+    from .cost_tracker import BudgetConfig, CostEntry, CostTracker
 
     COST_TRACKER_AVAILABLE = True
 except ImportError:
     COST_TRACKER_AVAILABLE = False
     CostTracker = None
     CostEntry = None
+    BudgetConfig = None
+
+# Import enforcement if available
+try:
+    from .enforcement import (
+        EnforcementAction,
+        EnforcementCallback,
+        EnforcementCallbacks,
+        EnforcementContext,
+        graceful_degradation,
+        strict_budget_enforcement,
+        tier_based_enforcement,
+    )
+
+    ENFORCEMENT_AVAILABLE = True
+except ImportError:
+    ENFORCEMENT_AVAILABLE = False
+    EnforcementAction = None
+    EnforcementCallback = None
+    EnforcementCallbacks = None
+    EnforcementContext = None
+    graceful_degradation = None
+    strict_budget_enforcement = None
+    tier_based_enforcement = None
+
+# Import degradation if available
+try:
+    from .degradation import (
+        DEFAULT_DEGRADATION_MAP,
+        estimate_cost_savings,
+        get_cheaper_model,
+        get_degradation_chain,
+    )
+
+    DEGRADATION_AVAILABLE = True
+except ImportError:
+    DEGRADATION_AVAILABLE = False
+    DEFAULT_DEGRADATION_MAP = None
+    estimate_cost_savings = None
+    get_cheaper_model = None
+    get_degradation_chain = None
 
 # Import callbacks if available
 try:
@@ -70,6 +111,28 @@ try:
 except ImportError:
     CALLBACKS_AVAILABLE = False
     CallbackManager = None
+
+# Import forecasting if available (NEW - Phase 2.3)
+try:
+    from .forecasting import CostForecaster, CostPrediction
+
+    FORECASTING_AVAILABLE = True
+except ImportError:
+    FORECASTING_AVAILABLE = False
+    CostForecaster = None
+    CostPrediction = None
+
+# Import anomaly detection if available (NEW - Phase 2.3)
+try:
+    from .anomaly import Anomaly, AnomalyDetector, AnomalySeverity, create_anomaly_alerts
+
+    ANOMALY_AVAILABLE = True
+except ImportError:
+    ANOMALY_AVAILABLE = False
+    Anomaly = None
+    AnomalyDetector = None
+    AnomalySeverity = None
+    create_anomaly_alerts = None
 
 # Build __all__ dynamically based on what's available
 __all__ = [
@@ -83,17 +146,42 @@ __all__ = [
 
 # Add optional components
 if COST_TRACKER_AVAILABLE:
-    __all__.extend(["CostTracker", "CostEntry"])
+    __all__.extend(["CostTracker", "CostEntry", "BudgetConfig"])
+
+if ENFORCEMENT_AVAILABLE:
+    __all__.extend([
+        "EnforcementAction",
+        "EnforcementCallback",
+        "EnforcementCallbacks",
+        "EnforcementContext",
+        "graceful_degradation",
+        "strict_budget_enforcement",
+        "tier_based_enforcement",
+    ])
+
+if DEGRADATION_AVAILABLE:
+    __all__.extend([
+        "DEFAULT_DEGRADATION_MAP",
+        "get_cheaper_model",
+        "get_degradation_chain",
+        "estimate_cost_savings",
+    ])
 
 if CALLBACKS_AVAILABLE:
     __all__.append("CallbackManager")
+
+if FORECASTING_AVAILABLE:
+    __all__.extend(["CostForecaster", "CostPrediction"])
+
+if ANOMALY_AVAILABLE:
+    __all__.extend(["Anomaly", "AnomalyDetector", "AnomalySeverity", "create_anomaly_alerts"])
 
 
 # ============================================================================
 # VERSION INFO
 # ============================================================================
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"  # Bumped for Phase 2.3 features
 __author__ = "CascadeFlow Team"
 __updated__ = "2025-10-20"
 
@@ -102,7 +190,11 @@ TELEMETRY_CAPABILITIES = {
     "metrics_collection": True,
     "cost_calculation": True,
     "cost_tracking": COST_TRACKER_AVAILABLE,
+    "enforcement": ENFORCEMENT_AVAILABLE,
+    "degradation": DEGRADATION_AVAILABLE,
     "callbacks": CALLBACKS_AVAILABLE,
+    "forecasting": FORECASTING_AVAILABLE,  # NEW - Phase 2.3
+    "anomaly_detection": ANOMALY_AVAILABLE,  # NEW - Phase 2.3
 }
 
 

@@ -43,6 +43,7 @@ venv.bak/
 # AI ASSISTANTS
 # ============================================================================
 CLAUDE.md
+.claude/
 
 # ============================================================================
 # ENVIRONMENT VARIABLES
@@ -160,6 +161,37 @@ MARKETING_GUIDE.md
 # Internal development documentation
 .github/COMMIT_POLICY.md
 .github/BRANCHING_STRATEGY.md
+.github/CURRENT_STATUS.md
+.github/TEST_FAILURES_EXPLAINED.md
+
+# Launch preparation documents (temporary)
+LAUNCH_*.md
+PRE_LAUNCH_*.md
+FINAL_PRE_LAUNCH_*.md
+POST_LAUNCH_*.md
+*_COMPLETE.md
+*_REPORT.md
+*_SUMMARY.md
+*_STATUS.md
+*_DESIGN.md
+*_IMPLEMENTATION_PLAN.md
+*_VALIDATION_*.md
+DEPLOY_INSTRUCTIONS.md
+PUBLISHING_SETUP_GUIDE.md
+MILESTONE_*.md
+STRATEGIC_*.md
+V0.*.md
+
+# Exception: Keep useful checklists in .github
+!.github/*_CHECKLIST.md
+!.github/*_READINESS.md
+!.github/*_GUIDE.md
+!.github/*_PLAN.md
+
+# Test scripts (root level)
+/comprehensive_test.py
+/test_all_examples.py
+/validate_*.py
 
 # IDE files
 *.iml
