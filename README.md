@@ -13,7 +13,7 @@
 [![n8n version](https://img.shields.io/npm/v/n8n-nodes-cascadeflow?color=orange&label=n8n)](https://www.npmjs.com/package/n8n-nodes-cascadeflow)
 [![Python Version](https://img.shields.io/pypi/pyversions/cascadeflow)](https://pypi.org/project/cascadeflow/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Downloads](https://img.shields.io/pypi/dm/cascadeflow)](https://pypi.org/project/cascadeflow/)
+[![Downloads](https://static.pepy.tech/badge/cascadeflow)](https://pepy.tech/project/cascadeflow)
 [![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=social)](https://github.com/lemony-ai/cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 
