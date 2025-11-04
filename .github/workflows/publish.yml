@@ -1,4 +1,4 @@
-name: Publish to PyPI
+name: Publish Packages
 
 on:
   release:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  build:
-    name: Build distribution
+  build-python:
+    name: Build Python distribution
     runs-on: ubuntu-latest
 
     steps:
@@ -36,9 +36,53 @@ jobs:
           name: python-package-distributions
           path: dist/
 
+  build-typescript:
+    name: Build TypeScript packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @cascadeflow/core
+        run: |
+          cd packages/core
+          pnpm build
+
+      - name: Build n8n-nodes-cascadeflow
+        run: |
+          cd packages/integrations/n8n
+          pnpm build
+
+      - name: Store @cascadeflow/core package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-cascadeflow-core
+          path: packages/core/
+
+      - name: Store n8n-nodes-cascadeflow package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-n8n-nodes-cascadeflow
+          path: packages/integrations/n8n/
+
   publish-to-pypi:
     name: Publish to PyPI
-    needs: build
+    needs: build-python
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -57,12 +101,51 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
-          # Or use trusted publishing (recommended):
-          # Remove password and use OIDC authentication
+
+  publish-to-npm:
+    name: Publish to npm
+    needs: build-typescript
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@cascadeflow/core
+
+    steps:
+      - name: Download @cascadeflow/core
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-cascadeflow-core
+          path: packages/core/
+
+      - name: Download n8n-nodes-cascadeflow
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-n8n-nodes-cascadeflow
+          path: packages/integrations/n8n/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish @cascadeflow/core
+        run: |
+          cd packages/core
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish n8n-nodes-cascadeflow
+        run: |
+          cd packages/integrations/n8n
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-to-testpypi:
     name: Publish to TestPyPI
-    needs: build
+    needs: build-python
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'  # Only on manual trigger
     environment:
