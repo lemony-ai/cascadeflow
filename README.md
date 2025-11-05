@@ -195,7 +195,7 @@ print(f"Confidence: {result.metadata.get('domain_confidence', 0):.1%}")
 
 </details>
 
-> **⚠️ GPT-5 Note:** GPT-5 requires OpenAI organization verification. Go to [OpenAI Settings](https://platform.openai.com/settings/organization/general) and click "Verify Organization". Access is granted within ~15 minutes. The cascade above works immediately with GPT-4o-mini handling most queries - GPT-5 is only called when needed (typically 20-30% of requests).
+> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). The cascade works immediately - GPT-5 is only called when needed (typically 20-30% of requests).
 
 📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
