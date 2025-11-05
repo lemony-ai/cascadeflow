@@ -95,7 +95,7 @@ tracker = CostTracker(budget_limit=1.0, warn_threshold=0.8)
 
 # Setup agent
 agent = CascadeAgent(models=[
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00275),
     ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
 ])
 
@@ -165,7 +165,7 @@ from cascadeflow.telemetry import CostCalculator, CostBreakdown
 
 # Initialize with models
 calculator = CostCalculator(
-    drafter=ModelConfig(name='gpt-4o-mini', cost=0.00015),
+    drafter=ModelConfig(name='gpt-4o-mini', cost=0.00275),
     verifier=ModelConfig(name='gpt-4o', cost=0.00625),
     verbose=True
 )
@@ -253,7 +253,7 @@ tracker.add_cost(
     model='gpt-4o-mini',
     provider='openai',
     tokens=100,
-    cost=0.000015,
+    cost=0.000275,
     query_id='query-1',
     metadata={'complexity': 'simple'}
 )
@@ -644,12 +644,12 @@ def analyze_cost_optimization(tracker, metrics):
     
     # Calculate if we used only cheap model
     mini_entries = [e for e in tracker.entries if 'gpt-4o-mini' in e.model]
-    avg_mini_cost = sum(e.cost for e in mini_entries) / len(mini_entries) if mini_entries else 0.000015
+    avg_mini_cost = sum(e.cost for e in mini_entries) / len(mini_entries) if mini_entries else 0.00275
     cheap_only_cost = total_queries * avg_mini_cost
-    
+
     # Calculate if we used only expensive model
     gpt4_entries = [e for e in tracker.entries if e.model == 'gpt-4o']
-    avg_gpt4_cost = sum(e.cost for e in gpt4_entries) / len(gpt4_entries) if gpt4_entries else 0.003
+    avg_gpt4_cost = sum(e.cost for e in gpt4_entries) / len(gpt4_entries) if gpt4_entries else 0.003125
     expensive_only_cost = total_queries * avg_gpt4_cost
     
     print(f"\nScenario Analysis:")
@@ -1064,7 +1064,7 @@ else:
 **Problem:**
 ```python
 result = await agent.run("Simple query")
-print(result.total_cost)  # $0.003000 - Expected: ~$0.000150
+print(result.total_cost)  # $0.006250 - Expected: ~$0.002750
 ```
 
 **Solution:**
@@ -1108,7 +1108,7 @@ from cascadeflow.telemetry import CostTracker, MetricsCollector
 tracker = CostTracker(budget_limit=1.0, warn_threshold=0.8, verbose=True)
 metrics = MetricsCollector()
 agent = CascadeAgent(models=[
-    ModelConfig("gpt-4o-mini", "openai", cost=0.00015),
+    ModelConfig("gpt-4o-mini", "openai", cost=0.00275),
     ModelConfig("gpt-4o", "openai", cost=0.00625),
 ])
 
