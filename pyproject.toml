@@ -124,7 +124,7 @@ Repository = "https://github.com/lemony-ai/cascadeflow"
 Changelog = "https://github.com/lemony-ai/cascadeflow/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = ["cascadeflow"]
+packages = {find = {}}  # Automatically find all packages
 
 [tool.setuptools.package-data]
 cascadeflow = ["py.typed"]
