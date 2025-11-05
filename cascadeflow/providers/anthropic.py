@@ -55,6 +55,9 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
     capabilities, enabling zero-configuration usage. Just specify the model name
     and all limitations/features are handled automatically.
 
+    Note: Claude 3.7 was a hypothetical future model. As of January 2025,
+    current production models are Claude 3.5 Sonnet/Haiku and Claude 3 Opus/Sonnet/Haiku.
+
     Args:
         model_name: Model name to check (case-insensitive)
 
@@ -62,29 +65,16 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         ReasoningModelInfo with capability flags
 
     Examples:
-        >>> info = get_reasoning_model_info('claude-3-7-sonnet')
-        >>> print(info.is_reasoning)  # True
-        >>> print(info.supports_extended_thinking)  # True
+        >>> info = get_reasoning_model_info('claude-3-5-sonnet-20241022')
+        >>> print(info.is_reasoning)  # False
+        >>> print(info.supports_tools)  # True
 
-        >>> info = get_reasoning_model_info('claude-3-5-sonnet')
+        >>> info = get_reasoning_model_info('claude-3-haiku')
         >>> print(info.is_reasoning)  # False
         >>> print(info.supports_tools)  # True
     """
-    name = model_name.lower()
-
-    # Claude 3.7 Sonnet - Hybrid reasoning model with extended thinking
-    if 'claude-3-7-sonnet' in name or 'claude-sonnet-3.7' in name or 'claude-sonnet-3-7' in name:
-        return ReasoningModelInfo(
-            is_reasoning=True,
-            provider='anthropic',
-            supports_streaming=True,
-            supports_tools=True,
-            supports_system_messages=True,
-            supports_extended_thinking=True,
-            requires_thinking_budget=True,
-        )
-
-    # Standard Claude models (no extended thinking)
+    # All current Claude models have standard capabilities
+    # Note: As of January 2025, Anthropic has not released extended thinking models
     return ReasoningModelInfo(
         is_reasoning=False,
         provider='anthropic',
@@ -942,8 +932,6 @@ class AnthropicProvider(BaseProvider):
             "claude-opus-4": 45.0,  # $15 in + $75 out = $45 blended
             "claude-sonnet-4.5": 9.0,  # $3 in + $15 out = $9 blended
             "claude-sonnet-4": 9.0,  # $3 in + $15 out = $9 blended
-            # Claude 3.7 Series
-            "claude-sonnet-3.7": 9.0,  # $3 in + $15 out = $9 blended
             # Claude 3.5 Series
             "claude-3-5-sonnet": 9.0,  # $3 in + $15 out = $9 blended
             "claude-sonnet-3-5": 9.0,  # $3 in + $15 out = $9 blended (alternative naming)

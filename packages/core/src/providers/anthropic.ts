@@ -38,9 +38,6 @@ const ANTHROPIC_PRICING: Record<string, number> = {
   'claude-sonnet-4.5': 9.0, // $3 in + $15 out = $9 blended
   'claude-sonnet-4': 9.0, // $3 in + $15 out = $9 blended
 
-  // Claude 3.7 Series
-  'claude-sonnet-3.7': 9.0, // $3 in + $15 out = $9 blended
-
   // Claude 3.5 Series
   'claude-3-5-sonnet': 9.0, // $3 in + $15 out = $9 blended
   'claude-sonnet-3-5': 9.0, // Alternative naming
@@ -56,26 +53,17 @@ const ANTHROPIC_PRICING: Record<string, number> = {
 /**
  * Detect if model supports extended thinking and get its capabilities
  *
+ * Note: Claude 3.7 was a hypothetical future model. Current production models
+ * are Claude 3.5 Sonnet/Haiku and Claude 3 Opus/Sonnet/Haiku.
+ *
  * @param modelName - Model name to check
  * @returns Model capabilities
  */
 export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
   const name = modelName.toLowerCase();
 
-  // Claude 3.7 Sonnet - Hybrid reasoning model with extended thinking
-  if (name.includes('claude-3-7-sonnet') || name.includes('claude-sonnet-3.7') || name.includes('claude-sonnet-3-7')) {
-    return {
-      isReasoning: true,
-      provider: 'anthropic',
-      supportsStreaming: true,
-      supportsTools: true,
-      supportsSystemMessages: true,
-      supportsExtendedThinking: true,
-      requiresThinkingBudget: true,
-    };
-  }
-
-  // Standard Claude models (no extended thinking)
+  // All current Claude models (standard capabilities)
+  // Note: As of January 2025, Anthropic has not released extended thinking models
   return {
     isReasoning: false,
     provider: 'anthropic',

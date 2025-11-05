@@ -215,7 +215,7 @@ async def lifespan(app: FastAPI):
 
         if os.getenv("ANTHROPIC_API_KEY"):
             models.append(
-                ModelConfig("claude-3-5-sonnet-20241022", provider="anthropic", cost=0.003)
+                ModelConfig("claude-sonnet-4-5-20250929", provider="anthropic", cost=0.003)
             )
             logger.info("✓ Anthropic models configured")
 

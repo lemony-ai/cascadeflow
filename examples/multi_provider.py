@@ -239,13 +239,13 @@ async def pattern_2_cross_provider():
         # Claude as premium verifier
         models.append(
             ModelConfig(
-                name="claude-3-5-sonnet-20241022",
+                name="claude-sonnet-4-5-20250929",
                 provider="anthropic",
                 cost=0.003,
                 speed_ms=1000,
             )
         )
-        print("✅ Verifier: Claude 3.5 Sonnet ($0.003)")
+        print("✅ Verifier: Claude Sonnet 4.5 ($0.003)")
     elif has_openai:
         # GPT-4o as fallback verifier
         models.append(
@@ -322,13 +322,13 @@ async def pattern_3_specialization():
     if os.getenv("ANTHROPIC_API_KEY"):
         models.append(
             ModelConfig(
-                name="claude-3-5-sonnet-20241022",
+                name="claude-sonnet-4-5-20250929",
                 provider="anthropic",
                 cost=0.003,
                 speed_ms=1000,
             )
         )
-        print("✅ Writing/Analysis: Claude 3.5 Sonnet (Anthropic)")
+        print("✅ Writing/Analysis: Claude Sonnet 4.5 (Anthropic)")
 
     # Groq: Best for simple/fast queries
     if os.getenv("GROQ_API_KEY"):

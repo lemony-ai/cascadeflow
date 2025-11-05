@@ -62,7 +62,7 @@ const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-4-0613': { input: 0.030, output: 0.060 },
   'gpt-4-32k': { input: 0.060, output: 0.120 },
 
-  // GPT-3.5 series (legacy)
+  // GPT-3.5 series (deprecated - use gpt-4o-mini instead)
   'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
   'gpt-3.5-turbo-0125': { input: 0.0005, output: 0.0015 },
   'gpt-3.5-turbo-1106': { input: 0.001, output: 0.002 },

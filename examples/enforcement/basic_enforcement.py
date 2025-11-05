@@ -56,7 +56,7 @@ def main():
 
     # Add first cost (50% of budget)
     tracker.add_cost(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",  # Updated from deprecated gpt-3.5-turbo
         provider="openai",
         tokens=500,
         cost=0.05,
@@ -79,7 +79,7 @@ def main():
 
     # Add second cost (85% of budget)
     tracker.add_cost(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",  # Updated from deprecated gpt-3.5-turbo
         provider="openai",
         tokens=500,
         cost=0.035,
@@ -94,7 +94,7 @@ def main():
 
     # Add third cost (exceeds budget)
     tracker.add_cost(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",  # Updated from deprecated gpt-3.5-turbo
         provider="openai",
         tokens=300,
         cost=0.02,
@@ -149,10 +149,10 @@ def main():
     action = custom_callbacks.check(context)
     print(f"  Free user requesting GPT-4 → Action: {action.value.upper()}")
 
-    # Test with GPT-3.5
-    context.model = "gpt-3.5-turbo"
+    # Test with GPT-4o-mini
+    context.model = "gpt-4o-mini"  # Updated from deprecated gpt-3.5-turbo
     action = custom_callbacks.check(context)
-    print(f"  Free user requesting GPT-3.5 → Action: {action.value.upper()}")
+    print(f"  Free user requesting GPT-4o-mini → Action: {action.value.upper()}")
 
     print()
     print("=" * 70)

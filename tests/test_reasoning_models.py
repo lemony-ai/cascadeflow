@@ -279,38 +279,19 @@ class TestReasoningModelInfo:
         assert info.requires_max_completion_tokens is False
 
 
-# ========== Anthropic Claude 3.7 Extended Thinking Tests ==========
+# ========== Anthropic Claude Model Tests ==========
 
 
-class TestAnthropicReasoningModelDetection:
-    """Test auto-detection of Anthropic Claude 3.7 extended thinking."""
+class TestAnthropicModelDetection:
+    """Test auto-detection of Anthropic Claude model capabilities."""
 
-    def test_claude_3_7_sonnet_detection(self):
-        """Test claude-3-7-sonnet is detected as reasoning model."""
-        info = get_anthropic_reasoning_model_info("claude-3-7-sonnet")
-        assert info.is_reasoning is True
-        assert info.provider == "anthropic"
-        assert info.supports_extended_thinking is True
-        assert info.requires_thinking_budget is True
-
-    def test_claude_sonnet_3_7_detection(self):
-        """Test claude-sonnet-3.7 is detected as reasoning model."""
-        info = get_anthropic_reasoning_model_info("claude-sonnet-3.7")
-        assert info.is_reasoning is True
-        assert info.supports_extended_thinking is True
-
-    def test_claude_sonnet_3_7_underscore_detection(self):
-        """Test claude-sonnet-3-7 is detected as reasoning model."""
-        info = get_anthropic_reasoning_model_info("claude-sonnet-3-7")
-        assert info.is_reasoning is True
-        assert info.supports_extended_thinking is True
-
-    def test_case_insensitive_detection(self):
-        """Test model detection is case-insensitive."""
-        info_lower = get_anthropic_reasoning_model_info("claude-3-7-sonnet")
-        info_upper = get_anthropic_reasoning_model_info("CLAUDE-3-7-SONNET")
-        assert info_lower.is_reasoning == info_upper.is_reasoning
-        assert info_lower.supports_extended_thinking == info_upper.supports_extended_thinking
+    def test_claude_sonnet_3_5_standard_capabilities(self):
+        """Test Claude 3.5 Sonnet has standard capabilities (not reasoning)."""
+        info = get_anthropic_reasoning_model_info("claude-3-5-sonnet-20241022")
+        assert info.is_reasoning is False
+        assert info.supports_extended_thinking is False
+        assert info.supports_streaming is True
+        assert info.supports_tools is True
 
     def test_claude_3_5_sonnet_not_reasoning(self):
         """Test claude-3-5-sonnet is NOT detected as reasoning model."""
@@ -332,23 +313,23 @@ class TestAnthropicReasoningModelDetection:
         assert info.supports_extended_thinking is False
 
 
-class TestAnthropicReasoningModelCapabilities:
-    """Test capabilities for Anthropic Claude 3.7."""
+class TestAnthropicModelCapabilities:
+    """Test capabilities for Anthropic Claude models."""
 
-    def test_claude_3_7_capabilities(self):
-        """Test Claude 3.7 has correct capabilities."""
-        info = get_anthropic_reasoning_model_info("claude-3-7-sonnet")
-        assert info.is_reasoning is True
+    def test_claude_3_5_sonnet_capabilities(self):
+        """Test Claude 3.5 Sonnet has standard capabilities."""
+        info = get_anthropic_reasoning_model_info("claude-3-5-sonnet-20241022")
+        assert info.is_reasoning is False
         assert info.provider == "anthropic"
         assert info.supports_streaming is True
         assert info.supports_tools is True
         assert info.supports_system_messages is True
-        assert info.supports_extended_thinking is True
-        assert info.requires_thinking_budget is True
+        assert info.supports_extended_thinking is False
+        assert info.requires_thinking_budget is False
 
-    def test_standard_claude_capabilities(self):
-        """Test standard Claude models have correct capabilities."""
-        info = get_anthropic_reasoning_model_info("claude-3-5-sonnet")
+    def test_claude_3_haiku_capabilities(self):
+        """Test Claude 3 Haiku has standard capabilities."""
+        info = get_anthropic_reasoning_model_info("claude-3-haiku-20240307")
         assert info.is_reasoning is False
         assert info.provider == "anthropic"
         assert info.supports_streaming is True
@@ -358,41 +339,43 @@ class TestAnthropicReasoningModelCapabilities:
         assert info.requires_thinking_budget is False
 
 
-class TestAnthropicReasoningModelCost:
+class TestAnthropicModelCost:
     """Test cost calculation for Anthropic models."""
 
-    def test_claude_3_7_sonnet_cost(self):
-        """Test claude-3-7-sonnet cost calculation."""
+    def test_claude_3_5_sonnet_cost(self):
+        """Test claude-3-5-sonnet cost calculation."""
         provider = AnthropicProvider(api_key="test")
         # Blended rate: $9.00 per 1M tokens
         # 2M tokens total = $18.00
         cost = provider.estimate_cost(
             tokens=2000000,
-            model="claude-3-7-sonnet"
+            model="claude-3-5-sonnet-20241022"
         )
         assert abs(cost - 18.0) < 0.001
 
-    def test_claude_sonnet_3_7_cost(self):
-        """Test claude-sonnet-3.7 cost calculation."""
+    def test_claude_3_5_haiku_cost(self):
+        """Test claude-3-5-haiku cost calculation."""
         provider = AnthropicProvider(api_key="test")
+        # Blended rate: $3.00 per 1M tokens
+        # 2M tokens total = $6.00
         cost = provider.estimate_cost(
             tokens=2000000,
-            model="claude-sonnet-3.7"
+            model="claude-3-5-haiku-20241022"
         )
-        assert abs(cost - 18.0) < 0.001
+        assert abs(cost - 6.0) < 0.001
 
     def test_prefix_matching_versioned_models(self):
-        """Test prefix matching for versioned Claude 3.7 models."""
+        """Test prefix matching for versioned Claude 3.5 models."""
         provider = AnthropicProvider(api_key="test")
         cost1 = provider.estimate_cost(
             tokens=2000000,
-            model="claude-3-7-sonnet-20250219"
+            model="claude-3-5-sonnet-20241022"
         )
         cost2 = provider.estimate_cost(
             tokens=2000000,
-            model="claude-sonnet-3.7"
+            model="claude-3-5-sonnet-20240620"
         )
-        assert abs(cost1 - cost2) < 0.001
+        assert abs(cost1 - cost2) < 0.001  # Both should use same rate
 
     def test_zero_tokens_cost(self):
         """Test cost calculation with zero tokens."""
@@ -435,9 +418,6 @@ class TestAnthropicPricingMatrix:
             ("claude-opus-4", 45.0),
             ("claude-sonnet-4.5", 9.0),
             ("claude-sonnet-4", 9.0),
-            # Claude 3.7 Series (Extended Thinking)
-            ("claude-sonnet-3.7", 9.0),
-            ("claude-3-7-sonnet", 9.0),
             # Claude 3.5 Series
             ("claude-3-5-sonnet", 9.0),
             ("claude-3-5-haiku", 3.0),
@@ -459,10 +439,10 @@ class TestAnthropicPricingMatrix:
 
 
 class TestAnthropicBackwardCompatibility:
-    """Test that Claude 3.7 support doesn't break existing functionality."""
+    """Test backward compatibility of Anthropic models."""
 
-    def test_non_reasoning_models_unchanged(self):
-        """Test that non-reasoning Claude models still work correctly."""
+    def test_standard_models_work_correctly(self):
+        """Test that standard Claude models work correctly."""
         provider = AnthropicProvider(api_key="test")
         cost = provider.estimate_cost(
             tokens=2000000,

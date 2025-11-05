@@ -234,7 +234,7 @@ ModelConfig(
 
 ```python
 ModelConfig(
-    name="claude-3-5-sonnet-20241022",
+    name="claude-sonnet-4-5-20250929",
     provider="anthropic",
     cost=0.003,
     api_key="sk-ant-..."  # Or ANTHROPIC_API_KEY env var

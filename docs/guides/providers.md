@@ -70,7 +70,7 @@ model = ModelConfig(
 
 ### 2. Anthropic (Claude)
 
-**Models**: Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus
+**Models**: Claude Sonnet 4.5, Claude Haiku 4.5, Claude Opus 4.1
 
 **Strengths:**
 - ✅ Excellent reasoning ability
@@ -93,7 +93,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ```python
 model = ModelConfig(
-    name="claude-3-5-sonnet-20241022",
+    name="claude-sonnet-4-5-20250929",
     provider="anthropic",
     cost=0.003,
 )

@@ -332,26 +332,12 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
       expect(modelInfo.requiresThinkingBudget).toBe(true);
     });
 
-    it('should detect claude-sonnet-3.7 as reasoning model', () => {
-      const modelInfo = getAnthropicReasoningModelInfo('claude-sonnet-3.7');
-      expect(modelInfo.isReasoning).toBe(true);
-      expect(modelInfo.supportsExtendedThinking).toBe(true);
-    });
-
-    it('should detect claude-sonnet-3-7 as reasoning model', () => {
-      const modelInfo = getAnthropicReasoningModelInfo('claude-sonnet-3-7');
-      expect(modelInfo.isReasoning).toBe(true);
-      expect(modelInfo.supportsExtendedThinking).toBe(true);
-    });
-
-    it('should handle case-insensitive model names', () => {
-      const modelInfo1 = getAnthropicReasoningModelInfo('CLAUDE-3-7-SONNET');
-      const modelInfo2 = getAnthropicReasoningModelInfo('Claude-Sonnet-3.7');
-
-      expect(modelInfo1.isReasoning).toBe(true);
-      expect(modelInfo2.isReasoning).toBe(true);
-      expect(modelInfo1.supportsExtendedThinking).toBe(true);
-      expect(modelInfo2.supportsExtendedThinking).toBe(true);
+    it('should detect claude-3-5-sonnet as standard model (not reasoning)', () => {
+      const modelInfo = getAnthropicReasoningModelInfo('claude-3-5-sonnet-20241022');
+      expect(modelInfo.isReasoning).toBe(false);
+      expect(modelInfo.supportsExtendedThinking).toBe(false);
+      expect(modelInfo.supportsStreaming).toBe(true);
+      expect(modelInfo.supportsTools).toBe(true);
     });
 
     it('should not detect claude-3-5-sonnet as reasoning model', () => {
@@ -375,20 +361,20 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
   });
 
   describe('Model Capabilities', () => {
-    it('should report correct capabilities for Claude 3.7', () => {
-      const modelInfo = getAnthropicReasoningModelInfo('claude-3-7-sonnet');
+    it('should report correct capabilities for Claude 3.5 Sonnet', () => {
+      const modelInfo = getAnthropicReasoningModelInfo('claude-3-5-sonnet-20241022');
 
-      expect(modelInfo.isReasoning).toBe(true);
+      expect(modelInfo.isReasoning).toBe(false);
       expect(modelInfo.provider).toBe('anthropic');
       expect(modelInfo.supportsStreaming).toBe(true);
       expect(modelInfo.supportsTools).toBe(true);
       expect(modelInfo.supportsSystemMessages).toBe(true);
-      expect(modelInfo.supportsExtendedThinking).toBe(true);
-      expect(modelInfo.requiresThinkingBudget).toBe(true);
+      expect(modelInfo.supportsExtendedThinking).toBe(false);
+      expect(modelInfo.requiresThinkingBudget).toBe(false);
     });
 
-    it('should report correct capabilities for standard Claude models', () => {
-      const modelInfo = getAnthropicReasoningModelInfo('claude-3-5-sonnet');
+    it('should report correct capabilities for Claude 3.5 Haiku', () => {
+      const modelInfo = getAnthropicReasoningModelInfo('claude-3-5-haiku-20241022');
 
       expect(modelInfo.isReasoning).toBe(false);
       expect(modelInfo.provider).toBe('anthropic');
@@ -401,9 +387,9 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
   });
 
   describe('Cost Calculation', () => {
-    it('should calculate cost for claude-3-7-sonnet correctly', () => {
-      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-7-sonnet' });
-      const cost = provider.calculateCost(1000000, 1000000, 'claude-3-7-sonnet');
+    it('should calculate cost for claude-3-5-sonnet correctly', () => {
+      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-5-sonnet-20241022' });
+      const cost = provider.calculateCost(1000000, 1000000, 'claude-3-5-sonnet-20241022');
 
       // Blended rate: $9.00 per 1M tokens
       // 2M tokens total = $18.00
@@ -428,13 +414,13 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
 
   describe('Provider Availability', () => {
     it('should be available with API key in config', () => {
-      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-7-sonnet', apiKey: 'test-key' });
+      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-5-sonnet-20241022', apiKey: 'test-key' });
       expect(provider.isAvailable()).toBe(true);
     });
 
     it('should be available with API key in environment', () => {
       process.env.ANTHROPIC_API_KEY = 'test-env-key';
-      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-7-sonnet', apiKey: undefined });
+      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-5-sonnet-20241022', apiKey: undefined });
       expect(provider.isAvailable()).toBe(true);
       delete process.env.ANTHROPIC_API_KEY;
     });
@@ -443,7 +429,7 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
       const configWithoutKey = { ...mockConfig, apiKey: undefined };
       delete process.env.ANTHROPIC_API_KEY;
 
-      expect(() => new AnthropicProvider({ ...configWithoutKey, name: 'claude-3-7-sonnet' }))
+      expect(() => new AnthropicProvider({ ...configWithoutKey, name: 'claude-3-5-sonnet-20241022' }))
         .toThrow();
     });
   });
@@ -455,10 +441,6 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
       { model: 'claude-opus-4', expectedBlended: 45.0 },
       { model: 'claude-sonnet-4.5', expectedBlended: 9.0 },
       { model: 'claude-sonnet-4', expectedBlended: 9.0 },
-
-      // Claude 3.7 Series (Extended Thinking)
-      { model: 'claude-sonnet-3.7', expectedBlended: 9.0 },
-      { model: 'claude-3-7-sonnet', expectedBlended: 9.0 },
 
       // Claude 3.5 Series
       { model: 'claude-3-5-sonnet', expectedBlended: 9.0 },

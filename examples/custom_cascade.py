@@ -82,8 +82,8 @@ class DomainRouter:
         elif domain == "writing":
             if os.getenv("ANTHROPIC_API_KEY"):
                 return [
-                    ModelConfig("claude-3-5-haiku-20241022", provider="anthropic", cost=0.001),
-                    ModelConfig("claude-3-5-sonnet-20241022", provider="anthropic", cost=0.003),
+                    ModelConfig("claude-haiku-4-5-20251001", provider="anthropic", cost=0.001),
+                    ModelConfig("claude-sonnet-4-5-20250929", provider="anthropic", cost=0.003),
                 ]
             else:
                 return [

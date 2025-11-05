@@ -182,9 +182,9 @@ agent = CascadeAgent(models=[
     # Groq (fastest)
     ModelConfig(name="llama-3.1-8b", provider="groq", cost=0.00005),
     # OpenAI (balanced)
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
     # Anthropic (quality)
-    ModelConfig(name="claude-3-5-sonnet", provider="anthropic", cost=0.003)
+    ModelConfig(name="claude-sonnet-4-5", provider="anthropic", cost=0.003)
 ])
 ```
 

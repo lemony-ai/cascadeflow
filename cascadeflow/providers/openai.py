@@ -961,7 +961,7 @@ class OpenAIProvider(BaseProvider):
             # GPT-4 series (previous generation)
             "gpt-4-turbo": {"input": 0.010, "output": 0.030},
             "gpt-4": {"input": 0.030, "output": 0.060},
-            # GPT-3.5 series (legacy)
+            # GPT-3.5 series (deprecated - use gpt-4o-mini instead)
             "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
         }
 

@@ -262,7 +262,7 @@ def get_balanced_agent(
     if providers["anthropic"]:
         models.append(
             ModelConfig(
-                name="claude-3-5-sonnet-20241022",
+                name="claude-sonnet-4-5-20250929",
                 provider="anthropic",
                 cost=0.003,
                 speed_ms=1000,
@@ -468,7 +468,7 @@ def get_quality_optimized_agent(
     if providers["anthropic"]:
         models.append(
             ModelConfig(
-                name="claude-3-5-sonnet-20241022",
+                name="claude-sonnet-4-5-20250929",
                 provider="anthropic",
                 cost=0.003,
                 speed_ms=1000,
