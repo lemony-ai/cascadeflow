@@ -182,13 +182,13 @@ Draft accepted: True
 
 ### Key Concepts
 
-#### 1. Draft Model (Tier 1)
+#### 1. Draft Model
 - **Purpose:** Try to answer with cheap model
 - **Cost:** Low (~$0.000375 per 1K tokens)
 - **Speed:** Fast
 - **Quality:** Good for simple queries
 
-#### 2. Verifier Model (Tier 2)
+#### 2. Verifier Model
 - **Purpose:** Verify draft or handle complex queries
 - **Cost:** Higher (~$0.00625 per 1K tokens)
 - **Speed:** Slower

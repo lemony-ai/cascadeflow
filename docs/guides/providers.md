@@ -313,7 +313,7 @@ for model_name in models:
 | Rank | Provider | Quality Score | Best For |
 |------|----------|--------------|----------|
 | 1 | OpenAI GPT-4o | 0.95 | Complex tasks |
-| 2 | Anthropic Claude 3.5 | 0.92 | Reasoning |
+| 2 | Anthropic Claude Sonnet 4.5 | 0.92 | Reasoning |
 | 3 | OpenAI GPT-4o-mini | 0.88 | General tasks |
 | 4 | Groq Llama 3.3 70B | 0.85 | Simple tasks |
 | 5 | Together | 0.82 | Basic queries |
@@ -361,7 +361,7 @@ agent = CascadeAgent(models=[
     ModelConfig("llama-3.1-70b-versatile", provider="groq", cost=0),
     
     # Premium verifier (Claude or GPT)
-    ModelConfig("claude-3-5-sonnet", provider="anthropic", cost=0.003),
+    ModelConfig("claude-sonnet-4-5-20250929", provider="anthropic", cost=0.003),
 ])
 ```
 
@@ -382,7 +382,7 @@ agent = CascadeAgent(models=[
 agent = CascadeAgent(models=[
     ModelConfig("llama-3.1-8b", provider="groq", cost=0),
     ModelConfig("gpt-4o", provider="openai", cost=0.00625),
-    ModelConfig("claude-3-5-sonnet", provider="anthropic", cost=0.003),
+    ModelConfig("claude-sonnet-4-5-20250929", provider="anthropic", cost=0.003),
 ])
 ```
 
@@ -675,7 +675,7 @@ agent = CascadeAgent(models=[
         name="deepseek-coder",
         provider="openai",  # Uses OpenAI-compatible API
         cost=deepseek_cost * 1000,  # Convert to per-1K token cost
-        base_url="https://api.deepseek.com/v1"  # DeepSeek endpoint
+        base_url="https://api.deepseek.com/v1"  # ✅ base_url IS supported
     ),
     ModelConfig(
         name="gpt-4o",
