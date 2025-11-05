@@ -4,7 +4,7 @@
  * Works in both Node.js (using Anthropic SDK) and browser (using fetch API).
  * Automatically detects the runtime environment and uses the appropriate method.
  *
- * Supports: Claude 4, Claude 3.7, Claude 3.5, Claude 3
+ * Supports: Claude 4.5, Claude 4, Claude 3.5, Claude 3
  *
  * Note: Anthropic does not support logprobs natively
  */
@@ -53,8 +53,9 @@ const ANTHROPIC_PRICING: Record<string, number> = {
 /**
  * Detect if model supports extended thinking and get its capabilities
  *
- * Note: Claude 3.7 was a hypothetical future model. Current production models
- * are Claude 3.5 Sonnet/Haiku and Claude 3 Opus/Sonnet/Haiku.
+ * Claude 4.5 models (Sonnet 4.5, Haiku 4.5) support extended thinking mode,
+ * which allows visible "thinking" blocks showing step-by-step reasoning.
+ * Released September 29, 2025.
  *
  * @param modelName - Model name to check
  * @returns Model capabilities
@@ -62,8 +63,21 @@ const ANTHROPIC_PRICING: Record<string, number> = {
 export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
   const name = modelName.toLowerCase();
 
-  // All current Claude models (standard capabilities)
-  // Note: As of January 2025, Anthropic has not released extended thinking models
+  // Claude 4.5 models with extended thinking support
+  // Includes: claude-sonnet-4.5, claude-haiku-4.5, claude-4.5-sonnet, etc.
+  if (name.includes('4.5') || name.includes('4-5')) {
+    return {
+      isReasoning: true,
+      provider: 'anthropic',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsSystemMessages: true,
+      supportsExtendedThinking: true,
+      requiresThinkingBudget: true,
+    };
+  }
+
+  // All other Claude models (standard capabilities without extended thinking)
   return {
     isReasoning: false,
     provider: 'anthropic',
@@ -290,14 +304,14 @@ export class AnthropicProvider extends BaseProvider {
         ...request.extra,
       };
 
-      // Add extended thinking configuration for Claude 3.7
+      // Add extended thinking configuration for Claude 4.5
       if (modelInfo.supportsExtendedThinking && request.extra?.thinking) {
         payload.thinking = request.extra.thinking;
       }
 
       const completion = await this.client.messages.create(payload);
 
-      // Extract thinking content (Claude 3.7 extended thinking)
+      // Extract thinking content (Claude 4.5 extended thinking)
       const thinkingBlocks = completion.content
         .filter((block: any) => block.type === 'thinking')
         .map((block: any) => ({
