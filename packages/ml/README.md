@@ -26,6 +26,8 @@ The model (~40MB) will be downloaded automatically on first use.
 
 ### Enable ML Detection in CascadeAgent
 
+ML-based semantic detection is automatically available when `@cascadeflow/ml` is installed. The CascadeAgent will use it for enhanced domain detection and routing.
+
 ```typescript
 import { CascadeAgent } from '@cascadeflow/core';
 
@@ -34,11 +36,11 @@ const agent = new CascadeAgent({
     { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
   ],
-  enableSemanticDetection: true  // Enable ML detection
 });
 
 const result = await agent.run('Calculate eigenvalues of [[1,2],[3,4]]');
 
+// ML detection results are in metadata when available
 console.log(result.metadata.domainDetected);      // 'MATH'
 console.log(result.metadata.detectionMethod);     // 'semantic'
 console.log(result.metadata.domainConfidence);    // 0.87 (87%)

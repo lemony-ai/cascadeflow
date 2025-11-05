@@ -37,7 +37,7 @@ cascadeflow:
 Result: 50-85% cost savings
 ```
 
-###Why Use cascadeflow in n8n?
+### Why Use cascadeflow in n8n?
 
 ✅ **Massive Cost Savings** - 40-85% cheaper than direct API calls
 ✅ **Same Quality** - Automatic validation ensures quality
