@@ -46,8 +46,8 @@ async function example1_ErrorHandling() {
 
   const agent = new CascadeAgent({
     models: [
-      { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
-      { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
+      { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
+      { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
   });
 
@@ -106,8 +106,8 @@ async function example2_Caching() {
 
   const agent = new CascadeAgent({
     models: [
-      { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
-      { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
+      { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
+      { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
   });
 
@@ -246,8 +246,8 @@ async function example4_CostTracking() {
 
   const agent = new CascadeAgent({
     models: [
-      { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
-      { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
+      { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
+      { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
   });
 
@@ -314,8 +314,8 @@ async function example5_Monitoring() {
 
   const agent = new CascadeAgent({
     models: [
-      { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
-      { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
+      { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
+      { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
   });
 
@@ -343,15 +343,15 @@ async function example6_Failover() {
   // Primary cascade
   const primaryAgent = new CascadeAgent({
     models: [
-      { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
-      { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
+      { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
+      { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
   });
 
   // Fallback cascade (different providers)
   const fallbackAgent = new CascadeAgent({
     models: [
-      { name: 'llama-3.1-8b-instant', provider: 'groq', cost: 0.00005 },
+      { name: 'llama-4-scout', provider: 'groq', cost: 0.00011 },
       { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
     ],
   });

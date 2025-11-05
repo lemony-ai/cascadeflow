@@ -3,15 +3,17 @@
  *
  * cascadeflow supports reasoning models from 4 providers with automatic detection:
  *
- * 1. OpenAI (o1, o1-mini, o3-mini)
+ * 1. OpenAI (o3, o4-mini)
  *    - Chain-of-thought reasoning with hidden thinking
  *    - reasoning_effort parameter (low/medium/high)
  *    - max_completion_tokens required
+ *    - o3 and o4-mini are the latest reasoning models (2025)
  *
- * 2. Anthropic (claude-3-7-sonnet-20250219)
+ * 2. Anthropic (claude-sonnet-4-5, claude-opus-4-1)
  *    - Extended thinking mode (enable with thinkingBudget)
  *    - Minimum 1024 tokens thinking budget
  *    - Visible reasoning in response
+ *    - Claude Sonnet 4.5 and Opus 4.1 released in 2025
  *
  * 3. Ollama (deepseek-r1, deepseek-r1-distill)
  *    - Free local inference
@@ -29,12 +31,12 @@
 import { CascadeAgent } from '../../src/index';
 
 async function reasoningModelsExample() {
-  // Example 1: o1-mini (supports streaming, no tools, no system messages)
-  console.log('\n=== Example 1: o1-mini (original reasoning model) ===');
+  // Example 1: o4-mini (latest fast reasoning model)
+  console.log('\n=== Example 1: o4-mini (latest reasoning model) ===');
   const agent1 = new CascadeAgent({
     models: [
       {
-        name: 'o1-mini', // Auto-detected as reasoning model
+        name: 'o4-mini', // Auto-detected as reasoning model
         provider: 'openai',
       },
     ],
@@ -55,12 +57,12 @@ async function reasoningModelsExample() {
   });
   console.log('Cost:', `$${result1.cost.toFixed(6)}`);
 
-  // Example 2: o1-2024-12-17 (newer model with reasoning_effort)
-  console.log('\n=== Example 2: o1-2024-12-17 with reasoning_effort ===');
+  // Example 2: o3 (latest advanced reasoning model with reasoning_effort)
+  console.log('\n=== Example 2: o3 with reasoning_effort ===');
   const agent2 = new CascadeAgent({
     models: [
       {
-        name: 'o1-2024-12-17',
+        name: 'o3',
         provider: 'openai',
       },
     ],
@@ -89,7 +91,7 @@ async function reasoningModelsExample() {
         provider: 'openai',
       },
       {
-        name: 'o1-mini', // Falls back to reasoning model if needed
+        name: 'o4-mini', // Falls back to reasoning model if needed
         provider: 'openai',
       },
     ],
@@ -128,12 +130,12 @@ async function reasoningModelsExample() {
     console.log('  Response length:', result.content.length, 'chars');
   }
 
-  // Example 5: Anthropic Claude 3.7 Sonnet with Extended Thinking
-  console.log('\n=== Example 5: Claude 3.7 Sonnet (Extended Thinking) ===');
+  // Example 5: Anthropic Claude Sonnet 4.5 with Extended Thinking
+  console.log('\n=== Example 5: Claude Sonnet 4.5 (Extended Thinking) ===');
   const agent4 = new CascadeAgent({
     models: [
       {
-        name: 'claude-3-7-sonnet-20250219',
+        name: 'claude-sonnet-4-5',
         provider: 'anthropic',
       },
     ],
@@ -229,11 +231,11 @@ async function reasoningModelsExample() {
         cost: 0, // Free local inference
       },
       {
-        name: 'o1-mini',
+        name: 'o4-mini',
         provider: 'openai',
       },
       {
-        name: 'claude-3-7-sonnet-20250219',
+        name: 'claude-sonnet-4-5',
         provider: 'anthropic',
       },
     ],
@@ -242,8 +244,8 @@ async function reasoningModelsExample() {
 
   console.log('This cascade tries:');
   console.log('  1. DeepSeek-R1 (local, free)');
-  console.log('  2. Falls back to o1-mini if quality < 0.85');
-  console.log('  3. Falls back to Claude 3.7 as final option');
+  console.log('  2. Falls back to o4-mini if quality < 0.85');
+  console.log('  3. Falls back to Claude Sonnet 4.5 as final option');
   console.log();
   console.log('Perfect for cost optimization with reasoning models!');
 }
