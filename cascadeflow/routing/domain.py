@@ -357,6 +357,11 @@ class DomainDetector:
                 except ValueError:
                     logger.warning(f"Unknown domain: {domain_name}, skipping")
 
+    @property
+    def domain_keywords(self) -> Dict[Domain, DomainKeywords]:
+        """Backward compatibility property for accessing keywords."""
+        return self.keywords
+
     def detect(self, query: str) -> Tuple[Domain, float]:
         """
         Detect domain from query text.
