@@ -88,9 +88,9 @@ function getQualityConfig(mode: QualityMode = 'balanced') {
 export const PRESET_BEST_OVERALL: { models: ModelConfig[] } = {
   models: [
     {
-      name: 'claude-3-5-haiku-20241022',
+      name: 'claude-haiku-4-5',
       provider: 'anthropic',
-      cost: 0.0008,
+      cost: 0.001,
     },
     {
       name: 'gpt-4o-mini',
@@ -220,14 +220,14 @@ export const PRESET_OPENAI_ONLY: { models: ModelConfig[] } = {
 export const PRESET_ANTHROPIC_ONLY: { models: ModelConfig[] } = {
   models: [
     {
-      name: 'claude-3-5-haiku-20241022',
+      name: 'claude-haiku-4-5',
       provider: 'anthropic',
-      cost: 0.0008,
+      cost: 0.001,
     },
     {
-      name: 'claude-sonnet-4-5-20250929',
+      name: 'claude-sonnet-4-5',
       provider: 'anthropic',
-      cost: 0.009,
+      cost: 0.003,
     },
   ],
 };
@@ -319,16 +319,16 @@ export function createPreset(config: PresetConfig = {}): {
       cost: 0.00015,
     });
     models.push({
-      name: 'claude-3-5-haiku-20241022',
+      name: 'claude-haiku-4-5',
       provider: 'anthropic',
-      cost: 0.0008,
+      cost: 0.001,
     });
   } else {
     // Balanced - mix of speed and reliability
     models.push({
-      name: 'claude-3-5-haiku-20241022',
+      name: 'claude-haiku-4-5',
       provider: 'anthropic',
-      cost: 0.0008,
+      cost: 0.001,
     });
     models.push({
       name: 'gpt-4o-mini',
