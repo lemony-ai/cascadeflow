@@ -221,9 +221,10 @@ class OpenAIProvider(BaseProvider):
 
         # Initialize HTTP client with the loaded API key
         self.base_url = "https://api.openai.com/v1"
+        # Increased timeout for reasoning models (GPT-5, o1, o3) which can take 60-120+ seconds
         self.client = httpx.AsyncClient(
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-            timeout=60.0,
+            timeout=180.0,  # 3 minutes for reasoning models
         )
 
     def _load_api_key(self) -> Optional[str]:

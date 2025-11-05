@@ -29,9 +29,10 @@ Expected Output:
 
 Note on GPT-5:
     GPT-5 is a reasoning model (like o1/o3) that uses internal reasoning tokens
-    before generating output. Complex queries may need 1000-2000+ reasoning tokens.
-    This example uses max_tokens=5000 to ensure GPT-5 has enough tokens for
-    both reasoning and output.
+    before generating output. Complex queries may use 500-1500 reasoning tokens.
+    This example uses max_tokens=2000 which balances speed vs output quality.
+
+    ⚠️  GPT-5 can be SLOW (30-120+ seconds per query) due to reasoning time!
 
 Note on Costs:
     Costs are calculated using actual token-based pricing from OpenAI:
@@ -189,9 +190,9 @@ async def main():
 
         # Run the query through cascade
         # Note: GPT-5 is a reasoning model that uses reasoning tokens,
-        # so we need much higher token limits (reasoning + output tokens)
-        # Complex queries can use 1000-2000+ reasoning tokens!
-        result = await agent.run(test["query"], max_tokens=5000)
+        # so we need higher token limits (reasoning + output tokens)
+        # Using 2000 tokens balances speed vs quality
+        result = await agent.run(test["query"], max_tokens=2000)
 
         # Determine which model was used
         model_used = "gpt-4o-mini" if "4o-mini" in result.model_used.lower() else "gpt-5"
