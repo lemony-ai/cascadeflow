@@ -1,31 +1,100 @@
-# CODEOWNERS file for CascadeFlow
-# These owners will be automatically requested for review when someone opens a PR
+# CascadeFlow Code Owners
+# =======================
+#
+# This file defines who is responsible for reviewing code changes in specific
+# parts of the repository. Code owners are automatically requested for review
+# when someone opens a pull request that modifies code they own.
+#
+# Learn more: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
-# Default owner for everything in the repo
+# ============================================================================
+# GLOBAL OWNER (All files)
+# ============================================================================
+# The repository owner must approve ALL pull requests
 * @saschabuehrle
 
-# Core agent and orchestration logic
-/cascadeflow/agent.py @saschabuehrle
-/cascadeflow/speculative.py @saschabuehrle
-/cascadeflow/config.py @saschabuehrle
+# ============================================================================
+# CRITICAL FILES (Extra protection for package distribution)
+# ============================================================================
 
-# Provider implementations - require extra careful review
+# Python package configuration
+/pyproject.toml @saschabuehrle
+/setup.py @saschabuehrle
+/setup.cfg @saschabuehrle
+/requirements*.txt @saschabuehrle
+/MANIFEST.in @saschabuehrle
+
+# TypeScript/JavaScript package configuration
+/packages/*/package.json @saschabuehrle
+/package.json @saschabuehrle
+/pnpm-workspace.yaml @saschabuehrle
+/pnpm-lock.yaml @saschabuehrle
+/tsconfig*.json @saschabuehrle
+
+# GitHub workflows, actions, and settings
+/.github/workflows/ @saschabuehrle
+/.github/actions/ @saschabuehrle
+/.github/CODEOWNERS @saschabuehrle
+
+# Security
+/SECURITY.md @saschabuehrle
+/.env.example @saschabuehrle
+
+# ============================================================================
+# CORE LIBRARY CODE (Python)
+# ============================================================================
+
+# Core agent and orchestration
+/cascadeflow/agent.py @saschabuehrle
+/cascadeflow/config.py @saschabuehrle
+/cascadeflow/schema/ @saschabuehrle
+
+# Provider implementations - critical for integrations
 /cascadeflow/providers/ @saschabuehrle
 
-# Quality and routing systems
-/cascadeflow/quality.py @saschabuehrle
+# Quality validation and routing systems
+/cascadeflow/quality/ @saschabuehrle
 /cascadeflow/routing/ @saschabuehrle
-/cascadeflow/confidence.py @saschabuehrle
 
-# Documentation - anyone can review but maintainers should be notified
-/docs/ @saschabuehrle
-/examples/ @saschabuehrle
-README.md @saschabuehrle
+# Utilities and helpers
+/cascadeflow/utils/ @saschabuehrle
 
-# CI/CD and infrastructure - require maintainer approval
-/.github/ @saschabuehrle
-/pyproject.toml @saschabuehrle
-/requirements*.txt @saschabuehrle
+# All other cascadeflow code
+/cascadeflow/ @saschabuehrle
 
-# Tests - should be reviewed by maintainers
+# ============================================================================
+# CORE LIBRARY CODE (TypeScript)
+# ============================================================================
+/packages/core/src/ @saschabuehrle
+/packages/integrations/ @saschabuehrle
+/packages/ml/ @saschabuehrle
+
+# ============================================================================
+# TESTS
+# ============================================================================
 /tests/ @saschabuehrle
+/packages/*/tests/ @saschabuehrle
+/packages/*/__tests__/ @saschabuehrle
+
+# ============================================================================
+# DOCUMENTATION
+# ============================================================================
+/docs/ @saschabuehrle
+/README.md @saschabuehrle
+/CHANGELOG.md @saschabuehrle
+/CONTRIBUTING.md @saschabuehrle
+/LICENSE @saschabuehrle
+
+# ============================================================================
+# EXAMPLES
+# ============================================================================
+/examples/ @saschabuehrle
+/packages/*/examples/ @saschabuehrle
+
+# ============================================================================
+# NOTES FOR CONTRIBUTORS
+# ============================================================================
+# - All PRs require approval from @saschabuehrle (enforced by branch protection)
+# - Direct commits to main are blocked (enforced by branch protection)
+# - All changes must go through feature branches and PRs
+# - Even repository admins cannot bypass these rules (enforce_admins: true)
