@@ -657,10 +657,23 @@ def example_function(param1: str, param2: int) -> bool:
 
 ### Review Process
 
-- Maintainers will review your PR
-- Address any requested changes
-- Once approved, your PR will be merged
-- Your contribution will be credited in release notes
+**Branch Protection Rules:**
+- ✅ All PRs require approval from @saschabuehrle before merging
+- ✅ Direct commits to `main` branch are **blocked** (even for admins)
+- ✅ All changes must go through pull requests
+- ✅ Code owners (defined in `.github/CODEOWNERS`) are automatically requested for review
+- ✅ All conversations must be resolved before merging
+- ✅ Linear history is enforced (no merge commits)
+
+**Review Steps:**
+1. Maintainer will review your PR within 2-3 business days
+2. Address any requested changes promptly
+3. Push new commits to the same branch
+4. Maintainer will re-review and approve
+5. Once approved, maintainer will merge your PR
+6. Your contribution will be credited in release notes
+
+**Note:** Even repository owners cannot bypass these rules - all changes must go through the PR process!
 
 ---
 
