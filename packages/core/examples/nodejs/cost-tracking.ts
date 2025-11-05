@@ -165,7 +165,7 @@ class SimpleMetricsCollector {
 
   getSummary() {
     const totalQueries = this.entries.length;
-    const cascadeUsed = this.entries.filter(e => e.result.cascaded).length;
+    const cascadeUsed = this.entries.filter(e => e.routingStrategy === 'cascade').length;
     const cascadeRate = totalQueries > 0 ? (cascadeUsed / totalQueries) * 100 : 0;
     const avgLatency = totalQueries > 0
       ? this.entries.reduce((sum, e) => sum + (e.result.latencyMs || 0), 0) / totalQueries
@@ -313,22 +313,26 @@ async function main() {
     // Track in metrics collector
     metrics.record(
       result,
-      result.cascaded ? 'cascade' : 'direct',
-      result.cascaded ? 'complex' : 'simple'
+      result.routingStrategy === 'direct' ? 'direct' : 'cascade',
+      result.routingStrategy === 'direct' ? 'simple' : 'complex'
     );
 
     // Show result
     console.log(`  💰 Cost: $${totalCost.toFixed(6)}`);
 
-    if (result.cascaded) {
-      if (result.draftAccepted) {
-        console.log(`  🎯 Model: ${result.draftModel || result.modelUsed} (draft accepted)`);
-        console.log('  ✅ Saved cost by using cheap model!');
-      } else {
-        console.log(`  🎯 Model: ${result.verifierModel || result.modelUsed} (after cascade)`);
-        console.log('  🔄 Draft rejected, used verifier for quality');
-      }
+    if (result.routingStrategy === 'direct') {
+      // Direct routing - only one model used
+      console.log(`  🎯 Model: ${result.modelUsed}`);
+    } else if (result.draftAccepted) {
+      // Draft was accepted - only draft model was actually used
+      console.log(`  🎯 Model: ${result.draftModel || result.modelUsed} (draft accepted)`);
+      console.log('  ✅ Saved cost by using cheap model!');
+    } else if (result.cascaded) {
+      // Draft was rejected - both models were used
+      console.log(`  🎯 Model: ${result.verifierModel || result.modelUsed} (after cascade)`);
+      console.log('  🔄 Draft rejected, used verifier for quality');
     } else {
+      // Fallback - shouldn't happen with correct routing
       console.log(`  🎯 Model: ${result.modelUsed}`);
     }
     console.log();
