@@ -141,8 +141,8 @@ from cascadeflow import CascadeAgent, ModelConfig
 
 # Define your cascade - try cheap model first, escalate if needed
 agent = CascadeAgent(models=[
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),  # Try first (~$0.375/1M tokens)
-    ModelConfig(name="gpt-5", provider="openai", cost=0.00562),         # Fallback (~$5.62/1M tokens)
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),  # Draft model (~$0.375/1M tokens)
+    ModelConfig(name="gpt-5", provider="openai", cost=0.00562),         # Verifier model (~$5.62/1M tokens)
 ])
 
 # Run query - automatically routes to optimal model
@@ -198,7 +198,7 @@ print(f"Toxic: {result.is_toxic}")
 
 > **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow examples work without- GPT-5 is only called when needed (typically 20-30% of requests).
 
-📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
+📖 **Learn more:** [Python Documentation](./docs/README.md) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
 ### <img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> TypeScript
 
