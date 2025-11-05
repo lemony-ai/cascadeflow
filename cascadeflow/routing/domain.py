@@ -378,6 +378,19 @@ class DomainDetector:
         Returns:
             DomainDetectionResult with scores for all domains
         """
+        # Handle empty query
+        if not query or not query.strip():
+            return DomainDetectionResult(
+                domain=Domain.GENERAL,
+                confidence=0.0,
+                scores={},
+                metadata={
+                    "query_length": 0,
+                    "threshold": self.confidence_threshold,
+                    "empty_query": True,
+                },
+            )
+
         query_lower = query.lower()
 
         # Calculate scores for each domain
