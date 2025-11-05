@@ -275,7 +275,8 @@ DOMAIN_KEYWORDS: Dict[Domain, DomainKeywords] = {
             "roi", "profit", "loss"
         ],
         moderate=[
-            "analysis", "forecast", "budget", "capital", "asset",
+            "analysis", "forecast", "budget", "working capital", "capital market",
+            "capital allocation", "venture capital", "asset",
             "liability", "cash flow", "dividend"
         ],
         weak=["money", "cost", "price", "pay"],
