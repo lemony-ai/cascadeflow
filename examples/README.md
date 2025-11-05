@@ -44,16 +44,31 @@ python examples/basic_usage.py
 **I want to...**
 - **Stream responses?** → `streaming_text.py`, `streaming_tools.py`
 - **Use tools/functions?** → `tool_execution.py`, `streaming_tools.py`
-- **Track costs?** → `cost_tracking.py`, `user_budget_tracking.py`
+- **Track costs?** → `cost_tracking.py`, `user_budget_tracking.py`, `integrations/litellm_cost_tracking.py`
+- **Enforce budgets?** → `enforcement/basic_enforcement.py`, `enforcement/stripe_integration.py`
 - **Use multiple providers?** → `multi_provider.py`, `integrations/litellm_providers.py`
 - **Access DeepSeek/Gemini/Azure?** → `integrations/litellm_providers.py`
 - **Deploy to production?** → `production_patterns.py`, `fastapi_integration.py`
-- **Run locally/edge?** → `edge_device.py`, `vllm_example.py`
+- **Monitor in production?** → `integrations/opentelemetry_grafana.py`
+- **Run locally/edge?** → `edge_device.py`, `integrations/local_providers_setup.py`, `vllm_example.py`
 - **Use reasoning models?** → `reasoning_models.py`
 - **Manage user budgets?** → `user_budget_tracking.py`, `profile_database_integration.py`
+- **Integrate with Stripe?** → `enforcement/stripe_integration.py`
 - **Add safety guardrails?** → `guardrails_usage.py`
 - **Customize routing?** → `custom_cascade.py`, `multi_step_cascade.py`
 - **Validate quality?** → `custom_validation.py`, `semantic_quality_domain_detection.py`
+
+---
+
+## 📋 Table of Contents
+
+- [🌟 Core Examples](#-core-examples-6-examples---start-here) - Basic usage, streaming, tools
+- [💰 Cost Management](#-cost-management--budgets-4-examples) - Budgets and tracking
+- [🏭 Production](#-production--integration-5-examples) - Deployment patterns
+- [🔌 Integrations](#-integrations-5-examples) - LiteLLM, OpenTelemetry, local providers
+- [🛡️ Enforcement](#%EF%B8%8F-enforcement-2-examples) - Budget enforcement and Stripe
+- [⚡ Advanced](#-advanced-patterns-6-examples) - Custom routing and validation
+- [🌐 Edge](#-edge--local-deployment-1-example) - Edge device deployment
 
 ---
 
@@ -280,15 +295,15 @@ Safety and content filtering.
 </details>
 
 <details>
-<summary><h3>🔌 Provider Integrations (1 example)</h3></summary>
+<summary><h3>🔌 Integrations (5 examples)</h3></summary>
 
-Access 100+ models across 10+ providers with accurate cost tracking.
+Access 10+ providers with accurate cost tracking, production monitoring, and local inference.
 
-#### LiteLLM Provider Integration ⭐
+#### 1. LiteLLM Provider Integration ⭐
 **File:** [`integrations/litellm_providers.py`](integrations/litellm_providers.py)
 **Time:** 15 minutes
 **What you'll learn:**
-- Access DeepSeek, Google Gemini, Azure OpenAI, and more
+- Access DeepSeek, Google Gemini, Azure OpenAI, and 7 more providers
 - Calculate accurate costs for 100+ models
 - Compare costs across providers
 - Integrate with CascadeAgent
@@ -304,24 +319,118 @@ Access 100+ models across 10+ providers with accurate cost tracking.
 8. Real-world CascadeAgent integration
 
 **Cost Savings:**
-- DeepSeek: 99% cheaper than GPT-4 for code
-- Gemini Flash: 97% cheaper than GPT-4o for simple tasks
-- Annual impact: Save $20,000-$28,000 per year
-
-**Documentation:** [`integrations/README_LITELLM.md`](integrations/README_LITELLM.md)
+- DeepSeek: 95% cheaper than GPT-4o for code ($0.00028 vs $0.0075)
+- Gemini Flash: 98% cheaper for simple tasks ($0.000225 vs $0.0075)
+- Annual impact: Save $21,000-$28,500 per year
 
 **Quick Example:**
 ```python
 from cascadeflow.integrations.litellm import calculate_cost
 
-# Calculate DeepSeek cost (99% cheaper!)
 cost = calculate_cost(
     model="deepseek/deepseek-coder",
     input_tokens=1000,
     output_tokens=500
 )
-print(f"Cost: ${cost:.6f}")  # $0.000280 vs $0.030 for GPT-4
+print(f"Cost: ${cost:.6f}")  # $0.000280 vs $0.007500 for GPT-4o
 ```
+
+---
+
+#### 2. LiteLLM Cost Tracking
+**File:** [`integrations/litellm_cost_tracking.py`](integrations/litellm_cost_tracking.py)
+Cost tracking with LiteLLM integration and provider validation.
+
+---
+
+#### 3. Local Providers Setup
+**File:** [`integrations/local_providers_setup.py`](integrations/local_providers_setup.py)
+**Time:** 15 minutes
+Complete guide for Ollama and vLLM setup (local, network, remote scenarios).
+
+---
+
+#### 4. OpenTelemetry & Grafana
+**File:** [`integrations/opentelemetry_grafana.py`](integrations/opentelemetry_grafana.py)
+**Time:** 20 minutes
+Production observability with OpenTelemetry, Prometheus, and Grafana.
+
+**Features:**
+- Cost metrics export
+- Token usage tracking
+- Latency histograms
+- User-level analytics
+
+---
+
+#### 5. Provider Testing
+**File:** [`integrations/test_all_providers.py`](integrations/test_all_providers.py)
+Validate API keys and test all 10 providers.
+
+**Documentation:** 📖 [`integrations/README.md`](integrations/README.md)
+
+</details>
+
+<details>
+<summary><h3>🛡️ Enforcement (2 examples)</h3></summary>
+
+Implement budget enforcement and cost controls for production SaaS applications.
+
+#### 1. Basic Enforcement ⭐
+**File:** [`enforcement/basic_enforcement.py`](enforcement/basic_enforcement.py)
+**Time:** 10 minutes
+**What you'll learn:**
+- Configure budget limits per tier
+- Use built-in enforcement callbacks
+- Create custom callbacks
+- Handle enforcement actions (ALLOW, WARN, BLOCK, DEGRADE)
+
+**Built-in Callbacks:**
+- `strict_budget_enforcement` - Block at 100%, warn at 80%
+- `graceful_degradation` - Degrade to cheaper models at 90%
+- `tier_based_enforcement` - Different policies per tier
+
+**Quick Example:**
+```python
+from cascadeflow.telemetry import (
+    BudgetConfig,
+    CostTracker,
+    EnforcementCallbacks,
+    strict_budget_enforcement,
+)
+
+# Configure budgets
+tracker = CostTracker(
+    user_budgets={
+        "free": BudgetConfig(daily=0.10),
+        "pro": BudgetConfig(daily=1.0),
+    }
+)
+
+# Set up enforcement
+callbacks = EnforcementCallbacks()
+callbacks.register(strict_budget_enforcement)
+
+# Check before processing
+action = callbacks.check(context)
+if action == EnforcementAction.BLOCK:
+    return {"error": "Budget exceeded. Please upgrade."}
+```
+
+---
+
+#### 2. Stripe Integration
+**File:** [`enforcement/stripe_integration.py`](enforcement/stripe_integration.py)
+**Time:** 15 minutes
+Real-world template for integrating with Stripe subscriptions.
+
+**Features:**
+- Map Stripe tiers to budgets
+- Subscription-based enforcement
+- Upgrade flow handling
+- Tier-specific policies
+
+**Documentation:** 📖 [`enforcement/README.md`](enforcement/README.md)
 
 </details>
 
@@ -686,15 +795,17 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ## 📊 Summary
 
-### ✅ Available Examples (22 total)
+### ✅ Available Examples (29 total)
 
 **Core (6):** Basic usage, streaming text, tool execution, multi-provider, reasoning models, cost tracking
-
-**Tools (2):** Tool execution, streaming tools
 
 **Cost Management (4):** Cost tracking, user budgets, user profiles, database integration
 
 **Production (5):** Production patterns, FastAPI, batch processing, rate limiting, guardrails
+
+**Integrations (5):** LiteLLM providers, cost tracking, local setup, OpenTelemetry, provider testing
+
+**Enforcement (2):** Basic enforcement, Stripe integration
 
 **Advanced (6):** Custom cascade, custom validation, multi-step, semantic detection, forecasting, vLLM
 
@@ -702,9 +813,10 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ### 📚 Documentation Coverage
 
-- ✅ **22 examples** (~4,500 lines of code)
+- ✅ **29 examples** (~6,000+ lines of code)
+- ✅ **3 specialized READMEs** (integrations, enforcement, main)
 - ✅ **10+ comprehensive guides** (~10,000 lines of docs)
-- ✅ **~14,500 lines total** of professional documentation
+- ✅ **~16,000+ lines total** of professional documentation
 - ✅ **100% feature coverage**
 
 ### 🔑 Key Learnings
