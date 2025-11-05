@@ -1,6 +1,6 @@
-# 🌊 CascadeFlow Streaming Guide
+# 🌊 cascadeflow Streaming Guide
 
-Complete guide to real-time streaming with CascadeFlow.
+Complete guide to real-time streaming with cascadeflow.
 
 ---
 
@@ -23,13 +23,13 @@ Complete guide to real-time streaming with CascadeFlow.
 
 # Basic Usage
 
-Essential streaming patterns for CascadeFlow.
+Essential streaming patterns for cascadeflow.
 
 ---
 
 ## Overview
 
-CascadeFlow provides **real-time streaming** for both text responses and tool calls, with full visibility into cascade decisions, quality validation, and cost tracking.
+cascadeflow provides **real-time streaming** for both text responses and tool calls, with full visibility into cascade decisions, quality validation, and cost tracking.
 
 ### Key Features
 
@@ -305,7 +305,7 @@ tools = [{
 }]
 ```
 
-CascadeFlow uses a **universal format** that works with all providers. It automatically converts to each provider's expected format (OpenAI, Anthropic, Groq, etc.).
+cascadeflow uses a **universal format** that works with all providers. It automatically converts to each provider's expected format (OpenAI, Anthropic, Groq, etc.).
 
 ### Tool Execution
 

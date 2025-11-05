@@ -1,6 +1,6 @@
 # n8n Integration Guide
 
-This guide shows how to use CascadeFlow in n8n workflows for intelligent AI model cascading with 40-85% cost savings.
+This guide shows how to use cascadeflow in n8n workflows for intelligent AI model cascading with 40-85% cost savings.
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@ This guide shows how to use CascadeFlow in n8n workflows for intelligent AI mode
 
 ## Overview
 
-The **n8n-nodes-cascadeflow** package brings CascadeFlow's intelligent model cascading to n8n workflows.
+The **n8n-nodes-cascadeflow** package brings cascadeflow's intelligent model cascading to n8n workflows.
 
 ### What is Model Cascading?
 
@@ -26,10 +26,10 @@ Instead of always using expensive models:
 Traditional: Every query → GPT-4o ($0.00625)
 ```
 
-CascadeFlow tries cheap models first:
+cascadeflow tries cheap models first:
 
 ```
-CascadeFlow:
+cascadeflow:
   1. Try GPT-4o-mini ($0.00015) ← 70-80% stop here! ✅
   2. Validate quality
   3. If needed → GPT-4o ($0.00625)
@@ -37,7 +37,7 @@ CascadeFlow:
 Result: 50-85% cost savings
 ```
 
-###Why Use CascadeFlow in n8n?
+###Why Use cascadeflow in n8n?
 
 ✅ **Massive Cost Savings** - 40-85% cheaper than direct API calls
 ✅ **Same Quality** - Automatic validation ensures quality
@@ -82,7 +82,7 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install n8n-nodes-cascadeflow
 
 1. Go to **Credentials** in n8n
 2. Click **Add Credential**
-3. Search for **CascadeFlow API**
+3. Search for **cascadeflow API**
 4. Add your API keys (only for providers you'll use):
    - OpenAI API Key: `sk-...`
    - Anthropic API Key: `sk-ant-...`
@@ -94,12 +94,12 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install n8n-nodes-cascadeflow
 ```
 Manual Trigger
     ↓
-CascadeFlow Node
+cascadeflow Node
     ↓
 Set Node (display result)
 ```
 
-**CascadeFlow Node Configuration:**
+**cascadeflow Node Configuration:**
 - **Message**: `What is TypeScript?`
 - **Draft Model**:
   - Provider: OpenAI
@@ -180,7 +180,7 @@ The cascade uses 2 models:
 ```
 Webhook (customer email)
     ↓
-CascadeFlow (generate response)
+cascadeflow (generate response)
     ├─ Draft: claude-3-haiku
     └─ Verifier: claude-3-sonnet
     ↓
@@ -211,11 +211,11 @@ Schedule (daily 9am)
     ↓
 Code Node (generate topics)
     ↓
-CascadeFlow (write blog post)
+cascadeflow (write blog post)
     ├─ Draft: gpt-4o-mini
     └─ Verifier: gpt-4o
     ↓
-CascadeFlow (proofread)
+cascadeflow (proofread)
     ↓
 Notion (save to calendar)
 ```
@@ -237,7 +237,7 @@ Google Sheets (read contacts)
     ↓
 Loop Over Items
     ↓
-CascadeFlow (generate personalized message)
+cascadeflow (generate personalized message)
     ├─ Draft: groq/llama-3.1-8b-instant
     └─ Verifier: openai/gpt-4o
     ↓
@@ -265,13 +265,13 @@ Savings: 95%
 ```
 Manual Trigger
     ↓
-CascadeFlow (Generate with Tools)
+cascadeflow (Generate with Tools)
     Message: "What's the weather in Paris and London?"
     Tools: [get_weather, get_forecast]
     ↓
 Function Node (execute tool calls)
     ↓
-CascadeFlow (format results)
+cascadeflow (format results)
     ↓
 Slack (send message)
 ```
@@ -366,7 +366,7 @@ Start with `0.7` and adjust based on results:
 ### 4. Handle Errors Gracefully
 
 ```
-CascadeFlow
+cascadeflow
     ↓
 IF Node (check for error)
     ├─ Has error → Retry or fallback
@@ -376,7 +376,7 @@ IF Node (check for error)
 ### 5. Track Costs Over Time
 
 ```
-CascadeFlow
+cascadeflow
     ↓
 Google Sheets (log metrics)
     Columns: timestamp, cost, savings%, model, query
@@ -449,7 +449,7 @@ Expected Savings: 90-95%
 
 **Solution:** Check credentials:
 1. Go to **Credentials** in n8n
-2. Find **CascadeFlow API**
+2. Find **cascadeflow API**
 3. Ensure API key is set for the provider you're using
 4. Test the credential
 
@@ -488,7 +488,7 @@ Estimate your savings:
 Traditional Cost (per 1000 queries):
   Always use GPT-4o: 1000 × $0.00625 = $6.25
 
-CascadeFlow (70% draft acceptance):
+cascadeflow (70% draft acceptance):
   Draft (700): 700 × $0.00015 = $0.105
   Verifier (300): 300 × $0.00640 = $1.920
   Total: $2.025
@@ -511,11 +511,11 @@ Savings: $6.25 - $2.025 = $4.225 (67.6%)
 ### Pattern 1: Progressive Enhancement
 
 ```
-CascadeFlow (draft: mini, verifier: 4o)
+cascadeflow (draft: mini, verifier: 4o)
     ↓
 IF (quality < 0.9)
     ↓
-CascadeFlow (draft: 4o, verifier: claude-opus)
+cascadeflow (draft: 4o, verifier: claude-opus)
 ```
 
 ### Pattern 2: Batch Processing with Cost Limits
@@ -525,7 +525,7 @@ Google Sheets (read 1000 rows)
     ↓
 Loop with Counter
     ↓
-CascadeFlow
+cascadeflow
     ↓
 Function (track cumulative cost)
     ↓
@@ -538,7 +538,7 @@ IF (cost > $10) → Stop loop
 Code (random 0 or 1)
     ↓
 IF (random === 0)
-    ├─ CascadeFlow (with cascading)
+    ├─ cascadeflow (with cascading)
     └─ OpenAI (direct GPT-4o)
     ↓
 Google Sheets (log for comparison)
@@ -561,8 +561,8 @@ Find more examples at: [github.com/lemony-ai/cascadeflow/examples/n8n/](https://
 ## Learn More
 
 - [n8n Documentation](https://docs.n8n.io/)
-- [CascadeFlow GitHub](https://github.com/lemony-ai/cascadeflow)
-- [CascadeFlow Guides](../../README.md)
+- [cascadeflow GitHub](https://github.com/lemony-ai/cascadeflow)
+- [cascadeflow Guides](../../README.md)
 - [Community Forum](https://community.n8n.io/)
 
 ---

@@ -1,5 +1,5 @@
 """
-Example: User Profile System with CascadeFlow v0.2.1
+Example: User Profile System with cascadeflow v0.2.1
 
 This example demonstrates the user profile system for managing
 thousands of users with different subscription tiers.
@@ -11,7 +11,7 @@ from cascadeflow import CascadeAgent, UserProfile, TierLevel, UserProfileManager
 
 async def main():
     print("=" * 60)
-    print("CascadeFlow v0.2.1 - User Profile System")
+    print("cascadeflow v0.2.1 - User Profile System")
     print("=" * 60)
 
     # ========================================================================

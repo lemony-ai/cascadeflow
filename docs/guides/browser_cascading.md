@@ -1,6 +1,6 @@
 # Browser Cascading Guide
 
-This guide shows how to use CascadeFlow in browser environments for client-side AI applications.
+This guide shows how to use cascadeflow in browser environments for client-side AI applications.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@ This guide shows how to use CascadeFlow in browser environments for client-side 
 
 ## Overview
 
-CascadeFlow's TypeScript library enables **browser-based AI applications** with the same 40-85% cost savings as the Python version.
+cascadeflow's TypeScript library enables **browser-based AI applications** with the same 40-85% cost savings as the Python version.
 
 ### Why Browser Cascading?
 
@@ -83,7 +83,7 @@ const agent = new CascadeAgent({
 User Browser
     ↓
 Edge Function (Vercel/Cloudflare)
-    ├── CascadeFlow Logic
+    ├── cascadeflow Logic
     └── API Key (secure)
     ↓
 OpenAI API
@@ -129,7 +129,7 @@ export default async function handler(req: Request) {
 User Browser
     ↓ fetch('/api/cascade')
 Backend API (Express/Fastify)
-    ├── CascadeFlow Logic
+    ├── cascadeflow Logic
     └── API Key (secure)
     ↓
 OpenAI API
@@ -186,7 +186,7 @@ console.log(`Saved ${result.savingsPercentage}%`);
 
 **Best for:** Using multiple AI providers in browser environments
 
-All CascadeFlow providers automatically work in both Node.js and browser environments through runtime detection:
+All cascadeflow providers automatically work in both Node.js and browser environments through runtime detection:
 
 ```typescript
 import { CascadeAgent } from '@cascadeflow/core';
@@ -275,7 +275,7 @@ node server.js
 <!DOCTYPE html>
 <html>
 <head>
-  <title>CascadeFlow Demo</title>
+  <title>cascadeflow Demo</title>
 </head>
 <body>
   <textarea id="query" placeholder="Ask anything..."></textarea>
@@ -669,7 +669,7 @@ if (result.draftAccepted) {
 - [Complete Examples](../../packages/core/examples/browser/)
 - [Vercel Edge Functions](https://vercel.com/docs/functions/edge-functions)
 - [Cloudflare Workers](https://developers.cloudflare.com/workers/)
-- [CascadeFlow API Reference](../api/)
+- [cascadeflow API Reference](../api/)
 - [Cost Optimization Guide](./cost_tracking.md)
 
 ---

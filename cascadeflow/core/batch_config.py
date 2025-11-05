@@ -1,4 +1,4 @@
-"""Batch processing configuration for CascadeFlow."""
+"""Batch processing configuration for cascadeflow."""
 
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any

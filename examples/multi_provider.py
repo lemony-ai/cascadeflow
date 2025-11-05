@@ -465,7 +465,7 @@ async def main():
     Main example demonstrating multi-provider patterns.
     """
 
-    print("🌊 CascadeFlow Multi-Provider Examples")
+    print("🌊 cascadeflow Multi-Provider Examples")
     print("=" * 70)
     print("\nDemonstrating 4 patterns for mixing AI providers:")
     print("  1. Free-First Cascade - Maximum cost savings")

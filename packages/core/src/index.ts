@@ -1,5 +1,5 @@
 /**
- * CascadeFlow TypeScript Library
+ * cascadeflow TypeScript Library
  *
  * Smart AI model cascading for cost optimization
  *
@@ -142,7 +142,7 @@ export type {
 
 // Error classes (v0.1.2)
 export {
-  CascadeFlowError,
+  cascadeflowError,
   ConfigurationError,
   ProviderError,
   AuthenticationError,
@@ -150,7 +150,7 @@ export {
   QualityValidationError,
   TimeoutError,
   ToolExecutionError,
-  isCascadeFlowError,
+  iscascadeflowError,
   isProviderError,
   isConfigurationError,
   isAuthenticationError,

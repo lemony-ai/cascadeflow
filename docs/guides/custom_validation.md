@@ -19,7 +19,7 @@ Build custom quality validators for domain-specific requirements and compliance.
 
 ## Overview
 
-While CascadeFlow includes built-in quality validation, you can create custom validators for specific requirements.
+While cascadeflow includes built-in quality validation, you can create custom validators for specific requirements.
 
 ### When to Use Custom Validation
 

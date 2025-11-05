@@ -2,7 +2,7 @@
 FastAPI Integration Example
 ============================
 
-Production-ready FastAPI integration with CascadeFlow showing:
+Production-ready FastAPI integration with cascadeflow showing:
 - RESTful API endpoints
 - Streaming responses (SSE)
 - Request validation
@@ -13,7 +13,7 @@ Production-ready FastAPI integration with CascadeFlow showing:
 - Health checks
 
 What it demonstrates:
-- Complete FastAPI application with CascadeFlow
+- Complete FastAPI application with cascadeflow
 - Streaming endpoint with Server-Sent Events
 - Non-streaming endpoint for simple queries
 - Request/response models with Pydantic
@@ -198,7 +198,7 @@ async def lifespan(app: FastAPI):
     global agent, stats
 
     # Startup
-    logger.info("🚀 Starting CascadeFlow FastAPI service...")
+    logger.info("🚀 Starting cascadeflow FastAPI service...")
 
     # Initialize agent
     try:
@@ -242,7 +242,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("🛑 Shutting down CascadeFlow service...")
+    logger.info("🛑 Shutting down cascadeflow service...")
     logger.info(
         f"Final stats: {stats['total_queries']} queries, ${stats['total_cost']:.4f} total cost"
     )
@@ -254,8 +254,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="CascadeFlow API",
-    description="Production-ready API for CascadeFlow AI cascading",
+    title="cascadeflow API",
+    description="Production-ready API for cascadeflow AI cascading",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -270,7 +270,7 @@ app = FastAPI(
 async def root():
     """Root endpoint with service information."""
     return {
-        "service": "CascadeFlow API",
+        "service": "cascadeflow API",
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/health",
@@ -451,7 +451,7 @@ if __name__ == "__main__":
     import uvicorn
 
     print("\n" + "=" * 70)
-    print("🌊 CascadeFlow FastAPI Service")
+    print("🌊 cascadeflow FastAPI Service")
     print("=" * 70)
     print("\n📚 Features:")
     print("   ✓ RESTful API endpoints")

@@ -1,5 +1,5 @@
 """
-Data schemas and configuration for CascadeFlow.
+Data schemas and configuration for cascadeflow.
 
 This module contains:
 - Configuration dataclasses (ModelConfig, CascadeConfig, etc.)
@@ -19,7 +19,7 @@ from .config import (
 )
 from .exceptions import (
     BudgetExceededError,
-    CascadeFlowError,
+    cascadeflowError,
     ConfigError,
     ModelError,
     ProviderError,
@@ -41,7 +41,7 @@ __all__ = [
     "DEFAULT_TIERS",
     "EXAMPLE_WORKFLOWS",
     # Exceptions
-    "CascadeFlowError",
+    "cascadeflowError",
     "ConfigError",
     "ProviderError",
     "ModelError",

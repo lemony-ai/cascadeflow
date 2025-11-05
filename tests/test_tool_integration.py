@@ -16,7 +16,7 @@ def test_structure():
     """Test that all tool calling structure is in place."""
 
     print("=" * 60)
-    print("CascadeFlow Tool Structure Test")
+    print("cascadeflow Tool Structure Test")
     print("=" * 60)
     print()
 

@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_logo_bright.svg">
   <source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_logo_dark.svg">
-  <img alt="CascadeFlow Logo" src=".github/assets/CF_logo_dark.svg" width="533">
+  <img alt="cascadeflow Logo" src=".github/assets/CF_logo_dark.svg" width="533">
 </picture>
 
 # Smart AI model cascading for cost optimization
@@ -27,7 +27,7 @@
 
 40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
 
-*Cascadeflow fixes this with intelligent model cascading, available in Python and TypeScript.*
+*cascadeflow fixes this with intelligent model cascading, available in Python and TypeScript.*
 
 ```python
 pip install cascadeflow
@@ -39,13 +39,13 @@ npm install @cascadeflow/core
 
 ---
 
-## Why Cascadeflow?
+## Why cascadeflow?
 
-Cascadeflow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, Cascadeflow automatically escalates to flagship models if needed.
+cascadeflow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, cascadeflow automatically escalates to flagship models if needed.
 
 ### Use Cases
 
-Use Cascadeflow for:
+Use cascadeflow for:
 
 - **Cost Optimization.** Reduce API costs by 40-85% through intelligent model cascading and speculative execution with automatic per-query cost tracking.
 - **Cost Control and Transparency.** Built-in telemetry for query, model, and provider-level cost tracking with configurable budget limits and programmable spending caps.
@@ -57,9 +57,9 @@ Use Cascadeflow for:
 
 ---
 
-## How Cascadeflow Works
+## How cascadeflow Works
 
-Cascadeflow uses **speculative execution with quality validation**:
+cascadeflow uses **speculative execution with quality validation**:
 
 1. **Speculatively executes** small, fast models first - optimistic execution ($0.15-0.30/1M tokens)
 2. **Validates quality** of responses using configurable thresholds (completeness, confidence, correctness)
@@ -74,7 +74,7 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Cascadeflow Stack                      │
+│                      cascadeflow Stack                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌───────────────────────────────────────────────────────┐  │
@@ -191,7 +191,7 @@ print(f"Confidence: {result.metadata.get('domain_confidence', 0):.1%}")
 - 📈 Improved routing accuracy for specialized queries
 - 🚀 Works seamlessly with your existing cascade setup
 
-**Note:** If `enable_semantic_detection=True` but FastEmbed is not installed, CascadeFlow automatically falls back to rule-based detection without errors.
+**Note:** If `enable_semantic_detection=True` but FastEmbed is not installed, cascadeflow automatically falls back to rule-based detection without errors.
 
 </details>
 
@@ -276,7 +276,7 @@ console.log(`Confidence: ${(result.metadata.domainConfidence * 100).toFixed(1)}%
 - 📈 Improved routing accuracy for specialized queries
 - 🚀 Works seamlessly with your existing cascade setup
 
-Currently, CascadeFlow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
+Currently, cascadeflow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
 
 </details>
 
@@ -298,7 +298,7 @@ result = openai.chat.completions.create(
 )
 ```
 
-#### After (With CascadeFlow)
+#### After (With cascadeflow)
 
 Cost: $0.000150, Latency: 234ms
 
@@ -319,7 +319,7 @@ result = await agent.run("What's 2+2?")
 
 ## <img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/> n8n Integration
 
-Use CascadeFlow in n8n workflows for no-code AI automation with automatic cost optimization!
+Use cascadeflow in n8n workflows for no-code AI automation with automatic cost optimization!
 
 ### Installation
 
@@ -333,11 +333,11 @@ Use CascadeFlow in n8n workflows for no-code AI automation with automatic cost o
 Create a workflow:
 
 ```
-Manual Trigger → CascadeFlow Node → Set Node
+Manual Trigger → cascadeflow Node → Set Node
 
 ```
 
-Configure CascadeFlow node:
+Configure cascadeflow node:
 
 - **Draft Model**: `gpt-4o-mini` ($0.00015)
 - **Verifier Model**: `gpt-4o` ($0.00625)
@@ -437,7 +437,7 @@ Configure CascadeFlow node:
 
 | Guide | Description | Link |
 |-------|-------------|------|
-| **Quickstart** | Get started with CascadeFlow in 5 minutes | [Read](./docs/guides/quickstart.md) |
+| **Quickstart** | Get started with cascadeflow in 5 minutes | [Read](./docs/guides/quickstart.md) |
 | **Providers Guide** | Configure and use different AI providers | [Read](./docs/guides/providers.md) |
 | **Presets Guide** | Using and creating custom presets | [Read](./docs/guides/presets.md) |
 | **Streaming Guide** | Stream responses from cascade agents | [Read](./docs/guides/streaming.md) |
@@ -458,7 +458,7 @@ Configure CascadeFlow node:
 | **Edge Device** | Deploy cascades on edge devices | [Read](./docs/guides/edge_device.md) |
 | **Browser Cascading** | Run cascades in the browser/edge | [Read](./docs/guides/browser_cascading.md) |
 | **FastAPI Integration** | Integrate with FastAPI applications | [Read](./docs/guides/fastapi.md) |
-| **n8n Integration** | Use CascadeFlow in n8n workflows | [Read](./docs/guides/n8n_integration.md) |
+| **n8n Integration** | Use cascadeflow in n8n workflows | [Read](./docs/guides/n8n_integration.md) |
 
 </details>
 
@@ -505,7 +505,7 @@ We ❤️ contributions!
 
 ## Roadmap
 
-- **Cascade Profiler** - Analyzes your AI API logs to calculate cost savings potential and generate optimized CascadeFlow configurations automatically
+- **Cascade Profiler** - Analyzes your AI API logs to calculate cost savings potential and generate optimized cascadeflow configurations automatically
 - **User Tier Management** - Cost controls and limits per user tier with advanced routing
 - **Semantic Quality Validators** - Optional lightweight local quality scoring (200MB CPU model, no external API calls)
 - **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
@@ -524,12 +524,12 @@ We ❤️ contributions!
 
 ## Citation
 
-If you use CascadeFlow in your research or project, please cite:
+If you use cascadeflow in your research or project, please cite:
 
 ```bibtex
 @software{cascadeflow2025,
   author = {Lemony Inc., Sascha Buehrle and Contributors},
-  title = {CascadeFlow: Smart AI model cascading for cost optimization},
+  title = {cascadeflow: Smart AI model cascading for cost optimization},
   year = {2025},
   publisher = {GitHub},
   url = {https://github.com/lemony-ai/cascadeflow}
@@ -552,10 +552,10 @@ npm install @cascadeflow/core
 
 ## About
 
-**Built with ❤️ by [Lemony Inc.](https://lemony.ai/) and the CascadeFlow Community**
+**Built with ❤️ by [Lemony Inc.](https://lemony.ai/) and the cascadeflow Community**
 
 One cascade. Hundreds of specialists.
 
 New York | Zurich
 
-**⭐ Star us on GitHub if CascadeFlow helps you save money!**
+**⭐ Star us on GitHub if cascadeflow helps you save money!**

@@ -1,5 +1,5 @@
 """
-Telemetry module for CascadeFlow.
+Telemetry module for cascadeflow.
 
 Provides metrics collection, cost tracking, cost calculation, and callbacks
 for monitoring and observability.
@@ -182,7 +182,7 @@ if ANOMALY_AVAILABLE:
 # ============================================================================
 
 __version__ = "2.5.0"  # Bumped for Phase 2.3 features
-__author__ = "CascadeFlow Team"
+__author__ = "cascadeflow Team"
 __updated__ = "2025-10-20"
 
 # Telemetry module capabilities

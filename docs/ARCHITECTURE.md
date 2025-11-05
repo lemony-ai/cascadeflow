@@ -1,6 +1,6 @@
-# CascadeFlow Architecture & Code Structure
+# cascadeflow Architecture & Code Structure
 
-This document explains the architecture and organization of CascadeFlow to help contributors quickly understand and navigate the codebase.
+This document explains the architecture and organization of cascadeflow to help contributors quickly understand and navigate the codebase.
 
 ---
 
@@ -18,7 +18,7 @@ This document explains the architecture and organization of CascadeFlow to help 
 
 ## Quick Overview
 
-**CascadeFlow** reduces LLM API costs by 40-85% through **speculative execution**:
+**cascadeflow** reduces LLM API costs by 40-85% through **speculative execution**:
 
 1. Try cheap model first (draft)
 2. Validate quality
@@ -30,7 +30,7 @@ This document explains the architecture and organization of CascadeFlow to help 
 
 ## Directory Structure
 
-**CascadeFlow is a monorepo** with both Python and TypeScript/JavaScript libraries:
+**cascadeflow is a monorepo** with both Python and TypeScript/JavaScript libraries:
 
 ```
 cascadeflow/                  # Monorepo root
@@ -137,7 +137,7 @@ cascadeflow/                  # Monorepo root
 
 ### TypeScript/JavaScript Library (`packages/core/`)
 
-**Purpose:** Bring CascadeFlow's cost-saving cascade logic to the JavaScript/TypeScript ecosystem
+**Purpose:** Bring cascadeflow's cost-saving cascade logic to the JavaScript/TypeScript ecosystem
 
 **Current Status:** MVP (OpenAI provider only)
 
@@ -454,7 +454,7 @@ CascadeResult = {
 # Traditional: Always use best model
 response = await expensive_model.complete(query)  # $$$$
 
-# CascadeFlow: Try cheap first
+# cascadeflow: Try cheap first
 draft = await cheap_model.complete(query)  # $
 if quality_check_passes(draft):
     return draft  # ✅ Save money!
@@ -726,7 +726,7 @@ from cascadeflow import (
 ```python
 # Still works! (for backward compatibility)
 from cascadeflow.config import ModelConfig
-from cascadeflow.exceptions import CascadeFlowError
+from cascadeflow.exceptions import cascadeflowError
 from cascadeflow.speculative import WholeResponseCascade
 ```
 
@@ -735,7 +735,7 @@ from cascadeflow.speculative import WholeResponseCascade
 ```python
 # Clearer structure
 from cascadeflow.schema.config import ModelConfig
-from cascadeflow.schema.exceptions import CascadeFlowError
+from cascadeflow.schema.exceptions import cascadeflowError
 from cascadeflow.core.cascade import WholeResponseCascade
 ```
 

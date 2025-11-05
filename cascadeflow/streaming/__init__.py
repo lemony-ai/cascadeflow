@@ -1,5 +1,5 @@
 """
-CascadeFlow Streaming Module
+cascadeflow Streaming Module
 =============================
 
 Provides real-time streaming for both text and tool-calling cascades.

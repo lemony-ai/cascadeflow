@@ -1,6 +1,6 @@
-# CascadeFlow API Reference
+# cascadeflow API Reference
 
-Complete API documentation for CascadeFlow Python and TypeScript SDKs.
+Complete API documentation for cascadeflow Python and TypeScript SDKs.
 
 ## 📚 Core Documentation
 
@@ -98,7 +98,7 @@ console.log(`Savings: ${result.savingsPercentage}%`);
 
 ## 🔧 Provider Support
 
-CascadeFlow supports 7+ AI providers out of the box:
+cascadeflow supports 7+ AI providers out of the box:
 
 | Provider | Status | Models Supported |
 |----------|--------|------------------|

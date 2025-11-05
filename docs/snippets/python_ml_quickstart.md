@@ -14,7 +14,7 @@ Install the optional ML package for improved domain detection:
 pip install cascadeflow[ml]  # Adds semantic similarity detection
 ```
 
-That's it! CascadeFlow automatically uses ML when available:
+That's it! cascadeflow automatically uses ML when available:
 
 ```python
 from cascadeflow import CascadeAgent, ModelConfig

@@ -3,7 +3,7 @@ Cost Calculator - Single Source of Truth for Cost Calculations
 
 FIXED VERSION: Now properly accounts for BOTH input and output tokens!
 
-This module handles ALL cost calculations for CascadeFlow, extracting the logic
+This module handles ALL cost calculations for cascadeflow, extracting the logic
 from agent.py, speculative.py, and base.py into a centralized, testable component.
 
 Architecture:
@@ -34,7 +34,7 @@ Usage:
     >>> print(f"Saved: ${breakdown.cost_saved:.6f}")
 
 Created: October 20, 2025
-Author: CascadeFlow Team
+Author: cascadeflow Team
 Fixed: October 20, 2025 - Added input token support
 """
 
@@ -153,7 +153,7 @@ class CostCalculator:
 
     FIXED: Now properly accounts for BOTH input and output tokens!
 
-    Single source of truth for ALL cost calculations in CascadeFlow.
+    Single source of truth for ALL cost calculations in cascadeflow.
     Handles both accepted and rejected drafts with proper aggregation.
 
     Architecture:

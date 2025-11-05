@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Report a bug or unexpected behavior in CascadeFlow
+description: Report a bug or unexpected behavior in cascadeflow
 title: "[Bug]: "
 labels: ["bug", "needs-triage"]
 assignees: []
@@ -94,7 +94,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: CascadeFlow version
+      label: cascadeflow version
       description: Run `pip show cascadeflow` to find your version
       placeholder: e.g., 0.1.0
     validations:

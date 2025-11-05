@@ -4,7 +4,7 @@ import pytest
 
 from cascadeflow import (
     BudgetExceededError,
-    CascadeFlowError,
+    cascadeflowError,
     ModelError,
     ProviderError,
     QualityThresholdError,
@@ -12,8 +12,8 @@ from cascadeflow import (
 
 
 def test_base_exception():
-    """Test base CascadeFlowError."""
-    error = CascadeFlowError("Test error")
+    """Test base cascadeflowError."""
+    error = cascadeflowError("Test error")
     assert "Test error" in str(error)
 
 
@@ -23,7 +23,7 @@ def test_budget_exceeded_error():
 
     assert "Budget exceeded" in str(error)
     assert error.remaining == 0.5
-    assert isinstance(error, CascadeFlowError)
+    assert isinstance(error, cascadeflowError)
 
 
 def test_quality_threshold_error():
@@ -31,7 +31,7 @@ def test_quality_threshold_error():
     error = QualityThresholdError("Quality too low")
 
     assert "Quality too low" in str(error)
-    assert isinstance(error, CascadeFlowError)
+    assert isinstance(error, cascadeflowError)
 
 
 def test_provider_error():
@@ -40,7 +40,7 @@ def test_provider_error():
 
     assert "API failed" in str(error)
     assert error.provider == "openai"
-    assert isinstance(error, CascadeFlowError)
+    assert isinstance(error, cascadeflowError)
 
 
 def test_model_error():
@@ -50,7 +50,7 @@ def test_model_error():
     assert "Model failed" in str(error)
     assert error.model == "gpt-4"
     assert error.provider == "openai"
-    assert isinstance(error, CascadeFlowError)
+    assert isinstance(error, cascadeflowError)
 
 
 if __name__ == "__main__":

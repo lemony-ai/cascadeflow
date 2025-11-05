@@ -2,7 +2,7 @@
 Production Patterns Example
 ============================
 
-Production-ready patterns for deploying CascadeFlow at scale.
+Production-ready patterns for deploying cascadeflow at scale.
 
 What it demonstrates:
 - Error handling and retry strategies
@@ -425,7 +425,7 @@ class HealthMonitor:
 
 
 class ProductionAgent:
-    """Production-ready CascadeFlow agent with all patterns integrated."""
+    """Production-ready cascadeflow agent with all patterns integrated."""
 
     def __init__(
         self,
@@ -594,7 +594,7 @@ async def demo_production_agent():
 async def main():
     """Run production patterns examples."""
 
-    print("🌊 CascadeFlow Production Patterns")
+    print("🌊 cascadeflow Production Patterns")
     print("=" * 70)
 
     if not os.getenv("OPENAI_API_KEY"):

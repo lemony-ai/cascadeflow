@@ -1,5 +1,5 @@
 """
-Budget enforcement callbacks for CascadeFlow.
+Budget enforcement callbacks for cascadeflow.
 
 Provides flexible callback-based enforcement for budget limits with
 support for custom actions (allow, warn, block, degrade).

@@ -1,5 +1,5 @@
 /**
- * Rate Limiting for CascadeFlow TypeScript (v0.2.1+)
+ * Rate Limiting for cascadeflow TypeScript (v0.2.1+)
  *
  * Sliding window rate limiter for production multi-tenant applications.
  */

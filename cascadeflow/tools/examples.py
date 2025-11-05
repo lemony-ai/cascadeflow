@@ -1,5 +1,5 @@
 """
-Example tools for CascadeFlow.
+Example tools for cascadeflow.
 
 Save this as: cascadeflow/tools/examples.py
 

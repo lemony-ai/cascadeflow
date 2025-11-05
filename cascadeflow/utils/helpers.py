@@ -1,4 +1,4 @@
-"""Utility functions for CascadeFlow."""
+"""Utility functions for cascadeflow."""
 
 import logging
 import os

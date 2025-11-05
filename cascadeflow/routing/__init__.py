@@ -1,5 +1,5 @@
 """
-Routing module for CascadeFlow.
+Routing module for cascadeflow.
 
 Provides routing strategies for deciding how to execute queries:
 - PreRouter: Complexity-based pre-execution routing (TEXT queries)

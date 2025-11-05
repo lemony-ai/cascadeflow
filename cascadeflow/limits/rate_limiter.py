@@ -1,7 +1,7 @@
 """
 Rate limiter with sliding window algorithm.
 
-Implements per-user and per-tier rate limiting for CascadeFlow.
+Implements per-user and per-tier rate limiting for cascadeflow.
 """
 
 import asyncio

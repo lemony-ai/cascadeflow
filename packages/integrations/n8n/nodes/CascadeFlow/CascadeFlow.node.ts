@@ -8,9 +8,9 @@ import {
 
 import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
 
-export class CascadeFlow implements INodeType {
+export class cascadeflow implements INodeType {
   description: INodeTypeDescription = {
-    displayName: 'CascadeFlow',
+    displayName: 'cascadeflow',
     name: 'cascadeFlow',
     icon: 'file:cascadeflow.svg',
     group: ['transform'],
@@ -18,7 +18,7 @@ export class CascadeFlow implements INodeType {
     subtitle: '={{$parameter["operation"]}}',
     description: 'Smart AI model cascading with 40-85% cost savings',
     defaults: {
-      name: 'CascadeFlow',
+      name: 'cascadeflow',
     },
     inputs: ['main'],
     outputs: ['main'],

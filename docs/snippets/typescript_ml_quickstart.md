@@ -47,7 +47,7 @@ console.log(`Confidence: ${(result.metadata.domainConfidence * 100).toFixed(1)}%
 - 📦 Zero code changes - just install and go
 - 🚀 Works with your existing cascade setup
 
-Currently, CascadeFlow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
+Currently, cascadeflow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
 
 </details>
 ```

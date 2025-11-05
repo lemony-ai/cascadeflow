@@ -1,7 +1,7 @@
 """
 Metrics Collector - Extract stats logic from agent.py
 
-This module handles all statistics and metrics collection for CascadeFlow,
+This module handles all statistics and metrics collection for cascadeflow,
 removing ~150 lines of stats tracking from agent.py.
 
 Features:
@@ -82,7 +82,7 @@ class MetricsSnapshot:
 
 class MetricsCollector:
     """
-    Collects and aggregates metrics for CascadeFlow agent.
+    Collects and aggregates metrics for cascadeflow agent.
 
     Tracks:
     - Query counts and costs

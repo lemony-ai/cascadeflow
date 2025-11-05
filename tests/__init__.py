@@ -82,7 +82,7 @@ def test_exceptions_imports():
     """Test exception imports."""
     from cascadeflow import (
         BudgetExceededError,
-        CascadeFlowError,
+        cascadeflowError,
         ConfigError,
         ModelError,
         ProviderError,
@@ -104,7 +104,7 @@ def test_version():
 
 
 if __name__ == "__main__":
-    print("Testing CascadeFlow imports...\n")
+    print("Testing cascadeflow imports...\n")
 
     try:
         test_core_imports()

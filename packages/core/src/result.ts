@@ -1,5 +1,5 @@
 /**
- * Result types for CascadeFlow operations
+ * Result types for cascadeflow operations
  */
 
 import type { ToolCall } from './types';

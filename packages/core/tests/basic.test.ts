@@ -1,5 +1,5 @@
 /**
- * Basic integration test for CascadeFlow TypeScript library
+ * Basic integration test for cascadeflow TypeScript library
  *
  * This test validates:
  * - Package imports work correctly
@@ -12,7 +12,7 @@
 import { CascadeAgent } from '../src';
 
 async function testBasicCascade() {
-  console.log('🧪 Testing CascadeFlow TypeScript Library\n');
+  console.log('🧪 Testing cascadeflow TypeScript Library\n');
 
   // Check for API key
   const apiKey = process.env.OPENAI_API_KEY;

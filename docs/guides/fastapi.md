@@ -1,6 +1,6 @@
 # FastAPI Integration Guide
 
-Complete guide to integrating CascadeFlow with FastAPI for production APIs.
+Complete guide to integrating cascadeflow with FastAPI for production APIs.
 
 ---
 
@@ -21,11 +21,11 @@ Complete guide to integrating CascadeFlow with FastAPI for production APIs.
 
 ## Overview
 
-FastAPI is a modern, fast web framework for building APIs with Python. It integrates perfectly with CascadeFlow for production AI applications.
+FastAPI is a modern, fast web framework for building APIs with Python. It integrates perfectly with cascadeflow for production AI applications.
 
-### Why FastAPI + CascadeFlow?
+### Why FastAPI + cascadeflow?
 
-- ✅ **Async/Await** - Native async support matches CascadeFlow
+- ✅ **Async/Await** - Native async support matches cascadeflow
 - ✅ **Type Safety** - Pydantic validation for requests/responses
 - ✅ **Auto Docs** - Interactive API documentation (Swagger/ReDoc)
 - ✅ **Performance** - High throughput for AI workloads

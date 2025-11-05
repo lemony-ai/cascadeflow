@@ -1,5 +1,5 @@
 /**
- * Validation helpers for CascadeFlow configurations
+ * Validation helpers for cascadeflow configurations
  *
  * These helpers allow you to validate configurations and test connections
  * before running queries, making it easier to catch issues early.

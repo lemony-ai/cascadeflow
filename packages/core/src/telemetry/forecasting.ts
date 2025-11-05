@@ -1,5 +1,5 @@
 /**
- * Cost Forecasting for CascadeFlow (TypeScript)
+ * Cost Forecasting for cascadeflow (TypeScript)
  *
  * This module provides cost prediction using exponential smoothing to forecast
  * future spending based on historical usage patterns.

@@ -1,5 +1,5 @@
 """
-Cost tracking for CascadeFlow.
+Cost tracking for cascadeflow.
 
 Tracks costs across queries, models, and providers for monitoring
 and budget management.

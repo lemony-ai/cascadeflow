@@ -1,5 +1,5 @@
 /**
- * Streaming types and interfaces for CascadeFlow
+ * Streaming types and interfaces for cascadeflow
  *
  * Based on Python streaming implementation with TypeScript/JavaScript patterns
  */

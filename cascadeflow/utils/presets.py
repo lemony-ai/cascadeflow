@@ -1,5 +1,5 @@
 """
-Production-ready presets for CascadeFlow.
+Production-ready presets for cascadeflow.
 
 Presets provide one-line initialization with optimized configurations for common use cases.
 All presets are OPTIONAL - users can still configure everything manually.

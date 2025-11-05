@@ -437,7 +437,7 @@ async def pattern_4_custom_thresholds():
 async def main():
     """Run all custom cascade patterns."""
 
-    print("🌊 CascadeFlow Custom Cascade Examples")
+    print("🌊 cascadeflow Custom Cascade Examples")
     print("=" * 70)
     print("\nDemonstrating 4 custom cascade patterns:")
     print("  1. Domain-Specific Routing")

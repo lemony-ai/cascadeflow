@@ -1,6 +1,6 @@
-# CascadeFlow OpenTelemetry Integration Examples
+# cascadeflow OpenTelemetry Integration Examples
 
-This directory contains examples for integrating CascadeFlow with OpenTelemetry for production observability.
+This directory contains examples for integrating cascadeflow with OpenTelemetry for production observability.
 
 ## What's Included
 
@@ -88,7 +88,7 @@ topk(10, sum by (user_id) (rate(cascadeflow_cost_total[5m])))
 ## Integration with Your App
 
 ```python
-from cascadeflow.integrations.otel import OpenTelemetryExporter, CascadeFlowMetrics, MetricDimensions
+from cascadeflow.integrations.otel import OpenTelemetryExporter, cascadeflowMetrics, MetricDimensions
 
 # Initialize exporter
 exporter = OpenTelemetryExporter(
@@ -97,8 +97,8 @@ exporter = OpenTelemetryExporter(
     environment="production"
 )
 
-# Record metrics after each CascadeFlow query
-metrics = CascadeFlowMetrics(
+# Record metrics after each cascadeflow query
+metrics = cascadeflowMetrics(
     cost=response.cost,
     tokens_input=response.metadata["prompt_tokens"],
     tokens_output=response.metadata["completion_tokens"],

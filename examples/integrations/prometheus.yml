@@ -1,4 +1,4 @@
-# Prometheus Configuration for CascadeFlow
+# Prometheus Configuration for cascadeflow
 #
 # Scrapes metrics from OpenTelemetry Collector
 

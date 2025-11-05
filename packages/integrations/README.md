@@ -1,15 +1,15 @@
-# CascadeFlow Integrations
+# cascadeflow Integrations
 
-This directory contains official integrations for CascadeFlow with popular platforms, frameworks, and tools.
+This directory contains official integrations for cascadeflow with popular platforms, frameworks, and tools.
 
 ## Available Integrations
 
 ### 🔌 Workflow Automation
 
 #### [n8n](./n8n/) - `n8n-nodes-cascadeflow`
-No-code workflow automation with CascadeFlow's intelligent model cascading.
+No-code workflow automation with cascadeflow's intelligent model cascading.
 
-- **Install:** Search "CascadeFlow" in n8n Community Nodes
+- **Install:** Search "cascadeflow" in n8n Community Nodes
 - **Features:** Cost-optimized workflows, multi-provider support, tool calling
 - **Use Cases:** Customer support, data enrichment, content generation
 - **[Documentation](./n8n/README.md)**
@@ -21,7 +21,7 @@ No-code workflow automation with CascadeFlow's intelligent model cascading.
 ### 🤖 AI Frameworks
 
 #### LangChain - `@cascadeflow/langchain` (Coming Soon)
-Integrate CascadeFlow as a LangChain LLM provider.
+Integrate cascadeflow as a LangChain LLM provider.
 
 ```typescript
 import { CascadeLangChainLLM } from '@cascadeflow/langchain';
@@ -32,7 +32,7 @@ const llm = new CascadeLangChainLLM({
 ```
 
 #### LlamaIndex - `@cascadeflow/llamaindex` (Coming Soon)
-Use CascadeFlow with LlamaIndex for RAG applications.
+Use cascadeflow with LlamaIndex for RAG applications.
 
 ```typescript
 import { CascadeLlamaIndexLLM } from '@cascadeflow/llamaindex';
@@ -84,12 +84,12 @@ We welcome community contributions! Here's how to add a new integration:
 
 **Framework Integration** (`@cascadeflow/{framework}`)
 - For AI frameworks like LangChain, LlamaIndex
-- Wraps CascadeFlow as a native framework component
+- Wraps cascadeflow as a native framework component
 - Example: `@cascadeflow/langchain`
 
 **Platform Integration** (`cascadeflow-{platform}`)
 - For platforms/tools like VSCode, Chrome
-- Standalone application using CascadeFlow
+- Standalone application using cascadeflow
 - Example: `cascadeflow-vscode`
 
 **Workflow Integration** (special naming)
@@ -117,7 +117,7 @@ pnpm add @cascadeflow/core
 {
   "name": "@cascadeflow/{name}",
   "version": "0.1.0",
-  "description": "CascadeFlow integration for {platform}",
+  "description": "cascadeflow integration for {platform}",
   "keywords": ["cascadeflow", "{platform}", "ai", "llm"],
   "license": "MIT",
   "repository": {

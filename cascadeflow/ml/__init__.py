@@ -1,5 +1,5 @@
 """
-ML Module for CascadeFlow
+ML Module for cascadeflow
 
 Optional machine learning components for enhanced quality validation,
 domain detection, and complexity analysis.

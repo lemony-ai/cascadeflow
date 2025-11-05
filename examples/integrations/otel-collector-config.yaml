@@ -1,4 +1,4 @@
-# OpenTelemetry Collector Configuration for CascadeFlow
+# OpenTelemetry Collector Configuration for cascadeflow
 #
 # This configuration:
 # 1. Receives metrics via OTLP HTTP (port 4318)

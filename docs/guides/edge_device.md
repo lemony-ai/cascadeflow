@@ -1,6 +1,6 @@
 # Edge Device Deployment Guide
 
-Run CascadeFlow on edge AI devices (Nvidia Jetson, Raspberry Pi) with local inference and cloud fallback for privacy, cost savings, and low latency.
+Run cascadeflow on edge AI devices (Nvidia Jetson, Raspberry Pi) with local inference and cloud fallback for privacy, cost savings, and low latency.
 
 ---
 
@@ -22,7 +22,7 @@ Run CascadeFlow on edge AI devices (Nvidia Jetson, Raspberry Pi) with local infe
 
 ### What is Edge Deployment?
 
-Edge deployment runs AI models **locally on your device** (Jetson, Raspberry Pi, industrial PC) instead of cloud servers. CascadeFlow makes this practical by:
+Edge deployment runs AI models **locally on your device** (Jetson, Raspberry Pi, industrial PC) instead of cloud servers. cascadeflow makes this practical by:
 - Processing simple queries locally (fast, private, free)
 - Cascading complex queries to cloud when needed
 - Maintaining quality while maximizing edge processing
@@ -110,7 +110,7 @@ Edge deployment runs AI models **locally on your device** (Jetson, Raspberry Pi,
 - **Python**: 3.9+
 - **CUDA**: 11.8+ (for GPU acceleration)
 - **vLLM**: Latest version
-- **CascadeFlow**: Latest version
+- **cascadeflow**: Latest version
 
 ---
 
@@ -125,7 +125,7 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 # Install vLLM
 pip3 install vllm
 
-# Install CascadeFlow
+# Install cascadeflow
 pip3 install cascadeflow[all]
 ```
 

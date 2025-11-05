@@ -1,12 +1,12 @@
 /**
- * CascadeFlow - Tool Calling Example (TypeScript/Node.js)
+ * cascadeflow - Tool Calling Example (TypeScript/Node.js)
  *
- * Demonstrates how to use function/tool calling with CascadeFlow.
+ * Demonstrates how to use function/tool calling with cascadeflow.
  *
  * This example shows:
  * - Defining tools with TypeScript types
  * - Passing tools to the cascade agent
- * - How CascadeFlow handles tool calls across tiers
+ * - How cascadeflow handles tool calls across tiers
  * - Type-safe tool definitions
  *
  * Requirements:
@@ -149,7 +149,7 @@ async function main() {
   console.log();
   console.log('✅ What You Learned:');
   console.log('   1. How to define tools with TypeScript types');
-  console.log('   2. How to pass tools to CascadeFlow');
+  console.log('   2. How to pass tools to cascadeflow');
   console.log('   3. Tool calls are automatically handled across cascade tiers');
   console.log('   4. Full type safety for tool definitions');
   console.log();

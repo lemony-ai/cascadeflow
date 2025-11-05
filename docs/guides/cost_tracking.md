@@ -1,6 +1,6 @@
-# 💰 CascadeFlow Cost Tracking Guide
+# 💰 cascadeflow Cost Tracking Guide
 
-Complete guide to cost tracking and budget management with CascadeFlow.
+Complete guide to cost tracking and budget management with cascadeflow.
 
 ---
 
@@ -20,7 +20,7 @@ Complete guide to cost tracking and budget management with CascadeFlow.
 
 ## Overview
 
-CascadeFlow provides **comprehensive cost tracking** across queries, models, and providers, with budget enforcement and detailed analytics.
+cascadeflow provides **comprehensive cost tracking** across queries, models, and providers, with budget enforcement and detailed analytics.
 
 ### Key Features
 
@@ -1150,7 +1150,7 @@ print(f"Cascade rate: {metrics_summary['cascade_rate']:.1f}%")
 
 ## Related Documentation
 
-- 📖 [Quick Start Guide](quickstart.md) - Getting started with CascadeFlow
+- 📖 [Quick Start Guide](quickstart.md) - Getting started with cascadeflow
 - 📖 [Streaming Guide](streaming.md) - Real-time streaming
 - 📖 [Production Guide](production.md) - Deployment patterns
 - 📖 [API Reference](../api/telemetry.md) - Detailed API docs

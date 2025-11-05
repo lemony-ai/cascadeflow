@@ -1,5 +1,5 @@
 name: 💡 Feature Request
-description: Suggest a new feature or enhancement for CascadeFlow
+description: Suggest a new feature or enhancement for cascadeflow
 title: "[Feature]: "
 labels: ["enhancement", "needs-triage"]
 assignees: []
@@ -36,7 +36,7 @@ body:
       label: Problem statement
       description: What problem would this feature solve? Why is it needed?
       placeholder: |
-        Currently, when using CascadeFlow with multiple providers, I can't...
+        Currently, when using cascadeflow with multiple providers, I can't...
         This makes it difficult to...
     validations:
       required: true

@@ -1,4 +1,4 @@
-"""OpenTelemetry integration for CascadeFlow metrics export.
+"""OpenTelemetry integration for cascadeflow metrics export.
 
 This module provides OpenTelemetry-based metric export for production observability.
 Exports cost, token, and latency metrics to any OpenTelemetry-compatible backend
@@ -77,8 +77,8 @@ class MetricDimensions:
 
 
 @dataclass
-class CascadeFlowMetrics:
-    """Metric values for a single CascadeFlow execution.
+class cascadeflowMetrics:
+    """Metric values for a single cascadeflow execution.
 
     Contains all the metrics we want to export:
     - Cost (in USD)
@@ -102,7 +102,7 @@ class CascadeFlowMetrics:
 class OpenTelemetryExporter:
     """OpenTelemetry-based metrics exporter.
 
-    Exports CascadeFlow metrics to any OpenTelemetry-compatible backend:
+    Exports cascadeflow metrics to any OpenTelemetry-compatible backend:
     - Grafana Cloud
     - Datadog
     - AWS CloudWatch
@@ -131,7 +131,7 @@ class OpenTelemetryExporter:
         ... )
         >>>
         >>> # Record a metric
-        >>> exporter.record(CascadeFlowMetrics(
+        >>> exporter.record(cascadeflowMetrics(
         ...     cost=0.001,
         ...     tokens_input=100,
         ...     tokens_output=200,
@@ -268,14 +268,14 @@ class OpenTelemetryExporter:
             logger.error(f"Failed to initialize OpenTelemetry: {e}")
             self.enabled = False
 
-    def record(self, metrics: CascadeFlowMetrics):
+    def record(self, metrics: cascadeflowMetrics):
         """Record metrics to OpenTelemetry.
 
         This method exports metrics to the configured OTLP endpoint.
         Metrics are batched and exported every 60 seconds.
 
         Args:
-            metrics: CascadeFlowMetrics to export
+            metrics: cascadeflowMetrics to export
         """
         if not self.enabled or not self._meter:
             return

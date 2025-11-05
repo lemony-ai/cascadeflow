@@ -343,7 +343,7 @@ async def example_4_hybrid_setup():
     Setup:
     - Local Ollama for development: llama3.2:1b (fast, small)
     - Network vLLM for production: Llama-3-70B-Instruct (powerful)
-    - CascadeFlow automatically picks the best provider
+    - cascadeflow automatically picks the best provider
     """
     print("\n" + "=" * 80)
     print("SCENARIO 4: Hybrid Setup (Ollama + vLLM)")

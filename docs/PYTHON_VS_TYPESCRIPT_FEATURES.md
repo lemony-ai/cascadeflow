@@ -1,6 +1,6 @@
 # Python vs TypeScript Feature Comparison
 
-Complete overview of feature parity between CascadeFlow Python and TypeScript implementations.
+Complete overview of feature parity between cascadeflow Python and TypeScript implementations.
 
 ## Executive Summary
 

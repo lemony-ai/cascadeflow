@@ -1,5 +1,5 @@
 /**
- * User Profile System for CascadeFlow TypeScript (v0.2.1+)
+ * User Profile System for cascadeflow TypeScript (v0.2.1+)
  *
  * Multi-tenant subscription tier management for production applications.
  */

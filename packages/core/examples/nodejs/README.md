@@ -1,6 +1,6 @@
-# CascadeFlow Node.js Examples
+# cascadeflow Node.js Examples
 
-TypeScript/JavaScript examples for using CascadeFlow in Node.js environments.
+TypeScript/JavaScript examples for using cascadeflow in Node.js environments.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ TypeScript/JavaScript examples for using CascadeFlow in Node.js environments.
 ## Installation
 
 ```bash
-# Install CascadeFlow core
+# Install cascadeflow core
 npm install @cascadeflow/core
 
 # Install peer dependencies for providers you'll use
@@ -25,7 +25,7 @@ npm install @huggingface/inference    # For HuggingFace
 
 ### 1. Basic Usage (`basic-usage.ts`)
 
-The simplest introduction to CascadeFlow.
+The simplest introduction to cascadeflow.
 
 **What it shows:**
 - Setting up a two-tier cascade
@@ -40,7 +40,7 @@ npx tsx basic-usage.ts
 
 ### 2. Tool Calling (`tool-calling.ts`)
 
-Function/tool calling with CascadeFlow.
+Function/tool calling with cascadeflow.
 
 **What it shows:**
 - Defining tools with TypeScript types

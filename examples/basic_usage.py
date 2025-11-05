@@ -1,7 +1,7 @@
 """
-CascadeFlow - Basic Usage Example
+cascadeflow - Basic Usage Example
 
-The simplest way to get started with CascadeFlow. This example demonstrates:
+The simplest way to get started with cascadeflow. This example demonstrates:
 - Setting up a two-tier cascade (cheap → expensive)
 - Processing queries with automatic quality-based routing
 - Cost tracking and savings calculation
@@ -18,7 +18,7 @@ Setup:
 
 What You'll Learn:
     1. How to configure a basic cascade
-    2. How CascadeFlow automatically routes queries
+    2. How cascadeflow automatically routes queries
     3. How to track costs and savings
     4. How different query complexities are handled
 
@@ -35,9 +35,9 @@ Note on Costs:
     Savings depend on your query mix and response lengths.
 
 Note on Latency:
-    95% of latency comes from provider API calls, NOT from CascadeFlow!
+    95% of latency comes from provider API calls, NOT from cascadeflow!
     - Provider API: 95% (waiting for OpenAI/Anthropic/etc to respond)
-    - CascadeFlow overhead: 5% (routing, quality checks, etc.)
+    - cascadeflow overhead: 5% (routing, quality checks, etc.)
 
     To reduce latency:
     1. Choose faster providers (Groq is 5-10x faster than OpenAI)
@@ -56,17 +56,17 @@ from cascadeflow import CascadeAgent, ModelConfig
 
 async def main():
     """
-    Basic CascadeFlow usage - the simplest possible example.
+    Basic cascadeflow usage - the simplest possible example.
     """
 
     print("=" * 80)
     print("🌊 CASCADEFLOW - BASIC USAGE EXAMPLE")
     print("=" * 80)
     print()
-    print("This example shows how CascadeFlow automatically routes queries")
+    print("This example shows how cascadeflow automatically routes queries")
     print("between a cheap model (GPT-3.5) and expensive model (GPT-4o).")
     print()
-    print("💡 Key Concept: CascadeFlow uses TOKEN-BASED pricing, not flat rates.")
+    print("💡 Key Concept: cascadeflow uses TOKEN-BASED pricing, not flat rates.")
     print("   This means costs depend on how long your queries and responses are.")
     print()
 
@@ -244,7 +244,7 @@ async def main():
             print("   ⚡ Latency Breakdown:")
             print(f"      Total: {total_latency:.0f}ms")
             print(f"      ├─ Provider API: {provider_latency:.0f}ms ({provider_pct:.1f}%)")
-            print(f"      └─ CascadeFlow: {cascade_latency:.0f}ms ({cascade_pct:.1f}%)")
+            print(f"      └─ cascadeflow: {cascade_latency:.0f}ms ({cascade_pct:.1f}%)")
         else:
             print(f"   ⚡ Latency: {total_latency:.0f}ms")
 
@@ -310,7 +310,7 @@ async def main():
 
     print("💎 Savings Compared to All-GPT-4 (Token-Based):")
     print(f"   All-GPT-4 Estimate: ${all_gpt4_cost:.6f}")
-    print(f"   CascadeFlow Cost:   ${stats['total_cost']:.6f}")
+    print(f"   cascadeflow Cost:   ${stats['total_cost']:.6f}")
     print(f"   💰 SAVINGS:         ${savings:.6f} ({savings_pct:.1f}%)")
     print()
     print(f"   ℹ️  Note: Savings based on actual token usage (~{int(all_gpt4_tokens)} tokens)")
@@ -326,7 +326,7 @@ async def main():
         monthly_savings = monthly_gpt4 - monthly_cascade
 
         print(f"   All-GPT-4:      ${monthly_gpt4:,.2f}/month")
-        print(f"   CascadeFlow:    ${monthly_cascade:,.2f}/month")
+        print(f"   cascadeflow:    ${monthly_cascade:,.2f}/month")
         print(f"   💵 SAVE:        ${monthly_savings:,.2f}/month")
         print()
 
@@ -339,7 +339,7 @@ async def main():
     print("=" * 80)
     print()
     print("✅ What You Learned:")
-    print("   1. CascadeFlow automatically routes queries by complexity")
+    print("   1. cascadeflow automatically routes queries by complexity")
     print("   2. Simple queries use cheap models (GPT-3.5)")
     print("   3. Complex queries escalate to expensive models (GPT-4o)")
     print("   4. When draft is accepted, verifier is SKIPPED (saves cost!)")
@@ -358,7 +358,7 @@ async def main():
     print("📚 Resources:")
     print("   • Full Guide: docs/guides/quickstart.md")
     print("   • API Reference: docs/api/")
-    print("   • GitHub: https://github.com/lemony-ai/CascadeFlow")
+    print("   • GitHub: https://github.com/lemony-ai/cascadeflow")
     print()
 
     print("=" * 80)

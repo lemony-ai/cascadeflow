@@ -1,5 +1,5 @@
 /**
- * Core type definitions for CascadeFlow TypeScript library
+ * Core type definitions for cascadeflow TypeScript library
  */
 
 /**

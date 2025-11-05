@@ -1,12 +1,12 @@
-# CascadeFlow Quick Start Guide
+# cascadeflow Quick Start Guide
 
-Get started with CascadeFlow in 5 minutes. This guide walks you through the basics of intelligent model cascading.
+Get started with cascadeflow in 5 minutes. This guide walks you through the basics of intelligent model cascading.
 
 ---
 
 ## 📚 Table of Contents
 
-- [What is CascadeFlow?](#what-is-cascadeflow)
+- [What is cascadeflow?](#what-is-cascadeflow)
 - [Installation](#installation)
 - [Your First Cascade](#your-first-cascade)
 - [How It Works](#how-it-works)
@@ -18,9 +18,9 @@ Get started with CascadeFlow in 5 minutes. This guide walks you through the basi
 
 ---
 
-## What is CascadeFlow?
+## What is cascadeflow?
 
-**CascadeFlow** is an intelligent model router that saves you 40-60% on AI costs by automatically using cheaper models when possible and only escalating to expensive models when needed.
+**cascadeflow** is an intelligent model router that saves you 40-60% on AI costs by automatically using cheaper models when possible and only escalating to expensive models when needed.
 
 ### The Problem
 
@@ -33,7 +33,7 @@ But using GPT-3.5 for everything sacrifices quality.
 
 ### The Solution
 
-CascadeFlow tries the cheap model first, checks quality, and only uses the expensive model if needed:
+cascadeflow tries the cheap model first, checks quality, and only uses the expensive model if needed:
 
 ```
 Simple query → GPT-3.5 ✅ (draft accepted) → Cost: $0.001
@@ -46,7 +46,7 @@ Complex query → GPT-3.5 ❌ (draft rejected) → GPT-4 ✅ → Cost: $0.006
 
 ## Installation
 
-### Step 1: Install CascadeFlow
+### Step 1: Install cascadeflow
 
 ```bash
 pip install cascadeflow[all]
@@ -218,7 +218,7 @@ Draft accepted: True
 
 ### Token-Based Pricing
 
-CascadeFlow uses **actual token-based pricing**, not flat rates:
+cascadeflow uses **actual token-based pricing**, not flat rates:
 
 ```python
 # Your query

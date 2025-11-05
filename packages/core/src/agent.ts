@@ -1,5 +1,5 @@
 /**
- * CascadeFlow Agent - MVP Implementation
+ * cascadeflow Agent - MVP Implementation
  */
 
 import { providerRegistry } from './providers/base';
@@ -51,7 +51,7 @@ export interface RunOptions {
 }
 
 /**
- * CascadeFlow Agent - Intelligent AI model cascading
+ * cascadeflow Agent - Intelligent AI model cascading
  *
  * @example
  * ```typescript
@@ -72,7 +72,7 @@ export class CascadeAgent {
   private qualityValidator: QualityValidator;
 
   /**
-   * Create a new CascadeFlow agent
+   * Create a new cascadeflow agent
    *
    * The agent automatically cascades queries through multiple AI models,
    * starting with cheaper models and escalating to more expensive ones
@@ -346,7 +346,7 @@ export class CascadeAgent {
         savingsPercentage,
       };
     } catch (error) {
-      throw new Error(`CascadeFlow error: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`cascadeflow error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -630,7 +630,7 @@ export class CascadeAgent {
       );
 
       throw new Error(
-        `CascadeFlow streaming error: ${error instanceof Error ? error.message : String(error)}`
+        `cascadeflow streaming error: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }

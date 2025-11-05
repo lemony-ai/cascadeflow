@@ -1,5 +1,5 @@
 """
-CascadeFlow integrations with external services.
+cascadeflow integrations with external services.
 
 Provides optional integrations with:
     - LiteLLM: Cost tracking and multi-provider support
@@ -15,7 +15,7 @@ try:
         SUPPORTED_PROVIDERS,
         LiteLLMCostProvider,
         LiteLLMBudgetTracker,
-        CascadeFlowLiteLLMCallback,
+        cascadeflowLiteLLMCallback,
         setup_litellm_callbacks,
         get_model_cost,
         calculate_cost,
@@ -29,7 +29,7 @@ except ImportError:
     SUPPORTED_PROVIDERS = None
     LiteLLMCostProvider = None
     LiteLLMBudgetTracker = None
-    CascadeFlowLiteLLMCallback = None
+    cascadeflowLiteLLMCallback = None
     setup_litellm_callbacks = None
     get_model_cost = None
     calculate_cost = None
@@ -41,7 +41,7 @@ try:
     from .otel import (
         OpenTelemetryExporter,
         MetricDimensions,
-        CascadeFlowMetrics,
+        cascadeflowMetrics,
         create_exporter_from_env,
     )
 
@@ -50,7 +50,7 @@ except ImportError:
     OPENTELEMETRY_AVAILABLE = False
     OpenTelemetryExporter = None
     MetricDimensions = None
-    CascadeFlowMetrics = None
+    cascadeflowMetrics = None
     create_exporter_from_env = None
 
 __all__ = []
@@ -60,7 +60,7 @@ if LITELLM_AVAILABLE:
         "SUPPORTED_PROVIDERS",
         "LiteLLMCostProvider",
         "LiteLLMBudgetTracker",
-        "CascadeFlowLiteLLMCallback",
+        "cascadeflowLiteLLMCallback",
         "setup_litellm_callbacks",
         "get_model_cost",
         "calculate_cost",
@@ -72,7 +72,7 @@ if OPENTELEMETRY_AVAILABLE:
     __all__.extend([
         "OpenTelemetryExporter",
         "MetricDimensions",
-        "CascadeFlowMetrics",
+        "cascadeflowMetrics",
         "create_exporter_from_env",
     ])
 

@@ -311,7 +311,7 @@ export AZURE_API_BASE="https://your-resource.openai.azure.com"
 - ✅ `anthropic/claude-3-5-sonnet-20241022` (not `claude-3-5-sonnet`)
 - ✅ `gemini/gemini-1.5-flash` (not `gemini-1.5-flash`)
 
-This ensures LiteLLM correctly identifies the model and returns accurate pricing from its database. Without prefixes, CascadeFlow will derive pricing using `completion_cost()`, which still works but may show debug messages.
+This ensures LiteLLM correctly identifies the model and returns accurate pricing from its database. Without prefixes, cascadeflow will derive pricing using `completion_cost()`, which still works but may show debug messages.
 
 ### "API key not found"
 The example works without API keys for cost calculations. API keys are only needed for actual API calls.

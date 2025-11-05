@@ -1,5 +1,5 @@
 """
-Guardrails for CascadeFlow - Content Safety and Compliance.
+Guardrails for cascadeflow - Content Safety and Compliance.
 
 Provides basic content moderation and PII detection for production safety.
 

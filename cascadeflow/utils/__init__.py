@@ -1,5 +1,5 @@
 """
-Utility functions and helpers for CascadeFlow.
+Utility functions and helpers for cascadeflow.
 
 This module provides:
 - Logging and formatting utilities (helpers.py)

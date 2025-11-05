@@ -1,5 +1,5 @@
 """
-Content moderation for CascadeFlow.
+Content moderation for cascadeflow.
 
 Provides basic content moderation using regex patterns and keyword matching.
 For v0.2.1, we use simple pattern matching. Future versions can integrate

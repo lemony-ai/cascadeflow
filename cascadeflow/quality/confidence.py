@@ -1,5 +1,5 @@
 """
-Production-grade confidence estimation for CascadeFlow.
+Production-grade confidence estimation for cascadeflow.
 
 UPDATED: Multi-signal confidence using:
 1. Query difficulty estimation (NEW)

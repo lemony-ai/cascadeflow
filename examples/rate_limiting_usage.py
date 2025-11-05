@@ -1,5 +1,5 @@
 """
-Example: Rate Limiting with CascadeFlow v0.2.1
+Example: Rate Limiting with cascadeflow v0.2.1
 
 This example demonstrates per-user and per-tier rate limiting
 with the sliding window algorithm.
@@ -17,7 +17,7 @@ from cascadeflow import (
 
 async def main():
     print("=" * 60)
-    print("CascadeFlow v0.2.1 - Rate Limiting")
+    print("cascadeflow v0.2.1 - Rate Limiting")
     print("=" * 60)
 
     # ========================================================================

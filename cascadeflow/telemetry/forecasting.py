@@ -1,4 +1,4 @@
-"""Cost forecasting for CascadeFlow.
+"""Cost forecasting for cascadeflow.
 
 This module provides cost prediction using exponential smoothing to forecast
 future spending based on historical usage patterns.

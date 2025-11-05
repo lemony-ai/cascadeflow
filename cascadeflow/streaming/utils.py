@@ -1,5 +1,5 @@
 """
-CascadeFlow Streaming Utilities
+cascadeflow Streaming Utilities
 ================================
 
 Shared utilities for streaming implementations:

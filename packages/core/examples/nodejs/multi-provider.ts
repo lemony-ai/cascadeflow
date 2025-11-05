@@ -1,5 +1,5 @@
 /**
- * CascadeFlow - Multi-Provider Example (TypeScript/Node.js)
+ * cascadeflow - Multi-Provider Example (TypeScript/Node.js)
  *
  * Demonstrates using multiple AI providers in a cascade.
  *
@@ -151,7 +151,7 @@ async function main() {
   console.log('='.repeat(80));
   console.log();
   console.log('✅ What You Learned:');
-  console.log('   1. CascadeFlow works seamlessly across providers');
+  console.log('   1. cascadeflow works seamlessly across providers');
   console.log('   2. You can mix OpenAI, Anthropic, Groq, and more');
   console.log('   3. Each provider has its own cost and quality profile');
   console.log('   4. TypeScript provides full type safety across all providers');

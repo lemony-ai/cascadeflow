@@ -1,5 +1,5 @@
 """
-CascadeFlow Tool Streaming Module - Complete Implementation
+cascadeflow Tool Streaming Module - Complete Implementation
 ===========================================================
 
 Real-time streaming for tool-calling cascades with progressive JSON parsing,

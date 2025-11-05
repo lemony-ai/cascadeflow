@@ -1,7 +1,7 @@
 """
-CascadeFlow tool calling system.
+cascadeflow tool calling system.
 
-This is an OPTIONAL feature - existing CascadeFlow code works unchanged.
+This is an OPTIONAL feature - existing cascadeflow code works unchanged.
 
 Quick Start:
     from cascadeflow.tools import tool, ToolExecutor

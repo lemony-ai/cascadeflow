@@ -1,7 +1,7 @@
 """
 OpenTelemetry Integration Example with Grafana
 
-This example shows how to export CascadeFlow metrics to Grafana using OpenTelemetry.
+This example shows how to export cascadeflow metrics to Grafana using OpenTelemetry.
 Metrics include cost, tokens, and latency with user/model/provider dimensions.
 
 Setup:
@@ -39,17 +39,17 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from cascadeflow.integrations.otel import (
     OpenTelemetryExporter,
-    CascadeFlowMetrics,
+    cascadeflowMetrics,
     MetricDimensions,
 )
 
 
 async def simulate_queries():
-    """Simulate CascadeFlow queries with different users/models/costs."""
+    """Simulate cascadeflow queries with different users/models/costs."""
     print("=" * 80)
     print("CASCADEFLOW - OPENTELEMETRY + GRAFANA EXAMPLE")
     print("=" * 80)
-    print("\nThis example simulates CascadeFlow queries and exports metrics to Grafana.")
+    print("\nThis example simulates cascadeflow queries and exports metrics to Grafana.")
     print("\nSetup Required:")
     print("  1. OpenTelemetry Collector running on localhost:4318")
     print("  2. Grafana dashboard at http://localhost:3000")
@@ -153,7 +153,7 @@ async def simulate_queries():
         print(f"  Domain: {query['domain']}")
 
         # Record metrics
-        metrics = CascadeFlowMetrics(
+        metrics = cascadeflowMetrics(
             cost=query["cost"],
             tokens_input=query["tokens_input"],
             tokens_output=query["tokens_output"],

@@ -1,5 +1,5 @@
 /**
- * Quality validation and confidence scoring for CascadeFlow
+ * Quality validation and confidence scoring for cascadeflow
  *
  * Based on Python quality validation with TypeScript patterns
  */

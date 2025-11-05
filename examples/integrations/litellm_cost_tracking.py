@@ -43,7 +43,7 @@ def main():
     # ==================================================
     print_section("Part 1: Supported Providers")
     print()
-    print(f"CascadeFlow supports {len(SUPPORTED_PROVIDERS)} strategic providers:")
+    print(f"cascadeflow supports {len(SUPPORTED_PROVIDERS)} strategic providers:")
     print()
 
     for name, info in SUPPORTED_PROVIDERS.items():

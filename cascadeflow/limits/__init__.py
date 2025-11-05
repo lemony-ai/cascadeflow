@@ -1,5 +1,5 @@
 """
-Rate Limiting for CascadeFlow.
+Rate Limiting for cascadeflow.
 
 Provides per-user and per-tier rate limiting with sliding window algorithm
 for controlling API usage and enforcing subscription tier limits.

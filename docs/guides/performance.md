@@ -29,7 +29,7 @@ Average per query: 10,390ms (100%)
 ### What This Means
 
 **✅ Good News:**
-- CascadeFlow overhead is negligible (only 5%)
+- cascadeflow overhead is negligible (only 5%)
 - Quality validation is extremely fast (208ms)
 - No significant performance penalty from cascading
 

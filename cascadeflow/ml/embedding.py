@@ -1,5 +1,5 @@
 """
-Unified Embedding Service for CascadeFlow
+Unified Embedding Service for cascadeflow
 
 Provides a single embedding model (BGE-small-en-v1.5 via FastEmbed) for all
 semantic tasks: quality validation, domain detection, complexity analysis, and
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 class UnifiedEmbeddingService:
     """
-    Single embedding model for all semantic tasks in CascadeFlow.
+    Single embedding model for all semantic tasks in cascadeflow.
 
     Uses FastEmbed with BGE-small-en-v1.5 (ONNX optimized):
     - 45M parameters, 384 dimensions

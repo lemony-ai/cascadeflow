@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-Complete guide to deploying CascadeFlow in production environments.
+Complete guide to deploying cascadeflow in production environments.
 
 ---
 
@@ -25,7 +25,7 @@ Complete guide to deploying CascadeFlow in production environments.
 
 # Basic Usage
 
-Essential patterns for getting CascadeFlow running in production.
+Essential patterns for getting cascadeflow running in production.
 
 ---
 

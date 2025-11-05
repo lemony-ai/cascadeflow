@@ -1,13 +1,13 @@
-# CascadeFlow Examples
+# cascadeflow Examples
 
-**Complete collection of examples** demonstrating CascadeFlow from basics to production deployment.
+**Complete collection of examples** demonstrating cascadeflow from basics to production deployment.
 
 ---
 
 ## 🚀 Quick Start (5 Minutes)
 
 ```bash
-# 1. Install CascadeFlow
+# 1. Install cascadeflow
 pip install cascadeflow[all]
 
 # 2. Set your API key
@@ -62,7 +62,7 @@ python examples/basic_usage.py
 <details open>
 <summary><h3>🌟 Core Examples (6 examples) - Start Here</h3></summary>
 
-Perfect for learning CascadeFlow basics. Start with these!
+Perfect for learning cascadeflow basics. Start with these!
 
 #### 1. Basic Usage ⭐ **START HERE**
 **File:** [`basic_usage.py`](basic_usage.py)
@@ -179,7 +179,7 @@ agent = CascadeAgent(models=[
 <details>
 <summary><h3>🔧 Tool & Function Calling (2 examples)</h3></summary>
 
-Learn how to use tools and functions with CascadeFlow.
+Learn how to use tools and functions with cascadeflow.
 
 #### Tool Execution
 **File:** [`tool_execution.py`](tool_execution.py)
@@ -227,7 +227,7 @@ Integrate user profiles with databases.
 <details>
 <summary><h3>🏭 Production & Integration (5 examples)</h3></summary>
 
-Deploy CascadeFlow to production with enterprise patterns.
+Deploy cascadeflow to production with enterprise patterns.
 
 #### 1. Production Patterns ⭐
 **File:** [`production_patterns.py`](production_patterns.py)
@@ -359,7 +359,7 @@ Self-hosted inference with vLLM.
 <details>
 <summary><h3>🔌 Edge & Local Deployment (1 example)</h3></summary>
 
-Run CascadeFlow on edge devices with local inference.
+Run cascadeflow on edge devices with local inference.
 
 #### Edge Device Deployment
 **File:** [`edge_device.py`](edge_device.py)

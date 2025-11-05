@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-cascadeflow",
   "version": "0.2.0",
-  "description": "n8n node for CascadeFlow - Smart AI model cascading with 40-85% cost savings",
+  "description": "n8n node for cascadeflow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
     "n8n",
@@ -36,10 +36,10 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/CascadeFlowApi.credentials.js"
+      "dist/credentials/cascadeflowApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/CascadeFlow/CascadeFlow.node.js"
+      "dist/nodes/cascadeflow/cascadeflow.node.js"
     ]
   },
   "devDependencies": {

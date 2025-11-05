@@ -1,7 +1,7 @@
 /**
  * Example: Using Reasoning Models Across All Providers
  *
- * CascadeFlow supports reasoning models from 4 providers with automatic detection:
+ * cascadeflow supports reasoning models from 4 providers with automatic detection:
  *
  * 1. OpenAI (o1, o1-mini, o3-mini)
  *    - Chain-of-thought reasoning with hidden thinking
@@ -23,7 +23,7 @@
  *    - 24x faster than standard serving
  *    - Production-ready deployment
  *
- * Zero configuration required - CascadeFlow auto-detects capabilities!
+ * Zero configuration required - cascadeflow auto-detects capabilities!
  */
 
 import { CascadeAgent } from '../../src/index';

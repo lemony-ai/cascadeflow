@@ -1,4 +1,4 @@
-# Docker Compose for CascadeFlow OpenTelemetry + Grafana Stack
+# Docker Compose for cascadeflow OpenTelemetry + Grafana Stack
 #
 # This stack includes:
 # - OpenTelemetry Collector (receives metrics)
@@ -17,7 +17,7 @@
 version: '3.8'
 
 services:
-  # OpenTelemetry Collector - Receives metrics from CascadeFlow
+  # OpenTelemetry Collector - Receives metrics from cascadeflow
   otel-collector:
     image: otel/opentelemetry-collector:latest
     container_name: cascadeflow-otel-collector

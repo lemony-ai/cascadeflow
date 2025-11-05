@@ -1,7 +1,7 @@
 /**
- * CascadeFlow - Basic Usage Example (TypeScript/Node.js)
+ * cascadeflow - Basic Usage Example (TypeScript/Node.js)
  *
- * The simplest way to get started with CascadeFlow in TypeScript.
+ * The simplest way to get started with cascadeflow in TypeScript.
  * This example demonstrates:
  * - Setting up a two-tier cascade (cheap → expensive)
  * - Processing queries with automatic quality-based routing
@@ -20,7 +20,7 @@
  *
  * What You'll Learn:
  *   1. How to configure a basic cascade
- *   2. How CascadeFlow automatically routes queries
+ *   2. How cascadeflow automatically routes queries
  *   3. How to track costs and savings
  *   4. TypeScript types for full IDE support
  */
@@ -121,7 +121,7 @@ async function main() {
   console.log();
   console.log(`Total Cost: $${totalCost.toFixed(6)}`);
   console.log();
-  console.log('🎉 CascadeFlow automatically optimized your costs!');
+  console.log('🎉 cascadeflow automatically optimized your costs!');
   console.log();
 }
 

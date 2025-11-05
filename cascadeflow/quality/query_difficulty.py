@@ -1,5 +1,5 @@
 """
-Query Difficulty Estimation for CascadeFlow
+Query Difficulty Estimation for cascadeflow
 
 FIXED: Recalibrated to fix trivial vs simple separation.
 

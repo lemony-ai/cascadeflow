@@ -2,7 +2,7 @@
   "name": "cascadeflow-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "CascadeFlow monorepo - Python and TypeScript libraries",
+  "description": "cascadeflow monorepo - Python and TypeScript libraries",
   "author": {
     "name": "Lemony Inc.",
     "email": "hello@lemony.ai"

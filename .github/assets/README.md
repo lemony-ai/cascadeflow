@@ -1,13 +1,13 @@
-# CascadeFlow Assets
+# cascadeflow Assets
 
-This directory contains brand assets and logos for CascadeFlow used across documentation and READMEs.
+This directory contains brand assets and logos for cascadeflow used across documentation and READMEs.
 
 ## Logo Files
 
 ### Main Logos
 
-- **`CF_logo_bright.svg`** - CascadeFlow logo for light mode/bright backgrounds
-- **`CF_logo_dark.svg`** - CascadeFlow logo for dark mode/dark backgrounds
+- **`CF_logo_bright.svg`** - cascadeflow logo for light mode/bright backgrounds
+- **`CF_logo_dark.svg`** - cascadeflow logo for dark mode/dark backgrounds
 
 ### Platform Icons
 
@@ -23,7 +23,7 @@ This directory contains brand assets and logos for CascadeFlow used across docum
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_logo_dark.svg">
   <source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_logo_bright.svg">
-  <img alt="CascadeFlow Logo" src=".github/assets/CF_logo_bright.svg" width="400">
+  <img alt="cascadeflow Logo" src=".github/assets/CF_logo_bright.svg" width="400">
 </picture>
 ```
 

@@ -1,5 +1,5 @@
 """
-CascadeFlow Agent v2.5 - FIXED: Cost Calculation with Telemetry Integration
+cascadeflow Agent v2.5 - FIXED: Cost Calculation with Telemetry Integration
 ===========================================================================
 
 ✅ Phase 2A: PreRouter for complexity-based routing (routing/)
@@ -68,7 +68,7 @@ from .quality import QualityConfig
 # Phase 2A: Routing module imports
 from .routing import PreRouter, ToolRouter
 from .schema.config import ModelConfig, UserTier, WorkflowProfile, CascadeConfig
-from .schema.exceptions import CascadeFlowError
+from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
 
 # Streaming imports - BOTH managers (v2.4 FIX)
@@ -173,7 +173,7 @@ class CascadeAgent:
             enable_callbacks: Enable callbacks (now always enabled)
         """
         if not models:
-            raise CascadeFlowError("At least one model is required")
+            raise cascadeflowError("At least one model is required")
 
         if len(models) < 2 and enable_cascade:
             logger.warning(
@@ -381,12 +381,12 @@ class CascadeAgent:
             Appropriate streaming manager for the request
 
         Raises:
-            CascadeFlowError: If tools requested but ToolStreamManager unavailable
+            cascadeflowError: If tools requested but ToolStreamManager unavailable
         """
         if tools:
             # Tools present - need ToolStreamManager
             if not self.tool_streaming_manager:
-                raise CascadeFlowError(
+                raise cascadeflowError(
                     "Tool streaming requested but ToolStreamManager not available. "
                     "Check that streaming/tools.py exists and is properly configured."
                 )
@@ -435,7 +435,7 @@ class CascadeAgent:
                     logger.warning(f"Failed to initialize provider '{provider_type}': {e}")
 
         if not providers:
-            raise CascadeFlowError("No providers could be initialized. Check your API keys.")
+            raise cascadeflowError("No providers could be initialized. Check your API keys.")
 
         return providers
 
@@ -1729,7 +1729,7 @@ class CascadeAgent:
         """Auto-discover providers from environment with tool support."""
         providers = get_available_providers()
         if not providers:
-            raise CascadeFlowError("No providers available. Set API keys in environment.")
+            raise cascadeflowError("No providers available. Set API keys in environment.")
 
         models = []
         if "openai" in providers:
@@ -1780,7 +1780,7 @@ class CascadeAgent:
             )
 
         if not models:
-            raise CascadeFlowError("No models configured for available providers")
+            raise cascadeflowError("No models configured for available providers")
 
         logger.info(
             f"Auto-discovered {len(providers)} providers, created {len(models)} model configs"
@@ -1831,7 +1831,7 @@ class CascadeAgent:
         # Auto-discover providers from environment
         providers = get_available_providers()
         if not providers:
-            raise CascadeFlowError("No providers available. Set API keys in environment.")
+            raise cascadeflowError("No providers available. Set API keys in environment.")
 
         # Build model list based on profile preferences
         models = []
@@ -1897,7 +1897,7 @@ class CascadeAgent:
                     models.append(model)
 
         if not models:
-            raise CascadeFlowError(
+            raise cascadeflowError(
                 "No models available. Check preferred_models or provider availability."
             )
 

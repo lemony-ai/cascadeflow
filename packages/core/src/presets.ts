@@ -1,5 +1,5 @@
 /**
- * Preset Configurations for CascadeFlow
+ * Preset Configurations for cascadeflow
  *
  * These presets provide pre-configured model cascades for common use cases,
  * making it easy to get started without detailed configuration.

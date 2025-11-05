@@ -1,4 +1,4 @@
-"""Batch processing for CascadeFlow."""
+"""Batch processing for cascadeflow."""
 
 import asyncio
 from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING

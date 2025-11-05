@@ -1,5 +1,5 @@
 """
-CascadeFlow Streaming Module - WITH TELEMETRY COST INTEGRATION
+cascadeflow Streaming Module - WITH TELEMETRY COST INTEGRATION
 ===============================================================
 
 ✅ FIX #1: Explicit tools/tool_choice parameters in signature

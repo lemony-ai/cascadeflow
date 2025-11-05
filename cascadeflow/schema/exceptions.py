@@ -1,11 +1,11 @@
 """
-Custom Exception Hierarchy for CascadeFlow
+Custom Exception Hierarchy for cascadeflow
 ==========================================
 
-This module defines all custom exceptions used throughout CascadeFlow.
+This module defines all custom exceptions used throughout cascadeflow.
 
 Exception Hierarchy:
-    CascadeFlowError (base)
+    cascadeflowError (base)
     ├── ConfigError
     ├── ProviderError
     ├── ModelError
@@ -16,13 +16,13 @@ Exception Hierarchy:
     └── ValidationError
 
 Usage:
-    >>> from cascadeflow import CascadeFlowError, ProviderError
+    >>> from cascadeflow import cascadeflowError, ProviderError
     >>>
     >>> try:
     ...     result = await agent.run(query)
     ... except ProviderError as e:
     ...     print(f"Provider failed: {e}")
-    ... except CascadeFlowError as e:
+    ... except cascadeflowError as e:
     ...     print(f"Cascade error: {e}")
 
 See Also:
@@ -31,19 +31,19 @@ See Also:
 """
 
 
-class CascadeFlowError(Exception):
-    """Base exception for CascadeFlow."""
+class cascadeflowError(Exception):
+    """Base exception for cascadeflow."""
 
     pass
 
 
-class ConfigError(CascadeFlowError):
+class ConfigError(cascadeflowError):
     """Configuration error."""
 
     pass
 
 
-class ProviderError(CascadeFlowError):
+class ProviderError(cascadeflowError):
     """Provider error."""
 
     def __init__(self, message: str, provider: str = None, original_error: Exception = None):
@@ -52,7 +52,7 @@ class ProviderError(CascadeFlowError):
         self.original_error = original_error
 
 
-class ModelError(CascadeFlowError):
+class ModelError(cascadeflowError):
     """Model execution error."""
 
     def __init__(self, message: str, model: str = None, provider: str = None):
@@ -61,7 +61,7 @@ class ModelError(CascadeFlowError):
         self.provider = provider
 
 
-class BudgetExceededError(CascadeFlowError):
+class BudgetExceededError(cascadeflowError):
     """Budget limit exceeded."""
 
     def __init__(self, message: str, remaining: float = 0.0):
@@ -69,7 +69,7 @@ class BudgetExceededError(CascadeFlowError):
         self.remaining = remaining
 
 
-class RateLimitError(CascadeFlowError):
+class RateLimitError(cascadeflowError):
     """Rate limit exceeded."""
 
     def __init__(self, message: str, retry_after: int = 3600):
@@ -77,19 +77,19 @@ class RateLimitError(CascadeFlowError):
         self.retry_after = retry_after
 
 
-class QualityThresholdError(CascadeFlowError):
+class QualityThresholdError(cascadeflowError):
     """Quality threshold not met."""
 
     pass
 
 
-class RoutingError(CascadeFlowError):
+class RoutingError(cascadeflowError):
     """Routing error."""
 
     pass
 
 
-class ValidationError(CascadeFlowError):
+class ValidationError(cascadeflowError):
     """Validation error."""
 
     pass
@@ -98,7 +98,7 @@ class ValidationError(CascadeFlowError):
 # ==================== EXPORTS ====================
 
 __all__ = [
-    "CascadeFlowError",
+    "cascadeflowError",
     "ConfigError",
     "ProviderError",
     "ModelError",

@@ -1,4 +1,4 @@
-"""Anomaly detection for CascadeFlow cost tracking.
+"""Anomaly detection for cascadeflow cost tracking.
 
 This module provides anomaly detection using statistical methods (z-score)
 to identify unusual spending patterns that may indicate issues or abuse.

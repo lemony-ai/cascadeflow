@@ -1,6 +1,6 @@
 # Tool Calling Guide
 
-Complete guide to using tools (function calling) with CascadeFlow.
+Complete guide to using tools (function calling) with cascadeflow.
 
 ---
 
@@ -24,13 +24,13 @@ Complete guide to using tools (function calling) with CascadeFlow.
 
 # Basic Usage
 
-Essential tool calling patterns for CascadeFlow.
+Essential tool calling patterns for cascadeflow.
 
 ---
 
 ## Introduction
 
-Tools (also called "function calling") allow AI models to interact with external systems, APIs, and data sources. CascadeFlow provides a complete tool system that works seamlessly with cascades, streaming, and quality validation.
+Tools (also called "function calling") allow AI models to interact with external systems, APIs, and data sources. cascadeflow provides a complete tool system that works seamlessly with cascades, streaming, and quality validation.
 
 ### What You Can Do With Tools
 
@@ -231,7 +231,7 @@ def search_documents(query: str, limit: int = 10) -> list:
 
 ### Parameter Types
 
-CascadeFlow supports all JSON Schema types:
+cascadeflow supports all JSON Schema types:
 
 ```python
 parameters = {
@@ -446,7 +446,7 @@ Different providers use different formats for tool results:
 }
 ```
 
-**CascadeFlow handles this automatically:**
+**cascadeflow handles this automatically:**
 ```python
 # Automatically converts to correct format
 tool_result.to_provider_message("openai")   # OpenAI format

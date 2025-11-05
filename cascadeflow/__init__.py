@@ -1,5 +1,5 @@
 """
-CascadeFlow - Smart AI model cascading for cost optimization.
+cascadeflow - Smart AI model cascading for cost optimization.
 
 Route queries intelligently across multiple AI models from tiny SLMs
 to frontier LLMs based on complexity, domain, and budget.
@@ -102,7 +102,7 @@ from .schema.config import (
 )
 from .schema.exceptions import (
     BudgetExceededError,
-    CascadeFlowError,
+    cascadeflowError,
     ConfigError,
     ModelError,
     ProviderError,
@@ -276,7 +276,7 @@ __all__ = [
     "format_cost",
     "estimate_tokens",
     # ===== EXCEPTIONS =====
-    "CascadeFlowError",
+    "cascadeflowError",
     "ConfigError",
     "ProviderError",
     "ModelError",

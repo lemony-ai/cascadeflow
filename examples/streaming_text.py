@@ -39,7 +39,7 @@ async def main():
         print("❌ Set OPENAI_API_KEY first: export OPENAI_API_KEY='sk-...'")
         return
 
-    print("🌊 CascadeFlow Text Streaming\n")
+    print("🌊 cascadeflow Text Streaming\n")
 
     # ═══════════════════════════════════════════════════════════════════════
     # STEP 2: Setup Agent with Cascade
@@ -94,7 +94,7 @@ async def main():
         # ───────────────────────────────────────────────────────────────────
         # EVENT: DRAFT_DECISION - Quality check complete
         # ───────────────────────────────────────────────────────────────────
-        # After the draft finishes, CascadeFlow checks quality:
+        # After the draft finishes, cascadeflow checks quality:
         # - Accepted = Good enough! Skip expensive model (save money)
         # - Rejected = Not good enough, need better model (ensure quality)
 

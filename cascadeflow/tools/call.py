@@ -1,5 +1,5 @@
 """
-Tool call parsing for CascadeFlow.
+Tool call parsing for cascadeflow.
 
 Handles parsing tool calls from different provider formats.
 """

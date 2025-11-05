@@ -2,7 +2,7 @@
 
 ## Overview
 
-The telemetry module provides comprehensive metrics collection, cost tracking, and monitoring capabilities for CascadeFlow applications.
+The telemetry module provides comprehensive metrics collection, cost tracking, and monitoring capabilities for cascadeflow applications.
 
 ## Core Components
 
@@ -178,7 +178,7 @@ print(f"Queries: {summary['total_queries']}")
 
 - [Cost Tracking Guide](../guides/cost_tracking.md) - Comprehensive cost tracking patterns
 - [Production Guide](../guides/production.md) - Deployment with monitoring
-- [Quick Start](../guides/quickstart.md) - Getting started with CascadeFlow
+- [Quick Start](../guides/quickstart.md) - Getting started with cascadeflow
 
 ## API Version
 

@@ -1,6 +1,6 @@
-# CascadeFlow Documentation
+# cascadeflow Documentation
 
-Welcome to CascadeFlow documentation! 🌊
+Welcome to cascadeflow documentation! 🌊
 
 ## 📖 Quick Links
 
@@ -10,7 +10,7 @@ Welcome to CascadeFlow documentation! 🌊
 ## 🚀 Getting Started
 
 ### Core Concepts
-- [Quickstart](guides/quickstart.md) - Get started with CascadeFlow in 5 minutes
+- [Quickstart](guides/quickstart.md) - Get started with cascadeflow in 5 minutes
 - [Providers](guides/providers.md) - Configure and use different AI providers (OpenAI, Anthropic, Groq, Ollama, etc.)
 - [Presets](guides/presets.md) - Use built-in presets for common use cases
 
@@ -24,7 +24,7 @@ Welcome to CascadeFlow documentation! 🌊
 ### Production Deployment
 - [Production Guide](guides/production.md) - Best practices for production deployments
 - [Performance Guide](guides/performance.md) - Optimize cascade performance and latency
-- [FastAPI Integration](guides/fastapi.md) - Integrate CascadeFlow with FastAPI applications
+- [FastAPI Integration](guides/fastapi.md) - Integrate cascadeflow with FastAPI applications
 
 ### Advanced Topics
 - [Custom Cascades](guides/custom_cascade.md) - Build custom cascade strategies
@@ -33,7 +33,7 @@ Welcome to CascadeFlow documentation! 🌊
 - [Browser/Edge Runtime](guides/browser_cascading.md) - Run cascades in browser or edge environments
 
 ### Integrations
-- [n8n Integration](guides/n8n_integration.md) - Use CascadeFlow in n8n workflows
+- [n8n Integration](guides/n8n_integration.md) - Use cascadeflow in n8n workflows
 
 ## 📚 Examples
 
@@ -77,7 +77,7 @@ See also: Comprehensive examples in [/examples](../examples/) directory
 For contributors and advanced users:
 
 - **[Architecture Guide](ARCHITECTURE.md)** - Detailed architecture, data flow, and code organization
-- **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute to CascadeFlow
+- **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute to cascadeflow
 
 The architecture guide covers:
 - Directory structure (monorepo layout)

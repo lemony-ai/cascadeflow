@@ -1,5 +1,5 @@
 """
-LiteLLM integration for CascadeFlow.
+LiteLLM integration for cascadeflow.
 
 Provides accurate cost tracking using LiteLLM's pricing database,
 which is maintained and updated regularly by the LiteLLM team.
@@ -532,7 +532,7 @@ class LiteLLMBudgetTracker:
         - Integration with LiteLLM's BudgetManager
         - Actual spending tracking (not just estimates)
         - Per-user budgets with real-time enforcement
-        - Compatible with CascadeFlow's CostTracker
+        - Compatible with cascadeflow's CostTracker
 
     Example:
         >>> tracker = LiteLLMBudgetTracker()
@@ -557,7 +557,7 @@ class LiteLLMBudgetTracker:
         Initialize LiteLLM budget tracker.
 
         Args:
-            fallback_to_cascadeflow: Use CascadeFlow's CostTracker if LiteLLM unavailable
+            fallback_to_cascadeflow: Use cascadeflow's CostTracker if LiteLLM unavailable
         """
         self.fallback_to_cascadeflow = fallback_to_cascadeflow
         self.budget_manager = None
@@ -573,15 +573,15 @@ class LiteLLMBudgetTracker:
             )
 
             if fallback_to_cascadeflow:
-                # Import CascadeFlow's CostTracker as fallback
+                # Import cascadeflow's CostTracker as fallback
                 try:
                     from cascadeflow.telemetry import CostTracker
 
                     self.cost_tracker = CostTracker()
-                    logger.info("Using CascadeFlow CostTracker as fallback")
+                    logger.info("Using cascadeflow CostTracker as fallback")
                 except ImportError:
                     self.cost_tracker = None
-                    logger.warning("CascadeFlow CostTracker also unavailable")
+                    logger.warning("cascadeflow CostTracker also unavailable")
 
     def set_user_budget(self, user: str, max_budget: float) -> None:
         """
@@ -665,7 +665,7 @@ class LiteLLMBudgetTracker:
                 logger.error(f"Error updating cost for {user}: {e}")
                 # Fall through to fallback
 
-        # Fallback to CascadeFlow CostTracker
+        # Fallback to cascadeflow CostTracker
         if self.fallback_to_cascadeflow and hasattr(self, "cost_tracker"):
             cost = self.cost_provider.calculate_cost(
                 model=model,
@@ -783,23 +783,23 @@ class LiteLLMBudgetTracker:
 # ============================================================================
 
 
-class CascadeFlowLiteLLMCallback:
+class cascadeflowLiteLLMCallback:
     """
-    Custom LiteLLM callback for CascadeFlow integration.
+    Custom LiteLLM callback for cascadeflow integration.
 
-    Bridges LiteLLM callbacks to CascadeFlow's telemetry systems:
+    Bridges LiteLLM callbacks to cascadeflow's telemetry systems:
     - CostTracker for spending tracking
     - MetricsCollector for analytics
     - CallbackManager for custom handlers
 
     NEW in v0.2.0 (Phase 2, Milestone 2.1 - Enhanced):
-        - Automatic cost tracking with CascadeFlow systems
+        - Automatic cost tracking with cascadeflow systems
         - Success/failure callbacks
         - Integration with existing telemetry
 
     Example:
         >>> # Set up callback
-        >>> callback = CascadeFlowLiteLLMCallback()
+        >>> callback = cascadeflowLiteLLMCallback()
         >>>
         >>> # Register with LiteLLM (if installed)
         >>> if LITELLM_AVAILABLE:
@@ -807,7 +807,7 @@ class CascadeFlowLiteLLMCallback:
         ...     litellm.success_callback = [callback.log_success]
         ...     litellm.failure_callback = [callback.log_failure]
         >>>
-        >>> # Now all LiteLLM calls automatically tracked in CascadeFlow!
+        >>> # Now all LiteLLM calls automatically tracked in cascadeflow!
     """
 
     def __init__(
@@ -817,24 +817,24 @@ class CascadeFlowLiteLLMCallback:
         callback_manager=None,
     ):
         """
-        Initialize LiteLLM callback for CascadeFlow.
+        Initialize LiteLLM callback for cascadeflow.
 
         Args:
-            cost_tracker: CascadeFlow CostTracker instance (optional)
-            metrics_collector: CascadeFlow MetricsCollector instance (optional)
-            callback_manager: CascadeFlow CallbackManager instance (optional)
+            cost_tracker: cascadeflow CostTracker instance (optional)
+            metrics_collector: cascadeflow MetricsCollector instance (optional)
+            callback_manager: cascadeflow CallbackManager instance (optional)
         """
         self.cost_tracker = cost_tracker
         self.metrics_collector = metrics_collector
         self.callback_manager = callback_manager
 
-        # Try to import CascadeFlow components if not provided
+        # Try to import cascadeflow components if not provided
         if cost_tracker is None:
             try:
                 from cascadeflow.telemetry import CostTracker
 
                 self.cost_tracker = CostTracker()
-                logger.info("CascadeFlow CostTracker initialized for LiteLLM callbacks")
+                logger.info("cascadeflow CostTracker initialized for LiteLLM callbacks")
             except ImportError:
                 logger.debug("CostTracker not available for callbacks")
 
@@ -991,15 +991,15 @@ def setup_litellm_callbacks(
     callback_manager=None,
 ) -> bool:
     """
-    Set up LiteLLM callbacks for automatic CascadeFlow integration.
+    Set up LiteLLM callbacks for automatic cascadeflow integration.
 
     Call this once at startup to enable automatic tracking of all
-    LiteLLM calls in your CascadeFlow telemetry systems.
+    LiteLLM calls in your cascadeflow telemetry systems.
 
     Args:
-        cost_tracker: CascadeFlow CostTracker instance (optional)
-        metrics_collector: CascadeFlow MetricsCollector instance (optional)
-        callback_manager: CascadeFlow CallbackManager instance (optional)
+        cost_tracker: cascadeflow CostTracker instance (optional)
+        metrics_collector: cascadeflow MetricsCollector instance (optional)
+        callback_manager: cascadeflow CallbackManager instance (optional)
 
     Returns:
         True if callbacks set up successfully, False if LiteLLM not available
@@ -1031,7 +1031,7 @@ def setup_litellm_callbacks(
         import litellm
 
         # Create callback instance
-        callback = CascadeFlowLiteLLMCallback(
+        callback = cascadeflowLiteLLMCallback(
             cost_tracker=cost_tracker,
             metrics_collector=metrics_collector,
             callback_manager=callback_manager,
@@ -1041,7 +1041,7 @@ def setup_litellm_callbacks(
         litellm.success_callback = [callback.log_success]
         litellm.failure_callback = [callback.log_failure]
 
-        logger.info("LiteLLM callbacks registered with CascadeFlow telemetry")
+        logger.info("LiteLLM callbacks registered with cascadeflow telemetry")
         return True
 
     except Exception as e:
@@ -1054,7 +1054,7 @@ __all__ = [
     "ProviderInfo",
     "LiteLLMCostProvider",
     "LiteLLMBudgetTracker",
-    "CascadeFlowLiteLLMCallback",
+    "cascadeflowLiteLLMCallback",
     "setup_litellm_callbacks",
     "get_model_cost",
     "calculate_cost",

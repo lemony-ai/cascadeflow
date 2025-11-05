@@ -2,7 +2,7 @@
   "name": "cascadeflow-vercel-edge-example",
   "version": "1.0.0",
   "private": true,
-  "description": "CascadeFlow Vercel Edge Function example",
+  "description": "cascadeflow Vercel Edge Function example",
   "type": "module",
   "scripts": {
     "dev": "vercel dev",

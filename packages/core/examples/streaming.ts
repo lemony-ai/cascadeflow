@@ -1,7 +1,7 @@
 /**
  * Streaming Example
  *
- * Demonstrates real-time streaming with CascadeFlow
+ * Demonstrates real-time streaming with cascadeflow
  *
  * Run with:
  *   npx tsx examples/streaming.ts
@@ -36,7 +36,7 @@ async function main() {
     ],
   });
 
-  console.log('🚀 CascadeFlow Streaming Demo\n');
+  console.log('🚀 cascadeflow Streaming Demo\n');
   console.log('Query: "Explain how cascading works in AI systems"\n');
   console.log('─'.repeat(60));
   console.log();

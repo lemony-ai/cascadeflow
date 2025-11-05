@@ -19,7 +19,7 @@ Build custom cascade strategies tailored to your specific use case.
 
 ## Overview
 
-While CascadeFlow provides built-in cascade strategies, you can create custom routing logic for specific needs.
+While cascadeflow provides built-in cascade strategies, you can create custom routing logic for specific needs.
 
 ### When to Use Custom Cascades
 

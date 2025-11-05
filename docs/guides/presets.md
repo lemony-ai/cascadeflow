@@ -6,7 +6,7 @@
 
 ## 🎯 Overview
 
-Presets 2.0 is the **flagship feature** of CascadeFlow v0.2.0, reducing agent setup from 20+ lines of manual configuration to just **one line of code**. Choose from 5 production-ready presets optimized for different use cases.
+Presets 2.0 is the **flagship feature** of cascadeflow v0.2.0, reducing agent setup from 20+ lines of manual configuration to just **one line of code**. Choose from 5 production-ready presets optimized for different use cases.
 
 ### The Simplest Possible Setup:
 
@@ -303,7 +303,7 @@ agent = get_development_agent()
 - Unit and integration testing
 - Prototyping new features
 - Debugging cascade logic
-- Learning how CascadeFlow works
+- Learning how cascadeflow works
 
 **Why choose this:**
 - ✅ Cheapest option (90-99% savings)
@@ -441,7 +441,7 @@ Do you need maximum quality for high-stakes decisions?
 **Choose `get_development_agent()` if:**
 - ✅ Local development
 - ✅ Testing/debugging
-- ✅ Learning CascadeFlow
+- ✅ Learning cascadeflow
 - ✅ You want verbose logging
 
 ---

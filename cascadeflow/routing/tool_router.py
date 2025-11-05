@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from ..config import ModelConfig
-from ..exceptions import CascadeFlowError
+from ..exceptions import cascadeflowError
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class ToolRouter:
                 - reason: Explanation
 
         Raises:
-            CascadeFlowError: If tools provided but no capable models
+            cascadeflowError: If tools provided but no capable models
         """
         # Update statistics
         self.stats["total_filters"] += 1
@@ -157,7 +157,7 @@ class ToolRouter:
             if self.verbose:
                 logger.error(error_msg)
 
-            raise CascadeFlowError(error_msg)
+            raise cascadeflowError(error_msg)
 
         reason = (
             f"Filtered to {len(capable_models)}/{len(available_models)} "

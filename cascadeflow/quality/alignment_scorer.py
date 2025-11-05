@@ -1,5 +1,5 @@
 """
-Query-Response Alignment Scorer for CascadeFlow - PRODUCTION OPTIMIZED
+Query-Response Alignment Scorer for cascadeflow - PRODUCTION OPTIMIZED
 
 MERGED VERSION: Combines existing fixes with NO-MODEL enhancements
 - Preserves all existing functionality

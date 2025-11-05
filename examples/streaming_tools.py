@@ -50,7 +50,7 @@ from cascadeflow.streaming import ToolStreamEventType
 #     }
 # }
 #
-# CascadeFlow converts universal format → provider format automatically
+# cascadeflow converts universal format → provider format automatically
 
 WEATHER_TOOL = [
     {
@@ -121,7 +121,7 @@ async def main():
         print("❌ Set OPENAI_API_KEY first: export OPENAI_API_KEY='sk-...'")
         return
 
-    print("🔧 CascadeFlow Tool Streaming\n")
+    print("🔧 cascadeflow Tool Streaming\n")
 
     # ═══════════════════════════════════════════════════════════════════════
     # STEP 4: Setup Agent with Cascade (REQUIRED for streaming)

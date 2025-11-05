@@ -1,4 +1,4 @@
-# CascadeFlow v0.2.0 Release Notes
+# cascadeflow v0.2.0 Release Notes
 
 **Release Date**: October 28, 2025
 **Status**: Official Release
@@ -8,7 +8,7 @@
 
 ## 🎉 One-Line Initialization & 95% Setup Reduction
 
-We're thrilled to announce **CascadeFlow v0.2.0**, featuring **Presets 2.0** - the #1 requested feature that reduces setup complexity from 20+ lines to just **one line of code**.
+We're thrilled to announce **cascadeflow v0.2.0**, featuring **Presets 2.0** - the #1 requested feature that reduces setup complexity from 20+ lines to just **one line of code**.
 
 ### Before v0.2.0:
 ```python
@@ -142,7 +142,7 @@ agent = auto_agent("balanced")  # or "cost_optimized", etc.
 
 ### 2. Automatic Provider Detection
 
-Zero configuration needed - CascadeFlow automatically detects providers from environment variables:
+Zero configuration needed - cascadeflow automatically detects providers from environment variables:
 
 ```bash
 # .env file
@@ -376,7 +376,7 @@ From our target user persona research:
 - Latency: 3-5 seconds
 - Setup: Custom implementation (100+ lines)
 
-**After (CascadeFlow v0.2.0)**:
+**After (cascadeflow v0.2.0)**:
 - Cost: $150/month (90% reduction) ✅
 - Latency: 2-3 seconds (40% faster) ✅
 - Setup: 1 line of code (95% simpler) ✅
@@ -453,7 +453,7 @@ pip install --upgrade cascadeflow
 
 # Or install from source
 git clone https://github.com/lemony-ai/cascadeflow.git
-cd CascadeFlow
+cd cascadeflow
 pip install -e .
 ```
 
@@ -517,7 +517,7 @@ if __name__ == "__main__":
 > "Setup went from 30 lines to 1 line. This is exactly what I needed!"
 > — Beta Tester
 
-> "90% cost savings with better quality. CascadeFlow v0.2.0 is production-ready."
+> "90% cost savings with better quality. cascadeflow v0.2.0 is production-ready."
 > — Early Adopter
 
 > "The backwards compatibility is perfect - no migration pressure, but the new features are too good not to use."
@@ -527,7 +527,7 @@ if __name__ == "__main__":
 
 ## 🎉 Summary
 
-**CascadeFlow v0.2.0** is our largest release yet, featuring:
+**cascadeflow v0.2.0** is our largest release yet, featuring:
 
 1. ✅ **Presets 2.0**: One-line initialization (95% code reduction)
 2. ✅ **Automatic Detection**: Zero-config provider setup
@@ -558,7 +558,7 @@ pip install --upgrade cascadeflow
 
 ---
 
-**Welcome to CascadeFlow v0.2.0!** 🚀
+**Welcome to cascadeflow v0.2.0!** 🚀
 
 We can't wait to see what you build with it.
 
@@ -577,4 +577,4 @@ We can't wait to see what you build with it.
 
 ---
 
-**Built with ❤️ by the CascadeFlow Team**
+**Built with ❤️ by the cascadeflow Team**

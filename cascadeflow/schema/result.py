@@ -1,5 +1,5 @@
 """
-Result Dataclasses for CascadeFlow
+Result Dataclasses for cascadeflow
 ===================================
 
 This module contains result types returned by cascade operations.

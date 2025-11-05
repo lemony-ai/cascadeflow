@@ -1,6 +1,6 @@
 # Provider Comparison Guide
 
-Complete guide to AI providers supported by CascadeFlow and how to mix them effectively.
+Complete guide to AI providers supported by cascadeflow and how to mix them effectively.
 
 ---
 
@@ -19,7 +19,7 @@ Complete guide to AI providers supported by CascadeFlow and how to mix them effe
 
 ## Overview
 
-CascadeFlow supports 7 AI providers, each with unique strengths. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
+cascadeflow supports 7 AI providers, each with unique strengths. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
 
 ### Why Mix Providers?
 
@@ -442,7 +442,7 @@ Total: $129.50/month (79% savings vs all-GPT-4o)
 ### Quick Setup
 
 ```bash
-# 1. Install CascadeFlow
+# 1. Install cascadeflow
 pip install cascadeflow[all]
 
 # 2. Set API keys (all optional)
@@ -603,7 +603,7 @@ models.append(ModelConfig("claude-3-5-haiku", provider="anthropic", cost=0.001))
 
 ## Using Additional Providers via LiteLLM
 
-CascadeFlow integrates with LiteLLM for:
+cascadeflow integrates with LiteLLM for:
 - **Accurate cost tracking** across 100+ models
 - **Access to additional providers** (DeepSeek, Google, and more)
 - **Automatic pricing updates** (no manual maintenance)
@@ -649,7 +649,7 @@ for provider_name, info in SUPPORTED_PROVIDERS.items():
     print(f"{info.display_name}: {info.value_prop}")
 ```
 
-### Using DeepSeek with CascadeFlow
+### Using DeepSeek with cascadeflow
 
 DeepSeek offers extremely cost-effective models specialized for coding tasks:
 
@@ -694,7 +694,7 @@ print(f"Model: {result.model_used}")
 - GPT-4: ~$0.03/1K tokens
 - **Savings: ~99% cheaper for code tasks!**
 
-### Using Google Gemini with CascadeFlow
+### Using Google Gemini with cascadeflow
 
 Google's Gemini models offer excellent value, especially Gemini Flash:
 
@@ -785,7 +785,7 @@ See [`examples/integrations/litellm_providers.py`](../../examples/integrations/l
 5. **Provider info** - Get provider capabilities dynamically
 6. **Convenience functions** - Quick cost calculations
 7. **API key status** - Check which keys are configured
-8. **Real-world usage** - Integrate with CascadeFlow agents
+8. **Real-world usage** - Integrate with cascadeflow agents
 
 ### Benefits of LiteLLM Integration
 

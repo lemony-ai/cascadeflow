@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../../.github/assets/CF_logo_bright.svg">
   <source media="(prefers-color-scheme: light)" srcset="../../../.github/assets/CF_logo_dark.svg">
-  <img alt="CascadeFlow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="533">
+  <img alt="cascadeflow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="533">
 </picture>
 
 # n8n-nodes-cascadeflow
@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../../LICENSE)
 [![n8n](https://img.shields.io/badge/n8n-1.0+-orange.svg)](https://n8n.io/)
 
-**<img src="../../../.github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n community node for CascadeFlow**
+**<img src="../../../.github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n community node for cascadeflow**
 
 </div>
 
@@ -20,9 +20,9 @@
 
 **Intelligent AI model cascading for n8n workflows.**
 
-This is an n8n community node that brings CascadeFlow's intelligent AI model cascading to n8n workflows.
+This is an n8n community node that brings cascadeflow's intelligent AI model cascading to n8n workflows.
 
-**CascadeFlow** reduces LLM API costs by 40-85% by trying a cheap model first, validating quality, and only escalating to expensive models when needed.
+**cascadeflow** reduces LLM API costs by 40-85% by trying a cheap model first, validating quality, and only escalating to expensive models when needed.
 
 [n8n](https://n8n.io/) is a fair-code licensed workflow automation platform.
 
@@ -53,7 +53,7 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install n8n-nodes-cascadeflow
 
 ## Operations
 
-The CascadeFlow node supports these operations:
+The cascadeflow node supports these operations:
 
 ### Generate Text
 
@@ -75,7 +75,7 @@ Same cascading logic but with tool calling support for function-based AI.
 
 ### Credentials
 
-The node requires a CascadeFlow API credential with API keys for the providers you want to use:
+The node requires a cascadeflow API credential with API keys for the providers you want to use:
 
 - **OpenAI API Key** - For GPT models
 - **Anthropic API Key** - For Claude models
@@ -120,7 +120,7 @@ You only need to provide keys for the providers you're actually using.
 ```
 Input: "What is TypeScript?"
 
-CascadeFlow Node:
+cascadeflow Node:
   Draft: gpt-4o-mini ($0.00015)
   Verifier: gpt-5 ($0.00125)
 
@@ -137,7 +137,7 @@ Output:
 ```
 Trigger: Webhook (customer question)
     ↓
-CascadeFlow Node (draft: claude-3-haiku, verifier: claude-3-sonnet)
+cascadeflow Node (draft: claude-3-haiku, verifier: claude-3-sonnet)
     ↓
 IF Node (check if escalated)
     ├─ Yes → Send to human support
@@ -151,9 +151,9 @@ Schedule: Daily at 9am
     ↓
 Code Node: Generate topic ideas
     ↓
-CascadeFlow Node: Generate blog post
+cascadeflow Node: Generate blog post
     ↓
-CascadeFlow Node: Proofread and edit
+cascadeflow Node: Proofread and edit
     ↓
 Notion Node: Save to content calendar
 ```
@@ -161,7 +161,7 @@ Notion Node: Save to content calendar
 ### Tool Calling
 
 ```
-CascadeFlow Node (Generate with Tools):
+cascadeflow Node (Generate with Tools):
   Message: "What's the weather in Paris?"
   Tools: [
     {
@@ -245,7 +245,7 @@ Output:
 
 **With GPT-5 (Recommended):**
 
-| Use Case | Traditional GPT-5 Only | CascadeFlow (Haiku + GPT-5) | Savings |
+| Use Case | Traditional GPT-5 Only | cascadeflow (Haiku + GPT-5) | Savings |
 |----------|------------------------|------------------------------|---------|
 | Simple Q&A (70% of traffic) | $0.00125 | $0.0008 | 36% |
 | Complex query (30% of traffic) | $0.00125 | $0.00125 | 0% (correctly escalated) |
@@ -253,12 +253,12 @@ Output:
 
 **Monthly savings (10,000 queries):**
 - Traditional (GPT-5 only): $12.50
-- CascadeFlow (Haiku + GPT-5): $9.40
+- cascadeflow (Haiku + GPT-5): $9.40
 - **You save: $3.10/month** (25% savings)
 
 **Monthly savings (100,000 queries):**
 - Traditional (GPT-5 only): $125.00
-- CascadeFlow (Haiku + GPT-5): $94.00
+- cascadeflow (Haiku + GPT-5): $94.00
 - **You save: $31.00/month** (25% savings)
 
 **Note:** GPT-5 is already 50% cheaper input than GPT-4o. Cascading adds additional 25-30% savings on top!
@@ -322,8 +322,8 @@ Tested with n8n version 1.0+
 ## Resources
 
 - [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
-- [CascadeFlow GitHub](https://github.com/lemony-ai/cascadeflow)
-- [CascadeFlow Documentation](https://docs.lemony.ai/cascadeflow)
+- [cascadeflow GitHub](https://github.com/lemony-ai/cascadeflow)
+- [cascadeflow Documentation](https://docs.lemony.ai/cascadeflow)
 
 ## License
 

@@ -1,4 +1,4 @@
-# CascadeFlow TypeScript Examples
+# cascadeflow TypeScript Examples
 
 Examples for using `@cascadeflow/core` in TypeScript/JavaScript environments.
 
@@ -139,7 +139,7 @@ All 7 providers work in both Node.js and browser:
 - ✅ HuggingFace
 - ✅ vLLM (local)
 
-CascadeFlow automatically detects your runtime environment!
+cascadeflow automatically detects your runtime environment!
 
 ## 📖 Documentation
 

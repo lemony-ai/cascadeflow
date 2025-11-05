@@ -1,5 +1,5 @@
 """
-PII (Personally Identifiable Information) detection for CascadeFlow.
+PII (Personally Identifiable Information) detection for cascadeflow.
 
 Detects common PII patterns in text using regex.
 """

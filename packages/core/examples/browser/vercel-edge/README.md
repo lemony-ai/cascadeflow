@@ -1,6 +1,6 @@
-# CascadeFlow Vercel Edge Function Example
+# cascadeflow Vercel Edge Function Example
 
-Deploy CascadeFlow as a globally distributed edge function on Vercel for low-latency AI inference with 40-85% cost savings.
+Deploy cascadeflow as a globally distributed edge function on Vercel for low-latency AI inference with 40-85% cost savings.
 
 ## Features
 
@@ -152,7 +152,7 @@ const result = await agent.run(query, {
 
 ### Example Savings
 
-| Scenario | Traditional Cost | CascadeFlow Cost | Savings |
+| Scenario | Traditional Cost | cascadeflow Cost | Savings |
 |----------|------------------|------------------|---------|
 | Simple query (200 tokens) | $0.00025 (GPT-5) | $0.00016 (Claude Haiku) | **36%** |
 | Complex query (500 tokens) | $0.000625 (GPT-5) | $0.000625 (escalated) | **0%** (correct escalation) |
@@ -162,7 +162,7 @@ const result = await agent.run(query, {
 
 1000 queries/day:
 - Traditional (GPT-5): $0.50/day = **$15.00/month**
-- CascadeFlow (Claude Haiku + GPT-5): $0.30/day = **$9.00/month**
+- cascadeflow (Claude Haiku + GPT-5): $0.30/day = **$9.00/month**
 - **Savings: $6.00/month (40%)**
 
 ## Monitoring
@@ -226,7 +226,7 @@ headers: {
 ## Learn More
 
 - [Vercel Edge Functions](https://vercel.com/docs/functions/edge-functions)
-- [CascadeFlow Documentation](https://github.com/cascadeflow/cascadeflow)
+- [cascadeflow Documentation](https://github.com/cascadeflow/cascadeflow)
 - [OpenAI API Pricing](https://openai.com/api/pricing/)
 
 ## License

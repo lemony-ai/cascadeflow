@@ -1,4 +1,4 @@
-"""User profile system for CascadeFlow."""
+"""User profile system for cascadeflow."""
 
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
@@ -10,7 +10,7 @@ from .tier_config import TierConfig, TierLevel, TIER_PRESETS
 @dataclass
 class UserProfile:
     """
-    Complete user profile for CascadeFlow.
+    Complete user profile for cascadeflow.
 
     Multi-dimensional profile system where tier is ONE subcategory among:
     1. Identity (who)

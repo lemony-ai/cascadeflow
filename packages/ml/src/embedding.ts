@@ -1,5 +1,5 @@
 /**
- * Unified Embedding Service for CascadeFlow TypeScript
+ * Unified Embedding Service for cascadeflow TypeScript
  *
  * Provides semantic embedding capabilities using Transformers.js with BGE-small-en-v1.5.
  * Achieves feature parity with Python implementation.
@@ -15,7 +15,7 @@
 import type { EmbeddingVector, CacheInfo } from './types';
 
 /**
- * Single embedding model for all semantic tasks in CascadeFlow.
+ * Single embedding model for all semantic tasks in cascadeflow.
  *
  * Uses Transformers.js with Xenova/bge-small-en-v1.5 (ONNX optimized):
  * - 45M parameters, 384 dimensions

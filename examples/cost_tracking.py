@@ -2,7 +2,7 @@
 Cost Tracking Example - FIXED VERSION
 ======================================
 
-Comprehensive cost tracking and budget management with CascadeFlow.
+Comprehensive cost tracking and budget management with cascadeflow.
 
 This example demonstrates:
 - Real-time cost tracking across queries
@@ -46,7 +46,7 @@ async def main():
         print("❌ Set OPENAI_API_KEY first: export OPENAI_API_KEY='sk-...'")
         return
 
-    print("💰 CascadeFlow Cost Tracking\n")
+    print("💰 cascadeflow Cost Tracking\n")
 
     # ═══════════════════════════════════════════════════════════════════════
     # STEP 2: Setup Cost Tracker with Budget

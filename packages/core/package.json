@@ -1,7 +1,7 @@
 {
   "name": "@cascadeflow/core",
   "version": "0.2.0",
-  "description": "CascadeFlow TypeScript library - Smart AI model cascading for cost optimization",
+  "description": "cascadeflow TypeScript library - Smart AI model cascading for cost optimization",
   "author": {
     "name": "Lemony Inc.",
     "email": "hello@lemony.ai"

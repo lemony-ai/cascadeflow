@@ -1,5 +1,5 @@
 /**
- * Vercel Edge Function for CascadeFlow
+ * Vercel Edge Function for cascadeflow
  *
  * This edge function runs globally on Vercel's network for low-latency AI inference.
  *

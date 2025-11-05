@@ -1,5 +1,5 @@
 """
-User Profile System for CascadeFlow.
+User Profile System for cascadeflow.
 
 This module provides a comprehensive user profile system for managing
 thousands of users with different subscription tiers, limits, and preferences.

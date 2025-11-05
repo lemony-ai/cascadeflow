@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-We release security updates for the following versions of CascadeFlow:
+We release security updates for the following versions of cascadeflow:
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -89,7 +89,7 @@ Security advisories will be published on:
 
 ### For Users
 
-When using CascadeFlow, follow these security practices:
+When using cascadeflow, follow these security practices:
 
 #### API Key Management
 
@@ -158,7 +158,7 @@ agent = CascadeAgent(models=models)
 
 ### For Contributors
 
-If you're contributing to CascadeFlow:
+If you're contributing to cascadeflow:
 
 #### Code Review
 
@@ -338,11 +338,11 @@ For general questions:
 
 ## Acknowledgments
 
-We appreciate the security research community's efforts to keep CascadeFlow secure. Security researchers who responsibly disclose vulnerabilities will be acknowledged in our security advisories (unless they prefer to remain anonymous).
+We appreciate the security research community's efforts to keep cascadeflow secure. Security researchers who responsibly disclose vulnerabilities will be acknowledged in our security advisories (unless they prefer to remain anonymous).
 
 ### Hall of Fame
 
-Security researchers who have helped improve CascadeFlow security:
+Security researchers who have helped improve cascadeflow security:
 
 - _No vulnerabilities reported yet_
 

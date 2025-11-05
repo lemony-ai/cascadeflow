@@ -1,6 +1,6 @@
-# Browser Examples for CascadeFlow
+# Browser Examples for cascadeflow
 
-This directory contains examples for using CascadeFlow in browser environments.
+This directory contains examples for using cascadeflow in browser environments.
 
 ## Security Note
 
@@ -10,7 +10,7 @@ This directory contains examples for using CascadeFlow in browser environments.
 
 ### 1. Vercel Edge Function (`vercel-edge/`)
 
-Deploy CascadeFlow as a Vercel Edge Function for global, low-latency inference.
+Deploy cascadeflow as a Vercel Edge Function for global, low-latency inference.
 
 **Pros:**
 - Global edge network (low latency)
@@ -23,7 +23,7 @@ Deploy CascadeFlow as a Vercel Edge Function for global, low-latency inference.
 
 ### 2. Cloudflare Worker (`cloudflare-worker/`)
 
-Run CascadeFlow on Cloudflare's edge network.
+Run cascadeflow on Cloudflare's edge network.
 
 **Pros:**
 - Extremely fast (runs closest to user)

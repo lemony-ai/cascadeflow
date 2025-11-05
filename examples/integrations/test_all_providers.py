@@ -229,7 +229,7 @@ def generate_env_template(missing_providers):
     template_path = ".env.template"
     with open(template_path, "w") as f:
         f.write("# ============================================\n")
-        f.write("# CascadeFlow Provider API Keys\n")
+        f.write("# cascadeflow Provider API Keys\n")
         f.write("# ============================================\n\n")
 
         for p in missing_providers:
@@ -272,7 +272,7 @@ def test_litellm_availability():
 
 def main():
     """Run all provider tests."""
-    print_section("CascadeFlow LiteLLM Integration Test Suite")
+    print_section("cascadeflow LiteLLM Integration Test Suite")
     print()
     print("Testing all 10 strategic providers...")
     print()

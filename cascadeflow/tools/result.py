@@ -1,5 +1,5 @@
 """
-Tool result formatting for CascadeFlow.
+Tool result formatting for cascadeflow.
 
 Handles formatting tool execution results for different providers.
 """

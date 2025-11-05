@@ -1,5 +1,5 @@
 """
-Tool execution engine for CascadeFlow.
+Tool execution engine for cascadeflow.
 
 Executes tool calls and manages results.
 """

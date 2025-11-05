@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "TypeScript examples for CascadeFlow",
+  "description": "TypeScript examples for cascadeflow",
   "dependencies": {
     "@cascadeflow/core": "workspace:*",
     "openai": "^4.73.1",

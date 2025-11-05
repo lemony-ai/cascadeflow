@@ -4,7 +4,7 @@
 
 ## Overview
 
-CascadeFlow's per-user budget tracking helps you control costs in multi-user applications by:
+cascadeflow's per-user budget tracking helps you control costs in multi-user applications by:
 
 - **Tracking costs per user** - Separate cost tracking for each user ID
 - **Enforcing tier-based budgets** - Different limits for free, pro, enterprise users
@@ -179,7 +179,7 @@ tracker = CostTracker(
 
 # Process user query
 def process_query(user_id, user_tier, query):
-    # ... run query through CascadeFlow ...
+    # ... run query through cascadeflow ...
 
     # Track cost
     tracker.add_cost(

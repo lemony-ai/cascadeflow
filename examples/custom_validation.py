@@ -2,7 +2,7 @@
 Custom Validation Example
 ==========================
 
-Build custom quality validators beyond CascadeFlow's built-in validation.
+Build custom quality validators beyond cascadeflow's built-in validation.
 
 What it demonstrates:
 - Custom validation rules for specific domains
@@ -11,7 +11,7 @@ What it demonstrates:
 - Format validation (JSON, XML, markdown)
 - Domain-specific quality checks (medical, legal, code)
 - Combining multiple validators
-- Integration with CascadeFlow quality system
+- Integration with cascadeflow quality system
 
 Requirements:
     - cascadeflow[all]
@@ -482,7 +482,7 @@ async def demo_composite_validator():
 async def main():
     """Run custom validation examples."""
 
-    print("🌊 CascadeFlow Custom Validation Examples")
+    print("🌊 cascadeflow Custom Validation Examples")
     print("=" * 70)
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -518,7 +518,7 @@ async def main():
     print("   ├─ Reject/regenerate if validation fails")
     print("   ├─ Log violations for analysis")
     print("   ├─ Adjust prompts based on failures")
-    print("   └─ Combine with CascadeFlow quality system")
+    print("   └─ Combine with cascadeflow quality system")
 
     print("\n📚 Learn more:")
     print("   • docs/guides/custom_validation.md")

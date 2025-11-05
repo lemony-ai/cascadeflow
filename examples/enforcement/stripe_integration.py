@@ -1,7 +1,7 @@
 """
 Stripe Integration Example
 
-Demonstrates integrating CascadeFlow enforcement with Stripe subscriptions.
+Demonstrates integrating cascadeflow enforcement with Stripe subscriptions.
 
 This is a TEMPLATE - requires actual Stripe API credentials to run.
 

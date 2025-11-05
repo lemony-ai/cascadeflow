@@ -1,5 +1,5 @@
 /**
- * Custom error classes for CascadeFlow
+ * Custom error classes for cascadeflow
  *
  * Provides strongly-typed errors for better error handling and debugging.
  *
@@ -20,9 +20,9 @@
 import type { Provider } from './types';
 
 /**
- * Base error class for all CascadeFlow errors
+ * Base error class for all cascadeflow errors
  */
-export class CascadeFlowError extends Error {
+export class cascadeflowError extends Error {
   /**
    * Error code for programmatic error handling
    */
@@ -39,7 +39,7 @@ export class CascadeFlowError extends Error {
     context?: Record<string, unknown>
   ) {
     super(message);
-    this.name = 'CascadeFlowError';
+    this.name = 'cascadeflowError';
     this.code = code;
     this.context = context;
 
@@ -64,7 +64,7 @@ export class CascadeFlowError extends Error {
  * );
  * ```
  */
-export class ConfigurationError extends CascadeFlowError {
+export class ConfigurationError extends cascadeflowError {
   /**
    * The configuration field that failed validation
    */
@@ -96,7 +96,7 @@ export class ConfigurationError extends CascadeFlowError {
  * );
  * ```
  */
-export class ProviderError extends CascadeFlowError {
+export class ProviderError extends cascadeflowError {
   /**
    * The provider that failed
    */
@@ -211,7 +211,7 @@ export class RateLimitError extends ProviderError {
  * );
  * ```
  */
-export class QualityValidationError extends CascadeFlowError {
+export class QualityValidationError extends cascadeflowError {
   /**
    * The confidence score that failed validation (if applicable)
    */
@@ -286,7 +286,7 @@ export class TimeoutError extends ProviderError {
  * );
  * ```
  */
-export class ToolExecutionError extends CascadeFlowError {
+export class ToolExecutionError extends cascadeflowError {
   /**
    * The name of the tool that failed
    */
@@ -315,26 +315,26 @@ export class ToolExecutionError extends CascadeFlowError {
 }
 
 /**
- * Type guard to check if an error is a CascadeFlow error
+ * Type guard to check if an error is a cascadeflow error
  *
  * @param error - The error to check
- * @returns True if the error is a CascadeFlowError or subclass
+ * @returns True if the error is a cascadeflowError or subclass
  *
  * @example
  * ```typescript
  * try {
  *   await agent.run(query);
  * } catch (error) {
- *   if (isCascadeFlowError(error)) {
- *     console.error(`CascadeFlow error [${error.code}]:`, error.message);
+ *   if (iscascadeflowError(error)) {
+ *     console.error(`cascadeflow error [${error.code}]:`, error.message);
  *   } else {
  *     console.error('Unknown error:', error);
  *   }
  * }
  * ```
  */
-export function isCascadeFlowError(error: unknown): error is CascadeFlowError {
-  return error instanceof CascadeFlowError;
+export function iscascadeflowError(error: unknown): error is cascadeflowError {
+  return error instanceof cascadeflowError;
 }
 
 /**

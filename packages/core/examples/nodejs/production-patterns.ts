@@ -1,7 +1,7 @@
 /**
- * Production Patterns for CascadeFlow
+ * Production Patterns for cascadeflow
  *
- * Demonstrates best practices for using CascadeFlow in production:
+ * Demonstrates best practices for using cascadeflow in production:
  * - Error handling and retries
  * - Caching responses
  * - Rate limiting
@@ -385,7 +385,7 @@ async function example6_Failover() {
 // ===================================================================
 
 async function main() {
-  console.log('🎯 CascadeFlow Production Patterns\n');
+  console.log('🎯 cascadeflow Production Patterns\n');
   console.log('═══════════════════════════════════════════════════\n');
 
   await example1_ErrorHandling();

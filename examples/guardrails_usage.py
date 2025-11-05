@@ -15,7 +15,7 @@ from cascadeflow import (
 
 async def main():
     print("=" * 60)
-    print("CascadeFlow v0.2.1 - Guardrails")
+    print("cascadeflow v0.2.1 - Guardrails")
     print("=" * 60)
 
     # Create profile with guardrails enabled

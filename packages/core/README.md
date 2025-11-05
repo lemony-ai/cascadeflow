@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../.github/assets/CF_logo_bright.svg">
   <source media="(prefers-color-scheme: light)" srcset="../../.github/assets/CF_logo_dark.svg">
-  <img alt="CascadeFlow Logo" src="../../.github/assets/CF_logo_dark.svg" width="533">
+  <img alt="cascadeflow Logo" src="../../.github/assets/CF_logo_dark.svg" width="533">
 </picture>
 
 # @cascadeflow/core
@@ -13,7 +13,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 
-**<img src="../../.github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript/JavaScript library for CascadeFlow**
+**<img src="../../.github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript/JavaScript library for cascadeflow**
 
 </div>
 
@@ -134,7 +134,7 @@ const agent = new CascadeAgent(
 
 ## Documentation
 
-See the [main CascadeFlow documentation](https://github.com/lemony-ai/cascadeflow) for complete guides and examples.
+See the [main cascadeflow documentation](https://github.com/lemony-ai/cascadeflow) for complete guides and examples.
 
 ## License
 

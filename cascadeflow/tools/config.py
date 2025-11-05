@@ -1,5 +1,5 @@
 """
-Tool configuration for CascadeFlow.
+Tool configuration for cascadeflow.
 
 Defines tools that can be called by language models.
 """

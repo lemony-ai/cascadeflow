@@ -1,8 +1,8 @@
 """
-Configuration System for CascadeFlow
+Configuration System for cascadeflow
 ====================================
 
-This module contains all configuration dataclasses for CascadeFlow.
+This module contains all configuration dataclasses for cascadeflow.
 
 Core Classes:
     - ModelConfig: Configure individual model providers

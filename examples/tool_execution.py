@@ -2,7 +2,7 @@
 Tool Execution Example - Complete Workflow
 ==========================================
 
-Demonstrates actual tool execution with CascadeFlow's ToolExecutor.
+Demonstrates actual tool execution with cascadeflow's ToolExecutor.
 Shows the complete lifecycle: definition → detection → execution → response.
 
 What it demonstrates:
@@ -380,7 +380,7 @@ async def main():
     Main example demonstrating complete tool execution workflow.
     """
 
-    print("🌊 CascadeFlow Tool Execution Example")
+    print("🌊 cascadeflow Tool Execution Example")
     print("=" * 70)
 
     # ─────────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-# CascadeFlow Streaming Module
+# cascadeflow Streaming Module
 
 Real-time streaming for both text and tool-calling cascades with complete diagnostics and quality validation.
 
@@ -303,7 +303,7 @@ When adding new features:
 
 ## 📄 License
 
-Part of CascadeFlow - see main LICENSE file.
+Part of cascadeflow - see main LICENSE file.
 
 ---
 

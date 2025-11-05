@@ -1,5 +1,5 @@
 """
-Example: Batch Processing with CascadeFlow v0.2.1
+Example: Batch Processing with cascadeflow v0.2.1
 
 This example demonstrates batch processing capabilities.
 """

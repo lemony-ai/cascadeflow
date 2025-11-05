@@ -1,5 +1,5 @@
 name: ❓ Question or Discussion
-description: Ask a question or start a discussion about CascadeFlow
+description: Ask a question or start a discussion about cascadeflow
 title: "[Question]: "
 labels: ["question"]
 assignees: []
@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for your interest in CascadeFlow! 
+        Thanks for your interest in cascadeflow! 
         
         **Before asking, please check:**
         - [Documentation](https://github.com/lemony-ai/cascadeflow/blob/main/README.md)
@@ -95,7 +95,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: CascadeFlow version (if relevant)
+      label: cascadeflow version (if relevant)
       placeholder: e.g., 0.1.0
     validations:
       required: false

@@ -1,6 +1,6 @@
 # ML Semantic Detection Snippets for README
 
-This directory contains optional code snippets showing how to enable ML-based semantic domain detection in CascadeFlow.
+This directory contains optional code snippets showing how to enable ML-based semantic domain detection in cascadeflow.
 
 ## Files
 

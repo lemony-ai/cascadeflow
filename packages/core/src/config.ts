@@ -1,5 +1,5 @@
 /**
- * Configuration types for CascadeFlow
+ * Configuration types for cascadeflow
  */
 
 import type { Provider, RoutingStrategy } from './types';

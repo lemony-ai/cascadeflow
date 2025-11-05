@@ -1,4 +1,4 @@
-"""Provider implementations for CascadeFlow."""
+"""Provider implementations for cascadeflow."""
 
 import logging
 from typing import Dict, Optional

@@ -1,13 +1,13 @@
 """
 LiteLLM Provider Integration Example
 
-CascadeFlow integrates with LiteLLM for:
+cascadeflow integrates with LiteLLM for:
 - Cost tracking across 100+ models
 - Access to additional providers (DeepSeek, Google, etc.)
 - Automatic pricing updates
 - Budget management
 
-This example shows how to use LiteLLM's features with CascadeFlow.
+This example shows how to use LiteLLM's features with cascadeflow.
 
 Requirements:
     pip install cascadeflow[all]
@@ -64,7 +64,7 @@ def example_1_supported_providers():
     """Example 1: List all supported providers via LiteLLM."""
     print_section("Example 1: Supported Providers via LiteLLM")
 
-    print("CascadeFlow supports these providers through LiteLLM integration:\n")
+    print("cascadeflow supports these providers through LiteLLM integration:\n")
 
     for provider_name, provider_info in SUPPORTED_PROVIDERS.items():
         print(f"📦 {provider_info.display_name}")
@@ -247,13 +247,13 @@ def example_7_check_api_keys():
 
 
 def example_8_real_world_usage():
-    """Example 8: Real-world usage pattern with CascadeFlow."""
+    """Example 8: Real-world usage pattern with cascadeflow."""
     print_section("Example 8: Real-World Usage Pattern")
 
-    print("How to use LiteLLM with CascadeFlow agents:\n")
+    print("How to use LiteLLM with cascadeflow agents:\n")
 
     print("""
-# Step 1: Import CascadeFlow and LiteLLM
+# Step 1: Import cascadeflow and LiteLLM
 from cascadeflow import CascadeAgent, ModelConfig
 from cascadeflow.integrations.litellm import LiteLLMCostProvider
 
@@ -322,7 +322,7 @@ def main():
     print("  5. How to check provider capabilities")
     print("  6. How to use convenience functions")
     print("  7. How to check API key configuration")
-    print("  8. How to integrate with CascadeFlow agents")
+    print("  8. How to integrate with cascadeflow agents")
 
     print("\n📚 Next Steps:")
     print("  - Set up API keys for providers you want to use")
@@ -339,7 +339,7 @@ def main():
     print("  - DeepSeek is 5-10x cheaper than GPT-4 for code tasks")
     print("  - Gemini Flash is fast and cheap for simple queries")
     print("  - Use LiteLLM's budget manager for production")
-    print("  - Cost tracking happens automatically with CascadeFlow")
+    print("  - Cost tracking happens automatically with cascadeflow")
 
     print("\n" + "=" * 80)
     print("  Ready to optimize your AI costs! 🚀")

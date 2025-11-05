@@ -17,7 +17,7 @@ pip install vllm[cuda]
 
 
 
-# Using with CascadeFlow
+# Using with cascadeflow
 from cascadeflow import CascadeAgent, ModelConfig
 
 models = [

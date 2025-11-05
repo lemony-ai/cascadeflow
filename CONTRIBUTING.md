@@ -1,6 +1,6 @@
-# Contributing to CascadeFlow
+# Contributing to cascadeflow
 
-Thank you for your interest in contributing to CascadeFlow! 🌊
+Thank you for your interest in contributing to cascadeflow! 🌊
 
 We welcome contributions of all kinds: bug reports, documentation improvements, feature requests, and code contributions.
 
@@ -42,7 +42,7 @@ This project follows a Code of Conduct to ensure a welcoming environment for eve
 
 ## Monorepo Structure
 
-CascadeFlow is a monorepo containing both **Python** and **TypeScript/JavaScript** implementations:
+cascadeflow is a monorepo containing both **Python** and **TypeScript/JavaScript** implementations:
 
 ```
 cascadeflow/
@@ -708,7 +708,7 @@ What actually happens
 **Environment**
 - OS: Ubuntu 22.04
 - Python: 3.11.5
-- CascadeFlow: 0.1.0
+- cascadeflow: 0.1.0
 - Provider: OpenAI
 
 **Additional context**
@@ -839,4 +839,4 @@ git push origin feature/name   # Push to your fork
 - Join our discussions
 - Check existing documentation
 
-Thank you for contributing to CascadeFlow! 🚀
+Thank you for contributing to cascadeflow! 🚀

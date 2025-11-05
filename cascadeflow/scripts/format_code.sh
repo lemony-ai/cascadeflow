@@ -1,10 +1,10 @@
 #!/bin/bash
-# CascadeFlow Code Formatting Script
+# cascadeflow Code Formatting Script
 # Run this before every commit and definitely before launch!
 
 set -e  # Exit on any error
 
-echo "🎨 CascadeFlow - Code Formatting Script"
+echo "🎨 cascadeflow - Code Formatting Script"
 echo "========================================"
 echo ""
 

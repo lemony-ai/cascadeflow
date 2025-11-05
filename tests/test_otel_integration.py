@@ -3,7 +3,7 @@ Unit tests for OpenTelemetry integration.
 
 Tests:
 - MetricDimensions creation and attributes
-- CascadeFlowMetrics creation
+- cascadeflowMetrics creation
 - OpenTelemetryExporter initialization
 - Metric recording
 - Environment-based configuration
@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch, MagicMock
 # Import the classes (will work even if opentelemetry not installed)
 from cascadeflow.integrations.otel import (
     MetricDimensions,
-    CascadeFlowMetrics,
+    cascadeflowMetrics,
     OpenTelemetryExporter,
     create_exporter_from_env,
 )
@@ -87,12 +87,12 @@ class TestMetricDimensions:
         }
 
 
-class TestCascadeFlowMetrics:
-    """Test CascadeFlowMetrics class."""
+class TestcascadeflowMetrics:
+    """Test cascadeflowMetrics class."""
 
     def test_create_metrics(self):
         """Test creating metrics."""
-        metrics = CascadeFlowMetrics(
+        metrics = cascadeflowMetrics(
             cost=0.001,
             tokens_input=100,
             tokens_output=200,
@@ -107,7 +107,7 @@ class TestCascadeFlowMetrics:
     def test_create_metrics_with_dimensions(self):
         """Test creating metrics with dimensions."""
         dims = MetricDimensions(user_id="user123", model="gpt-4o-mini")
-        metrics = CascadeFlowMetrics(
+        metrics = cascadeflowMetrics(
             cost=0.001,
             tokens_input=100,
             tokens_output=200,
@@ -119,7 +119,7 @@ class TestCascadeFlowMetrics:
 
     def test_tokens_total_property(self):
         """Test tokens_total property calculation."""
-        metrics = CascadeFlowMetrics(
+        metrics = cascadeflowMetrics(
             cost=0.0,
             tokens_input=50,
             tokens_output=150,
@@ -158,7 +158,7 @@ class TestOpenTelemetryExporter:
         """Test recording metrics when exporter is disabled."""
         exporter = OpenTelemetryExporter(enabled=False)
 
-        metrics = CascadeFlowMetrics(
+        metrics = cascadeflowMetrics(
             cost=0.001,
             tokens_input=100,
             tokens_output=200,
@@ -186,7 +186,7 @@ class TestOpenTelemetryExporter:
         )
 
         # Record metrics (should not raise error when disabled)
-        metrics = CascadeFlowMetrics(
+        metrics = cascadeflowMetrics(
             cost=0.001,
             tokens_input=100,
             tokens_output=200,
@@ -266,7 +266,7 @@ class TestIntegration:
         )
 
         # Create metrics
-        metrics = CascadeFlowMetrics(
+        metrics = cascadeflowMetrics(
             cost=0.0015,
             tokens_input=100,
             tokens_output=200,
@@ -295,7 +295,7 @@ class TestIntegration:
 
         # Record multiple metrics
         for i in range(10):
-            metrics = CascadeFlowMetrics(
+            metrics = cascadeflowMetrics(
                 cost=0.001 * i,
                 tokens_input=100 * i,
                 tokens_output=200 * i,

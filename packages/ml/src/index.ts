@@ -1,5 +1,5 @@
 /**
- * @cascadeflow/ml - ML semantic detection for CascadeFlow TypeScript
+ * @cascadeflow/ml - ML semantic detection for cascadeflow TypeScript
  *
  * Brings TypeScript to feature parity with Python's ML capabilities using Transformers.js.
  */

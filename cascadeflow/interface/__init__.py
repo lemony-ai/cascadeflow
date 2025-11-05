@@ -1,5 +1,5 @@
 """
-CascadeFlow Interface Module
+cascadeflow Interface Module
 ============================
 
 User-facing interface components for visual feedback and UI.

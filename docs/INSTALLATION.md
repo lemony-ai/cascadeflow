@@ -1,4 +1,4 @@
-# CascadeFlow Installation Guide
+# cascadeflow Installation Guide
 
 ## 📦 Files
 
@@ -67,7 +67,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 # 2. Pull a model
 ollama pull llama3.2:1b
 
-# 3. Use with CascadeFlow
+# 3. Use with cascadeflow
 pip install cascadeflow  # Core only, no extras needed!
 ```
 
@@ -151,7 +151,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 # Pull a small model
 ollama pull llama3.2:1b
 
-# Install just core CascadeFlow
+# Install just core cascadeflow
 pip install cascadeflow
 
 # Test
@@ -238,7 +238,7 @@ pip install -r requirements-dev.txt
 
 ## 🎯 Installation Examples by Use Case
 
-### "I want to try CascadeFlow with OpenAI"
+### "I want to try cascadeflow with OpenAI"
 ```bash
 pip install cascadeflow[openai]
 ```
@@ -261,7 +261,7 @@ pip install cascadeflow
 # Then install Ollama from https://ollama.ai
 ```
 
-### "I'm contributing to CascadeFlow"
+### "I'm contributing to cascadeflow"
 ```bash
 git clone https://github.com/lemony-ai/cascadeflow.git
 cd cascadeflow

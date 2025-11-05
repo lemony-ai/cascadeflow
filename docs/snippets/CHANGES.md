@@ -54,7 +54,7 @@ Install the optional ML package for improved domain detection:
 pip install cascadeflow[ml]  # Adds semantic similarity detection
 ```
 
-That's it! CascadeFlow automatically uses ML when available:
+That's it! cascadeflow automatically uses ML when available:
 [... code example ...]
 
 **What you get:**
@@ -76,7 +76,7 @@ That's it! CascadeFlow automatically uses ML when available:
 For Python users, install the optional ML package:
 [... code example ...]
 
-Currently, CascadeFlow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
+Currently, cascadeflow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
 
 </details>
 ```

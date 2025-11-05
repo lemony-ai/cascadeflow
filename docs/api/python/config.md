@@ -1,6 +1,6 @@
 # ModelConfig & Configuration (Python)
 
-Configuration classes for CascadeFlow models and cascade behavior.
+Configuration classes for cascadeflow models and cascade behavior.
 
 ## Class: `ModelConfig`
 

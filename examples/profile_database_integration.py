@@ -1,7 +1,7 @@
 """
-Example: Easy Database Integration with CascadeFlow User Profiles
+Example: Easy Database Integration with cascadeflow User Profiles
 
-This example demonstrates how to integrate CascadeFlow profiles
+This example demonstrates how to integrate cascadeflow profiles
 with your existing application database (SQL, NoSQL, etc.) and
 support domain-specific models per user.
 
@@ -24,7 +24,7 @@ from cascadeflow import CascadeAgent, UserProfile, TierLevel, UserProfileManager
 
 def create_profile_from_user_data(user_data: Dict) -> UserProfile:
     """
-    Create CascadeFlow profile from existing user database record.
+    Create cascadeflow profile from existing user database record.
 
     This is the simplest integration pattern - map your existing
     user data structure to a UserProfile.
@@ -317,7 +317,7 @@ def bulk_migration_example():
 
 async def main():
     print("\n" + "=" * 70)
-    print(" CascadeFlow User Profiles - Database Integration Guide")
+    print(" cascadeflow User Profiles - Database Integration Guide")
     print("=" * 70)
 
     # Run all examples

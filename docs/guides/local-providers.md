@@ -489,7 +489,7 @@ See complete working examples:
 - Documentation: https://docs.vllm.ai/en/latest/
 - Supported Models: https://docs.vllm.ai/en/latest/models/supported_models.html
 
-### CascadeFlow
+### cascadeflow
 - Documentation: `docs/`
 - Examples: `examples/integrations/`
 - Provider Guide: `docs/guides/`

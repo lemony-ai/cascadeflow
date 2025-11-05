@@ -1,9 +1,9 @@
 @echo off
-REM CascadeFlow Code Formatting Script (Windows)
+REM cascadeflow Code Formatting Script (Windows)
 REM Run this before every commit and definitely before launch!
 
 echo.
-echo 🎨 CascadeFlow - Code Formatting Script
+echo 🎨 cascadeflow - Code Formatting Script
 echo ========================================
 echo.
 

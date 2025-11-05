@@ -1,7 +1,7 @@
 """
-Nvidia Jetson Thor/Spark Edge Device with vLLM - CascadeFlow Example
+Nvidia Jetson Thor/Spark Edge Device with vLLM - cascadeflow Example
 
-This example demonstrates running CascadeFlow on edge AI devices like:
+This example demonstrates running cascadeflow on edge AI devices like:
 - Nvidia Jetson Thor
 - Nvidia Jetson Orin (AGX, NX, Nano)
 - Nvidia Jetson Xavier
@@ -88,10 +88,10 @@ Use Cases:
 
 Cost Analysis (10k queries/month):
 
-    Without CascadeFlow (all cloud - Claude Sonnet):
+    Without cascadeflow (all cloud - Claude Sonnet):
         10,000 × $0.003 = $30.00/month
 
-    With CascadeFlow (edge-first strategy):
+    With cascadeflow (edge-first strategy):
         Local  (7,000): $0.00 (free - your hardware)
         Cloud  (3,000): 3,000 × $0.003 = $9.00/month
 
@@ -266,7 +266,7 @@ def get_test_queries() -> list[dict[str, Any]]:
 
 async def main():
     """
-    Demonstrate CascadeFlow on Nvidia Jetson Thor/Spark edge device.
+    Demonstrate cascadeflow on Nvidia Jetson Thor/Spark edge device.
     """
 
     print("=" * 80)

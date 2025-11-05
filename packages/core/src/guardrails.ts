@@ -1,5 +1,5 @@
 /**
- * Guardrails for CascadeFlow TypeScript (v0.2.1+)
+ * Guardrails for cascadeflow TypeScript (v0.2.1+)
  *
  * Content moderation and PII detection for production safety.
  */
