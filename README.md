@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_logo_bright.svg">
   <source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_logo_dark.svg">
-  <img alt="CascadeFlow Logo" src=".github/assets/CF_logo_dark.svg" width="400">
+  <img alt="CascadeFlow Logo" src=".github/assets/CF_logo_dark.svg" width="533">
 </picture>
 
 # Smart AI model cascading for cost optimization
