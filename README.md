@@ -274,7 +274,7 @@ console.log(`Toxic: ${result.isToxic}`);
 
 #### Before (Standard Approach)
 
-Cost: $0.001250, Latency: 850ms
+Cost: $0.000051, Latency: 850ms
 
 ```python
 # Using expensive model for everything
@@ -286,18 +286,18 @@ result = openai.chat.completions.create(
 
 #### After (With cascadeflow)
 
-Cost: $0.000150, Latency: 234ms
+Cost: $0.000003, Latency: 234ms
 
 ```python
 agent = CascadeAgent(models=[
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
-    ModelConfig(name="gpt-5", provider="openai", cost=0.00125),
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="gpt-5", provider="openai", cost=0.005625),
 ])
 
 result = await agent.run("What's 2+2?")
 ```
 
-> **🔥 Saved:** $0.001100 (88% reduction), 3.6x faster
+> **🔥 Saved:** $0.000048 (93% reduction), 3.6x faster
 
 📊 **Learn more:** [Cost Tracking Guide](./docs/guides/cost_tracking.md) | [Production Best Practices](./docs/guides/production.md) | [Performance Optimization](./docs/guides/performance.md)
 
@@ -325,7 +325,7 @@ Manual Trigger → cascadeflow Node → Set Node
 
 Configure cascadeflow node:
 
-- **Draft Model**: `gpt-4o-mini` ($0.00015)
+- **Draft Model**: `gpt-4o-mini` ($0.000375)
 - **Verifier Model**: `gpt-4o` ($0.00625)
 - **Message**: Your prompt
 - **Output**: Full Metrics
