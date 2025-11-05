@@ -3,12 +3,22 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../../.github/assets/CF_logo_bright.svg">
   <source media="(prefers-color-scheme: light)" srcset="../../../.github/assets/CF_logo_dark.svg">
-  <img alt="CascadeFlow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="400">
+  <img alt="CascadeFlow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="533">
 </picture>
 
 # n8n-nodes-cascadeflow
 
-<img src="../../../.github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/> **n8n community node for CascadeFlow**
+[![npm version](https://img.shields.io/npm/v/n8n-nodes-cascadeflow?color=red&label=npm)](https://www.npmjs.com/package/n8n-nodes-cascadeflow)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../../LICENSE)
+[![n8n](https://img.shields.io/badge/n8n-1.0+-orange.svg)](https://n8n.io/)
+
+**<img src="../../../.github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n community node for CascadeFlow**
+
+</div>
+
+---
+
+**Intelligent AI model cascading for n8n workflows.**
 
 This is an n8n community node that brings CascadeFlow's intelligent AI model cascading to n8n workflows.
 

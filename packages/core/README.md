@@ -8,9 +8,20 @@
 
 # @cascadeflow/core
 
-<img src="../../.github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> **TypeScript/JavaScript library for CascadeFlow**
+[![npm version](https://img.shields.io/npm/v/@cascadeflow/core?color=red&label=npm)](https://www.npmjs.com/package/@cascadeflow/core)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 
-Smart AI model cascading for cost optimization.
+**<img src="../../.github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript/JavaScript library for CascadeFlow**
+
+</div>
+
+---
+
+**Smart AI model cascading for cost optimization.**
+
+Save 40-85% on LLM costs with intelligent model routing. Available for Node.js, browser, and edge environments.
 
 ## Installation
 
