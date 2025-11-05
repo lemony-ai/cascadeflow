@@ -7,7 +7,7 @@ import {
 
 export class cascadeflowApi implements ICredentialType {
   name = 'cascadeFlowApi';
-  displayName = 'cascadeflow API';
+  displayName = 'Cascadeflow API';
   documentationUrl = 'https://github.com/lemony-ai/cascadeflow';
   properties: INodeProperties[] = [
     {
