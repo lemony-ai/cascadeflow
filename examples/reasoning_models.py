@@ -52,7 +52,7 @@ async def main():
     print(f"  Prompt tokens: {result1.metadata.get('prompt_tokens')}")
     print(f"  Completion tokens: {result1.metadata.get('completion_tokens')}")
     print(f"  Reasoning tokens: {result1.metadata.get('reasoning_tokens')}")  # Hidden reasoning
-    print(f"Cost: ${result1.total_cost:.6f}")
+    print(f"Cost: ${result1.cost:.6f}")
 
     # Example 2: o1-2024-12-17 (newer model with reasoning_effort)
     print("\n=== Example 2: o1-2024-12-17 with reasoning_effort ===")
@@ -63,6 +63,7 @@ async def main():
                 provider="openai",
             )
         ],
+        default_provider="openai",
     )
 
     # High reasoning effort for complex problem
@@ -74,12 +75,10 @@ async def main():
 
     print(f"Response: {result2.content[:500]}...")
     print(f"\nReasoning tokens used: {result2.metadata.get('reasoning_tokens')}")
-    print(f"Cost: ${result2.total_cost:.6f}")
+    print(f"Cost: ${result2.cost:.6f}")
 
     # Example 3: Using in cascade (auto-routing to reasoning model)
     print("\n=== Example 3: Cascade with reasoning model fallback ===")
-    from cascadeflow import QualityConfig
-
     agent3 = CascadeAgent(
         models=[
             ModelConfig(
@@ -91,14 +90,8 @@ async def main():
                 provider="openai",
             ),
         ],
-        quality_config=QualityConfig(
-            confidence_thresholds={
-                'simple': 0.8,
-                'moderate': 0.8,
-                'hard': 0.8,
-                'expert': 0.8,
-            }
-        ),  # High quality threshold
+        default_provider="openai",
+        min_quality=0.8,  # High quality threshold
     )
 
     result3 = await agent3.run(
@@ -106,7 +99,7 @@ async def main():
         max_tokens=2000,
     )
 
-    print(f"Model used: {result3.model_used}")
+    print(f"Model used: {result3.model}")
     print(f"Response: {result3.content[:300]}...")
     print(f"Quality score: {result3.quality_score}")
 
@@ -123,7 +116,7 @@ async def main():
 
         print(f"\n{effort.upper()} effort:")
         print(f"  Reasoning tokens: {result.metadata.get('reasoning_tokens')}")
-        print(f"  Total cost: ${result.total_cost:.6f}")
+        print(f"  Total cost: ${result.cost:.6f}")
         print(f"  Response length: {len(result.content)} chars")
 
     # Example 5: Anthropic Claude 3.7 Sonnet with Extended Thinking
@@ -135,6 +128,7 @@ async def main():
                 provider="anthropic",
             )
         ],
+        default_provider="anthropic",
     )
 
     result4 = await agent4.run(
@@ -147,7 +141,7 @@ async def main():
     print(f"\nUsage:")
     print(f"  Prompt tokens: {result4.metadata.get('prompt_tokens')}")
     print(f"  Completion tokens: {result4.metadata.get('completion_tokens')}")
-    print(f"Cost: ${result4.total_cost:.6f}")
+    print(f"Cost: ${result4.cost:.6f}")
     print("\nNote: Claude extended thinking produces visible reasoning in the response!")
 
     # Example 6: DeepSeek-R1 via Ollama (Free Local Inference)
@@ -164,6 +158,7 @@ async def main():
                     provider="ollama",
                 )
             ],
+            default_provider="ollama",
         )
 
         result5 = await agent5.run(
@@ -172,7 +167,7 @@ async def main():
         )
 
         print(f"Response: {result5.content[:400]}...")
-        print(f"Cost: ${result5.total_cost:.6f} (FREE - local inference)")
+        print(f"Cost: ${result5.cost:.6f} (FREE - local inference)")
     except Exception as e:
         print(f"Skipping - Ollama not available: {e}")
         print("Install from: https://ollama.ai")
@@ -194,6 +189,7 @@ async def main():
                     base_url="http://localhost:8000/v1",
                 )
             ],
+            default_provider="vllm",
         )
 
         result6 = await agent6.run(
@@ -202,7 +198,7 @@ async def main():
         )
 
         print(f"Response: {result6.content[:400]}...")
-        print(f"Cost: ${result6.total_cost:.6f} (FREE - self-hosted)")
+        print(f"Cost: ${result6.cost:.6f} (FREE - self-hosted)")
         print("Note: vLLM provides 24x faster inference than standard serving!")
     except Exception as e:
         print(f"Skipping - vLLM server not available: {e}")
@@ -226,14 +222,7 @@ async def main():
                 provider="anthropic",
             ),
         ],
-        quality_config=QualityConfig(
-            confidence_thresholds={
-                'simple': 0.85,
-                'moderate': 0.85,
-                'hard': 0.85,
-                'expert': 0.85,
-            }
-        ),
+        min_quality=0.85,
     )
 
     print("This cascade tries:")
