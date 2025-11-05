@@ -211,11 +211,15 @@ async def main():
             stats["direct_routing"] += 1
 
         # Track actual token usage for baseline calculation
-        # All results have draft_response (and optionally verifier_response)
-        if hasattr(result, "draft_response") and result.draft_response:
-            total_tokens_used += result.draft_response.tokens_used
-        if hasattr(result, "verifier_response") and result.verifier_response:
-            total_tokens_used += result.verifier_response.tokens_used
+        # Calculate tokens from costs (cost / cost_per_1k_tokens * 1000)
+        # Draft model (always present)
+        if hasattr(result, "draft_cost") and result.draft_cost > 0:
+            draft_tokens = (result.draft_cost / 0.00275) * 1000  # GPT-4o-mini cost
+            total_tokens_used += draft_tokens
+        # Verifier model (only if used)
+        if hasattr(result, "verifier_cost") and result.verifier_cost > 0:
+            verifier_tokens = (result.verifier_cost / 0.005625) * 1000  # GPT-5 cost
+            total_tokens_used += verifier_tokens
 
         # Show result
         tier = "Tier 1 (Cheap)" if model_used == "gpt-4o-mini" else "Tier 2 (Expensive)"
