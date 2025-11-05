@@ -35,7 +35,7 @@ cascadeflow supports 7 AI providers, each with unique strengths. You can mix any
 
 ### 1. OpenAI
 
-**Models**: GPT-4o, GPT-4o-mini, GPT-3.5-turbo, GPT-4
+**Models**: GPT-4o, GPT-4o-mini, GPT-4 Turbo
 
 **Strengths:**
 - ✅ Best overall quality
