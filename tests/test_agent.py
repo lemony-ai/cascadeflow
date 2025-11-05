@@ -275,8 +275,11 @@ class TestComplexityDetection:
 
         result = await mock_agent.run("What is 2+2?")
 
-        # Should use cheapest model for trivial queries
-        assert result.total_cost == 0.0  # ✅ Fixed: was result.cost
+        # Should use cheapest model for trivial queries (cascade: free drafter + verifier)
+        # Cascade uses free llama3:8b as drafter (cost=0.0) + gpt-4o verifier (small cost)
+        assert result.draft_cost == 0.0  # Drafter should be free
+        assert result.total_cost > 0.0  # Verifier adds small cost
+        assert result.total_cost < 0.001  # But total cost should be minimal
 
     @pytest.mark.asyncio
     async def test_expert_query(self, mock_agent):
