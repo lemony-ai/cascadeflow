@@ -511,8 +511,8 @@ python examples/basic_usage.py
 - Track costs
 
 ### 5. Join the Community
-- ⭐ Star the [GitHub repo](https://github.com/lemony-ai/CascadeFlow)
-- 💬 Join [Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)
+- ⭐ Star the [GitHub repo](https://github.com/lemony-ai/cascadeflow)
+- 💬 Join [Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
 - 🐛 Report issues
 - 🤝 Contribute examples
 
@@ -569,8 +569,8 @@ print(f"Total: ${total:.6f}")
 ## Support
 
 Need help?
-- 💬 Ask in [Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)
-- 🐛 Report a [bug](https://github.com/lemony-ai/CascadeFlow/issues)
+- 💬 Ask in [Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
+- 🐛 Report a [bug](https://github.com/lemony-ai/cascadeflow/issues)
 
 ---
 

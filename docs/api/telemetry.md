@@ -186,4 +186,4 @@ Current telemetry API version: **2.4.0** (October 2025)
 
 ---
 
-**Questions?** Open an issue on [GitHub](https://github.com/lemony-ai/CascadeFlow/issues).
+**Questions?** Open an issue on [GitHub](https://github.com/lemony-ai/cascadeflow/issues).

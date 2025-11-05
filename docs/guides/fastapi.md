@@ -699,4 +699,4 @@ def test_health_check():
 
 ---
 
-**Questions?** Open an issue on [GitHub](https://github.com/lemony-ai/CascadeFlow/issues).
+**Questions?** Open an issue on [GitHub](https://github.com/lemony-ai/cascadeflow/issues).

@@ -855,4 +855,4 @@ See [`examples/production_patterns.py`](../../examples/production_patterns.py) f
 
 ---
 
-**Questions?** Check the [FastAPI Guide](fastapi.md) for API deployment or open an issue on [GitHub](https://github.com/lemony-ai/CascadeFlow/issues).
+**Questions?** Check the [FastAPI Guide](fastapi.md) for API deployment or open an issue on [GitHub](https://github.com/lemony-ai/cascadeflow/issues).

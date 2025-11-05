@@ -139,12 +139,12 @@
 
 ### Make Repository Public
 ```bash
-gh repo edit lemony-ai/CascadeFlow --visibility public
+gh repo edit lemony-ai/cascadeflow --visibility public
 ```
 
 ### Add Topics
 ```bash
-gh repo edit lemony-ai/CascadeFlow \
+gh repo edit lemony-ai/cascadeflow \
   --add-topic ai \
   --add-topic llm \
   --add-topic openai \
@@ -165,17 +165,17 @@ gh repo edit lemony-ai/CascadeFlow \
 
 ### Enable Discussions
 ```bash
-gh repo edit lemony-ai/CascadeFlow --enable-discussions
+gh repo edit lemony-ai/cascadeflow --enable-discussions
 ```
 
 ### Disable Wiki
 ```bash
-gh repo edit lemony-ai/CascadeFlow --enable-wiki=false
+gh repo edit lemony-ai/cascadeflow --enable-wiki=false
 ```
 
 ### Set Homepage
 ```bash
-gh repo edit lemony-ai/CascadeFlow --homepage "https://docs.lemony.ai/cascadeflow"
+gh repo edit lemony-ai/cascadeflow --homepage "https://docs.lemony.ai/cascadeflow"
 ```
 
 ### Create Release

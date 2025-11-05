@@ -755,9 +755,9 @@ def get_agent_for_tier(tier):
 
 Questions? Feedback?
 
-- 📖 [Full Documentation](https://github.com/lemony-ai/CascadeFlow)
-- 💬 [GitHub Issues](https://github.com/lemony-ai/CascadeFlow/issues)
-- 🐛 [Report a Bug](https://github.com/lemony-ai/CascadeFlow/issues/new)
+- 📖 [Full Documentation](https://github.com/lemony-ai/cascadeflow)
+- 💬 [GitHub Issues](https://github.com/lemony-ai/cascadeflow/issues)
+- 🐛 [Report a Bug](https://github.com/lemony-ai/cascadeflow/issues/new)
 
 ---
 

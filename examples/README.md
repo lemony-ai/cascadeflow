@@ -678,8 +678,8 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 🏭 [Production Guide](../docs/guides/production.md)
 
 ### Community
-💬 [GitHub Discussions](https://github.com/lemony-ai/CascadeFlow/discussions) - Ask questions
-🐛 [GitHub Issues](https://github.com/lemony-ai/CascadeFlow/issues) - Report bugs
+💬 [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions) - Ask questions
+🐛 [GitHub Issues](https://github.com/lemony-ai/cascadeflow/issues) - Report bugs
 💡 Use "question" label for general questions
 
 ---

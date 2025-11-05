@@ -933,7 +933,7 @@ python examples/tool_execution.py
 - ❌ `event.tool_call` doesn't work → Use `event.data.get('tool_call', {})`
 
 **Need Help?**
-- 🐛 [Report Issues](https://github.com/lemony-ai/CascadeFlow/issues)
-- 💬 [GitHub Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)
+- 🐛 [Report Issues](https://github.com/lemony-ai/cascadeflow/issues)
+- 💬 [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
 
 Happy streaming! 🌊

@@ -11,9 +11,9 @@ body:
         Thanks for your interest in CascadeFlow! 
         
         **Before asking, please check:**
-        - [Documentation](https://github.com/lemony-ai/CascadeFlow/blob/main/README.md)
-        - [Existing issues](https://github.com/lemony-ai/CascadeFlow/issues)
-        - [Discussions](https://github.com/lemony-ai/CascadeFlow/discussions)
+        - [Documentation](https://github.com/lemony-ai/cascadeflow/blob/main/README.md)
+        - [Existing issues](https://github.com/lemony-ai/cascadeflow/issues)
+        - [Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
 
   - type: dropdown
     id: topic
