@@ -154,48 +154,49 @@ print(f"Cost: ${result.total_cost:.6f}")
 ```
 
 <details>
-<summary><b>💡 Optional: Enable ML-based Quality Engine & Domain Detection for Higher Accuracy</b></summary>
+<summary><b>💡 Optional: Use ML-based Semantic Quality Validation</b></summary>
+
+For advanced use cases, you can add ML-based semantic similarity checking to validate that responses align with queries.
 
 **Step 1:** Install the optional ML package:
 
 ```bash
-pip install cascadeflow[ml]  # Adds semantic similarity detection via FastEmbed
+pip install cascadeflow[ml]  # Adds semantic similarity via FastEmbed (~80MB model)
 ```
 
-**Step 2:** Enable semantic detection in your agent:
+**Step 2:** Use semantic quality validation:
 
 ```python
-from cascadeflow import CascadeAgent, ModelConfig
+from cascadeflow.quality.semantic import SemanticQualityChecker
 
-# Enable ML-based semantic detection (optional parameter)
-agent = CascadeAgent(
-    models=[
-        ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
-        ModelConfig(name="gpt-5", provider="openai", cost=0.00562),
-    ],
-    enable_semantic_detection=True  # Optional: Uses ML for domain detection
+# Initialize semantic checker (downloads model on first use)
+checker = SemanticQualityChecker(
+    similarity_threshold=0.5,  # Minimum similarity score (0-1)
+    toxicity_threshold=0.7     # Maximum toxicity score (0-1)
 )
 
-# ML semantic detection is now active for all queries
-result = await agent.run("Calculate the eigenvalues of matrix [[1,2],[3,4]]")
+# Validate query-response alignment
+query = "Explain Python decorators"
+response = "Decorators are a way to modify functions using @syntax..."
 
-# Check which detection method was used
-print(f"Domain: {result.metadata.get('domain_detected')}")
-print(f"Method: {result.metadata.get('detection_method')}")  # 'semantic' or 'rule-based'
-print(f"Confidence: {result.metadata.get('domain_confidence', 0):.1%}")
+result = checker.validate(query, response, check_toxicity=True)
+
+print(f"Similarity: {result.similarity:.2%}")
+print(f"Passed: {result.passed}")
+print(f"Toxic: {result.is_toxic}")
 ```
 
 **What you get:**
-- 🎯 84-87% confidence on complex domains (MATH, CODE, DATA, STRUCTURED)
-- 🔄 Automatic fallback to rule-based if ML dependencies unavailable
-- 📈 Improved routing accuracy for specialized queries
-- 🚀 Works seamlessly with your existing cascade setup
+- 🎯 Semantic similarity scoring (query ↔ response alignment)
+- 🛡️ Optional toxicity detection
+- 🔄 Automatic model download and caching
+- 🚀 Fast inference (~100ms per check)
 
-**Note:** If `enable_semantic_detection=True` but FastEmbed is not installed, cascadeflow automatically falls back to rule-based detection without errors.
+**Full example:** See [semantic_quality_domain_detection.py](./examples/semantic_quality_domain_detection.py)
 
 </details>
 
-> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow Examples work without - GPT-5 is only called when needed (typically 20-30% of requests).
+> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow examples work without- GPT-5 is only called when needed (typically 20-30% of requests).
 
 📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
@@ -223,44 +224,45 @@ console.log(`Saved: ${result.savingsPercentage}%`);
 ```
 
 <details>
-<summary><b>💡 Optional: Enable ML-based Quality Engine & Domain Detection for Higher Accuracy</b></summary>
+<summary><b>💡 Optional: Use ML-based Semantic Quality Validation</b></summary>
+
+For advanced use cases, you can add ML-based semantic similarity checking to validate that responses align with queries.
 
 **Step 1:** Install the optional ML package:
 
 ```bash
-npm install @cascadeflow/ml  # Adds semantic similarity detection via Transformers.js
+npm install @cascadeflow/ml  # Adds semantic similarity via Transformers.js
 ```
 
-**Step 2:** Enable semantic detection in your agent:
+**Step 2:** Use semantic quality validation:
 
 ```tsx
-import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
+import { SemanticQualityChecker } from '@cascadeflow/ml';
 
-// Enable ML-based semantic detection (optional parameter)
-const agent = new CascadeAgent({
-  models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
-    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
-  ],
-  enableSemanticDetection: true  // Optional: Uses ML for domain detection
+// Initialize semantic checker (downloads model on first use)
+const checker = new SemanticQualityChecker({
+  similarityThreshold: 0.5,  // Minimum similarity score (0-1)
+  toxicityThreshold: 0.7     // Maximum toxicity score (0-1)
 });
 
-// ML semantic detection is now active for all queries
-const result = await agent.run('Calculate the eigenvalues of matrix [[1,2],[3,4]]');
+// Validate query-response alignment
+const query = 'Explain TypeScript generics';
+const response = 'Generics allow you to create reusable components...';
 
-// Check which detection method was used
-console.log(`Domain: ${result.metadata.domainDetected}`);
-console.log(`Method: ${result.metadata.detectionMethod}`);  // 'semantic' or 'rule-based'
-console.log(`Confidence: ${(result.metadata.domainConfidence * 100).toFixed(1)}%`);
+const result = await checker.validate(query, response, { checkToxicity: true });
+
+console.log(`Similarity: ${(result.similarity * 100).toFixed(1)}%`);
+console.log(`Passed: ${result.passed}`);
+console.log(`Toxic: ${result.isToxic}`);
 ```
 
 **What you get:**
-- 🎯 84-87% confidence on complex domains (MATH, CODE, DATA, STRUCTURED)
-- 🔄 Automatic fallback to rule-based if ML dependencies unavailable
-- 📈 Improved routing accuracy for specialized queries
-- 🚀 Works seamlessly with your existing cascade setup
+- 🎯 Semantic similarity scoring (query ↔ response alignment)
+- 🛡️ Optional toxicity detection
+- 🔄 Automatic model download and caching
+- 🚀 Fast inference (~100ms per check)
 
-**Note:** If `enableSemanticDetection: true` but @cascadeflow/ml is not installed, cascadeflow automatically falls back to rule-based detection without errors.
+**Note:** TypeScript ML uses Transformers.js for browser/Node.js compatibility. See quality.ts for API details.
 
 </details>
 
