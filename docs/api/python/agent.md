@@ -238,8 +238,8 @@ async for event in agent.stream("Write a short poem about AI"):
 
 ## See Also
 
-- [ModelConfig](./config.md) - Model configuration options
+- [ModelConfig](./config.md) - Model configuration options (includes QualityConfig)
 - [CascadeResult](./result.md) - Result object documentation
-- [QualityConfig](./quality.md) - Quality validation settings
 - [Streaming Guide](../../guides/streaming.md) - Streaming responses
 - [Tools Guide](../../guides/tools.md) - Function calling
+- [Presets Guide](../../guides/presets.md) - Built-in preset configurations

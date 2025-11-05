@@ -208,5 +208,5 @@ CascadeResult(
 ## See Also
 
 - [CascadeAgent](./agent.md) - Agent class that returns results
-- [ModelConfig](./config.md) - Model configuration
-- [QualityConfig](./quality.md) - Quality validation settings
+- [ModelConfig](./config.md) - Model and quality configuration (includes QualityConfig)
+- [Cost Tracking Guide](../../guides/cost_tracking.md) - Analyzing costs and metrics

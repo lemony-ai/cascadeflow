@@ -8,19 +8,16 @@ Complete API documentation for cascadeflow Python and TypeScript SDKs.
 - [CascadeAgent](./python/agent.md) - Main agent class for intelligent model cascading
 - [ModelConfig](./python/config.md) - Model configuration and cascade settings
 - [CascadeResult](./python/result.md) - Result object with diagnostics and metrics
-- [QualityConfig](./python/quality.md) - Quality validation configuration
-- [Presets](./python/presets.md) - Built-in preset configurations
-- [Streaming](./python/streaming.md) - Streaming responses and events
-- [Tools](./python/tools.md) - Function calling and tool execution
+- [Telemetry](./telemetry.md) - Cost tracking and telemetry
 
 ### TypeScript API
-- [CascadeAgent](./typescript/agent.md) - Main agent class for intelligent model cascading
-- [ModelConfig](./typescript/config.md) - Model configuration and cascade settings
-- [CascadeResult](./typescript/result.md) - Result object with diagnostics and metrics
-- [QualityConfig](./typescript/quality.md) - Quality validation configuration
-- [Presets](./typescript/presets.md) - Built-in preset configurations
-- [Streaming](./typescript/streaming.md) - Streaming responses and events
-- [Tools](./typescript/types.md) - Function calling and tool types
+
+For complete TypeScript API documentation, see the [TypeScript Package README](../../packages/core/README.md).
+
+**Quick Links:**
+- [Installation & Quick Start](../../packages/core/README.md#installation)
+- [Presets](../../packages/core/README.md#even-easier-use-presets-new-in-v011)
+- [Features & Examples](../../packages/core/README.md#features)
 
 ## 🚀 Quick Reference
 
@@ -162,10 +159,19 @@ const agent = new CascadeAgent(PRESET_BEST_OVERALL);
 
 ## 🔍 See Also
 
+### User Guides
 - [Quickstart Guide](../guides/quickstart.md) - Get started in 5 minutes
 - [Provider Configuration](../guides/providers.md) - Configure AI providers
+- [Presets Guide](../guides/presets.md) - Built-in preset configurations
+- [Streaming Guide](../guides/streaming.md) - Streaming responses and events
+- [Tools Guide](../guides/tools.md) - Function calling and tool execution
+- [Custom Validation](../guides/custom_validation.md) - Quality validation and custom validators
+- [Cost Tracking](../guides/cost_tracking.md) - Track and analyze API costs
 - [Production Guide](../guides/production.md) - Best practices for production
-- [Examples](../../examples/) - Working code examples
+
+### Examples
+- [Python Examples](../../examples/) - Working Python code examples
+- [TypeScript Examples](../../packages/core/examples/) - Working TypeScript code examples
 
 ## 💡 Need Help?
 

@@ -302,4 +302,4 @@ ModelConfig(
 
 - [CascadeAgent](./agent.md) - Main agent class
 - [Providers Guide](../../guides/providers.md) - Provider configuration details
-- [Presets](./presets.md) - Built-in configurations
+- [Presets Guide](../../guides/presets.md) - Built-in preset configurations
