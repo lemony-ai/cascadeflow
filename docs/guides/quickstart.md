@@ -24,20 +24,20 @@ Get started with cascadeflow in 5 minutes. This guide walks you through the basi
 
 ### The Problem
 
-Using GPT-4 for everything is expensive:
+Using GPT-4o for everything is expensive:
 ```
 10,000 queries/month × $0.005/query = $50/month
 ```
 
-But using GPT-3.5 for everything sacrifices quality.
+But using GPT-4o-mini for everything sacrifices quality.
 
 ### The Solution
 
 cascadeflow tries the cheap model first, checks quality, and only uses the expensive model if needed:
 
 ```
-Simple query → GPT-3.5 ✅ (draft accepted) → Cost: $0.001
-Complex query → GPT-3.5 ❌ (draft rejected) → GPT-4 ✅ → Cost: $0.006
+Simple query → GPT-4o-mini ✅ (draft accepted) → Cost: $0.0004
+Complex query → GPT-4o-mini ❌ (draft rejected) → GPT-4o ✅ → Cost: $0.006
 ```
 
 **Result:** 40-60% savings while maintaining quality!
@@ -83,16 +83,16 @@ async def main():
     agent = CascadeAgent(models=[
         # Tier 1: Cheap model (tries first)
         ModelConfig(
-            name="gpt-3.5-turbo",
+            name="gpt-4o-mini",
             provider="openai",
-            cost=0.001,  # per 1K tokens
+            cost=0.000375,  # $0.375 per 1M tokens (blended)
         ),
 
         # Tier 2: Expensive model (only if needed)
         ModelConfig(
             name="gpt-4o",
             provider="openai",
-            cost=0.005,  # per 1K tokens
+            cost=0.00625,  # $6.25 per 1M tokens (blended)
         ),
     ])
     # Quality validation uses default cascade-optimized config (0.7 threshold)
@@ -118,15 +118,15 @@ python my_first_cascade.py
 Expected output:
 ```
 Response: The sky is typically blue during the day.
-Model used: gpt-3.5-turbo
+Model used: gpt-4o-mini
 Cost: $0.000014
 Draft accepted: True
 ```
 
 **What happened?**
-1. Query sent to GPT-3.5 (cheap)
+1. Query sent to GPT-4o-mini (cheap)
 2. Response passed quality check
-3. GPT-4 was NOT called (saved money!)
+3. GPT-4o was NOT called (saved money!)
 
 ---
 
@@ -147,13 +147,14 @@ Draft accepted: True
          │
          ▼
    ┌─────────────┐
-   │ Direct to   │ ───► Very simple → GPT-3.5 only
-   │ GPT-3.5?    │ ───► Very complex → GPT-4 directly
+   │ Direct to   │ ───► Very simple → GPT-4o-mini only
+   │ GPT-4o-mini?│ ───► Very complex → GPT-4o directly
    └──────┬──────┘
           │ Maybe cascade
           ▼
 ┌─────────────────┐
-│  GPT-3.5 Draft  │ ────► Generate response
+│ GPT-4o-mini     │ ────► Generate response
+│ Draft           │
 └────────┬────────┘
          │
          ▼
@@ -167,7 +168,7 @@ Draft accepted: True
   PASS      FAIL
     │         │
     │    ┌────────────────┐
-    │    │  GPT-4 Verify  │
+    │    │  GPT-4o Verify │
     │    └────────┬───────┘
     │             │
     └─────────────┘
@@ -183,13 +184,13 @@ Draft accepted: True
 
 #### 1. Draft Model (Tier 1)
 - **Purpose:** Try to answer with cheap model
-- **Cost:** Low (~$0.001 per 1K tokens)
+- **Cost:** Low (~$0.000375 per 1K tokens)
 - **Speed:** Fast
 - **Quality:** Good for simple queries
 
 #### 2. Verifier Model (Tier 2)
 - **Purpose:** Verify draft or handle complex queries
-- **Cost:** Higher (~$0.005 per 1K tokens)
+- **Cost:** Higher (~$0.00625 per 1K tokens)
 - **Speed:** Slower
 - **Quality:** Best quality
 
@@ -230,51 +231,51 @@ response = "Python is a programming language..."  # ~50 tokens
 # Total tokens
 total = 4 (input) + 50 (output) = 54 tokens
 
-# Cost calculation (GPT-3.5 example)
-input_cost  = (4 / 1000) × $0.0005 = $0.000002
-output_cost = (50 / 1000) × $0.0015 = $0.000075
-total_cost  = $0.000077
+# Cost calculation (GPT-4o-mini example)
+input_cost  = (4 / 1000) × $0.00015 = $0.0000006
+output_cost = (50 / 1000) × $0.0006 = $0.000030
+total_cost  = $0.0000306
 ```
 
 ### Cost Breakdown by Scenario
 
 #### Scenario 1: Draft Accepted (Best Case)
 ```
-Query → GPT-3.5 ✅ (accepted)
+Query → GPT-4o-mini ✅ (accepted)
 
 Costs:
-  GPT-3.5: $0.000077
-  GPT-4:   $0.000000 (not called)
+  GPT-4o-mini: $0.000031
+  GPT-4o:      $0.000000 (not called)
   ─────────────────
-  Total:   $0.000077
+  Total:       $0.000031
 
-Savings: ~85% vs GPT-4 only
+Savings: ~95% vs GPT-4o only
 ```
 
 #### Scenario 2: Draft Rejected (Worst Case)
 ```
-Query → GPT-3.5 ❌ (rejected) → GPT-4 ✅
+Query → GPT-4o-mini ❌ (rejected) → GPT-4o ✅
 
 Costs:
-  GPT-3.5: $0.000077
-  GPT-4:   $0.000385
+  GPT-4o-mini: $0.000031
+  GPT-4o:      $0.000650
   ─────────────────
-  Total:   $0.000462
+  Total:       $0.000681
 
-Savings: -20% vs GPT-4 only (paid extra for GPT-3.5)
+Savings: -5% vs GPT-4o only (paid extra for GPT-4o-mini)
 ```
 
 #### Scenario 3: Direct Routing
 ```
-Query → GPT-4 directly (complex query)
+Query → GPT-4o directly (complex query)
 
 Costs:
-  GPT-3.5: $0.000000 (not called)
-  GPT-4:   $0.000385
+  GPT-4o-mini: $0.000000 (not called)
+  GPT-4o:      $0.000650
   ─────────────────
-  Total:   $0.000385
+  Total:       $0.000650
 
-Savings: 0% (same as GPT-4 only)
+Savings: 0% (same as GPT-4o only)
 ```
 
 ### Expected Savings
@@ -297,9 +298,9 @@ Your savings depend on your query mix:
 
 ```python
 ModelConfig(
-    name="gpt-3.5-turbo",           # Model name
+    name="gpt-4o-mini",             # Model name
     provider="openai",              # Provider (openai, anthropic, groq, ollama)
-    cost=0.001,                     # Cost per 1K tokens (blended estimate)
+    cost=0.000375,                  # Cost per 1K tokens (blended estimate)
     speed_ms=500,                   # Expected latency (optional)
     supports_tools=True,            # Whether model supports tool calling (optional)
 )
@@ -359,13 +360,13 @@ agent = CascadeAgent(models=[...], quality_config=quality_config)
 ### 1. Choose the Right Models
 
 **Good Combinations:**
-- GPT-3.5 Turbo → GPT-4o (balanced)
-- GPT-3.5 Turbo → GPT-4 Turbo (quality-focused)
+- GPT-4o-mini → GPT-4o (balanced, recommended)
+- GPT-4o-mini → GPT-4 Turbo (quality-focused)
 - Llama 3.1 8B → GPT-4o (maximum savings)
 
 **Avoid:**
-- Similar-tier models (GPT-3.5 → GPT-3.5 Turbo)
-- Reverse ordering (GPT-4 → GPT-3.5)
+- Similar-tier models (GPT-4o-mini → GPT-3.5 Turbo)
+- Reverse ordering (GPT-4o → GPT-4o-mini)
 
 ### 2. Tune Quality Thresholds
 
@@ -439,7 +440,7 @@ result = await agent.run(query, max_tokens=500)
    quality_config = QualityConfig(confidence_thresholds={'moderate': 0.6})
    agent = CascadeAgent(models=[...], quality_config=quality_config)
    ```
-2. Use better draft model: Try GPT-3.5 Turbo instead of GPT-3.5
+2. Use better draft model: Try GPT-4o-mini (already recommended)
 3. Check query complexity: Ensure you have simple queries in your mix
 
 ### Issue: Poor Quality Responses
@@ -464,7 +465,7 @@ result = await agent.run(query, max_tokens=500)
 - Users complaining about wait times
 
 **Solutions:**
-1. Use faster models: Groq Llama for draft, GPT-3.5 for verifier
+1. Use faster models: Groq Llama for draft, GPT-4o-mini for verifier
 2. Enable streaming: `enable_streaming=True`
 3. Reduce max_tokens: `max_tokens=100`
 4. Skip cascade for time-critical queries
@@ -543,8 +544,8 @@ python examples/basic_usage.py --verbose
 from cascadeflow import CascadeAgent, ModelConfig
 
 agent = CascadeAgent(models=[
-    ModelConfig("gpt-3.5-turbo", "openai", cost=0.001),
-    ModelConfig("gpt-4o", "openai", cost=0.005),
+    ModelConfig("gpt-4o-mini", "openai", cost=0.000375),
+    ModelConfig("gpt-4o", "openai", cost=0.00625),
 ])
 
 result = await agent.run("Your query here")
