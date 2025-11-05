@@ -35,6 +35,8 @@ class ReasoningModelInfo:
         supports_extended_thinking: bool = False,
         requires_max_completion_tokens: bool = False,
         requires_thinking_budget: bool = False,
+        supports_logprobs: bool = True,
+        supports_temperature: bool = True,
     ):
         self.is_reasoning = is_reasoning
         self.provider = provider
@@ -45,6 +47,8 @@ class ReasoningModelInfo:
         self.supports_extended_thinking = supports_extended_thinking  # Anthropic Claude 3.7
         self.requires_max_completion_tokens = requires_max_completion_tokens  # OpenAI specific
         self.requires_thinking_budget = requires_thinking_budget  # Anthropic specific
+        self.supports_logprobs = supports_logprobs  # Whether model supports logprobs
+        self.supports_temperature = supports_temperature  # Whether model supports temperature param
 
 
 def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
@@ -105,15 +109,17 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
             requires_max_completion_tokens=True,
         )
 
-    # GPT-5 series (uses max_completion_tokens parameter)
+    # GPT-5 series (reasoning model like o1/o3)
     if name.startswith('gpt-5'):
         return ReasoningModelInfo(
-            is_reasoning=False,  # Not a reasoning model, but uses special parameter
+            is_reasoning=True,  # GPT-5 is a reasoning model with internal reasoning tokens
             supports_streaming=True,
             supports_tools=True,
             supports_system_messages=True,
-            supports_reasoning_effort=False,
+            supports_reasoning_effort=False,  # GPT-5 doesn't use reasoning_effort parameter
             requires_max_completion_tokens=True,  # GPT-5 requires this parameter
+            supports_logprobs=False,  # GPT-5 doesn't support logprobs
+            supports_temperature=False,  # GPT-5 only supports temperature=1 (default)
         )
 
     # Not a reasoning model - standard GPT model
@@ -619,8 +625,11 @@ class OpenAIProvider(BaseProvider):
         payload = {
             "model": model,
             "messages": messages,
-            "temperature": temperature,
         }
+
+        # Add temperature if supported by model
+        if model_info.supports_temperature:
+            payload["temperature"] = temperature
 
         # Use correct token limit parameter
         if is_gpt5 or model_info.requires_max_completion_tokens:
@@ -635,8 +644,8 @@ class OpenAIProvider(BaseProvider):
         # Add remaining kwargs
         payload.update(kwargs)
 
-        # Add logprobs if requested (now typically True by default)
-        if logprobs_enabled:
+        # Add logprobs if requested and supported by model
+        if logprobs_enabled and model_info.supports_logprobs:
             payload["logprobs"] = True
             if top_logprobs:
                 payload["top_logprobs"] = min(top_logprobs, 20)  # OpenAI max is 20

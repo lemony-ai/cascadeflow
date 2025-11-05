@@ -23,14 +23,20 @@ What You'll Learn:
     4. How different query complexities are handled
 
 Expected Output:
-    - Simple queries: GPT-4o-mini draft accepted, GPT-4o skipped
-    - Complex queries: Direct to GPT-4o OR draft rejected and escalated
-    - Token-based cost comparison showing realistic 40-60% savings
+    - Simple queries: GPT-4o-mini draft accepted, GPT-5 skipped
+    - Complex queries: Direct to GPT-5 OR draft rejected and escalated
+    - Token-based cost comparison showing realistic savings
+
+Note on GPT-5:
+    GPT-5 is a reasoning model (like o1/o3) that uses internal reasoning tokens
+    before generating output. Complex queries may need 1000-2000+ reasoning tokens.
+    This example uses max_tokens=5000 to ensure GPT-5 has enough tokens for
+    both reasoning and output.
 
 Note on Costs:
     Costs are calculated using actual token-based pricing from OpenAI:
     - GPT-4o-mini: ~$0.000375 per 1K tokens (blended input/output)
-    - GPT-4o: ~$0.0025 per 1K tokens (blended input/output)
+    - GPT-5: ~$0.00562 per 1K tokens (blended input/output + reasoning)
 
     Savings depend on your query mix and response lengths.
 
@@ -51,7 +57,12 @@ Documentation:
 
 import asyncio
 
+from dotenv import load_dotenv
+
 from cascadeflow import CascadeAgent, ModelConfig
+
+# Load environment variables
+load_dotenv()
 
 
 async def main():
@@ -164,7 +175,7 @@ async def main():
     }
 
     # Track token usage for baseline calculation
-    all_gpt4_tokens = 0
+    total_tokens_used = 0
 
     # Process each query
     for i, test in enumerate(test_queries, 1):
@@ -177,7 +188,10 @@ async def main():
         print()
 
         # Run the query through cascade
-        result = await agent.run(test["query"], max_tokens=150)
+        # Note: GPT-5 is a reasoning model that uses reasoning tokens,
+        # so we need much higher token limits (reasoning + output tokens)
+        # Complex queries can use 1000-2000+ reasoning tokens!
+        result = await agent.run(test["query"], max_tokens=5000)
 
         # Determine which model was used
         model_used = "gpt-4o-mini" if "4o-mini" in result.model_used.lower() else "gpt-5"
@@ -196,13 +210,12 @@ async def main():
         else:
             stats["direct_routing"] += 1
 
-        # Estimate tokens for baseline (approximate)
-        query_tokens = len(test["query"].split()) * 1.3
-        if hasattr(result, "content"):
-            response_tokens = len(result.content.split()) * 1.3
-        else:
-            response_tokens = 100  # Default estimate
-        all_gpt4_tokens += query_tokens + response_tokens
+        # Track actual token usage for baseline calculation
+        # All results have draft_response (and optionally verifier_response)
+        if hasattr(result, "draft_response") and result.draft_response:
+            total_tokens_used += result.draft_response.tokens_used
+        if hasattr(result, "verifier_response") and result.verifier_response:
+            total_tokens_used += result.verifier_response.tokens_used
 
         # Show result
         tier = "Tier 1 (Cheap)" if model_used == "gpt-4o-mini" else "Tier 2 (Expensive)"
@@ -264,8 +277,11 @@ async def main():
             print("   🎯 Direct Route: Query sent directly to GPT-5 (no cascade)")
 
         # Show first part of response
-        response_preview = result.content[:100].replace("\n", " ")
-        print(f"   📝 Response: {response_preview}...")
+        if result.content:
+            response_preview = result.content[:100].replace("\n", " ")
+            print(f"   📝 Response: {response_preview}...")
+        else:
+            print(f"   ⚠️  Response: (empty - likely hit token limit)")
         print()
 
     # ========================================================================
@@ -302,9 +318,9 @@ async def main():
     print(f"   Total Cost:  ${stats['total_cost']:.6f}")
     print()
 
-    # Calculate savings vs all-GPT-5 (token-based estimate)
+    # Calculate savings vs all-GPT-5 (token-based using actual usage)
     # GPT-5 pricing: ~$0.00562 per 1K tokens (blended)
-    all_gpt5_cost = (all_gpt4_tokens / 1000) * 0.00562
+    all_gpt5_cost = (total_tokens_used / 1000) * 0.00562
     savings = all_gpt5_cost - stats["total_cost"]
     savings_pct = (savings / all_gpt5_cost * 100) if all_gpt5_cost > 0 else 0.0
 
@@ -313,13 +329,13 @@ async def main():
     print(f"   cascadeflow Cost:   ${stats['total_cost']:.6f}")
     print(f"   💰 SAVINGS:         ${savings:.6f} ({savings_pct:.1f}%)")
     print()
-    print(f"   ℹ️  Note: Savings based on actual token usage (~{int(all_gpt4_tokens)} tokens)")
+    print(f"   ℹ️  Note: Savings based on actual token usage (~{int(total_tokens_used)} tokens)")
     print("       Your savings will vary based on query complexity and response length.")
     print()
 
     # Extrapolate to realistic scale
     print("📈 Extrapolated to 10,000 Queries/Month:")
-    if all_gpt4_tokens > 0:
+    if total_tokens_used > 0:
         scale_factor = 10_000 / total_queries
         monthly_cascade = stats["total_cost"] * scale_factor
         monthly_gpt5 = all_gpt5_cost * scale_factor
