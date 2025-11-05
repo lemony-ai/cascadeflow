@@ -4,6 +4,8 @@
  * Based on Python quality validation with TypeScript patterns
  */
 
+import { QueryResponseAlignmentScorer } from './alignment';
+
 /**
  * Quality validation result
  */
@@ -39,6 +41,12 @@ export interface QualityResult {
 
     /** Uncertainty markers found */
     uncertaintyMarkers?: string[];
+
+    /** Alignment score (0-1) from AlignmentScorer */
+    alignmentScore?: number;
+
+    /** Alignment reasoning */
+    alignmentReasoning?: string;
   };
 }
 
@@ -60,6 +68,12 @@ export interface QualityConfig {
 
   /** Strict mode (fail on any warning signs) */
   strictMode: boolean;
+
+  /** Enable alignment scoring (query-response alignment check) */
+  useAlignmentScoring: boolean;
+
+  /** Minimum alignment score (0-1, default: 0.15 - alignment floor) */
+  minAlignmentScore: number;
 }
 
 /**
@@ -71,6 +85,8 @@ export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   useLogprobs: true,
   fallbackToHeuristic: true,
   strictMode: false,
+  useAlignmentScoring: true,
+  minAlignmentScore: 0.15, // Alignment floor from Python
 };
 
 /**
@@ -87,6 +103,8 @@ export const CASCADE_QUALITY_CONFIG: QualityConfig = {
   useLogprobs: true,
   fallbackToHeuristic: true,
   strictMode: false,
+  useAlignmentScoring: true,
+  minAlignmentScore: 0.15, // Alignment floor
 };
 
 /**
@@ -195,9 +213,15 @@ export function estimateConfidenceFromContent(
  */
 export class QualityValidator {
   private config: QualityConfig;
+  private alignmentScorer: QueryResponseAlignmentScorer | null = null;
 
   constructor(config: Partial<QualityConfig> = {}) {
     this.config = { ...DEFAULT_QUALITY_CONFIG, ...config };
+
+    // Initialize alignment scorer if enabled
+    if (this.config.useAlignmentScoring) {
+      this.alignmentScorer = new QueryResponseAlignmentScorer();
+    }
   }
 
   /**
@@ -267,7 +291,21 @@ export class QualityValidator {
       }
     }
 
-    // Step 4: Calculate overall quality score
+    // Step 4: Calculate alignment score (NEW)
+    let alignmentScore: number | undefined;
+    let alignmentReasoning: string | undefined;
+    let alignmentPassed = true;
+
+    if (this.config.useAlignmentScoring && this.alignmentScorer) {
+      const analysis = this.alignmentScorer.score(query, content, 0.5, true);
+      alignmentScore = analysis.alignmentScore;
+      alignmentReasoning = analysis.reasoning;
+
+      // Check if alignment passes floor threshold (0.15)
+      alignmentPassed = alignmentScore >= this.config.minAlignmentScore;
+    }
+
+    // Step 5: Calculate overall quality score
     let score = confidence;
 
     // Penalize for short content
@@ -280,15 +318,31 @@ export class QualityValidator {
       score *= Math.max(0.5, 1 - uncertaintyMarkers.length * 0.1);
     }
 
-    // Step 5: Determine pass/fail
-    const passed = score >= this.config.minConfidence && lengthOk;
+    // Apply alignment floor if enabled (matches Python behavior)
+    if (
+      this.config.useAlignmentScoring &&
+      alignmentScore !== undefined &&
+      !alignmentPassed
+    ) {
+      // If alignment is below floor, cap the score at the floor
+      score = Math.min(score, this.config.minAlignmentScore);
+    }
 
-    // Step 6: Generate reason
+    // Step 6: Determine pass/fail
+    const passed =
+      score >= this.config.minConfidence && lengthOk && alignmentPassed;
+
+    // Step 7: Generate reason
     let reason: string;
     if (passed) {
       reason = `Quality check passed (score: ${score.toFixed(2)}, confidence: ${confidence.toFixed(2)})`;
+      if (alignmentScore !== undefined) {
+        reason += `, alignment: ${alignmentScore.toFixed(2)}`;
+      }
     } else if (!lengthOk) {
       reason = `Content too short (${wordCount} words, minimum: ${this.config.minWordCount})`;
+    } else if (!alignmentPassed && alignmentScore !== undefined) {
+      reason = `Alignment too low (${alignmentScore.toFixed(2)}, minimum: ${this.config.minAlignmentScore})`;
     } else {
       reason = `Confidence too low (${confidence.toFixed(2)}, minimum: ${this.config.minConfidence})`;
     }
@@ -306,6 +360,8 @@ export class QualityValidator {
         wordCount,
         uncertaintyMarkers:
           uncertaintyMarkers.length > 0 ? uncertaintyMarkers : undefined,
+        alignmentScore,
+        alignmentReasoning,
       },
     };
   }
@@ -315,6 +371,13 @@ export class QualityValidator {
    */
   updateConfig(config: Partial<QualityConfig>): void {
     this.config = { ...this.config, ...config };
+
+    // Re-initialize alignment scorer if config changed
+    if (this.config.useAlignmentScoring && !this.alignmentScorer) {
+      this.alignmentScorer = new QueryResponseAlignmentScorer();
+    } else if (!this.config.useAlignmentScoring) {
+      this.alignmentScorer = null;
+    }
   }
 
   /**
