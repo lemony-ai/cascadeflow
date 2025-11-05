@@ -1371,6 +1371,15 @@ class CascadeAgent:
             "tool_calls": tool_calls,
         }
 
+        # Copy token counts from provider response if available (for LiteLLM integration)
+        if hasattr(spec_result, "metadata") and spec_result.metadata:
+            if "prompt_tokens" in spec_result.metadata:
+                metadata["prompt_tokens"] = spec_result.metadata["prompt_tokens"]
+            if "completion_tokens" in spec_result.metadata:
+                metadata["completion_tokens"] = spec_result.metadata["completion_tokens"]
+            if "total_tokens" in spec_result.metadata:
+                metadata["total_tokens"] = spec_result.metadata["total_tokens"]
+
         if use_cascade:
             metadata["cascade_used"] = True
             metadata["draft_accepted"] = spec_result.draft_accepted
