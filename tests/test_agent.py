@@ -199,10 +199,17 @@ class TestAgentInitialization:
     def test_init_single_model_disables_cascade(self):
         """Test that single model automatically disables cascade."""
         single_model = [ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015)]
-        agent = CascadeAgent(models=single_model)
 
-        assert agent.enable_cascade is False
-        assert len(agent.models) == 1
+        # Mock the provider registry to avoid API key requirement
+        with patch("cascadeflow.agent.PROVIDER_REGISTRY") as mock_registry:
+            mock_provider = Mock()
+            mock_registry.__getitem__.return_value = lambda: mock_provider
+            mock_registry.__contains__.return_value = True
+
+            agent = CascadeAgent(models=single_model)
+
+            assert agent.enable_cascade is False
+            assert len(agent.models) == 1
 
 
 # ============================================================================
