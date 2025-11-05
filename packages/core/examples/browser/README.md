@@ -21,71 +21,17 @@ Deploy cascadeflow as a Vercel Edge Function for global, low-latency inference.
 - Vendor lock-in (Vercel)
 - Cold starts
 
-### 2. Cloudflare Worker (`cloudflare-worker/`)
+### Coming Soon
 
-Run cascadeflow on Cloudflare's edge network.
-
-**Pros:**
-- Extremely fast (runs closest to user)
-- Free tier available
-- No cold starts
-
-**Cons:**
-- Limited execution time
-- Cloudflare-specific API
-
-### 3. Simple Express Backend (`express-backend/`)
-
-Traditional Node.js/Express backend API.
-
-**Pros:**
-- Full control
-- Can run anywhere (self-hosted)
-- No vendor lock-in
-
-**Cons:**
-- Need to manage infrastructure
-- Higher latency (single region)
-
-### 4. Client-Side HTML (`simple-html/`)
-
-Pure HTML/JS example that calls a backend API.
-
-**Pros:**
-- Simple to understand
-- Works with any backend
-- No build step needed
-
-**Cons:**
-- Still requires backend for API keys
+Additional browser examples (Cloudflare Worker, Express backend, etc.) are in development. The Vercel Edge Function example demonstrates the core patterns that work across all edge/browser environments.
 
 ## Quick Start
-
-### Option 1: Vercel Edge Function (Recommended)
 
 ```bash
 cd vercel-edge
 npm install
 vercel dev  # Test locally
 vercel deploy  # Deploy to production
-```
-
-### Option 2: Express Backend
-
-```bash
-cd express-backend
-npm install
-npm start
-# Open simple-html/index.html in browser
-```
-
-### Option 3: Cloudflare Worker
-
-```bash
-cd cloudflare-worker
-npm install
-npx wrangler dev  # Test locally
-npx wrangler deploy  # Deploy to Cloudflare
 ```
 
 ## Usage Patterns

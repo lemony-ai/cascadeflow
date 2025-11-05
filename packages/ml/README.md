@@ -219,10 +219,7 @@ await embedder.embed('warmup query');  // Triggers model download
 
 ## Examples
 
-See `packages/core/examples/nodejs/` for complete examples:
-- `ml-detection.ts` - Basic ML detection
-- `semantic-validation.ts` - Semantic validation
-- `production-patterns.ts` - Production usage
+See `packages/core/examples/nodejs/production-patterns.ts` for a complete production example that demonstrates ML-based semantic detection and validation.
 
 ## License
 

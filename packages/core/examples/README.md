@@ -11,6 +11,8 @@ Server-side TypeScript examples for Node.js applications:
 - **basic-usage.ts** - Simple two-tier cascade setup
 - **tool-calling.ts** - Function calling with type-safe tools
 - **multi-provider.ts** - Using multiple AI providers together
+- **reasoning-models.ts** - OpenAI o1/o3, Claude 3.7 Sonnet, DeepSeek-R1 reasoning models
+- **production-patterns.ts** - Error handling, caching, rate limiting, monitoring
 
 [→ See nodejs/README.md for details](./nodejs/README.md)
 
@@ -49,6 +51,8 @@ vercel dev
 | Basic Cascade | ✅ | ✅ |
 | Tool Calling | ✅ | 🔜 |
 | Multi-Provider | ✅ | ✅ |
+| Reasoning Models | ✅ | 🔜 |
+| Production Patterns | ✅ | 🔜 |
 | Streaming | 🔜 | 🔜 |
 | Cost Tracking | ✅ | ✅ |
 

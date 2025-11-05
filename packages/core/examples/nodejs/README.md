@@ -70,6 +70,55 @@ export GROQ_API_KEY="your-key"
 npx tsx multi-provider.ts
 ```
 
+### 4. Reasoning Models (`reasoning-models.ts`)
+
+Use advanced reasoning models across 4 providers with automatic detection.
+
+**What it shows:**
+- OpenAI o1, o1-mini, o3-mini with chain-of-thought
+- Anthropic claude-3-7-sonnet with extended thinking
+- Ollama DeepSeek-R1 (free local inference)
+- vLLM DeepSeek-R1 (self-hosted)
+- Zero configuration - auto-detects reasoning capabilities
+
+**Supported Models:**
+- **OpenAI**: o1, o1-mini, o3-mini
+- **Anthropic**: claude-3-7-sonnet-20250219
+- **Ollama**: deepseek-r1, deepseek-r1-distill
+- **vLLM**: deepseek-r1, deepseek-r1-distill
+
+**Run:**
+```bash
+export OPENAI_API_KEY="your-key"
+npx tsx reasoning-models.ts
+```
+
+### 5. Production Patterns (`production-patterns.ts`)
+
+Best practices for deploying cascadeflow in production.
+
+**What it shows:**
+- Error handling and automatic retries
+- Response caching for performance
+- Rate limiting and throttling
+- Monitoring and logging
+- Cost tracking and budgets
+- Failover strategies
+
+**Patterns Covered:**
+- Exponential backoff retries
+- In-memory and Redis caching
+- Token bucket rate limiting
+- Structured logging
+- Budget enforcement
+- Multi-provider fallback
+
+**Run:**
+```bash
+export OPENAI_API_KEY="your-key"
+npx tsx production-patterns.ts
+```
+
 ## Quick Start
 
 ### Minimal Example (Recommended Setup)
