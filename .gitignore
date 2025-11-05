@@ -193,6 +193,16 @@ V0.*.md
 /test_all_examples.py
 /validate_*.py
 
+# Development-only directories (not for public)
+/benchmarks/
+/tests/_archive*/
+/_archive*/
+
+# Backup files
+*.backup
+*.backup-*
+README.*.backup*
+
 # IDE files
 *.iml
 
