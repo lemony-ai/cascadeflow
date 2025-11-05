@@ -38,6 +38,7 @@ describe('Reasoning Model Support', () => {
       name: 'gpt-4o-mini',
       provider: 'openai',
       apiKey: 'test-key',
+      cost: 0,
     };
     vi.clearAllMocks();
   });
@@ -311,7 +312,7 @@ describe('Reasoning Model Types', () => {
   });
 });
 
-describe('Anthropic Claude 3.7 Extended Thinking', () => {
+describe('Anthropic Claude 4.5 Extended Thinking', () => {
   let mockConfig: ModelConfig;
 
   beforeEach(() => {
@@ -319,13 +320,14 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
       name: 'claude-3-5-sonnet',
       provider: 'anthropic',
       apiKey: 'test-key',
+      cost: 0,
     };
     vi.clearAllMocks();
   });
 
   describe('Model Detection', () => {
-    it('should detect claude-3-7-sonnet as reasoning model', () => {
-      const modelInfo = getAnthropicReasoningModelInfo('claude-3-7-sonnet');
+    it('should detect claude-sonnet-4.5 as reasoning model', () => {
+      const modelInfo = getAnthropicReasoningModelInfo('claude-sonnet-4.5');
       expect(modelInfo.isReasoning).toBe(true);
       expect(modelInfo.provider).toBe('anthropic');
       expect(modelInfo.supportsExtendedThinking).toBe(true);
@@ -396,17 +398,18 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
       expect(cost).toBeCloseTo(18.0, 6);
     });
 
-    it('should calculate cost for claude-sonnet-3.7 correctly', () => {
-      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-sonnet-3.7' });
-      const cost = provider.calculateCost(1000000, 1000000, 'claude-sonnet-3.7');
+    it('should calculate cost for claude-sonnet-4.5 correctly', () => {
+      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-sonnet-4.5' });
+      const cost = provider.calculateCost(1000000, 1000000, 'claude-sonnet-4.5');
 
-      // Should match claude-3-7-sonnet pricing
+      // Claude Sonnet 4.5: $3 in + $15 out = $9 blended per 1M tokens
+      // For 2M tokens: $9 * 2 = $18
       expect(cost).toBeCloseTo(18.0, 6);
     });
 
-    it('should handle prefix matching for Claude 3.7 variants', () => {
-      const cost1 = new AnthropicProvider(mockConfig).calculateCost(1000000, 1000000, 'claude-3-7-sonnet-20250219');
-      const cost2 = new AnthropicProvider(mockConfig).calculateCost(1000000, 1000000, 'claude-sonnet-3.7');
+    it('should handle prefix matching for Claude 4.5 variants', () => {
+      const cost1 = new AnthropicProvider(mockConfig).calculateCost(1000000, 1000000, 'claude-sonnet-4.5-20250219');
+      const cost2 = new AnthropicProvider(mockConfig).calculateCost(1000000, 1000000, 'claude-sonnet-4.5');
 
       expect(cost1).toBeCloseTo(cost2, 6);
     });
@@ -466,14 +469,14 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
 
   describe('Edge Cases', () => {
     it('should handle zero tokens', () => {
-      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-7-sonnet' });
-      const cost = provider.calculateCost(0, 0, 'claude-3-7-sonnet');
+      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-sonnet-4.5' });
+      const cost = provider.calculateCost(0, 0, 'claude-sonnet-4.5');
       expect(cost).toBe(0);
     });
 
     it('should handle very large token counts', () => {
-      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-3-7-sonnet' });
-      const cost = provider.calculateCost(10000000, 10000000, 'claude-3-7-sonnet');
+      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-sonnet-4.5' });
+      const cost = provider.calculateCost(10000000, 10000000, 'claude-sonnet-4.5');
 
       // 20M tokens at $9/M blended = $180
       expect(cost).toBeCloseTo(180.0, 6);
@@ -501,7 +504,7 @@ describe('Anthropic Claude 3.7 Extended Thinking', () => {
       expect(() => new AnthropicProvider({ ...mockConfig, name: 'claude-3-5-sonnet' }))
         .not.toThrow();
 
-      expect(() => new AnthropicProvider({ ...mockConfig, name: 'claude-3-7-sonnet' }))
+      expect(() => new AnthropicProvider({ ...mockConfig, name: 'claude-sonnet-4.5' }))
         .not.toThrow();
     });
   });
@@ -517,7 +520,7 @@ describe('Cross-Provider Reasoning Model Comparison', () => {
     });
 
     it('should detect Anthropic reasoning models correctly', () => {
-      const claudeInfo = getAnthropicReasoningModelInfo('claude-3-7-sonnet');
+      const claudeInfo = getAnthropicReasoningModelInfo('claude-sonnet-4.5');
       expect(claudeInfo.isReasoning).toBe(true);
       expect(claudeInfo.provider).toBe('anthropic');
       expect(claudeInfo.supportsExtendedThinking).toBe(true);
@@ -525,12 +528,12 @@ describe('Cross-Provider Reasoning Model Comparison', () => {
 
     it('should have different capabilities for OpenAI vs Anthropic', () => {
       const o1Info = getOpenAIReasoningModelInfo('o1-mini');
-      const claudeInfo = getAnthropicReasoningModelInfo('claude-3-7-sonnet');
+      const claudeInfo = getAnthropicReasoningModelInfo('claude-sonnet-4.5');
 
       // OpenAI o1 doesn't support tools
       expect(o1Info.supportsTools).toBe(false);
 
-      // Claude 3.7 supports tools
+      // Claude 4.5 supports tools
       expect(claudeInfo.supportsTools).toBe(true);
 
       // Different extended thinking approaches
@@ -540,15 +543,15 @@ describe('Cross-Provider Reasoning Model Comparison', () => {
   });
 
   describe('Cost Comparison', () => {
-    it('should compare o1-mini vs claude-3-7-sonnet costs', () => {
-      const o1Provider = new OpenAIProvider({ name: 'o1-mini', provider: 'openai', apiKey: 'test' });
-      const claudeProvider = new AnthropicProvider({ name: 'claude-3-7-sonnet', provider: 'anthropic', apiKey: 'test' });
+    it('should compare o1-mini vs claude-sonnet-4.5 costs', () => {
+      const o1Provider = new OpenAIProvider({ name: 'o1-mini', provider: 'openai', apiKey: 'test', cost: 0 });
+      const claudeProvider = new AnthropicProvider({ name: 'claude-sonnet-4.5', provider: 'anthropic', apiKey: 'test', cost: 0 });
 
       const o1Cost = o1Provider.calculateCost(1000000, 1000000, 'o1-mini');
-      const claudeCost = claudeProvider.calculateCost(1000000, 1000000, 'claude-3-7-sonnet');
+      const claudeCost = claudeProvider.calculateCost(1000000, 1000000, 'claude-sonnet-4.5');
 
       // o1-mini: $3 in + $12 out = $15 for 2M tokens
-      // claude-3-7-sonnet: $9 blended = $18 for 2M tokens
+      // claude-sonnet-4.5: $9 blended per 1M = $18 for 2M tokens
       expect(o1Cost).toBeCloseTo(15.0, 6);
       expect(claudeCost).toBeCloseTo(18.0, 6);
 
@@ -557,8 +560,8 @@ describe('Cross-Provider Reasoning Model Comparison', () => {
     });
 
     it('should compare o1-preview vs claude-opus-4 costs', () => {
-      const o1Provider = new OpenAIProvider({ name: 'o1-preview', provider: 'openai', apiKey: 'test' });
-      const claudeProvider = new AnthropicProvider({ name: 'claude-opus-4', provider: 'anthropic', apiKey: 'test' });
+      const o1Provider = new OpenAIProvider({ name: 'o1-preview', provider: 'openai', apiKey: 'test', cost: 0 });
+      const claudeProvider = new AnthropicProvider({ name: 'claude-opus-4', provider: 'anthropic', apiKey: 'test', cost: 0 });
 
       const o1Cost = o1Provider.calculateCost(1000000, 1000000, 'o1-preview');
       const claudeCost = claudeProvider.calculateCost(1000000, 1000000, 'claude-opus-4');
@@ -581,6 +584,7 @@ describe('DeepSeek-R1 Reasoning Model (Ollama)', () => {
     mockConfig = {
       name: 'llama3.2',
       provider: 'ollama',
+      cost: 0,
     };
     vi.clearAllMocks();
   });
@@ -707,7 +711,7 @@ describe('DeepSeek-R1 Reasoning Model (Ollama)', () => {
     });
 
     it('should be available with any configuration', () => {
-      const provider = new OllamaProvider({ name: 'deepseek-r1', provider: 'ollama' });
+      const provider = new OllamaProvider({ name: 'deepseek-r1', provider: 'ollama', cost: 0 });
       expect(provider.isAvailable()).toBe(true);
     });
   });
@@ -736,6 +740,7 @@ describe('DeepSeek-R1 Reasoning Model (vLLM)', () => {
     mockConfig = {
       name: 'llama-3.2-1b',
       provider: 'vllm',
+      cost: 0,
     };
     vi.clearAllMocks();
   });
@@ -858,7 +863,7 @@ describe('DeepSeek-R1 Reasoning Model (vLLM)', () => {
     });
 
     it('should be available with any configuration', () => {
-      const provider = new VLLMProvider({ name: 'deepseek-r1', provider: 'vllm' });
+      const provider = new VLLMProvider({ name: 'deepseek-r1', provider: 'vllm', cost: 0 });
       expect(provider.isAvailable()).toBe(true);
     });
 
@@ -909,8 +914,8 @@ describe('Multi-Provider DeepSeek-R1 Comparison', () => {
     });
 
     it('should be free for both local providers', () => {
-      const ollamaProvider = new OllamaProvider({ name: 'deepseek-r1', provider: 'ollama' });
-      const vllmProvider = new VLLMProvider({ name: 'deepseek-r1', provider: 'vllm' });
+      const ollamaProvider = new OllamaProvider({ name: 'deepseek-r1', provider: 'ollama', cost: 0 });
+      const vllmProvider = new VLLMProvider({ name: 'deepseek-r1', provider: 'vllm', cost: 0 });
 
       const ollamaCost = ollamaProvider.calculateCost(1000000, 1000000, 'deepseek-r1');
       const vllmCost = vllmProvider.calculateCost(1000000, 1000000, 'deepseek-r1');
