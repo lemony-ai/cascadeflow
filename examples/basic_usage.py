@@ -51,7 +51,7 @@ Documentation:
 
 import asyncio
 
-from cascadeflow import CascadeAgent, ModelConfig, QualityConfig
+from cascadeflow import CascadeAgent, ModelConfig
 
 
 async def main():
@@ -79,33 +79,25 @@ async def main():
 
     agent = CascadeAgent(
         models=[
-            # Draft model - tries first
+            # Cheap model - tries first
             ModelConfig(
                 name="gpt-4o-mini",
                 provider="openai",
                 cost=0.000375,  # $0.375 per 1M tokens (blended estimate)
+                quality_threshold=0.7,  # Accept if confidence >= 70%
             ),
-            # Verifier model - only if needed
+            # Expensive model - only if needed
             ModelConfig(
                 name="gpt-4o",
                 provider="openai",
                 cost=0.00625,  # $6.25 per 1M tokens (blended estimate)
+                quality_threshold=0.95,  # Very high quality
             ),
-        ],
-        # Quality thresholds configured at agent level
-        quality_config=QualityConfig(
-            confidence_thresholds={
-                'trivial': 0.6,
-                'simple': 0.7,
-                'moderate': 0.75,
-                'hard': 0.8,
-                'expert': 0.85,
-            }
-        )
+        ]
     )
 
-    print("   ✅ Draft model: gpt-4o-mini (~$0.375/1M tokens) - Tries first")
-    print("   ✅ Verifier model: gpt-4o (~$6.25/1M tokens) - Escalates if needed")
+    print("   ✅ Tier 1: gpt-4o-mini (~$0.375/1M tokens) - Tries first")
+    print("   ✅ Tier 2: gpt-4o (~$6.25/1M tokens) - Escalates if needed")
     print()
 
     # ========================================================================
@@ -213,7 +205,7 @@ async def main():
         all_gpt4_tokens += query_tokens + response_tokens
 
         # Show result
-        role = "Draft (Cheap)" if model_used == "gpt-4o-mini" else "Verifier (Expensive)"
+        tier = "Tier 1 (Cheap)" if model_used == "gpt-4o-mini" else "Tier 2 (Expensive)"
         icon = "💚" if model_used == "gpt-4o-mini" else "💛"
 
         print("✅ Result:")
@@ -221,17 +213,17 @@ async def main():
         # Show actual model(s) used with clear status
         if hasattr(result, "draft_accepted") and result.draft_accepted:
             # Only draft was used
-            print(f"   {icon} Model Used: gpt-4o-mini only ({role})")
+            print(f"   {icon} Model Used: gpt-4o-mini only ({tier})")
         elif (
             hasattr(result, "cascaded")
             and result.cascaded
             and not getattr(result, "draft_accepted", True)
         ):
             # Both models were used
-            print("   💚💛 Models Used: gpt-4o-mini + gpt-4o (Draft + Verifier)")
+            print("   💚💛 Models Used: gpt-4o-mini + gpt-4o (Both Tiers)")
         else:
             # Direct routing
-            print(f"   {icon} Model Used: {result.model_used} ({role})")
+            print(f"   {icon} Model Used: {result.model_used} ({tier})")
 
         # Safely get cost
         cost = getattr(result, "total_cost", 0.0)
