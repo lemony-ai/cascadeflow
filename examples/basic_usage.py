@@ -35,8 +35,8 @@ Note on GPT-5:
 
 Note on Costs:
     Costs are calculated using actual token-based pricing from OpenAI:
-    - GPT-4o-mini: ~$0.000375 per 1K tokens (blended input/output)
-    - GPT-5: ~$0.00562 per 1K tokens (blended input/output + reasoning)
+    - GPT-4o-mini: $2.75/1M tokens = $0.00275 per 1K (blended 50/50 input/output)
+    - GPT-5: $5.625/1M tokens = $0.005625 per 1K (blended 50/50 input/output)
 
     Savings depend on your query mix and response lengths.
 
@@ -94,21 +94,21 @@ async def main():
             ModelConfig(
                 name="gpt-4o-mini",
                 provider="openai",
-                cost=0.000375,  # $0.375 per 1M tokens (blended estimate)
+                cost=0.00275,  # $2.75 per 1M tokens (blended 50/50)
                 quality_threshold=0.7,  # Accept if confidence >= 70%
             ),
             # Expensive model - only if needed
             ModelConfig(
                 name="gpt-5",
                 provider="openai",
-                cost=0.00562,  # $5.62 per 1M tokens (blended estimate)
+                cost=0.005625,  # $5.625 per 1M tokens (blended 50/50)
                 quality_threshold=0.95,  # Very high quality
             ),
         ]
     )
 
-    print("   ✅ Tier 1: gpt-4o-mini (~$0.375/1M tokens) - Tries first")
-    print("   ✅ Tier 2: gpt-5 (~$5.62/1M tokens) - Escalates if needed")
+    print("   ✅ Tier 1: gpt-4o-mini ($2.75/1M tokens) - Tries first")
+    print("   ✅ Tier 2: gpt-5 ($5.625/1M tokens) - Escalates if needed")
     print()
 
     # ========================================================================
@@ -319,8 +319,8 @@ async def main():
     print()
 
     # Calculate savings vs all-GPT-5 (token-based using actual usage)
-    # GPT-5 pricing: ~$0.00562 per 1K tokens (blended)
-    all_gpt5_cost = (total_tokens_used / 1000) * 0.00562
+    # GPT-5 pricing: $0.005625 per 1K tokens (blended 50/50)
+    all_gpt5_cost = (total_tokens_used / 1000) * 0.005625
     savings = all_gpt5_cost - stats["total_cost"]
     savings_pct = (savings / all_gpt5_cost * 100) if all_gpt5_cost > 0 else 0.0
 
