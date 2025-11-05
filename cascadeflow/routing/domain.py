@@ -293,6 +293,14 @@ DOMAIN_KEYWORDS: Dict[Domain, DomainKeywords] = {
         ],
         weak=["this", "that", "here"],
     ),
+
+    Domain.GENERAL: DomainKeywords(
+        # General is the default/fallback domain, so no specific keywords
+        # It matches queries that don't fit other specialized domains
+        strong=[],
+        moderate=[],
+        weak=[],
+    ),
 }
 
 
