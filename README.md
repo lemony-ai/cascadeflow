@@ -141,8 +141,8 @@ from cascadeflow import CascadeAgent, ModelConfig
 
 # Define your cascade - try cheap model first, escalate if needed
 agent = CascadeAgent(models=[
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),  # Try first
-    ModelConfig(name="gpt-5", provider="openai", cost=0.00125),        # Fallback
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),  # Try first (~$0.375/1M tokens)
+    ModelConfig(name="gpt-5", provider="openai", cost=0.00562),         # Fallback (~$5.62/1M tokens)
 ])
 
 # Run query - automatically routes to optimal model
@@ -170,8 +170,8 @@ from cascadeflow import CascadeAgent, ModelConfig
 # Enable ML-based semantic detection (optional parameter)
 agent = CascadeAgent(
     models=[
-        ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
-        ModelConfig(name="gpt-5", provider="openai", cost=0.00125),
+        ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+        ModelConfig(name="gpt-5", provider="openai", cost=0.00562),
     ],
     enable_semantic_detection=True  # Optional: Uses ML for domain detection
 )
@@ -195,7 +195,7 @@ print(f"Confidence: {result.metadata.get('domain_confidence', 0):.1%}")
 
 </details>
 
-> **⚠️ GPT-5 Note:** GPT-5 requires OpenAI organization verification. Go to [OpenAI Settings](https://platform.openai.com/settings/organization/general) and click "Verify Organization". Access is granted within ~15 minutes. Alternatively, use the recommended setup below which works immediately.
+> **⚠️ GPT-5 Note:** GPT-5 requires OpenAI organization verification. Go to [OpenAI Settings](https://platform.openai.com/settings/organization/general) and click "Verify Organization". Access is granted within ~15 minutes. The cascade above works immediately with GPT-4o-mini handling most queries - GPT-5 is only called when needed (typically 20-30% of requests).
 
 📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
