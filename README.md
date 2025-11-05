@@ -195,7 +195,7 @@ print(f"Confidence: {result.metadata.get('domain_confidence', 0):.1%}")
 
 </details>
 
-> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). The cascade works immediately - GPT-5 is only called when needed (typically 20-30% of requests).
+> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow Examples work without - GPT-5 is only called when needed (typically 20-30% of requests).
 
 📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
@@ -225,34 +225,18 @@ console.log(`Saved: ${result.savingsPercentage}%`);
 <details>
 <summary><b>💡 Optional: Enable ML-based Quality Engine & Domain Detection for Higher Accuracy</b></summary>
 
-> **Note:** ML semantic detection is currently available in Python only. TypeScript support is planned for a future release. Rule-based detection provides excellent accuracy out of the box.
+**Step 1:** Install the optional ML package:
 
-**For Python users:**
-
-**Step 1:** Install the ML package:
 ```bash
-pip install cascadeflow[ml]
+npm install @cascadeflow/ml  # Adds semantic similarity detection via Transformers.js
 ```
 
-**Step 2:** Enable semantic detection:
-```python
-from cascadeflow import CascadeAgent, ModelConfig
-
-agent = CascadeAgent(
-    models=[...],
-    enable_semantic_detection=True  # Enables ML-based detection
-)
-```
-
-**Future TypeScript Support (Planned):**
+**Step 2:** Enable semantic detection in your agent:
 
 ```tsx
-// Will be available in a future release
-npm install @cascadeflow/ml
-
 import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
 
-// Step 1: Enable semantic detection in configuration
+// Enable ML-based semantic detection (optional parameter)
 const agent = new CascadeAgent({
   models: [
     { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
@@ -261,8 +245,8 @@ const agent = new CascadeAgent({
   enableSemanticDetection: true  // Optional: Uses ML for domain detection
 });
 
-// Step 2: Query with ML-enhanced detection
-const result = await agent.run('Parse this JSON and validate the schema');
+// ML semantic detection is now active for all queries
+const result = await agent.run('Calculate the eigenvalues of matrix [[1,2],[3,4]]');
 
 // Check which detection method was used
 console.log(`Domain: ${result.metadata.domainDetected}`);
@@ -270,13 +254,13 @@ console.log(`Method: ${result.metadata.detectionMethod}`);  // 'semantic' or 'ru
 console.log(`Confidence: ${(result.metadata.domainConfidence * 100).toFixed(1)}%`);
 ```
 
-**What you'll get (when available):**
+**What you get:**
 - 🎯 84-87% confidence on complex domains (MATH, CODE, DATA, STRUCTURED)
-- 🔄 Automatic fallback to rule-based if ML unavailable
+- 🔄 Automatic fallback to rule-based if ML dependencies unavailable
 - 📈 Improved routing accuracy for specialized queries
 - 🚀 Works seamlessly with your existing cascade setup
 
-Currently, cascadeflow TypeScript uses highly accurate rule-based domain detection which works great for most use cases!
+**Note:** If `enableSemanticDetection: true` but @cascadeflow/ml is not installed, cascadeflow automatically falls back to rule-based detection without errors.
 
 </details>
 
@@ -370,7 +354,7 @@ Configure cascadeflow node:
 | Example | Description | Link |
 |---------|-------------|------|
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
-| **Preset Usage** | Use built-in presets for quick setup | [View Guide](./docs/guides/presets.md) |
+| **Preset Usage** | Use built-in presets for quick setup | [View](./docs/guides/presets.md) |
 | **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
 | **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
