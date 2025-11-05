@@ -63,11 +63,27 @@ export interface QualityConfig {
 }
 
 /**
- * Default quality configuration
+ * Default quality configuration (production-grade)
  */
 export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   minConfidence: 0.7,
   minWordCount: 10,
+  useLogprobs: true,
+  fallbackToHeuristic: true,
+  strictMode: false,
+};
+
+/**
+ * CASCADE-OPTIMIZED configuration (matches Python for_cascade())
+ *
+ * Research-backed thresholds for optimal cascade performance.
+ * Target: 50-60% acceptance rate, 94-96% quality
+ *
+ * Use this for speculative cascade systems with draft + verifier.
+ */
+export const CASCADE_QUALITY_CONFIG: QualityConfig = {
+  minConfidence: 0.40,  // Much lower than production (0.7)
+  minWordCount: 5,      // Relaxed from 10
   useLogprobs: true,
   fallbackToHeuristic: true,
   strictMode: false,

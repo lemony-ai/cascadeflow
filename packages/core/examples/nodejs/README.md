@@ -25,12 +25,15 @@ npm install @huggingface/inference    # For HuggingFace
 
 ### 1. Basic Usage (`basic-usage.ts`)
 
-The simplest introduction to cascadeflow.
+The simplest and most comprehensive introduction to cascadeflow.
 
 **What it shows:**
-- Setting up a two-tier cascade
-- Automatic query routing
-- Cost tracking
+- Setting up a two-tier cascade (cheap → expensive)
+- Processing 8 queries with different complexity levels
+- Automatic quality-based routing
+- Real-time cost tracking and savings calculation
+- Detailed latency breakdowns
+- Token-based pricing demonstration
 
 **Run:**
 ```bash
@@ -38,7 +41,24 @@ export OPENAI_API_KEY="your-key"
 npx tsx basic-usage.ts
 ```
 
-### 2. Tool Calling (`tool-calling.ts`)
+### 2. Cost Tracking (`cost-tracking.ts`)
+
+Comprehensive cost tracking and budget management.
+
+**What it shows:**
+- Real-time cost tracking across multiple queries
+- Per-model and per-provider cost analysis
+- Budget limits and alerts
+- Cost history and trends
+- Manual tracking implementation (TypeScript doesn't have telemetry module yet)
+
+**Run:**
+```bash
+export OPENAI_API_KEY="your-key"
+npx tsx cost-tracking.ts
+```
+
+### 3. Tool Calling (`tool-calling.ts`)
 
 Function/tool calling with cascadeflow.
 
@@ -53,7 +73,7 @@ export OPENAI_API_KEY="your-key"
 npx tsx tool-calling.ts
 ```
 
-### 3. Multi-Provider (`multi-provider.ts`)
+### 4. Multi-Provider (`multi-provider.ts`)
 
 Using multiple AI providers together.
 
@@ -70,7 +90,7 @@ export GROQ_API_KEY="your-key"
 npx tsx multi-provider.ts
 ```
 
-### 4. Reasoning Models (`reasoning-models.ts`)
+### 5. Reasoning Models (`reasoning-models.ts`)
 
 Use advanced reasoning models across 4 providers with automatic detection.
 
@@ -93,7 +113,7 @@ export OPENAI_API_KEY="your-key"
 npx tsx reasoning-models.ts
 ```
 
-### 5. Production Patterns (`production-patterns.ts`)
+### 6. Production Patterns (`production-patterns.ts`)
 
 Best practices for deploying cascadeflow in production.
 
@@ -161,19 +181,24 @@ const models: ModelConfig[] = [
     name: 'claude-3-5-haiku-20241022',
     provider: 'anthropic',
     cost: 0.0008,
-    qualityThreshold: 0.7,
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
   {
     name: 'gpt-5',
     provider: 'openai',
     cost: 0.00125,
-    qualityThreshold: 0.95,
     apiKey: process.env.OPENAI_API_KEY,
   },
 ];
 
-const agent = new CascadeAgent({ models });
+const agent = new CascadeAgent({
+  models,
+  quality: {
+    threshold: 0.7,  // Quality configured at agent level, not on ModelConfig
+    requireMinimumTokens: 10,
+  },
+});
+
 const result: CascadeResult = await agent.run('Hello!');
 ```
 

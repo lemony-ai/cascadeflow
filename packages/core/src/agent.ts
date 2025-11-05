@@ -20,6 +20,8 @@ import {
   type StreamOptions,
 } from './streaming';
 import { QualityValidator } from './quality';
+import { ComplexityDetector } from './complexity';
+import type { QueryComplexity } from './types';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -70,6 +72,7 @@ export interface RunOptions {
 export class CascadeAgent {
   private models: ModelConfig[];
   private qualityValidator: QualityValidator;
+  private complexityDetector: ComplexityDetector;
 
   /**
    * Create a new cascadeflow agent
@@ -132,6 +135,9 @@ export class CascadeAgent {
         }
       : undefined;
     this.qualityValidator = new QualityValidator(validatorConfig);
+
+    // Initialize complexity detector
+    this.complexityDetector = new ComplexityDetector();
   }
 
   /**
@@ -212,10 +218,25 @@ export class CascadeAgent {
     const messages: Message[] =
       typeof input === 'string' ? [{ role: 'user', content: input }] : input;
 
-    // For MVP, we'll use simple cascade logic:
-    // 1. Try cheapest model first
-    // 2. If quality is insufficient, escalate to next model
-    // 3. Return result
+    // Extract query text for complexity detection
+    const queryText = typeof input === 'string'
+      ? input
+      : input.map(m => m.content).join('\n');
+
+    // === STEP 1: COMPLEXITY DETECTION (PreRouter) ===
+    const complexityResult = this.complexityDetector.detect(queryText);
+    const { complexity } = complexityResult;
+
+    // Define which complexities should cascade vs. direct route
+    // TRIVIAL/SIMPLE/MODERATE → Cascade (cost optimization)
+    // HARD/EXPERT → Direct to best model (quality priority)
+    const cascadeComplexities: QueryComplexity[] = [
+      'trivial',
+      'simple',
+      'moderate',
+    ];
+
+    const shouldCascade = !options.forceDirect && cascadeComplexities.includes(complexity);
 
     let draftCost = 0;
     let verifierCost = 0;
@@ -230,6 +251,65 @@ export class CascadeAgent {
     let modelUsed = '';
     let finalToolCalls: any[] | undefined;
 
+    // === STEP 2: ROUTING DECISION ===
+    if (!shouldCascade || this.models.length === 1) {
+      // Direct route to best model (most expensive)
+      const bestModelConfig = this.models[this.models.length - 1];
+
+      try {
+        const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
+
+        const response = await provider.generate({
+          messages,
+          model: bestModelConfig.name,
+          maxTokens: options.maxTokens,
+          temperature: options.temperature,
+          systemPrompt: options.systemPrompt,
+          tools: options.tools,
+        });
+
+        modelUsed = response.model;
+        finalContent = response.content;
+        finalToolCalls = response.tool_calls;
+
+        // Calculate cost
+        if (response.usage) {
+          totalCost = provider.calculateCost(
+            response.usage.prompt_tokens,
+            response.usage.completion_tokens,
+            response.model
+          );
+        }
+
+        const latencyMs = Date.now() - startTime;
+
+        return {
+          content: finalContent,
+          modelUsed,
+          totalCost,
+          latencyMs,
+          complexity: complexity, // Now returns actual detected complexity
+          cascaded: false,
+          draftAccepted: false,
+          routingStrategy: 'direct',
+          reason: `Direct route (${complexity} complexity detected)`,
+          toolCalls: finalToolCalls,
+          hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,
+          draftModel: undefined,
+          draftCost: 0,
+          draftLatencyMs: 0,
+          verifierModel: undefined,
+          verifierCost: 0,
+          verifierLatencyMs: 0,
+          costSaved: 0,
+          savingsPercentage: 0,
+        };
+      } catch (error) {
+        throw new Error(`cascadeflow error: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // === STEP 3: CASCADE EXECUTION ===
     // Try draft model (cheapest)
     const draftModelConfig = this.models[0];
     const draftStart = Date.now();
@@ -329,10 +409,10 @@ export class CascadeAgent {
         modelUsed,
         totalCost,
         latencyMs,
-        complexity: 'unknown', // MVP: no complexity detection yet
+        complexity: complexity, // Detected complexity from ComplexityDetector
         cascaded,
         draftAccepted,
-        routingStrategy: cascaded ? 'cascade' : 'direct',
+        routingStrategy: 'cascade', // Always 'cascade' for this path (draft was tried)
         reason: cascaded ? 'Draft quality insufficient, escalated' : 'Draft accepted',
         toolCalls: finalToolCalls,
         hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,

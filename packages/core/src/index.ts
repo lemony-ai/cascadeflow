@@ -71,6 +71,14 @@ export type {
   QualityConfig as QualityValidatorConfig,
 } from './quality';
 
+// Complexity detection
+export {
+  ComplexityDetector,
+} from './complexity';
+export type {
+  ComplexityResult,
+} from './complexity';
+
 // Types
 export type {
   Provider as ProviderType,

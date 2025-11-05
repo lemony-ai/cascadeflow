@@ -29,7 +29,7 @@ export type RoutingStrategy =
 /**
  * Query complexity levels
  */
-export type QueryComplexity = 'simple' | 'moderate' | 'complex' | 'expert';
+export type QueryComplexity = 'trivial' | 'simple' | 'moderate' | 'hard' | 'expert';
 
 /**
  * Message role in chat format
