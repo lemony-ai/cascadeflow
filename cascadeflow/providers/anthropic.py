@@ -55,8 +55,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
     capabilities, enabling zero-configuration usage. Just specify the model name
     and all limitations/features are handled automatically.
 
-    Note: Claude 3.7 was a hypothetical future model. As of January 2025,
-    current production models are Claude 3.5 Sonnet/Haiku and Claude 3 Opus/Sonnet/Haiku.
+    Note: Claude Sonnet 4.5 was released September 29, 2025 with extended thinking.
 
     Args:
         model_name: Model name to check (case-insensitive)
@@ -65,16 +64,39 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         ReasoningModelInfo with capability flags
 
     Examples:
-        >>> info = get_reasoning_model_info('claude-3-5-sonnet-20241022')
-        >>> print(info.is_reasoning)  # False
-        >>> print(info.supports_tools)  # True
+        >>> info = get_reasoning_model_info('claude-sonnet-4-5')
+        >>> print(info.is_reasoning)  # True
+        >>> print(info.supports_extended_thinking)  # True
 
-        >>> info = get_reasoning_model_info('claude-3-haiku')
+        >>> info = get_reasoning_model_info('claude-3-5-sonnet')
         >>> print(info.is_reasoning)  # False
         >>> print(info.supports_tools)  # True
     """
-    # All current Claude models have standard capabilities
-    # Note: As of January 2025, Anthropic has not released extended thinking models
+    model_lower = model_name.lower().replace('_', '-')
+
+    # Detect Claude Sonnet 4.5 with extended thinking (released Sept 29, 2025)
+    is_sonnet_45 = any(pattern in model_lower for pattern in [
+        'claude-sonnet-4-5',
+        'claude-sonnet-4.5',
+        'claude-4-5-sonnet',
+        'claude-4.5-sonnet',
+        'sonnet-4-5',
+        'sonnet-4.5',
+    ])
+
+    if is_sonnet_45:
+        # Claude Sonnet 4.5 with extended thinking capabilities
+        return ReasoningModelInfo(
+            is_reasoning=True,
+            provider='anthropic',
+            supports_streaming=True,
+            supports_tools=True,
+            supports_system_messages=True,
+            supports_extended_thinking=True,
+            requires_thinking_budget=True,  # Extended thinking requires token budget
+        )
+
+    # All other Claude models have standard capabilities
     return ReasoningModelInfo(
         is_reasoning=False,
         provider='anthropic',

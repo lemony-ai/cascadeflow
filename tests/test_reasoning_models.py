@@ -463,7 +463,7 @@ class TestCrossProviderReasoningComparison:
     def test_openai_vs_anthropic_detection(self):
         """Test detection works for both providers."""
         o1_info = get_openai_reasoning_model_info("o1-mini")
-        claude_info = get_anthropic_reasoning_model_info("claude-3-7-sonnet")
+        claude_info = get_anthropic_reasoning_model_info("claude-sonnet-4-5")
 
         assert o1_info.is_reasoning is True
         assert claude_info.is_reasoning is True
@@ -473,12 +473,12 @@ class TestCrossProviderReasoningComparison:
     def test_different_capabilities(self):
         """Test OpenAI vs Anthropic have different capabilities."""
         o1_info = get_openai_reasoning_model_info("o1-mini")
-        claude_info = get_anthropic_reasoning_model_info("claude-3-7-sonnet")
+        claude_info = get_anthropic_reasoning_model_info("claude-sonnet-4-5")
 
         # OpenAI o1 doesn't support tools
         assert o1_info.supports_tools is False
 
-        # Claude 3.7 supports tools
+        # Claude Sonnet 4.5 supports tools
         assert claude_info.supports_tools is True
 
         # Different extended thinking approaches
