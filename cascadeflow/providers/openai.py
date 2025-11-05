@@ -105,6 +105,17 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
             requires_max_completion_tokens=True,
         )
 
+    # GPT-5 series (uses max_completion_tokens parameter)
+    if name.startswith('gpt-5'):
+        return ReasoningModelInfo(
+            is_reasoning=False,  # Not a reasoning model, but uses special parameter
+            supports_streaming=True,
+            supports_tools=True,
+            supports_system_messages=True,
+            supports_reasoning_effort=False,
+            requires_max_completion_tokens=True,  # GPT-5 requires this parameter
+        )
+
     # Not a reasoning model - standard GPT model
     return ReasoningModelInfo(
         is_reasoning=False,
