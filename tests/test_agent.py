@@ -289,8 +289,10 @@ class TestComplexityDetection:
 
         result = await mock_agent.run("Explain quantum entanglement in relation to Bell's theorem")
 
-        # Should use better model for expert queries
-        assert result.model_used in ["gpt-4", "gpt-3.5-turbo", "llama3:8b"]
+        # Should use best model for expert queries (gpt-4o is most expensive/best in mock_models)
+        assert result.model_used == "gpt-4o"
+        assert result.cascaded is False  # Expert queries use direct routing
+        assert result.routing_strategy == "direct"
 
 
 class TestDomainRouting:
