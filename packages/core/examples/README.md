@@ -21,7 +21,6 @@ Server-side TypeScript examples for Node.js applications:
 Client-side examples for browser and edge runtimes:
 
 - **vercel-edge/** - Deploy as Vercel Edge Function
-- More browser examples coming soon!
 
 [→ See browser/README.md for details](./browser/README.md)
 
@@ -49,11 +48,10 @@ vercel dev
 | Feature | Node.js | Browser |
 |---------|---------|---------|
 | Basic Cascade | ✅ | ✅ |
-| Tool Calling | ✅ | 🔜 |
+| Tool Calling | ✅ | ✅ |
 | Multi-Provider | ✅ | ✅ |
-| Reasoning Models | ✅ | 🔜 |
-| Production Patterns | ✅ | 🔜 |
-| Streaming | 🔜 | 🔜 |
+| Reasoning Models | ✅ | ✅ |
+| Production Patterns | ✅ | ✅ |
 | Cost Tracking | ✅ | ✅ |
 
 ## 🔑 Environment Setup
