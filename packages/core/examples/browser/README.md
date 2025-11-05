@@ -21,10 +21,6 @@ Deploy cascadeflow as a Vercel Edge Function for global, low-latency inference.
 - Vendor lock-in (Vercel)
 - Cold starts
 
-### Coming Soon
-
-Additional browser examples (Cloudflare Worker, Express backend, etc.) are in development. The Vercel Edge Function example demonstrates the core patterns that work across all edge/browser environments.
-
 ## Quick Start
 
 ```bash
