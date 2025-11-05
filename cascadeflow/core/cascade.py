@@ -154,7 +154,7 @@ def _convert_to_dict(result: Any) -> dict[str, Any]:
     """
     Convert ModelResponse to dict if needed.
 
-    Extracts confidence_method and tool_calls from metadata for tracking.
+    Extracts confidence_method, tool_calls, and token counts from metadata for tracking.
     """
     if hasattr(result, "to_dict"):
         result_dict = result.to_dict()
@@ -174,6 +174,13 @@ def _convert_to_dict(result: Any) -> dict[str, Any]:
         result_dict["confidence_method"] = result_dict["metadata"].get(
             "confidence_method", "unknown"
         )
+        # Extract token counts for accurate LiteLLM-based cost calculation
+        if "prompt_tokens" in result_dict["metadata"]:
+            result_dict["prompt_tokens"] = result_dict["metadata"]["prompt_tokens"]
+        if "completion_tokens" in result_dict["metadata"]:
+            result_dict["completion_tokens"] = result_dict["metadata"]["completion_tokens"]
+        if "total_tokens" in result_dict["metadata"]:
+            result_dict["total_tokens"] = result_dict["metadata"]["total_tokens"]
     else:
         result_dict["confidence_method"] = "unknown"
 
@@ -1108,6 +1115,7 @@ class WholeResponseCascade:
                 draft_method=draft_method,
                 alignment_score=alignment_score,
                 cost_breakdown=costs,
+                draft_result=draft_result,
             )
 
         else:
@@ -1178,6 +1186,7 @@ class WholeResponseCascade:
                 rejection_reason=validation_reason,
                 alignment_score=alignment_score,
                 cost_breakdown=costs,
+                verifier_result=verifier_result,
             )
 
     # ═══════════════════════════════════════════════════════════
@@ -1373,6 +1382,8 @@ class WholeResponseCascade:
         tool_calls: Optional[list[dict[str, Any]]] = None,
         alignment_score: Optional[float] = None,
         cost_breakdown: Optional[dict[str, float]] = None,
+        draft_result: Optional[dict[str, Any]] = None,
+        verifier_result: Optional[dict[str, Any]] = None,
     ) -> SpeculativeResult:
         """
         Create SpeculativeResult with COMPLETE diagnostic metadata and tool calls.
@@ -1460,6 +1471,23 @@ class WholeResponseCascade:
             "has_tool_calls": bool(tool_calls),
             "tool_count": len(tool_calls) if tool_calls else 0,
         }
+
+        # Extract token counts from provider responses for LiteLLM integration
+        if draft_result:
+            if "prompt_tokens" in draft_result:
+                metadata["prompt_tokens"] = draft_result["prompt_tokens"]
+            if "completion_tokens" in draft_result:
+                metadata["completion_tokens"] = draft_result["completion_tokens"]
+            if "total_tokens" in draft_result:
+                metadata["total_tokens"] = draft_result["total_tokens"]
+        elif verifier_result:
+            # If draft was rejected, use verifier tokens
+            if "prompt_tokens" in verifier_result:
+                metadata["prompt_tokens"] = verifier_result["prompt_tokens"]
+            if "completion_tokens" in verifier_result:
+                metadata["completion_tokens"] = verifier_result["completion_tokens"]
+            if "total_tokens" in verifier_result:
+                metadata["total_tokens"] = verifier_result["total_tokens"]
 
         return SpeculativeResult(
             content=content,
