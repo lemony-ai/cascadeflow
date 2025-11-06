@@ -58,6 +58,7 @@ def mock_fastembed_unavailable():
 # ============================================================================
 
 
+@pytest.mark.integration
 def test_semantic_checker_init_with_fastembed(mock_fastembed_available):
     """Test initialization when FastEmbed is available."""
     checker = SemanticQualityChecker()
@@ -68,6 +69,7 @@ def test_semantic_checker_init_with_fastembed(mock_fastembed_available):
     assert checker.toxicity_threshold == 0.7
 
 
+@pytest.mark.integration
 def test_semantic_checker_init_without_fastembed(mock_fastembed_unavailable):
     """Test graceful degradation when FastEmbed is not available."""
     checker = SemanticQualityChecker()
@@ -78,6 +80,7 @@ def test_semantic_checker_init_without_fastembed(mock_fastembed_unavailable):
     assert not checker.embedder.is_available  # But FastEmbed not available
 
 
+@pytest.mark.integration
 def test_semantic_checker_custom_thresholds(mock_fastembed_available):
     """Test initialization with custom thresholds."""
     checker = SemanticQualityChecker(
@@ -94,6 +97,7 @@ def test_semantic_checker_custom_thresholds(mock_fastembed_available):
 # ============================================================================
 
 
+@pytest.mark.integration
 def test_check_similarity_high(mock_fastembed_available):
     """Test high semantic similarity between related texts."""
     import numpy as np
@@ -113,6 +117,7 @@ def test_check_similarity_high(mock_fastembed_available):
     assert similarity == pytest.approx(1.0, abs=0.01)
 
 
+@pytest.mark.integration
 def test_check_similarity_low(mock_fastembed_available):
     """Test low semantic similarity between unrelated texts."""
     import numpy as np
@@ -140,6 +145,7 @@ def test_check_similarity_low(mock_fastembed_available):
     assert similarity == pytest.approx(0.0, abs=0.1)
 
 
+@pytest.mark.integration
 def test_check_similarity_unavailable(mock_fastembed_unavailable):
     """Test similarity check raises error when FastEmbed unavailable."""
     checker = SemanticQualityChecker()
@@ -148,6 +154,7 @@ def test_check_similarity_unavailable(mock_fastembed_unavailable):
         checker.check_similarity("query", "response")
 
 
+@pytest.mark.integration
 def test_check_similarity_empty_strings(mock_fastembed_available):
     """Test similarity check with empty strings."""
     import numpy as np
@@ -168,6 +175,7 @@ def test_check_similarity_empty_strings(mock_fastembed_available):
 # ============================================================================
 
 
+@pytest.mark.integration
 def test_check_toxicity_clean(mock_fastembed_available):
     """Test toxicity check on clean text."""
     checker = SemanticQualityChecker()
@@ -180,6 +188,7 @@ def test_check_toxicity_clean(mock_fastembed_available):
     assert score == 0.0
 
 
+@pytest.mark.integration
 def test_check_toxicity_single_keyword(mock_fastembed_available):
     """Test toxicity check with single toxic keyword."""
     checker = SemanticQualityChecker()
@@ -192,6 +201,7 @@ def test_check_toxicity_single_keyword(mock_fastembed_available):
     assert not is_toxic
 
 
+@pytest.mark.integration
 def test_check_toxicity_multiple_keywords(mock_fastembed_available):
     """Test toxicity check with multiple toxic keywords."""
     checker = SemanticQualityChecker()
@@ -205,6 +215,7 @@ def test_check_toxicity_multiple_keywords(mock_fastembed_available):
     assert is_toxic  # Should exceed default threshold
 
 
+@pytest.mark.integration
 def test_check_toxicity_custom_threshold(mock_fastembed_available):
     """Test toxicity check with custom threshold."""
     checker = SemanticQualityChecker(toxicity_threshold=0.2)
@@ -215,6 +226,7 @@ def test_check_toxicity_custom_threshold(mock_fastembed_available):
     assert is_toxic
 
 
+@pytest.mark.integration
 def test_check_toxicity_unavailable(mock_fastembed_unavailable):
     """Test toxicity check raises error when unavailable."""
     checker = SemanticQualityChecker()
@@ -228,6 +240,7 @@ def test_check_toxicity_unavailable(mock_fastembed_unavailable):
 # ============================================================================
 
 
+@pytest.mark.integration
 def test_validate_pass(mock_fastembed_available):
     """Test validation passes with high similarity and no toxicity."""
     import numpy as np
@@ -247,6 +260,7 @@ def test_validate_pass(mock_fastembed_available):
     assert result.reason is None
 
 
+@pytest.mark.integration
 def test_validate_fail_low_similarity(mock_fastembed_available):
     """Test validation fails due to low similarity."""
     import numpy as np
@@ -272,6 +286,7 @@ def test_validate_fail_low_similarity(mock_fastembed_available):
     assert "low_similarity" in result.reason
 
 
+@pytest.mark.integration
 def test_validate_fail_toxic(mock_fastembed_available):
     """Test validation fails due to toxic content."""
     import numpy as np
@@ -292,6 +307,7 @@ def test_validate_fail_toxic(mock_fastembed_available):
     assert "toxic_content" in result.reason
 
 
+@pytest.mark.integration
 def test_validate_skip_toxicity(mock_fastembed_available):
     """Test validation can skip toxicity check."""
     import numpy as np
@@ -311,6 +327,7 @@ def test_validate_skip_toxicity(mock_fastembed_available):
     assert result.toxicity_score == 0.0
 
 
+@pytest.mark.integration
 def test_validate_unavailable(mock_fastembed_unavailable):
     """Test validation returns error result when unavailable."""
     checker = SemanticQualityChecker()
@@ -323,6 +340,7 @@ def test_validate_unavailable(mock_fastembed_unavailable):
     assert result.metadata["available"] is False
 
 
+@pytest.mark.integration
 def test_validate_metadata(mock_fastembed_available):
     """Test validation includes proper metadata."""
     import numpy as np
@@ -348,6 +366,7 @@ def test_validate_metadata(mock_fastembed_available):
 # ============================================================================
 
 
+@pytest.mark.integration
 def test_check_semantic_quality_convenience(mock_fastembed_available):
     """Test convenience function for one-off checks."""
     # Mock high similarity embeddings
@@ -371,6 +390,7 @@ def test_check_semantic_quality_convenience(mock_fastembed_available):
         assert result.similarity == 0.9
 
 
+@pytest.mark.integration
 def test_check_semantic_quality_unavailable(mock_fastembed_unavailable):
     """Test convenience function returns None when unavailable."""
     result = check_semantic_quality("query", "response")
@@ -383,6 +403,7 @@ def test_check_semantic_quality_unavailable(mock_fastembed_unavailable):
 # ============================================================================
 
 
+@pytest.mark.integration
 def test_cosine_similarity_zero_vectors(mock_fastembed_available):
     """Test cosine similarity handles zero vectors."""
     import numpy as np
@@ -396,6 +417,7 @@ def test_cosine_similarity_zero_vectors(mock_fastembed_available):
     assert similarity == 0.0
 
 
+@pytest.mark.integration
 def test_cosine_similarity_one_zero_vector(mock_fastembed_available):
     """Test cosine similarity handles one zero vector."""
     import numpy as np
@@ -409,6 +431,7 @@ def test_cosine_similarity_one_zero_vector(mock_fastembed_available):
     assert similarity == 0.0
 
 
+@pytest.mark.integration
 def test_very_long_text(mock_fastembed_available):
     """Test semantic checking handles very long texts."""
     import numpy as np
@@ -426,6 +449,7 @@ def test_very_long_text(mock_fastembed_available):
     assert isinstance(result, SemanticQualityResult)
 
 
+@pytest.mark.integration
 def test_unicode_text(mock_fastembed_available):
     """Test semantic checking handles unicode text."""
     import numpy as np
