@@ -53,7 +53,7 @@
     "edge-functions"
   ],
   "dependencies": {
-    "@cascadeflow/ml": "^0.3.0"
+    "@cascadeflow/ml": "^0.4.0"
   },
   "peerDependencies": {
     "openai": "^4.0.0",

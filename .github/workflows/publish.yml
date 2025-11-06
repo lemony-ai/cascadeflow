@@ -178,6 +178,8 @@ jobs:
     environment:
       name: testpypi
       url: https://test.pypi.org/p/cascadeflow
+    permissions:
+      id-token: write  # For trusted publishing
 
     steps:
       - name: Download distributions
