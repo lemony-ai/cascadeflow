@@ -15,7 +15,7 @@ importers:
   packages/core:
     dependencies:
       '@cascadeflow/ml':
-        specifier: workspace:*
+        specifier: ^0.3.0
         version: link:../ml
       '@xenova/transformers':
         specifier: ^2.17.2
