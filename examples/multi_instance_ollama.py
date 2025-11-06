@@ -117,15 +117,16 @@ def create_multi_instance_agent(config: MultiInstanceConfig) -> CascadeAgent:
                 provider="ollama",
                 cost=0,  # Local execution is free
                 base_url=config.draft_instance.url,
+                quality_threshold=0.7,  # Accept if confidence >= 70%
             ),
             ModelConfig(
                 name=config.verifier_instance.model,
                 provider="ollama",
                 cost=0,
                 base_url=config.verifier_instance.url,
+                quality_threshold=0.95,  # Very high quality
             ),
-        ],
-        quality_threshold=0.7,  # Adjust based on your needs
+        ]
     )
 
 

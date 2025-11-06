@@ -126,6 +126,7 @@ def create_multi_instance_agent(config: MultiInstanceConfig) -> CascadeAgent:
                 cost=0,  # Self-hosted is free (no API costs)
                 base_url=config.draft_instance.url,
                 api_key=config.draft_instance.api_key,
+                quality_threshold=0.7,  # Accept if confidence >= 70%
             ),
             ModelConfig(
                 name=config.verifier_instance.model,
@@ -133,9 +134,9 @@ def create_multi_instance_agent(config: MultiInstanceConfig) -> CascadeAgent:
                 cost=0,
                 base_url=config.verifier_instance.url,
                 api_key=config.verifier_instance.api_key,
+                quality_threshold=0.95,  # Very high quality
             ),
-        ],
-        quality_threshold=0.7,
+        ]
     )
 
 
@@ -267,11 +268,7 @@ async def main():
         print(f"  Cascaded: {result.cascaded}")
         print(f"  Draft accepted: {result.draft_accepted}")
         print(f"  Latency: {elapsed:.0f}ms")
-
-        if result.usage:
-            print(
-                f"  Tokens: {result.usage.prompt_tokens} prompt + {result.usage.completion_tokens} completion"
-            )
+        print(f"  Total cost: ${result.total_cost:.6f}")
 
         print()
         print(f"Response preview: {result.content[:300]}...")
@@ -288,9 +285,7 @@ async def main():
     )
     verifier_count = len(results) - draft_count
     avg_latency = sum(r.latency_ms or 0 for r in results) / len(results)
-    total_tokens = sum(
-        r.usage.total_tokens if r.usage else 0 for r in results
-    )
+    total_cost = sum(r.total_cost for r in results)
 
     print(f"Total queries: {len(results)}")
     print(
@@ -300,7 +295,7 @@ async def main():
         f"Verifier instance: {verifier_count} queries ({verifier_count / len(results) * 100:.0f}%)"
     )
     print(f"Average latency: {avg_latency:.0f}ms")
-    print(f"Total tokens: {total_tokens}")
+    print(f"Total cost: ${total_cost:.6f}")
     print()
 
     print("Multi-Instance Benefits:")
