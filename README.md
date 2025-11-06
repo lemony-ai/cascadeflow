@@ -196,7 +196,7 @@ print(f"Toxic: {result.is_toxic}")
 
 </details>
 
-> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow examples work without- GPT-5 is only called when needed (typically 20-30% of requests).
+> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow examples work without - GPT-5 is only called when needed (typically 20-30% of requests).
 
 📖 **Learn more:** [Python Documentation](./docs/README.md) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
@@ -284,7 +284,7 @@ if (await checker.isAvailable()) {
 
 </details>
 
-📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
+📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Quickstart Guide](./docs/guides/quickstart-typescript.md) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
 
 ### 🔄 Migration Example
 

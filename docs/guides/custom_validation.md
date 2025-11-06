@@ -857,12 +857,14 @@ import { CascadeAgent, SemanticQualityChecker } from '@cascadeflow/core';
 // Enable semantic validation in cascade
 const agent = new CascadeAgent({
   models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
   ],
   quality: {
-    useSemanticValidation: true,  // Enable ML validation
-    semanticThreshold: 0.5,        // 50% minimum similarity
+    threshold: 0.40,                    // Traditional confidence threshold
+    requireMinimumTokens: 5,            // Minimum response length
+    useSemanticValidation: true,        // Enable ML validation
+    semanticThreshold: 0.5,             // 50% minimum similarity
   },
 });
 
@@ -877,7 +879,7 @@ Use the semantic checker directly for custom validation:
 ```typescript
 import { SemanticQualityChecker } from '@cascadeflow/core';
 
-const checker = new SemanticQualityChecker(0.5);  // threshold
+const checker = new SemanticQualityChecker();
 
 if (await checker.isAvailable()) {
   const result = await checker.checkSimilarity(
