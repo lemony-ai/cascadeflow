@@ -181,6 +181,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build ml package for type checking
+        run: pnpm --filter @cascadeflow/ml build
+
       - name: Lint TypeScript Core
         run: pnpm --filter @cascadeflow/core lint || echo "Lint not configured"
 
