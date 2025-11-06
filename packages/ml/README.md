@@ -229,6 +229,6 @@ MIT
 
 ## Support
 
-- Documentation: https://docs.lemony.ai/cascadeflow
+- Documentation: https://github.com/lemony-ai/cascadeflow
 - Issues: https://github.com/lemony-ai/cascadeflow/issues
 - Discussions: https://github.com/lemony-ai/cascadeflow/discussions

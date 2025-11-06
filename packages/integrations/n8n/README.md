@@ -323,7 +323,7 @@ Tested with n8n version 1.0+
 
 - [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
 - [cascadeflow GitHub](https://github.com/lemony-ai/cascadeflow)
-- [cascadeflow Documentation](https://docs.lemony.ai/cascadeflow)
+- [cascadeflow Documentation](https://github.com/lemony-ai/cascadeflow)
 
 ## License
 

@@ -123,7 +123,7 @@ all = [
 
 [project.urls]
 Homepage = "https://lemony.ai"
-Documentation = "https://docs.lemony.ai/cascadeflow"
+Documentation = "https://github.com/lemony-ai/cascadeflow"
 Repository = "https://github.com/lemony-ai/cascadeflow"
 "Bug Tracker" = "https://github.com/lemony-ai/cascadeflow/issues"
 Changelog = "https://github.com/lemony-ai/cascadeflow/blob/main/CHANGELOG.md"

@@ -1,12 +1,12 @@
 # Presets 2.0 Guide
 
-**NEW in v0.2.0** - One-line agent initialization with production-ready defaults!
+One-line agent initialization with production-ready defaults.
 
 ---
 
 ## 🎯 Overview
 
-Presets 2.0 is the **flagship feature** of cascadeflow v0.2.0, reducing agent setup from 20+ lines of manual configuration to just **one line of code**. Choose from 5 production-ready presets optimized for different use cases.
+Presets 2.0 reduces agent setup from 20+ lines of manual configuration to just **one line of code**. Choose from 5 production-ready presets optimized for different use cases.
 
 ### The Simplest Possible Setup:
 
@@ -544,8 +544,6 @@ All presets are **validated with real-world benchmarks**:
 
 **All targets exceeded** ✅
 
-Full validation report: `benchmark_results/V0.2.0_FINAL_VALIDATION_REPORT.md`
-
 ---
 
 ## 🚨 Troubleshooting
@@ -625,37 +623,6 @@ print(f"Cost: ${result.total_cost:.6f}")
 
 ---
 
-## 📚 Migration from v0.1.x
-
-### Old Presets (v0.1.x):
-
-```python
-from cascadeflow import get_balanced_agent
-
-# v0.1.x style (deprecated)
-agent = get_balanced_agent()
-```
-
-### New Presets 2.0 (v0.2.0):
-
-```python
-from cascadeflow import get_balanced_agent
-
-agent = get_balanced_agent()
-```
-
-**Changes:**
-- ✅ No longer pass `models=` parameter
-- ✅ Use function call instead of constant
-- ✅ Automatic provider detection (no manual setup)
-- ✅ Better performance and defaults
-
-**Migration time:** <5 minutes
-
-Full migration guide: `docs/MIGRATION_GUIDE_V0.2.0.md`
-
----
-
 ## 🎓 Best Practices
 
 ### 1. Start with Balanced
@@ -710,44 +677,15 @@ def get_agent_for_tier(tier):
 
 ---
 
-## 🔮 What's Next?
-
-### Coming in v0.2.1 (WEEK 4-6):
-
-- 🎨 **Custom Preset Builder** - GUI for creating custom presets
-- 📊 **Built-in Analytics** - Track cost/quality/speed
-- 🎯 **Domain Strategies** - CODE, MEDICAL, GENERAL presets
-- 🧪 **Test Utilities** - Mock presets for testing
-
-### Coming in v0.2.2 (WEEK 7-9):
-
-- 🌐 **Advanced Caching** - Per-preset cache strategies
-- 🔐 **Security Enhancements** - Provider-specific security
-- 📝 **Structured Output** - Validation for each preset
-
-### Coming in v0.3.0:
-
-- 🟦 **TypeScript Presets** - Full feature parity
-- 🌍 **Multi-Language SDKs** - Go, Java, etc.
-- 🔌 **Plugin System** - Custom preset plugins
-
----
-
 ## 📖 Additional Resources
 
 ### Documentation:
-- [Migration Guide](../MIGRATION_GUIDE_V0.2.0.md) - v0.1.x → v0.2.0
-- [Release Notes](../RELEASE_NOTES_V0.2.0.md) - What's new in v0.2.0
 - [Quickstart Guide](./quickstart.md) - Getting started
 - [Production Guide](./production.md) - Deploy to production
 
 ### Examples:
 - [examples/basic_usage.py](../../examples/basic_usage.py) - Basic example
 - [examples/multi_provider.py](../../examples/multi_provider.py) - Multi-provider setup
-
-### Validation:
-- [V0.2.0_FINAL_VALIDATION_REPORT.md](../../benchmark_results/V0.2.0_FINAL_VALIDATION_REPORT.md) - Full validation
-- [benchmarks/v0_2_0_realworld_benchmark.py](../../benchmarks/v0_2_0_realworld_benchmark.py) - Benchmark suite
 
 ---
 
@@ -761,8 +699,7 @@ Questions? Feedback?
 
 ---
 
-**Last Updated:** October 28, 2024
-**Version:** v0.2.0
+**Version:** v0.4.0
 **Status:** Production Ready
 
 **Presets 2.0: One line. Production ready. Cost optimized.** 🚀

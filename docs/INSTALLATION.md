@@ -304,7 +304,7 @@ print('✅ All imports working!')
 ## 🔗 Links
 
 - **pyproject.toml**: See all available extras
-- **Documentation**: https://docs.lemony.ai/cascadeflow
+- **Documentation**: https://github.com/lemony-ai/cascadeflow
 - **Repository**: https://github.com/lemony-ai/cascadeflow
 - **Issues**: https://github.com/lemony-ai/cascadeflow/issues
 
