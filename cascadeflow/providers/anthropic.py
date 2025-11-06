@@ -72,23 +72,26 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         >>> print(info.is_reasoning)  # False
         >>> print(info.supports_tools)  # True
     """
-    model_lower = model_name.lower().replace('_', '-')
+    model_lower = model_name.lower().replace("_", "-")
 
     # Detect Claude Sonnet 4.5 with extended thinking (released Sept 29, 2025)
-    is_sonnet_45 = any(pattern in model_lower for pattern in [
-        'claude-sonnet-4-5',
-        'claude-sonnet-4.5',
-        'claude-4-5-sonnet',
-        'claude-4.5-sonnet',
-        'sonnet-4-5',
-        'sonnet-4.5',
-    ])
+    is_sonnet_45 = any(
+        pattern in model_lower
+        for pattern in [
+            "claude-sonnet-4-5",
+            "claude-sonnet-4.5",
+            "claude-4-5-sonnet",
+            "claude-4.5-sonnet",
+            "sonnet-4-5",
+            "sonnet-4.5",
+        ]
+    )
 
     if is_sonnet_45:
         # Claude Sonnet 4.5 with extended thinking capabilities
         return ReasoningModelInfo(
             is_reasoning=True,
-            provider='anthropic',
+            provider="anthropic",
             supports_streaming=True,
             supports_tools=True,
             supports_system_messages=True,
