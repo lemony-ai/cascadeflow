@@ -193,9 +193,7 @@ def estimate_cost_savings(from_model: str, to_model: str) -> Optional[float]:
     to_cost = rough_costs.get(to_model)
 
     if from_cost is None or to_cost is None:
-        logger.warning(
-            f"Unknown costs for {from_model} or {to_model}, cannot estimate savings"
-        )
+        logger.warning(f"Unknown costs for {from_model} or {to_model}, cannot estimate savings")
         return None
 
     if from_cost == 0:

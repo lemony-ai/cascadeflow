@@ -23,13 +23,7 @@ from cascadeflow.telemetry.anomaly import (
 
 def add_cost_on_day(tracker, day_offset, cost, user_id="user1"):
     """Helper to add cost on a specific day."""
-    tracker.add_cost(
-        model="gpt-4o-mini",
-        provider="openai",
-        tokens=100,
-        cost=cost,
-        user_id=user_id
-    )
+    tracker.add_cost(model="gpt-4o-mini", provider="openai", tokens=100, cost=cost, user_id=user_id)
     # Adjust timestamp to be on specific day
     if user_id in tracker.user_entries and tracker.user_entries[user_id]:
         tracker.user_entries[user_id][-1].timestamp = datetime.now() - timedelta(days=day_offset)
@@ -60,7 +54,7 @@ class TestCostForecaster:
 
         # Add only 3 days of data (spread across different days)
         for i in range(3):
-            add_cost_on_day(tracker, day_offset=2-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=2 - i, cost=1.0, user_id="user1")
 
         prediction = forecaster.forecast_daily(days=7, user_id="user1")
 
@@ -76,7 +70,7 @@ class TestCostForecaster:
 
         # Add 14 days of stable usage ($1/day)
         for i in range(14):
-            add_cost_on_day(tracker, day_offset=13-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=13 - i, cost=1.0, user_id="user1")
 
         # Forecast next 7 days
         prediction = forecaster.forecast_daily(days=7, user_id="user1")
@@ -94,7 +88,7 @@ class TestCostForecaster:
         # Add 14 days of increasing usage ($0.50, $0.55, $0.60, ...)
         for i in range(14):
             cost = 0.50 + (i * 0.05)  # Increases 5 cents per day
-            add_cost_on_day(tracker, day_offset=13-i, cost=cost, user_id="user1")
+            add_cost_on_day(tracker, day_offset=13 - i, cost=cost, user_id="user1")
 
         prediction = forecaster.forecast_daily(days=7, user_id="user1")
 
@@ -110,9 +104,9 @@ class TestCostForecaster:
         # Add data for two users
         for i in range(10):
             # User 1: $1/day
-            add_cost_on_day(tracker, day_offset=9-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=9 - i, cost=1.0, user_id="user1")
             # User 2: $2/day
-            add_cost_on_day(tracker, day_offset=9-i, cost=2.0, user_id="user2")
+            add_cost_on_day(tracker, day_offset=9 - i, cost=2.0, user_id="user2")
 
         # Forecast for each user
         pred1 = forecaster.forecast_user("user1", days=7)
@@ -129,7 +123,7 @@ class TestCostForecaster:
 
         # Add 10 days of $1/day usage
         for i in range(10):
-            add_cost_on_day(tracker, day_offset=9-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=9 - i, cost=1.0, user_id="user1")
 
         # Calculate runway with $10 remaining budget
         days, confidence = forecaster.calculate_budget_runway(
@@ -166,7 +160,7 @@ class TestAnomalyDetector:
 
         # Add 15 days of stable usage ($1/day)
         for i in range(15):
-            add_cost_on_day(tracker, day_offset=14-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=14 - i, cost=1.0, user_id="user1")
 
         # Should detect no anomalies
         anomalies = detector.detect_user_anomalies("user1", lookback_days=15)
@@ -179,7 +173,7 @@ class TestAnomalyDetector:
 
         # Add 14 days of stable usage ($1/day)
         for i in range(14):
-            add_cost_on_day(tracker, day_offset=14-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=14 - i, cost=1.0, user_id="user1")
 
         # Add 1 day with anomalous usage ($10)
         add_cost_on_day(tracker, day_offset=0, cost=10.0, user_id="user1")
@@ -197,7 +191,7 @@ class TestAnomalyDetector:
 
         # Add 20 days of stable usage ($1/day, low variance)
         for i in range(20):
-            add_cost_on_day(tracker, day_offset=22-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=22 - i, cost=1.0, user_id="user1")
 
         # Add increasingly severe anomalies
         add_cost_on_day(tracker, day_offset=2, cost=5.0, user_id="user1")
@@ -219,11 +213,11 @@ class TestAnomalyDetector:
 
         # User 1: normal usage
         for i in range(10):
-            add_cost_on_day(tracker, day_offset=9-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=9 - i, cost=1.0, user_id="user1")
 
         # User 2: has anomaly
         for i in range(9):
-            add_cost_on_day(tracker, day_offset=9-i, cost=1.0, user_id="user2")
+            add_cost_on_day(tracker, day_offset=9 - i, cost=1.0, user_id="user2")
         # Add anomaly for user2
         add_cost_on_day(tracker, day_offset=0, cost=10.0, user_id="user2")
 
@@ -298,12 +292,14 @@ class TestIntegration:
     def test_forecast_after_anomaly(self):
         """Test forecasting adapts after detecting anomaly."""
         tracker = CostTracker()
-        forecaster = CostForecaster(tracker, alpha=0.5, min_data_points=7)  # Higher alpha = faster adaptation
+        forecaster = CostForecaster(
+            tracker, alpha=0.5, min_data_points=7
+        )  # Higher alpha = faster adaptation
         detector = AnomalyDetector(tracker, sensitivity=2.0, min_data_points=7)
 
         # Add stable usage
         for i in range(9):
-            add_cost_on_day(tracker, day_offset=9-i, cost=1.0, user_id="user1")
+            add_cost_on_day(tracker, day_offset=9 - i, cost=1.0, user_id="user1")
 
         # Forecast before anomaly
         pred_before = forecaster.forecast_daily(days=7, user_id="user1")

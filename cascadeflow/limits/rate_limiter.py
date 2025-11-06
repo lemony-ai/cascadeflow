@@ -80,7 +80,7 @@ class RateLimiter:
         self._lock = asyncio.Lock()
 
     async def check_rate_limit(
-        self, profile: 'UserProfile', cost: float = 0.0
+        self, profile: "UserProfile", cost: float = 0.0
     ) -> Tuple[bool, Optional[str]]:
         """
         Check if request is allowed under rate limits.
@@ -112,7 +112,10 @@ class RateLimiter:
                 if len(state.hourly_requests) >= hourly_limit:
                     oldest_request = min(state.hourly_requests)
                     retry_after = 3600 - (current_time - oldest_request)
-                    return False, f"Hourly rate limit exceeded ({hourly_limit} req/hour). Retry after {retry_after:.0f}s"
+                    return (
+                        False,
+                        f"Hourly rate limit exceeded ({hourly_limit} req/hour). Retry after {retry_after:.0f}s",
+                    )
 
             # Check daily limit
             daily_limit = profile.get_requests_per_day()
@@ -120,18 +123,24 @@ class RateLimiter:
                 if len(state.daily_requests) >= daily_limit:
                     oldest_request = min(state.daily_requests)
                     retry_after = 86400 - (current_time - oldest_request)
-                    return False, f"Daily rate limit exceeded ({daily_limit} req/day). Retry after {retry_after:.0f}s"
+                    return (
+                        False,
+                        f"Daily rate limit exceeded ({daily_limit} req/day). Retry after {retry_after:.0f}s",
+                    )
 
             # Check daily budget
             daily_budget = profile.get_daily_budget()
             if daily_budget is not None:
                 if state.daily_cost + cost > daily_budget:
                     remaining = daily_budget - state.daily_cost
-                    return False, f"Daily budget exceeded (${daily_budget:.2f}/day). Remaining: ${remaining:.4f}"
+                    return (
+                        False,
+                        f"Daily budget exceeded (${daily_budget:.2f}/day). Remaining: ${remaining:.4f}",
+                    )
 
             return True, None
 
-    async def record_request(self, profile: 'UserProfile', cost: float = 0.0) -> None:
+    async def record_request(self, profile: "UserProfile", cost: float = 0.0) -> None:
         """
         Record a successful request.
 
@@ -155,7 +164,7 @@ class RateLimiter:
             # Add cost to daily total
             state.daily_cost += cost
 
-    async def get_usage_stats(self, profile: 'UserProfile') -> Dict:
+    async def get_usage_stats(self, profile: "UserProfile") -> Dict:
         """
         Get current usage statistics for a user.
 
@@ -233,10 +242,7 @@ class RateLimiter:
                 if (
                     not state.hourly_requests
                     and not state.daily_requests
-                    or (
-                        state.daily_requests
-                        and max(state.daily_requests) < cutoff_time
-                    )
+                    or (state.daily_requests and max(state.daily_requests) < cutoff_time)
                 ):
                     users_to_remove.append(user_id)
 

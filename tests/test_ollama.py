@@ -190,16 +190,19 @@ class TestOllamaProvider:
 
     def test_init_from_ollama_base_url_env(self):
         """Test initialization from OLLAMA_BASE_URL env var (standard)."""
-        with patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://network-ollama:11434"}, clear=True):
+        with patch.dict(
+            "os.environ", {"OLLAMA_BASE_URL": "http://network-ollama:11434"}, clear=True
+        ):
             provider = OllamaProvider()
             assert provider.base_url == "http://network-ollama:11434"
 
     def test_init_env_var_priority(self):
         """Test OLLAMA_BASE_URL takes priority over OLLAMA_HOST."""
-        with patch.dict("os.environ", {
-            "OLLAMA_BASE_URL": "http://priority:11434",
-            "OLLAMA_HOST": "http://fallback:11434"
-        }, clear=True):
+        with patch.dict(
+            "os.environ",
+            {"OLLAMA_BASE_URL": "http://priority:11434", "OLLAMA_HOST": "http://fallback:11434"},
+            clear=True,
+        ):
             provider = OllamaProvider()
             assert provider.base_url == "http://priority:11434"
 
@@ -228,9 +231,9 @@ class TestOllamaProvider:
     def test_init_network_deployment_example(self):
         """Test configuration for network deployment scenario."""
         # Simulate network deployment (another machine on LAN)
-        with patch.dict("os.environ", {
-            "OLLAMA_BASE_URL": "http://192.168.1.100:11434"
-        }, clear=True):
+        with patch.dict(
+            "os.environ", {"OLLAMA_BASE_URL": "http://192.168.1.100:11434"}, clear=True
+        ):
             provider = OllamaProvider()
             assert provider.base_url == "http://192.168.1.100:11434"
             # No API key needed for trusted network
@@ -239,10 +242,14 @@ class TestOllamaProvider:
     def test_init_remote_deployment_example(self):
         """Test configuration for remote deployment with authentication."""
         # Simulate remote deployment (external server with auth)
-        with patch.dict("os.environ", {
-            "OLLAMA_BASE_URL": "https://ollama.example.com",
-            "OLLAMA_API_KEY": "secure-api-key-789"
-        }, clear=True):
+        with patch.dict(
+            "os.environ",
+            {
+                "OLLAMA_BASE_URL": "https://ollama.example.com",
+                "OLLAMA_API_KEY": "secure-api-key-789",
+            },
+            clear=True,
+        ):
             provider = OllamaProvider()
             assert provider.base_url == "https://ollama.example.com"
             assert provider.api_key == "secure-api-key-789"

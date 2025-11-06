@@ -238,9 +238,7 @@ class BaseProvider(ABC):
             # Providers that match LiteLLM's native format don't need prefixes
             self._litellm_provider_prefix = self._get_litellm_prefix()
 
-            logger.info(
-                f"LiteLLM detected - using accurate pricing for {self.__class__.__name__}"
-            )
+            logger.info(f"LiteLLM detected - using accurate pricing for {self.__class__.__name__}")
         except (ImportError, RuntimeError):
             # LiteLLM not installed or not available - use fallback
             self._litellm_cost_provider = None
@@ -705,9 +703,7 @@ class BaseProvider(ABC):
                     output_tokens=completion_tokens,
                 )
             except Exception as e:
-                logger.warning(
-                    f"LiteLLM cost calculation failed: {e}. Using fallback pricing."
-                )
+                logger.warning(f"LiteLLM cost calculation failed: {e}. Using fallback pricing.")
                 # Fall through to fallback
 
         # Fallback to provider-specific estimates

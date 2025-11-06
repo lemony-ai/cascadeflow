@@ -198,10 +198,12 @@ class OpenTelemetryExporter:
             from opentelemetry.sdk.resources import Resource, SERVICE_NAME, DEPLOYMENT_ENVIRONMENT
 
             # Create resource with service name and environment
-            resource = Resource(attributes={
-                SERVICE_NAME: self.service_name,
-                DEPLOYMENT_ENVIRONMENT: self.environment,
-            })
+            resource = Resource(
+                attributes={
+                    SERVICE_NAME: self.service_name,
+                    DEPLOYMENT_ENVIRONMENT: self.environment,
+                }
+            )
 
             # Create OTLP exporter
             otlp_exporter = OTLPMetricExporter(
@@ -312,8 +314,9 @@ class OpenTelemetryExporter:
         try:
             # Force flush via meter provider
             from opentelemetry import metrics
+
             provider = metrics.get_meter_provider()
-            if hasattr(provider, 'force_flush'):
+            if hasattr(provider, "force_flush"):
                 provider.force_flush()
                 logger.debug("Forced flush of metrics to OpenTelemetry backend")
         except Exception as e:
@@ -330,8 +333,9 @@ class OpenTelemetryExporter:
 
         try:
             from opentelemetry import metrics
+
             provider = metrics.get_meter_provider()
-            if hasattr(provider, 'shutdown'):
+            if hasattr(provider, "shutdown"):
                 provider.shutdown()
                 logger.info("OpenTelemetry exporter shutdown complete")
         except Exception as e:

@@ -22,6 +22,7 @@ from cascadeflow import CascadeAgent, UserProfile, TierLevel, UserProfileManager
 # Pattern 1: Simple Profile Creation from User Data
 # ============================================================================
 
+
 def create_profile_from_user_data(user_data: Dict) -> UserProfile:
     """
     Create cascadeflow profile from existing user database record.
@@ -66,6 +67,7 @@ def create_profile_from_user_data(user_data: Dict) -> UserProfile:
 # Pattern 2: Domain-Specific Model Routing
 # ============================================================================
 
+
 def create_domain_specific_profile(user_id: str, domains: list) -> UserProfile:
     """
     Create profile with domain-specific model preferences.
@@ -105,6 +107,7 @@ def create_domain_specific_profile(user_id: str, domains: list) -> UserProfile:
 # ============================================================================
 # Pattern 3: Async Database Integration
 # ============================================================================
+
 
 class DatabaseProfileStore:
     """
@@ -148,6 +151,7 @@ class DatabaseProfileStore:
 # ============================================================================
 # Pattern 4: Production-Ready Integration with Caching
 # ============================================================================
+
 
 async def production_integration_example():
     """
@@ -200,6 +204,7 @@ async def production_integration_example():
 # Pattern 5: Simplified One-Liner for Existing Apps
 # ============================================================================
 
+
 async def simple_integration_example():
     """
     Simplest possible integration - just map your user data!
@@ -218,7 +223,7 @@ async def simple_integration_example():
         "domain_models": {  # NEW: Override models per domain
             "code": ["gpt-4", "claude-3-haiku-20240307"],
             "finance": ["gpt-4"],  # Use most capable for finance
-        }
+        },
     }
 
     # ONE LINE: Create profile from your existing data
@@ -242,6 +247,7 @@ async def simple_integration_example():
 # Pattern 6: Domain-Aware Routing
 # ============================================================================
 
+
 async def domain_aware_routing_example():
     """
     Show how domain-specific models work in practice.
@@ -252,8 +258,7 @@ async def domain_aware_routing_example():
 
     # Medical professional with domain-specific needs
     medical_profile = create_domain_specific_profile(
-        user_id="doc_smith",
-        domains=["medical", "code"]
+        user_id="doc_smith", domains=["medical", "code"]
     )
 
     print(f"\n1. Medical Professional Profile")
@@ -276,6 +281,7 @@ async def domain_aware_routing_example():
 # ============================================================================
 # Pattern 7: Bulk User Migration
 # ============================================================================
+
 
 def bulk_migration_example():
     """
@@ -314,6 +320,7 @@ def bulk_migration_example():
 # ============================================================================
 # Main
 # ============================================================================
+
 
 async def main():
     print("\n" + "=" * 70)

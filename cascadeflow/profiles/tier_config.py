@@ -53,7 +53,7 @@ class TierConfig:
     support_priority: str = "community"  # community, priority, dedicated
 
     @classmethod
-    def from_preset(cls, tier: TierLevel) -> 'TierConfig':
+    def from_preset(cls, tier: TierLevel) -> "TierConfig":
         """Create TierConfig from predefined preset"""
         return TIER_PRESETS[tier]
 

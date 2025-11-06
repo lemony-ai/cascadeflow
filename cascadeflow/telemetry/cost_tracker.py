@@ -44,10 +44,10 @@ class BudgetConfig:
         >>> trial = BudgetConfig(total=5.00)
     """
 
-    daily: Optional[float] = None      # Daily budget in USD
-    weekly: Optional[float] = None     # Weekly budget in USD (Mon-Sun)
-    monthly: Optional[float] = None    # Monthly budget in USD
-    total: Optional[float] = None      # Total lifetime budget in USD
+    daily: Optional[float] = None  # Daily budget in USD
+    weekly: Optional[float] = None  # Weekly budget in USD (Mon-Sun)
+    monthly: Optional[float] = None  # Monthly budget in USD
+    total: Optional[float] = None  # Total lifetime budget in USD
 
     def has_any_limit(self) -> bool:
         """Check if any budget limit is set."""
@@ -56,10 +56,14 @@ class BudgetConfig:
     def __repr__(self) -> str:
         """Human-readable representation."""
         limits = []
-        if self.daily: limits.append(f"daily=${self.daily:.2f}")
-        if self.weekly: limits.append(f"weekly=${self.weekly:.2f}")
-        if self.monthly: limits.append(f"monthly=${self.monthly:.2f}")
-        if self.total: limits.append(f"total=${self.total:.2f}")
+        if self.daily:
+            limits.append(f"daily=${self.daily:.2f}")
+        if self.weekly:
+            limits.append(f"weekly=${self.weekly:.2f}")
+        if self.monthly:
+            limits.append(f"monthly=${self.monthly:.2f}")
+        if self.total:
+            limits.append(f"total=${self.total:.2f}")
 
         if not limits:
             return "BudgetConfig(no limits)"
@@ -153,9 +157,15 @@ class CostTracker:
         self.user_budgets = user_budgets or {}
         self.by_user: dict[str, float] = defaultdict(float)
         self.user_entries: dict[str, list[CostEntry]] = defaultdict(list)
-        self.user_budget_warned: dict[str, set[str]] = defaultdict(set)  # user_id -> set of warned periods
-        self.user_budget_exceeded: dict[str, set[str]] = defaultdict(set)  # user_id -> set of exceeded periods
-        self.user_period_start: dict[str, dict[str, datetime]] = defaultdict(dict)  # user_id -> period -> start_time
+        self.user_budget_warned: dict[str, set[str]] = defaultdict(
+            set
+        )  # user_id -> set of warned periods
+        self.user_budget_exceeded: dict[str, set[str]] = defaultdict(
+            set
+        )  # user_id -> set of exceeded periods
+        self.user_period_start: dict[str, dict[str, datetime]] = defaultdict(
+            dict
+        )  # user_id -> period -> start_time
 
         logger.info(
             f"CostTracker initialized: "
@@ -307,14 +317,19 @@ class CostTracker:
                 period_start = now
 
             # Calculate period cost
-            period_cost = self._get_user_period_cost(user_id, period_start, now if reset_delta else None)
+            period_cost = self._get_user_period_cost(
+                user_id, period_start, now if reset_delta else None
+            )
 
             # Check limits
             usage_pct = period_cost / limit
 
             # Warn at threshold
             period_key = f"{user_tier}:{period_name}"
-            if period_key not in self.user_budget_warned[user_id] and usage_pct >= self.warn_threshold:
+            if (
+                period_key not in self.user_budget_warned[user_id]
+                and usage_pct >= self.warn_threshold
+            ):
                 self.user_budget_warned[user_id].add(period_key)
                 logger.warning(
                     f"User {user_id} ({user_tier}): {usage_pct*100:.1f}% of {period_name} budget used "
@@ -332,7 +347,9 @@ class CostTracker:
     def _reset_user_period(self, user_id: str, period_name: str) -> None:
         """Reset budget warnings/exceeded flags for a user period."""
         # Remove warnings/exceeded for this period
-        period_keys_to_remove = [k for k in self.user_budget_warned[user_id] if k.endswith(f":{period_name}")]
+        period_keys_to_remove = [
+            k for k in self.user_budget_warned[user_id] if k.endswith(f":{period_name}")
+        ]
         for key in period_keys_to_remove:
             self.user_budget_warned[user_id].discard(key)
             self.user_budget_exceeded[user_id].discard(key)
@@ -436,7 +453,10 @@ class CostTracker:
                 limit = getattr(budget_config, period_name)
                 if limit is not None:
                     # Calculate period cost
-                    if user_id in self.user_period_start and period_name in self.user_period_start[user_id]:
+                    if (
+                        user_id in self.user_period_start
+                        and period_name in self.user_period_start[user_id]
+                    ):
                         # Period tracking exists - use it
                         period_start = self.user_period_start[user_id][period_name]
                         period_cost = self._get_user_period_cost(
@@ -467,7 +487,8 @@ class CostTracker:
             # Check if any budget exceeded
             period_key_prefix = f"{user_tier}:"
             summary["budget_exceeded"] = any(
-                k.startswith(period_key_prefix) for k in self.user_budget_exceeded.get(user_id, set())
+                k.startswith(period_key_prefix)
+                for k in self.user_budget_exceeded.get(user_id, set())
             )
 
         return summary
@@ -501,7 +522,9 @@ class CostTracker:
             tier_prefix = f"{tier}:"
             if any(k.startswith(tier_prefix) for k in self.user_budget_warned.get(user_id, set())):
                 users.append(user_id)
-            elif any(k.startswith(tier_prefix) for k in self.user_budget_exceeded.get(user_id, set())):
+            elif any(
+                k.startswith(tier_prefix) for k in self.user_budget_exceeded.get(user_id, set())
+            ):
                 users.append(user_id)
 
         return users

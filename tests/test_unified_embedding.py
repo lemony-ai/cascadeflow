@@ -16,6 +16,7 @@ from unittest.mock import Mock, patch
 # Optional numpy (comes with FastEmbed)
 try:
     import numpy as np
+
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
@@ -314,16 +315,10 @@ class TestRealFastEmbed:
     def test_real_similarity(self, service):
         """Test real similarity calculation."""
         # Similar texts should have high similarity
-        sim_high = service.similarity(
-            "What is Python?",
-            "What is the Python programming language?"
-        )
+        sim_high = service.similarity("What is Python?", "What is the Python programming language?")
 
         # Unrelated texts should have low similarity
-        sim_low = service.similarity(
-            "What is Python?",
-            "The weather is sunny today"
-        )
+        sim_low = service.similarity("What is Python?", "The weather is sunny today")
 
         assert sim_high is not None
         assert sim_low is not None

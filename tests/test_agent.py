@@ -232,8 +232,11 @@ class TestBasicQueryExecution:
         assert result is not None
         # Free tier should only use free models
         # With force_direct=True, should be direct routing (no '+' in model name)
-        assert '+' not in result.model_used, "Expected direct routing, got cascade"
-        assert result.model_used in ["llama3:8b", "codellama:7b"], f"Model {result.model_used} not in free tier"
+        assert "+" not in result.model_used, "Expected direct routing, got cascade"
+        assert result.model_used in [
+            "llama3:8b",
+            "codellama:7b",
+        ], f"Model {result.model_used} not in free tier"
 
     @pytest.mark.asyncio
     async def test_query_with_workflow(self, mock_agent):
@@ -323,7 +326,9 @@ class TestModelControl:
     async def test_exclude_models(self, mock_agent):
         """Test exclude_models parameter."""
         # Exclude OpenAI models and force direct routing to avoid cascade
-        result = await mock_agent.run("What is AI?", exclude_models=["gpt-4o", "gpt-4o-mini"], force_direct=True)
+        result = await mock_agent.run(
+            "What is AI?", exclude_models=["gpt-4o", "gpt-4o-mini"], force_direct=True
+        )
 
         # Should only use Ollama models
         assert result.model_used in ["llama3:8b", "codellama:7b"]

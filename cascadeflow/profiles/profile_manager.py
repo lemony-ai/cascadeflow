@@ -22,9 +22,7 @@ class UserProfileManager:
     def __init__(
         self,
         cache_ttl_seconds: int = 300,  # 5 minutes
-        load_callback: Optional[
-            Callable[[str], Awaitable[Optional[UserProfile]]]
-        ] = None,
+        load_callback: Optional[Callable[[str], Awaitable[Optional[UserProfile]]]] = None,
         save_callback: Optional[Callable[[UserProfile], Awaitable[None]]] = None,
     ):
         """

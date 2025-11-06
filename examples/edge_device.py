@@ -116,6 +116,7 @@ try:
 except ImportError:
     print("⚠️  httpx not installed. Installing...")
     import subprocess
+
     subprocess.check_call([sys.executable, "-m", "pip", "install", "httpx"])
     import httpx
 
@@ -166,7 +167,7 @@ def create_edge_agent() -> CascadeAgent:
     # Configure quality thresholds optimized for edge devices
     quality_config = QualityConfig(
         confidence_thresholds={
-            "trivial": 0.65,   # Lower thresholds for fast local responses
+            "trivial": 0.65,  # Lower thresholds for fast local responses
             "simple": 0.60,
             "moderate": 0.55,
             "hard": 0.50,

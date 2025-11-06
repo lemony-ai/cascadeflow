@@ -29,18 +29,22 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 # Check provider availability
 def _has_openai() -> bool:
     """Check if OpenAI API key is available."""
     return bool(os.getenv("OPENAI_API_KEY"))
 
+
 def _has_anthropic() -> bool:
     """Check if Anthropic API key is available."""
     return bool(os.getenv("ANTHROPIC_API_KEY"))
 
+
 def _has_groq() -> bool:
     """Check if Groq API key is available."""
     return bool(os.getenv("GROQ_API_KEY"))
+
 
 def _has_together() -> bool:
     """Check if Together API key is available."""
@@ -240,24 +244,26 @@ def get_balanced_agent(
         )
 
     if providers["openai"]:
-        models.extend([
-            ModelConfig(
-                name="gpt-4o-mini",
-                provider="openai",
-                cost=0.00015,
-                speed_ms=600,
-                quality_score=0.85,
-                supports_tools=True,
-            ),
-            ModelConfig(
-                name="gpt-4o",
-                provider="openai",
-                cost=0.00625,
-                speed_ms=1200,
-                quality_score=0.95,
-                supports_tools=True,
-            ),
-        ])
+        models.extend(
+            [
+                ModelConfig(
+                    name="gpt-4o-mini",
+                    provider="openai",
+                    cost=0.00015,
+                    speed_ms=600,
+                    quality_score=0.85,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="gpt-4o",
+                    provider="openai",
+                    cost=0.00625,
+                    speed_ms=1200,
+                    quality_score=0.95,
+                    supports_tools=True,
+                ),
+            ]
+        )
 
     if providers["anthropic"]:
         models.append(
@@ -446,24 +452,26 @@ def get_quality_optimized_agent(
 
     # Quality priority: GPT-4o, Claude Sonnet, GPT-4o-mini as fallback
     if providers["openai"]:
-        models.extend([
-            ModelConfig(
-                name="gpt-4o-mini",
-                provider="openai",
-                cost=0.00015,
-                speed_ms=600,
-                quality_score=0.85,
-                supports_tools=True,
-            ),
-            ModelConfig(
-                name="gpt-4o",
-                provider="openai",
-                cost=0.00625,
-                speed_ms=1200,
-                quality_score=0.95,
-                supports_tools=True,
-            ),
-        ])
+        models.extend(
+            [
+                ModelConfig(
+                    name="gpt-4o-mini",
+                    provider="openai",
+                    cost=0.00015,
+                    speed_ms=600,
+                    quality_score=0.85,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="gpt-4o",
+                    provider="openai",
+                    cost=0.00625,
+                    speed_ms=1200,
+                    quality_score=0.95,
+                    supports_tools=True,
+                ),
+            ]
+        )
 
     if providers["anthropic"]:
         models.append(
@@ -555,24 +563,26 @@ def get_development_agent(
 
     # Dev priority: Whatever is available, prefer free/cheap
     if providers["groq"]:
-        models.extend([
-            ModelConfig(
-                name="llama-3.1-8b-instant",
-                provider="groq",
-                cost=0.00005,
-                speed_ms=300,
-                quality_score=0.75,
-                supports_tools=True,
-            ),
-            ModelConfig(
-                name="llama-3.1-70b-versatile",
-                provider="groq",
-                cost=0.00059,
-                speed_ms=500,
-                quality_score=0.88,
-                supports_tools=True,
-            ),
-        ])
+        models.extend(
+            [
+                ModelConfig(
+                    name="llama-3.1-8b-instant",
+                    provider="groq",
+                    cost=0.00005,
+                    speed_ms=300,
+                    quality_score=0.75,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="llama-3.1-70b-versatile",
+                    provider="groq",
+                    cost=0.00059,
+                    speed_ms=500,
+                    quality_score=0.88,
+                    supports_tools=True,
+                ),
+            ]
+        )
 
     if providers["openai"]:
         models.append(
@@ -641,9 +651,7 @@ def auto_agent(
     }
 
     if preset not in presets:
-        raise ValueError(
-            f"Unknown preset '{preset}'. Available: {list(presets.keys())}"
-        )
+        raise ValueError(f"Unknown preset '{preset}'. Available: {list(presets.keys())}")
 
     return presets[preset](verbose=verbose, enable_cascade=enable_cascade)
 

@@ -90,7 +90,11 @@ async def demo_code_cascade():
     if result.final_response:
         print("Final Response:")
         print("-" * 40)
-        print(result.final_response[:500] + "..." if len(result.final_response) > 500 else result.final_response)
+        print(
+            result.final_response[:500] + "..."
+            if len(result.final_response) > 500
+            else result.final_response
+        )
         print()
 
     print("=" * 80)
@@ -335,7 +339,9 @@ async def demo_cost_comparison():
         savings = without - with_cascade
         savings_pct = (savings / without) * 100
 
-        print(f"{domain:<12} ${without:<14.2f} ${with_cascade:<14.2f} ${savings:<14.2f} {savings_pct:.0f}%")
+        print(
+            f"{domain:<12} ${without:<14.2f} ${with_cascade:<14.2f} ${savings:<14.2f} {savings_pct:.0f}%"
+        )
 
     print()
     print("=" * 80)
@@ -390,7 +396,9 @@ async def demo_fallback_behavior():
     for step in result.steps_executed:
         print(f"{step.step_name}:")
         print(f"  Status: {step.status.value}")
-        print(f"  Quality: {step.quality_score:.2%} (threshold: {step.metadata.get('threshold', 0):.2%})")
+        print(
+            f"  Quality: {step.quality_score:.2%} (threshold: {step.metadata.get('threshold', 0):.2%})"
+        )
         print(f"  Cost: ${step.cost:.6f}")
         print()
 

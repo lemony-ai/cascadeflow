@@ -48,40 +48,40 @@ class ContentModerator:
 
         # Basic harmful patterns (v0.2.1)
         self._hate_patterns = [
-            r'\b(hate|despise)\s+(all\s+)?(jews|muslims|christians|blacks|whites|gays|trans)',
-            r'\bgenocide\b',
-            r'\bexterminate\b.*\b(race|religion|ethnicity)',
+            r"\b(hate|despise)\s+(all\s+)?(jews|muslims|christians|blacks|whites|gays|trans)",
+            r"\bgenocide\b",
+            r"\bexterminate\b.*\b(race|religion|ethnicity)",
         ]
 
         self._violence_patterns = [
-            r'\b(kill|murder|assassinate|torture)\s+(someone|people|them)',
-            r'\bhow\s+to\s+(build|make)\s+(bomb|weapon|explosive)',
-            r'\bshoot\s+up\s+(school|mall|church)',
+            r"\b(kill|murder|assassinate|torture)\s+(someone|people|them)",
+            r"\bhow\s+to\s+(build|make)\s+(bomb|weapon|explosive)",
+            r"\bshoot\s+up\s+(school|mall|church)",
         ]
 
         self._self_harm_patterns = [
-            r'\bhow\s+to\s+(kill|hurt)\s+(myself|yourself)',
-            r'\bsuicide\s+(method|plan|instructions)',
-            r'\bcut\s+(myself|yourself|wrists)',
+            r"\bhow\s+to\s+(kill|hurt)\s+(myself|yourself)",
+            r"\bsuicide\s+(method|plan|instructions)",
+            r"\bcut\s+(myself|yourself|wrists)",
         ]
 
         self._sexual_patterns = [
-            r'\bexplicit\s+sexual\s+content',
-            r'\bchild\s+(porn|sexual)',
+            r"\bexplicit\s+sexual\s+content",
+            r"\bchild\s+(porn|sexual)",
         ]
 
         self._harassment_patterns = [
-            r'\bstalk\b.*\bperson',
-            r'\bdox\b.*\bsomeone',
+            r"\bstalk\b.*\bperson",
+            r"\bdox\b.*\bsomeone",
         ]
 
         # Compile patterns
         self._compiled_patterns: Dict[str, List[re.Pattern]] = {
-            'hate': [re.compile(p, re.IGNORECASE) for p in self._hate_patterns],
-            'violence': [re.compile(p, re.IGNORECASE) for p in self._violence_patterns],
-            'self-harm': [re.compile(p, re.IGNORECASE) for p in self._self_harm_patterns],
-            'sexual': [re.compile(p, re.IGNORECASE) for p in self._sexual_patterns],
-            'harassment': [re.compile(p, re.IGNORECASE) for p in self._harassment_patterns],
+            "hate": [re.compile(p, re.IGNORECASE) for p in self._hate_patterns],
+            "violence": [re.compile(p, re.IGNORECASE) for p in self._violence_patterns],
+            "self-harm": [re.compile(p, re.IGNORECASE) for p in self._self_harm_patterns],
+            "sexual": [re.compile(p, re.IGNORECASE) for p in self._sexual_patterns],
+            "harassment": [re.compile(p, re.IGNORECASE) for p in self._harassment_patterns],
         }
 
     def check(self, text: str) -> ModerationResult:
@@ -111,7 +111,7 @@ class ContentModerator:
             is_safe=is_safe,
             violations=violations,
             categories=categories,
-            confidence=0.8 if violations else 1.0  # Lower confidence on pattern matches
+            confidence=0.8 if violations else 1.0,  # Lower confidence on pattern matches
         )
 
     async def check_async(self, text: str) -> ModerationResult:

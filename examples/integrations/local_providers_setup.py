@@ -49,10 +49,7 @@ async def example_1_local_ollama():
 
         # Use a model
         if models:
-            response = await provider.complete(
-                prompt="What is 2+2?",
-                model=models[0]
-            )
+            response = await provider.complete(prompt="What is 2+2?", model=models[0])
             print(f"\n✓ Response: {response.content}")
             print(f"✓ Cost: ${response.cost} (FREE!)")
             print(f"✓ Latency: {response.latency_ms:.0f}ms")
@@ -104,12 +101,14 @@ async def example_1_local_vllm():
             response = await provider.complete(
                 prompt="What is the capital of France?",
                 model=models[0],
-                logprobs=True  # vLLM supports native logprobs!
+                logprobs=True,  # vLLM supports native logprobs!
             )
             print(f"\n✓ Response: {response.content}")
             print(f"✓ Cost: ${response.cost} (FREE!)")
             print(f"✓ Confidence: {response.confidence:.3f}")
-            print(f"✓ Has logprobs: {hasattr(response, 'logprobs') and response.logprobs is not None}")
+            print(
+                f"✓ Has logprobs: {hasattr(response, 'logprobs') and response.logprobs is not None}"
+            )
         else:
             print("\n⚠️  No models found. Is vLLM server running?")
 
@@ -257,8 +256,7 @@ async def example_3_remote_ollama():
 
     # Option B: Set via parameters
     provider_param = OllamaProvider(
-        base_url="https://ollama.yourdomain.com",
-        api_key="your_auth_token_here"
+        base_url="https://ollama.yourdomain.com", api_key="your_auth_token_here"
     )
 
     print("\n✓ Configuration:")
@@ -310,8 +308,7 @@ async def example_3_remote_vllm():
 
     # Option B: Set via parameters
     provider_param = VLLMProvider(
-        base_url="https://vllm.yourdomain.com/v1",
-        api_key="your_secure_api_key"
+        base_url="https://vllm.yourdomain.com/v1", api_key="your_secure_api_key"
     )
 
     print("\n✓ Configuration:")

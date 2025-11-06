@@ -132,9 +132,7 @@ def main():
     print(f"  Total cost across all users: ${global_summary['total_cost']:.3f}")
     print()
     print(f"  Cost by model:")
-    for model, cost in sorted(
-        global_summary["by_model"].items(), key=lambda x: x[1], reverse=True
-    ):
+    for model, cost in sorted(global_summary["by_model"].items(), key=lambda x: x[1], reverse=True):
         print(f"    {model}: ${cost:.3f}")
     print()
 

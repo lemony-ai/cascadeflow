@@ -83,7 +83,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build TypeScript packages
-        run: pnpm --filter @cascadeflow/core build
+        run: |
+          pnpm --filter @cascadeflow/ml build
+          pnpm --filter @cascadeflow/core build
 
       - name: Run TypeScript tests
         run: pnpm --filter @cascadeflow/core test || echo "No tests defined yet"
@@ -120,7 +122,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build n8n package
-        run: pnpm --filter n8n-nodes-cascadeflow build
+        run: |
+          pnpm --filter @cascadeflow/ml build
+          pnpm --filter @cascadeflow/core build
+          pnpm --filter n8n-nodes-cascadeflow build
 
       - name: Lint n8n package
         run: pnpm --filter n8n-nodes-cascadeflow lint

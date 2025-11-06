@@ -39,6 +39,7 @@ import os
 # Load environment variables from .env file
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass  # dotenv not required if variables are already set
@@ -70,7 +71,9 @@ def example_1_supported_providers():
         print(f"📦 {provider_info.display_name}")
         print(f"   Value: {provider_info.value_prop}")
         print(f"   Models: {', '.join(provider_info.example_models[:2])}...")
-        print(f"   Pricing: {'✅ Available' if provider_info.pricing_available else '❌ Not available'}")
+        print(
+            f"   Pricing: {'✅ Available' if provider_info.pricing_available else '❌ Not available'}"
+        )
         print()
 
     print("💡 TIP: Use get_provider_info() to check provider capabilities at runtime.")
@@ -151,7 +154,9 @@ def example_4_cost_comparison():
     ]
 
     print("Cost comparison across different use cases:\n")
-    print(f"{'Use Case':<20} {'Tokens':>15} {'GPT-4o':>12} {'GPT-4o-mini':>14} {'Gemini Flash':>15}")
+    print(
+        f"{'Use Case':<20} {'Tokens':>15} {'GPT-4o':>12} {'GPT-4o-mini':>14} {'Gemini Flash':>15}"
+    )
     print("-" * 80)
 
     for use_case, input_tokens, output_tokens in use_cases:
@@ -252,7 +257,8 @@ def example_8_real_world_usage():
 
     print("How to use LiteLLM with cascadeflow agents:\n")
 
-    print("""
+    print(
+        """
 # Step 1: Import cascadeflow and LiteLLM
 from cascadeflow import CascadeAgent, ModelConfig
 from cascadeflow.integrations.litellm import LiteLLMCostProvider
@@ -286,7 +292,8 @@ agent = CascadeAgent(models=[
 result = await agent.run("Write a Python function to sort a list")
 print(f"Cost: ${result.total_cost:.6f}")
 print(f"Model used: {result.model_used}")
-""")
+"""
+    )
 
     print("💡 BENEFITS:")
     print("  - Accurate cost tracking via LiteLLM")

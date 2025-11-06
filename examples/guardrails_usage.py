@@ -23,7 +23,7 @@ async def main():
         TierLevel.PRO,
         user_id="secure_user",
         enable_content_moderation=True,
-        enable_pii_detection=True
+        enable_pii_detection=True,
     )
 
     print(f"\nUser profile:")
@@ -68,7 +68,7 @@ async def main():
         TierLevel.FREE,
         user_id="basic_user",
         enable_content_moderation=False,
-        enable_pii_detection=False
+        enable_pii_detection=False,
     )
     result = await manager.check_content(pii_text, no_guards_profile)
     print(f"Content moderation: {no_guards_profile.enable_content_moderation}")

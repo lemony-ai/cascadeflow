@@ -16,6 +16,7 @@ from .base import BaseProvider, ModelResponse, RetryConfig
 # REASONING MODEL SUPPORT
 # ==============================================================================
 
+
 class ReasoningModelInfo:
     """
     Information about reasoning model capabilities and limitations.
@@ -77,7 +78,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
     # Note: As of January 2025, Anthropic has not released extended thinking models
     return ReasoningModelInfo(
         is_reasoning=False,
-        provider='anthropic',
+        provider="anthropic",
         supports_streaming=True,
         supports_tools=True,
         supports_system_messages=True,
@@ -650,7 +651,11 @@ class AnthropicProvider(BaseProvider):
             thinking_blocks = [
                 block for block in data["content"] if block.get("type") == "thinking"
             ]
-            thinking = "\n\n".join(block.get("thinking", "") for block in thinking_blocks) if thinking_blocks else None
+            thinking = (
+                "\n\n".join(block.get("thinking", "") for block in thinking_blocks)
+                if thinking_blocks
+                else None
+            )
 
             # Extract response (Anthropic format)
             text_blocks = [block for block in data["content"] if block.get("type") == "text"]

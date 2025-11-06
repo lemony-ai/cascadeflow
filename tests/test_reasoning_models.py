@@ -96,10 +96,7 @@ class TestReasoningModelCost:
         # Output: 2000 tokens at $0.060/1K = $0.120
         # Total: $0.135
         cost = provider.estimate_cost(
-            tokens=3000,
-            model="o1-preview",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="o1-preview", prompt_tokens=1000, completion_tokens=2000
         )
         assert abs(cost - 0.135) < 0.0001
 
@@ -110,10 +107,7 @@ class TestReasoningModelCost:
         # Output: 2000 tokens at $0.012/1K = $0.024
         # Total: $0.027
         cost = provider.estimate_cost(
-            tokens=3000,
-            model="o1-mini",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="o1-mini", prompt_tokens=1000, completion_tokens=2000
         )
         assert abs(cost - 0.027) < 0.0001
 
@@ -121,10 +115,7 @@ class TestReasoningModelCost:
         """Test o1-2024-12-17 cost calculation."""
         provider = OpenAIProvider(api_key="test")
         cost = provider.estimate_cost(
-            tokens=3000,
-            model="o1-2024-12-17",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="o1-2024-12-17", prompt_tokens=1000, completion_tokens=2000
         )
         # Same pricing as o1-preview
         assert abs(cost - 0.135) < 0.0001
@@ -136,10 +127,7 @@ class TestReasoningModelCost:
         # Output: 2000 tokens at $0.005/1K = $0.010
         # Total: $0.011
         cost = provider.estimate_cost(
-            tokens=3000,
-            model="o3-mini",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="o3-mini", prompt_tokens=1000, completion_tokens=2000
         )
         assert abs(cost - 0.011) < 0.0001
 
@@ -148,10 +136,7 @@ class TestReasoningModelCost:
         provider = OpenAIProvider(api_key="test")
         # Should match 'o1-preview' prefix
         cost = provider.estimate_cost(
-            tokens=3000,
-            model="o1-preview-2025-01-15",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="o1-preview-2025-01-15", prompt_tokens=1000, completion_tokens=2000
         )
         assert abs(cost - 0.135) < 0.0001
 
@@ -159,16 +144,10 @@ class TestReasoningModelCost:
         """Test cost calculation is case-insensitive."""
         provider = OpenAIProvider(api_key="test")
         cost_lower = provider.estimate_cost(
-            tokens=3000,
-            model="o1-mini",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="o1-mini", prompt_tokens=1000, completion_tokens=2000
         )
         cost_upper = provider.estimate_cost(
-            tokens=3000,
-            model="O1-MINI",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="O1-MINI", prompt_tokens=1000, completion_tokens=2000
         )
         assert abs(cost_lower - cost_upper) < 0.0001
 
@@ -176,10 +155,7 @@ class TestReasoningModelCost:
         """Test cost calculation with zero tokens."""
         provider = OpenAIProvider(api_key="test")
         cost = provider.estimate_cost(
-            tokens=0,
-            model="o1-mini",
-            prompt_tokens=0,
-            completion_tokens=0
+            tokens=0, model="o1-mini", prompt_tokens=0, completion_tokens=0
         )
         assert cost == 0
 
@@ -187,10 +163,7 @@ class TestReasoningModelCost:
         """Test cost calculation scales linearly for large token counts."""
         provider = OpenAIProvider(api_key="test")
         cost = provider.estimate_cost(
-            tokens=3000000,
-            model="o1-mini",
-            prompt_tokens=1000000,
-            completion_tokens=2000000
+            tokens=3000000, model="o1-mini", prompt_tokens=1000000, completion_tokens=2000000
         )
         # Should scale linearly: (1M / 1K) * 0.003 + (2M / 1K) * 0.012 = 3 + 24 = 27
         assert abs(cost - 27.0) < 0.001
@@ -224,10 +197,7 @@ class TestReasoningModelPricing:
         """Test pricing for all supported models."""
         provider = OpenAIProvider(api_key="test")
         cost = provider.estimate_cost(
-            tokens=2000,
-            model=model,
-            prompt_tokens=1000,
-            completion_tokens=1000
+            tokens=2000, model=model, prompt_tokens=1000, completion_tokens=1000
         )
         expected_cost = (1000 / 1000) * input_price + (1000 / 1000) * output_price
         assert abs(cost - expected_cost) < 0.000001
@@ -240,10 +210,7 @@ class TestBackwardCompatibility:
         """Test that non-reasoning models still work correctly."""
         provider = OpenAIProvider(api_key="test")
         cost = provider.estimate_cost(
-            tokens=3000,
-            model="gpt-3.5-turbo",
-            prompt_tokens=1000,
-            completion_tokens=2000
+            tokens=3000, model="gpt-3.5-turbo", prompt_tokens=1000, completion_tokens=2000
         )
         # gpt-3.5-turbo: input $0.0005/1K, output $0.0015/1K
         # 1000 * 0.0005 + 2000 * 0.0015 = 0.0005 + 0.003 = 0.0035
@@ -347,10 +314,7 @@ class TestAnthropicModelCost:
         provider = AnthropicProvider(api_key="test")
         # Blended rate: $9.00 per 1M tokens
         # 2M tokens total = $18.00
-        cost = provider.estimate_cost(
-            tokens=2000000,
-            model="claude-3-5-sonnet-20241022"
-        )
+        cost = provider.estimate_cost(tokens=2000000, model="claude-3-5-sonnet-20241022")
         assert abs(cost - 18.0) < 0.001
 
     def test_claude_3_5_haiku_cost(self):
@@ -358,51 +322,33 @@ class TestAnthropicModelCost:
         provider = AnthropicProvider(api_key="test")
         # Blended rate: $3.00 per 1M tokens
         # 2M tokens total = $6.00
-        cost = provider.estimate_cost(
-            tokens=2000000,
-            model="claude-3-5-haiku-20241022"
-        )
+        cost = provider.estimate_cost(tokens=2000000, model="claude-3-5-haiku-20241022")
         assert abs(cost - 6.0) < 0.001
 
     def test_prefix_matching_versioned_models(self):
         """Test prefix matching for versioned Claude 3.5 models."""
         provider = AnthropicProvider(api_key="test")
-        cost1 = provider.estimate_cost(
-            tokens=2000000,
-            model="claude-3-5-sonnet-20241022"
-        )
-        cost2 = provider.estimate_cost(
-            tokens=2000000,
-            model="claude-3-5-sonnet-20240620"
-        )
+        cost1 = provider.estimate_cost(tokens=2000000, model="claude-3-5-sonnet-20241022")
+        cost2 = provider.estimate_cost(tokens=2000000, model="claude-3-5-sonnet-20240620")
         assert abs(cost1 - cost2) < 0.001  # Both should use same rate
 
     def test_zero_tokens_cost(self):
         """Test cost calculation with zero tokens."""
         provider = AnthropicProvider(api_key="test")
-        cost = provider.estimate_cost(
-            tokens=0,
-            model="claude-3-7-sonnet"
-        )
+        cost = provider.estimate_cost(tokens=0, model="claude-3-7-sonnet")
         assert cost == 0
 
     def test_large_token_count_scaling(self):
         """Test cost calculation scales linearly for large token counts."""
         provider = AnthropicProvider(api_key="test")
         # 20M tokens at $9/M blended = $180
-        cost = provider.estimate_cost(
-            tokens=20000000,
-            model="claude-3-7-sonnet"
-        )
+        cost = provider.estimate_cost(tokens=20000000, model="claude-3-7-sonnet")
         assert abs(cost - 180.0) < 0.01
 
     def test_fallback_pricing_unknown_model(self):
         """Test fallback to Sonnet pricing for unknown models."""
         provider = AnthropicProvider(api_key="test")
-        cost = provider.estimate_cost(
-            tokens=2000000,
-            model="claude-unknown"
-        )
+        cost = provider.estimate_cost(tokens=2000000, model="claude-unknown")
         # Should use $9.0 blended fallback
         assert abs(cost - 18.0) < 0.001
 
@@ -430,10 +376,7 @@ class TestAnthropicPricingMatrix:
     def test_model_blended_pricing(self, model, expected_blended):
         """Test blended pricing for all supported Anthropic models."""
         provider = AnthropicProvider(api_key="test")
-        cost = provider.estimate_cost(
-            tokens=2000000,
-            model=model
-        )
+        cost = provider.estimate_cost(tokens=2000000, model=model)
         expected_cost = 2.0 * expected_blended
         assert abs(cost - expected_cost) < 0.001
 
@@ -444,10 +387,7 @@ class TestAnthropicBackwardCompatibility:
     def test_standard_models_work_correctly(self):
         """Test that standard Claude models work correctly."""
         provider = AnthropicProvider(api_key="test")
-        cost = provider.estimate_cost(
-            tokens=2000000,
-            model="claude-3-5-sonnet"
-        )
+        cost = provider.estimate_cost(tokens=2000000, model="claude-3-5-sonnet")
         # claude-3-5-sonnet: $9.0 blended
         assert abs(cost - 18.0) < 0.001
 
@@ -482,7 +422,10 @@ class TestCrossProviderReasoningComparison:
         assert claude_info.supports_tools is True
 
         # Different extended thinking approaches
-        assert not hasattr(o1_info, "supports_extended_thinking") or o1_info.supports_extended_thinking is False
+        assert (
+            not hasattr(o1_info, "supports_extended_thinking")
+            or o1_info.supports_extended_thinking is False
+        )
         assert claude_info.supports_extended_thinking is True
 
     def test_cost_comparison_o1_mini_vs_claude_3_7(self):
@@ -499,15 +442,9 @@ class TestCrossProviderReasoningComparison:
 
         # Calculate costs with 2M prompt + 1M completion (favors o1-mini's cheaper input rate)
         o1_cost = o1_provider.estimate_cost(
-            tokens=3000000,
-            model="o1-mini",
-            prompt_tokens=2000000,
-            completion_tokens=1000000
+            tokens=3000000, model="o1-mini", prompt_tokens=2000000, completion_tokens=1000000
         )
-        claude_cost = claude_provider.estimate_cost(
-            tokens=3000000,
-            model="claude-3-7-sonnet"
-        )
+        claude_cost = claude_provider.estimate_cost(tokens=3000000, model="claude-3-7-sonnet")
 
         # Both should return valid costs
         assert o1_cost > 0

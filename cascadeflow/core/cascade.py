@@ -286,7 +286,7 @@ class WholeResponseCascade:
 
             if self.embedder.is_available:
                 # Get similarity threshold - use confidence threshold for moderate queries as default
-                similarity_threshold = getattr(quality_config, 'similarity_threshold', None)
+                similarity_threshold = getattr(quality_config, "similarity_threshold", None)
                 if similarity_threshold is None:
                     # Fall back to moderate confidence threshold if available
                     similarity_threshold = quality_config.confidence_thresholds.get("moderate", 0.5)
@@ -1332,7 +1332,11 @@ class WholeResponseCascade:
         passed = getattr(validation_result, "passed", False)
 
         # Additional semantic quality check if available
-        if passed and self.semantic_quality_checker and self.semantic_quality_checker.is_available():
+        if (
+            passed
+            and self.semantic_quality_checker
+            and self.semantic_quality_checker.is_available()
+        ):
             try:
                 semantic_result = self.semantic_quality_checker.validate(
                     query=query,
@@ -1345,7 +1349,9 @@ class WholeResponseCascade:
                     passed = False
                     # Update validation result reason
                     if hasattr(validation_result, "reason"):
-                        validation_result.reason = f"semantic_check_failed: {semantic_result.reason}"
+                        validation_result.reason = (
+                            f"semantic_check_failed: {semantic_result.reason}"
+                        )
                     if self.verbose:
                         logger.info(
                             f"❌ Draft rejected by semantic quality check: {semantic_result.reason} "

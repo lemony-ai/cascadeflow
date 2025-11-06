@@ -43,9 +43,7 @@ def strict_detector():
 
 def test_detect_code_domain(detector):
     """Test CODE domain detection with programming query."""
-    domain, confidence = detector.detect(
-        "Write a Python function to sort a list using async/await"
-    )
+    domain, confidence = detector.detect("Write a Python function to sort a list using async/await")
 
     assert domain == Domain.CODE
     assert confidence > 0.7  # Should be high confidence
@@ -195,9 +193,7 @@ def test_detect_multimodal_domain(detector):
 
 def test_detect_general_domain(detector):
     """Test GENERAL domain as fallback."""
-    result = detector.detect_with_scores(
-        "What is the capital of France?"
-    )
+    result = detector.detect_with_scores("What is the capital of France?")
 
     # Generic query should have low confidence or fall to GENERAL
     assert result.domain == Domain.GENERAL or result.confidence < 0.6
@@ -222,7 +218,9 @@ def test_structured_vs_data_separation(detector):
 
     # STRUCTURED should win for first query
     assert structured_result.domain == Domain.STRUCTURED
-    assert structured_result.scores[Domain.STRUCTURED] > structured_result.scores.get(Domain.DATA, 0)
+    assert structured_result.scores[Domain.STRUCTURED] > structured_result.scores.get(
+        Domain.DATA, 0
+    )
 
     # DATA should win for second query
     assert data_result.domain == Domain.DATA
@@ -237,9 +235,7 @@ def test_code_vs_data_separation(detector):
     )
 
     # DATA query (analysis focus)
-    data_result = detector.detect_with_scores(
-        "Use pandas for ETL and data warehouse analysis"
-    )
+    data_result = detector.detect_with_scores("Use pandas for ETL and data warehouse analysis")
 
     # CODE should win for first query
     assert code_result.domain == Domain.CODE
@@ -257,9 +253,7 @@ def test_rag_vs_general_separation(detector):
     )
 
     # GENERAL query (simple factual)
-    general_result = detector.detect_with_scores(
-        "What is the population of Tokyo?"
-    )
+    general_result = detector.detect_with_scores("What is the population of Tokyo?")
 
     # RAG should win for first query
     assert rag_result.domain == Domain.RAG
@@ -272,17 +266,15 @@ def test_rag_vs_general_separation(detector):
 def test_tool_vs_code_separation(detector):
     """Test that TOOL and CODE domains are properly separated."""
     # TOOL query (function calling focus)
-    tool_result = detector.detect_with_scores(
-        "Call the weather API function and execute the tool"
-    )
+    tool_result = detector.detect_with_scores("Call the weather API function and execute the tool")
 
     # CODE query (implementation focus)
-    code_result = detector.detect_with_scores(
-        "Write a function to implement an async algorithm"
-    )
+    code_result = detector.detect_with_scores("Write a function to implement an async algorithm")
 
     # TOOL should have good score for first query
-    assert tool_result.scores[Domain.TOOL] > 0.25 or Domain.TOOL in list(tool_result.scores.keys())[:3]
+    assert (
+        tool_result.scores[Domain.TOOL] > 0.25 or Domain.TOOL in list(tool_result.scores.keys())[:3]
+    )
 
     # CODE should win for second query (has async keyword)
     assert code_result.domain == Domain.CODE
@@ -340,9 +332,7 @@ def test_multi_domain_scores_sorted(detector):
 
 def test_low_confidence_fallback_to_general(detector):
     """Test that low confidence queries fall back to GENERAL."""
-    result = detector.detect_with_scores(
-        "Hello there"  # No domain-specific keywords
-    )
+    result = detector.detect_with_scores("Hello there")  # No domain-specific keywords
 
     # Should have low confidence across all domains
     assert result.domain == Domain.GENERAL
@@ -352,9 +342,7 @@ def test_low_confidence_fallback_to_general(detector):
 def test_strict_threshold_detection(strict_detector):
     """Test detection with strict threshold (0.6)."""
     # Query with moderate confidence
-    domain, confidence = strict_detector.detect(
-        "Write some code to process data"
-    )
+    domain, confidence = strict_detector.detect("Write some code to process data")
 
     # May fall back to GENERAL if confidence < 0.6
     if confidence < 0.6:
@@ -388,14 +376,10 @@ def test_adjust_threshold_runtime():
 def test_very_strong_keyword_weighting(detector):
     """Test that very_strong keywords (1.5 weight) boost confidence."""
     # Query with very_strong CODE keywords (async, await, import)
-    result_strong = detector.detect_with_scores(
-        "Use async await and import in Python"
-    )
+    result_strong = detector.detect_with_scores("Use async await and import in Python")
 
     # Query with only moderate CODE keywords
-    result_moderate = detector.detect_with_scores(
-        "Write a program to implement software"
-    )
+    result_moderate = detector.detect_with_scores("Write a program to implement software")
 
     # very_strong keywords should produce higher confidence
     # Relaxed assertion - just check that CODE is detected in both
@@ -409,7 +393,9 @@ def test_keyword_weight_accumulation(detector):
     result_single = detector.detect_with_scores("python programming")
 
     # Multiple keywords (more CODE-specific)
-    result_multiple = detector.detect_with_scores("python async await import function class algorithm")
+    result_multiple = detector.detect_with_scores(
+        "python async await import function class algorithm"
+    )
 
     # Multiple keywords should have higher or equal score (normalization may affect)
     code_score_single = result_single.scores.get(Domain.CODE, 0)
@@ -461,10 +447,7 @@ def test_get_recommended_models_structured(detector):
 
     assert len(models) > 0
     # Should mention JSON mode or structured outputs
-    assert any(
-        "json" in m.get("features", []) or "structured" in str(m).lower()
-        for m in models
-    )
+    assert any("json" in m.get("features", []) or "structured" in str(m).lower() for m in models)
 
 
 def test_model_recommendations_have_reasoning(detector):
@@ -548,9 +531,7 @@ def test_very_long_query(detector):
 
 def test_unicode_query(detector):
     """Test detection with unicode characters."""
-    domain, confidence = detector.detect(
-        "Écrire une fonction Python pour l'analyse de données"
-    )
+    domain, confidence = detector.detect("Écrire une fonction Python pour l'analyse de données")
 
     # Should detect CODE domain (despite French text)
     # "Python" is a keyword in any language
@@ -559,9 +540,7 @@ def test_unicode_query(detector):
 
 def test_special_characters_query(detector):
     """Test detection with special characters."""
-    domain, confidence = detector.detect(
-        "Write a Python function to parse JSON: {\"key\": \"value\"}"
-    )
+    domain, confidence = detector.detect('Write a Python function to parse JSON: {"key": "value"}')
 
     # Should detect CODE or STRUCTURED
     assert domain in [Domain.CODE, Domain.STRUCTURED]
@@ -569,9 +548,7 @@ def test_special_characters_query(detector):
 
 def test_query_with_numbers(detector):
     """Test detection with numbers in query."""
-    domain, confidence = detector.detect(
-        "Calculate x^2 + 3x + 5 and solve the equation"
-    )
+    domain, confidence = detector.detect("Calculate x^2 + 3x + 5 and solve the equation")
 
     # Should detect MATH domain
     assert domain == Domain.MATH
@@ -579,9 +556,7 @@ def test_query_with_numbers(detector):
 
 def test_ambiguous_query(detector):
     """Test detection with ambiguous query."""
-    result = detector.detect_with_scores(
-        "Process this information"  # Very generic
-    )
+    result = detector.detect_with_scores("Process this information")  # Very generic
 
     # Should have low confidence for most domains
     max_confidence = max(result.scores.values())
@@ -639,7 +614,7 @@ def test_domain_keywords_structure():
         very_strong=["async", "await"],
         strong=["function", "class"],
         moderate=["code", "program"],
-        weak=["write"]
+        weak=["write"],
     )
 
     assert len(keywords.very_strong) == 2

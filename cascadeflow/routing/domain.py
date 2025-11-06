@@ -44,6 +44,7 @@ from typing import Dict, List, Optional, Tuple, Any
 # Optional ML imports
 try:
     from ..ml.embedding import UnifiedEmbeddingService
+
     HAS_ML = True
 except ImportError:
     HAS_ML = False
@@ -93,202 +94,456 @@ class DomainKeywords:
 DOMAIN_KEYWORDS: Dict[Domain, DomainKeywords] = {
     Domain.CODE: DomainKeywords(
         very_strong=[  # Highly discriminative (Research: 77% accuracy)
-            "async", "await", "import", "def", "return", "const", "let",
-            "npm", "pip", "docker", "kubernetes", "pytest", "unittest"
+            "async",
+            "await",
+            "import",
+            "def",
+            "return",
+            "const",
+            "let",
+            "npm",
+            "pip",
+            "docker",
+            "kubernetes",
+            "pytest",
+            "unittest",
         ],
         strong=[
-            "function", "class", "python", "javascript", "typescript", "java",
-            "code", "algorithm", "api", "debug", "error", "exception",
-            "compile", "runtime", "syntax", "refactor", "repository"
+            "function",
+            "class",
+            "python",
+            "javascript",
+            "typescript",
+            "java",
+            "code",
+            "algorithm",
+            "api",
+            "debug",
+            "error",
+            "exception",
+            "compile",
+            "runtime",
+            "syntax",
+            "refactor",
+            "repository",
         ],
         moderate=[
-            "program", "software", "implement", "develop", "build",
-            "script", "test", "deploy", "git", "github", "lint",
-            "regex", "recursion", "OOP", "frontend", "backend"
+            "program",
+            "software",
+            "implement",
+            "develop",
+            "build",
+            "script",
+            "test",
+            "deploy",
+            "git",
+            "github",
+            "lint",
+            "regex",
+            "recursion",
+            "OOP",
+            "frontend",
+            "backend",
         ],
         weak=[],  # Removed generic terms per research
     ),
-
     Domain.DATA: DomainKeywords(
         very_strong=[  # Highly discriminative for DATA domain
-            "pandas", "numpy", "ETL", "warehouse", "BI", "correlation"
+            "pandas",
+            "numpy",
+            "ETL",
+            "warehouse",
+            "BI",
+            "correlation",
         ],
         strong=[
-            "sql", "database", "query", "dataframe", "analysis",
-            "visualization", "dataset", "analytics", "select", "regression"
+            "sql",
+            "database",
+            "query",
+            "dataframe",
+            "analysis",
+            "visualization",
+            "dataset",
+            "analytics",
+            "select",
+            "regression",
         ],
         moderate=[
-            "data", "table", "column", "join", "filter", "aggregate",
-            "chart", "graph", "metrics", "report", "pivot", "group by"
+            "data",
+            "table",
+            "column",
+            "join",
+            "filter",
+            "aggregate",
+            "chart",
+            "graph",
+            "metrics",
+            "report",
+            "pivot",
+            "group by",
         ],
         weak=[],  # Removed generic math terms
     ),
-
     Domain.STRUCTURED: DomainKeywords(
         very_strong=[  # Format-specific keywords (Research-backed)
-            "json", "xml", "yaml", "pydantic", "schema validation",
-            "protobuf", "avro", "JSON Schema", "dataclass"
+            "json",
+            "xml",
+            "yaml",
+            "pydantic",
+            "schema validation",
+            "protobuf",
+            "avro",
+            "JSON Schema",
+            "dataclass",
         ],
         strong=[
-            "extract", "parse", "schema", "fields", "entity", "structure",
-            "format", "convert", "normalize", "CSV", "Excel", "spreadsheet",
-            "serialize", "deserialize", "validate", "attrs"
+            "extract",
+            "parse",
+            "schema",
+            "fields",
+            "entity",
+            "structure",
+            "format",
+            "convert",
+            "normalize",
+            "CSV",
+            "Excel",
+            "spreadsheet",
+            "serialize",
+            "deserialize",
+            "validate",
+            "attrs",
         ],
         moderate=[
-            "form", "template", "transform", "map", "property",
-            "field mapping", "record", "document structure", "nested",
-            "flatten", "key-value", "attribute", "TOML", "msgpack"
+            "form",
+            "template",
+            "transform",
+            "map",
+            "property",
+            "field mapping",
+            "record",
+            "document structure",
+            "nested",
+            "flatten",
+            "key-value",
+            "attribute",
+            "TOML",
+            "msgpack",
         ],
         weak=[],  # Removed generic terms
     ),
-
     Domain.RAG: DomainKeywords(
         very_strong=[  # Retrieval-specific (Research-backed)
-            "semantic search", "vector search", "embedding", "similar documents"
+            "semantic search",
+            "vector search",
+            "embedding",
+            "similar documents",
         ],
         strong=[
-            "search", "retrieve", "lookup", "documentation",
-            "knowledge base", "documents", "corpus", "index", "relevance"
+            "search",
+            "retrieve",
+            "lookup",
+            "documentation",
+            "knowledge base",
+            "documents",
+            "corpus",
+            "index",
+            "relevance",
         ],
         moderate=[
-            "summarize", "review", "analyze", "compare documents",
-            "reference", "citation", "source", "context", "passages"
+            "summarize",
+            "review",
+            "analyze",
+            "compare documents",
+            "reference",
+            "citation",
+            "source",
+            "context",
+            "passages",
         ],
         weak=[],  # Removed generic question words
     ),
-
     Domain.CONVERSATION: DomainKeywords(
         very_strong=[  # Multi-turn indicators
-            "remember", "you said", "earlier you mentioned", "back to"
+            "remember",
+            "you said",
+            "earlier you mentioned",
+            "back to",
         ],
         strong=[
-            "chat", "conversation", "discuss", "follow-up", "continue",
-            "previous", "earlier", "dialogue", "multi-turn"
+            "chat",
+            "conversation",
+            "discuss",
+            "follow-up",
+            "continue",
+            "previous",
+            "earlier",
+            "dialogue",
+            "multi-turn",
         ],
         moderate=[
-            "help", "support", "assist", "question", "clarify",
-            "explain", "understand", "context", "referring to"
+            "help",
+            "support",
+            "assist",
+            "question",
+            "clarify",
+            "explain",
+            "understand",
+            "context",
+            "referring to",
         ],
         weak=[],  # Removed generic question words
     ),
-
     Domain.TOOL: DomainKeywords(
         very_strong=[  # API/Integration specific
-            "API call", "webhook", "endpoint", "POST", "GET", "PUT"
+            "API call",
+            "webhook",
+            "endpoint",
+            "POST",
+            "GET",
+            "PUT",
         ],
         strong=[
-            "fetch", "send", "create", "update", "delete", "action",
-            "execute", "call", "invoke", "integration"
+            "fetch",
+            "send",
+            "create",
+            "update",
+            "delete",
+            "action",
+            "execute",
+            "call",
+            "invoke",
+            "integration",
         ],
         moderate=[
-            "check", "verify", "schedule", "book", "order", "submit",
-            "run", "trigger", "perform", "external", "third-party"
+            "check",
+            "verify",
+            "schedule",
+            "book",
+            "order",
+            "submit",
+            "run",
+            "trigger",
+            "perform",
+            "external",
+            "third-party",
         ],
         weak=[],  # Removed generic action words
     ),
-
     Domain.CREATIVE: DomainKeywords(
         strong=[
-            "write", "story", "poem", "creative", "article", "essay",
-            "narrative", "character", "plot", "compose", "draft"
+            "write",
+            "story",
+            "poem",
+            "creative",
+            "article",
+            "essay",
+            "narrative",
+            "character",
+            "plot",
+            "compose",
+            "draft",
         ],
         moderate=[
-            "describe", "imagine", "design", "generate content",
-            "marketing", "copy", "blog", "social media"
+            "describe",
+            "imagine",
+            "design",
+            "generate content",
+            "marketing",
+            "copy",
+            "blog",
+            "social media",
         ],
         weak=["create", "make", "new"],
     ),
-
     Domain.SUMMARY: DomainKeywords(
         strong=[
-            "summarize", "condense", "tldr", "executive summary",
-            "key points", "main themes", "highlights", "overview"
+            "summarize",
+            "condense",
+            "tldr",
+            "executive summary",
+            "key points",
+            "main themes",
+            "highlights",
+            "overview",
         ],
-        moderate=[
-            "brief", "abstract", "essence", "distill", "compress",
-            "shorten", "extract main"
-        ],
+        moderate=["brief", "abstract", "essence", "distill", "compress", "shorten", "extract main"],
         weak=["short", "simple", "quick"],
     ),
-
     Domain.TRANSLATION: DomainKeywords(
         strong=[
-            "translate", "translation", "convert language", "localize",
-            "spanish", "french", "german", "chinese", "japanese"
+            "translate",
+            "translation",
+            "convert language",
+            "localize",
+            "spanish",
+            "french",
+            "german",
+            "chinese",
+            "japanese",
         ],
         moderate=[
-            "language", "multilingual", "interpret", "international",
-            "native language", "foreign"
+            "language",
+            "multilingual",
+            "interpret",
+            "international",
+            "native language",
+            "foreign",
         ],
         weak=["change", "switch", "different language"],
     ),
-
     Domain.MATH: DomainKeywords(
         very_strong=[  # Highly discriminative (math-specific)
-            "derivative", "integral", "theorem", "proof", "eigenvalue",
-            "differential equation", "matrix multiplication", "calculus",
-            "trigonometry", "logarithm"
+            "derivative",
+            "integral",
+            "theorem",
+            "proof",
+            "eigenvalue",
+            "differential equation",
+            "matrix multiplication",
+            "calculus",
+            "trigonometry",
+            "logarithm",
         ],
         strong=[
-            "calculate", "equation", "formula", "mathematics", "algebra",
-            "geometry", "statistics", "probability", "solve",
-            "vector", "matrix", "optimization", "polynomial"
+            "calculate",
+            "equation",
+            "formula",
+            "mathematics",
+            "algebra",
+            "geometry",
+            "statistics",
+            "probability",
+            "solve",
+            "vector",
+            "matrix",
+            "optimization",
+            "polynomial",
         ],
         moderate=[
-            "compute", "graph", "variable", "function", "coefficient",
-            "expression", "numeric", "symbolic", "scientific notation",
-            "exponent", "factorial", "summation"
+            "compute",
+            "graph",
+            "variable",
+            "function",
+            "coefficient",
+            "expression",
+            "numeric",
+            "symbolic",
+            "scientific notation",
+            "exponent",
+            "factorial",
+            "summation",
         ],
         weak=["add", "subtract", "multiply", "divide", "number", "math"],
     ),
-
     Domain.MEDICAL: DomainKeywords(
         strong=[
-            "diagnosis", "symptom", "treatment", "disease", "patient",
-            "medical", "doctor", "medication", "surgery", "clinical",
-            "pharmacy", "prescription", "healthcare"
+            "diagnosis",
+            "symptom",
+            "treatment",
+            "disease",
+            "patient",
+            "medical",
+            "doctor",
+            "medication",
+            "surgery",
+            "clinical",
+            "pharmacy",
+            "prescription",
+            "healthcare",
         ],
         moderate=[
-            "health", "pain", "condition", "therapy", "hospital",
-            "nurse", "drug", "dosage", "protocol"
+            "health",
+            "pain",
+            "condition",
+            "therapy",
+            "hospital",
+            "nurse",
+            "drug",
+            "dosage",
+            "protocol",
         ],
         weak=["feel", "hurt", "sick", "ill"],
     ),
-
     Domain.LEGAL: DomainKeywords(
         strong=[
-            "law", "legal", "contract", "lawsuit", "court", "attorney",
-            "regulation", "statute", "liability", "plaintiff", "defendant",
-            "compliance", "litigation"
+            "law",
+            "legal",
+            "contract",
+            "lawsuit",
+            "court",
+            "attorney",
+            "regulation",
+            "statute",
+            "liability",
+            "plaintiff",
+            "defendant",
+            "compliance",
+            "litigation",
         ],
         moderate=[
-            "rights", "agreement", "clause", "terms", "policy",
-            "jurisdiction", "precedent", "case law"
+            "rights",
+            "agreement",
+            "clause",
+            "terms",
+            "policy",
+            "jurisdiction",
+            "precedent",
+            "case law",
         ],
         weak=["rule", "requirement", "must"],
     ),
-
     Domain.FINANCIAL: DomainKeywords(
         strong=[
-            "financial", "investment", "portfolio", "risk", "earnings",
-            "revenue", "market", "stock", "trading", "valuation",
-            "roi", "profit", "loss"
+            "financial",
+            "investment",
+            "portfolio",
+            "risk",
+            "earnings",
+            "revenue",
+            "market",
+            "stock",
+            "trading",
+            "valuation",
+            "roi",
+            "profit",
+            "loss",
         ],
         moderate=[
-            "analysis", "forecast", "budget", "capital", "asset",
-            "liability", "cash flow", "dividend"
+            "analysis",
+            "forecast",
+            "budget",
+            "capital",
+            "asset",
+            "liability",
+            "cash flow",
+            "dividend",
         ],
         weak=["money", "cost", "price", "pay"],
     ),
-
     Domain.MULTIMODAL: DomainKeywords(
         strong=[
-            "image", "photo", "picture", "visual", "scan", "ocr",
-            "chart", "graph", "diagram", "screenshot", "video"
+            "image",
+            "photo",
+            "picture",
+            "visual",
+            "scan",
+            "ocr",
+            "chart",
+            "graph",
+            "diagram",
+            "screenshot",
+            "video",
         ],
         moderate=[
-            "see", "view", "look", "show", "display", "caption",
-            "describe image", "analyze photo"
+            "see",
+            "view",
+            "look",
+            "show",
+            "display",
+            "caption",
+            "describe image",
+            "analyze photo",
         ],
         weak=["this", "that", "here"],
     ),
@@ -552,7 +807,7 @@ class DomainDetector:
         if matches > 0:
             # Scale by number of matches (more matches = higher confidence)
             # Research: KeyBERT achieves 78% accuracy with semantic weighting
-            normalized_score = min(1.0, score / (matches ** 0.5))
+            normalized_score = min(1.0, score / (matches**0.5))
             return normalized_score
 
         return 0.0
@@ -569,7 +824,7 @@ class DomainDetector:
             True if keyword found with word boundaries
         """
         # Use word boundaries to avoid partial matches
-        pattern = r'\b' + re.escape(keyword) + r'\b'
+        pattern = r"\b" + re.escape(keyword) + r"\b"
         return bool(re.search(pattern, text))
 
 
@@ -746,10 +1001,7 @@ class SemanticDomainDetector:
         self._embeddings_computed = False
 
         # Check availability
-        self.is_available = (
-            self.embedder is not None and
-            self.embedder.is_available
-        )
+        self.is_available = self.embedder is not None and self.embedder.is_available
 
         if not self.is_available:
             logger.warning(
@@ -772,6 +1024,7 @@ class SemanticDomainDetector:
                 # Average exemplar embeddings to get domain centroid
                 try:
                     import numpy as np
+
                     domain_embedding = np.mean(embeddings, axis=0)
                     self._domain_embeddings[domain] = domain_embedding
                 except Exception as e:
@@ -835,9 +1088,7 @@ class SemanticDomainDetector:
         # Calculate similarity to each domain
         scores: Dict[Domain, float] = {}
         for domain, domain_embedding in self._domain_embeddings.items():
-            similarity = self.embedder._cosine_similarity(
-                query_embedding, domain_embedding
-            )
+            similarity = self.embedder._cosine_similarity(query_embedding, domain_embedding)
             scores[domain] = float(similarity) if similarity is not None else 0.0
 
         # Find best match

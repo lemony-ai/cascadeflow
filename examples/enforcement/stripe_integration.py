@@ -125,9 +125,7 @@ def main():
             current_cost=summary.get("total_cost", 0.0),
             estimated_cost=estimated_cost,
             budget_limit=tier_info["budget"].daily if tier_info["budget"].daily else None,
-            budget_used_pct=summary.get("period_costs", {})
-            .get("daily", {})
-            .get("used_pct", 0.0),
+            budget_used_pct=summary.get("period_costs", {}).get("daily", {}).get("used_pct", 0.0),
             budget_exceeded=summary.get("budget_exceeded", False),
             query=query,
         )

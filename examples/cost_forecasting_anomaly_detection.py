@@ -44,9 +44,7 @@ def simulate_normal_usage(tracker: CostTracker, days: int = 30, user_id: str = "
 
         # Adjust timestamp to simulate historical data
         if user_id in tracker.user_entries and tracker.user_entries[user_id]:
-            tracker.user_entries[user_id][-1].timestamp = datetime.now() - timedelta(
-                days=days - i
-            )
+            tracker.user_entries[user_id][-1].timestamp = datetime.now() - timedelta(days=days - i)
 
     print(f"✅ Recorded ${days * 0.15:.2f} over {days} days")
 
@@ -90,9 +88,7 @@ def demo_cost_forecasting():
 
     print(f"\n✨ Prediction Results:")
     print(f"  Predicted cost: ${prediction.predicted_cost:.4f}")
-    print(
-        f"  Confidence interval: ${prediction.lower_bound:.4f} - ${prediction.upper_bound:.4f}"
-    )
+    print(f"  Confidence interval: ${prediction.lower_bound:.4f} - ${prediction.upper_bound:.4f}")
     print(f"  Confidence: {prediction.confidence:.1%}")
     print(f"  Trend: {prediction.trend}")
     print(f"  Historical average: ${prediction.historical_average:.4f}/day")
@@ -268,18 +264,12 @@ def demo_integration():
         print("\n📈 Updated Forecast (post-anomaly):")
         pred_after = forecaster.forecast_daily(days=7, user_id="api_user")
         print(f"  NEW predicted cost: ${pred_after.predicted_cost:.4f}")
-        print(
-            f"  Change: ${pred_after.predicted_cost - pred_before.predicted_cost:+.4f}"
-        )
+        print(f"  Change: ${pred_after.predicted_cost - pred_before.predicted_cost:+.4f}")
 
         # With high alpha (0.5), recent spike significantly affects forecast
         print("\n💡 Insight:")
-        print(
-            f"  The forecaster adapted to the anomaly due to high alpha ({forecaster.alpha})"
-        )
-        print(
-            "  This means recent data is weighted heavily in predictions"
-        )
+        print(f"  The forecaster adapted to the anomaly due to high alpha ({forecaster.alpha})")
+        print("  This means recent data is weighted heavily in predictions")
 
         # Create alerts
         alerts = create_anomaly_alerts(anomalies, min_severity=AnomalySeverity.MEDIUM)

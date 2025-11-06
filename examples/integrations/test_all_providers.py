@@ -16,6 +16,7 @@ import sys
 # Load .env file if available
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
     print("✓ Loaded .env file")
 except ImportError:
@@ -26,8 +27,8 @@ except ImportError:
         with open(env_file) as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
                     os.environ[key] = value
         print(f"✓ Manually loaded {env_file}")
 
@@ -74,11 +75,13 @@ def check_api_keys():
 
         if not provider_info.requires_api_key:
             # Local/self-hosted providers
-            local.append({
-                "name": provider_name,
-                "display_name": provider_info.display_name,
-                "status": "local",
-            })
+            local.append(
+                {
+                    "name": provider_name,
+                    "display_name": provider_info.display_name,
+                    "status": "local",
+                }
+            )
             continue
 
         # Check if API key is set
@@ -97,19 +100,23 @@ def check_api_keys():
                 key_name = env_vars
 
         if has_key:
-            configured.append({
-                "name": provider_name,
-                "display_name": provider_info.display_name,
-                "env_var": key_name,
-                "value_prop": provider_info.value_prop,
-            })
+            configured.append(
+                {
+                    "name": provider_name,
+                    "display_name": provider_info.display_name,
+                    "env_var": key_name,
+                    "value_prop": provider_info.value_prop,
+                }
+            )
         else:
-            missing.append({
-                "name": provider_name,
-                "display_name": provider_info.display_name,
-                "env_var": env_vars if isinstance(env_vars, str) else env_vars[0],
-                "value_prop": provider_info.value_prop,
-            })
+            missing.append(
+                {
+                    "name": provider_name,
+                    "display_name": provider_info.display_name,
+                    "env_var": env_vars if isinstance(env_vars, str) else env_vars[0],
+                    "value_prop": provider_info.value_prop,
+                }
+            )
 
     # Print configured providers
     print(f"✓ CONFIGURED PROVIDERS ({len(configured)}):")
@@ -123,7 +130,7 @@ def check_api_keys():
     print(f"✓ LOCAL/SELF-HOSTED PROVIDERS ({len(local)}):")
     print()
     for p in local:
-        provider_info = SUPPORTED_PROVIDERS[p['name']]
+        provider_info = SUPPORTED_PROVIDERS[p["name"]]
         print(f"  ✓ {p['display_name']:25s} (no API key needed)")
         print(f"    → {provider_info.value_prop}")
         print()
@@ -151,16 +158,18 @@ def test_cost_calculations(configured_providers):
     test_cases = []
 
     for provider in configured_providers:
-        provider_name = provider['name']
+        provider_name = provider["name"]
         provider_info = SUPPORTED_PROVIDERS[provider_name]
 
         # Use first example model
         if provider_info.example_models:
             model = provider_info.example_models[0]
-            test_cases.append({
-                "provider": provider_info.display_name,
-                "model": model,
-            })
+            test_cases.append(
+                {
+                    "provider": provider_info.display_name,
+                    "model": model,
+                }
+            )
 
     if not test_cases:
         print("⚠️  No configured providers to test")
@@ -172,9 +181,7 @@ def test_cost_calculations(configured_providers):
     for test in test_cases:
         try:
             cost = cost_provider.calculate_cost(
-                model=test['model'],
-                input_tokens=100,
-                output_tokens=50
+                model=test["model"], input_tokens=100, output_tokens=50
             )
             print(f"  ✓ {test['provider']:25s} | {test['model']:30s} | ${cost:.6f}")
         except Exception as e:
@@ -247,6 +254,7 @@ def test_litellm_availability():
 
     try:
         import litellm
+
         print("✓ LiteLLM is installed")
         print(f"  Version: {litellm.__version__ if hasattr(litellm, '__version__') else 'unknown'}")
         print()

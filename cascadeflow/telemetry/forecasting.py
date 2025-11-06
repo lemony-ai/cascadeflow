@@ -395,7 +395,7 @@ class CostForecaster:
         residuals = [actual[i] - smoothed[i] for i in range(len(actual))]
 
         # Calculate variance
-        variance = sum(r ** 2 for r in residuals) / len(residuals)
+        variance = sum(r**2 for r in residuals) / len(residuals)
 
         # Standard error
         std_error = math.sqrt(variance)

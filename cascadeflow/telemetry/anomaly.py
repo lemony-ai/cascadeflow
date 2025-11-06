@@ -194,9 +194,7 @@ class AnomalyDetector:
             )
             return []
 
-        return self._detect_anomalies_in_series(
-            daily_costs, metric="cost", user_id=user_id
-        )
+        return self._detect_anomalies_in_series(daily_costs, metric="cost", user_id=user_id)
 
     def detect_all_users(
         self,

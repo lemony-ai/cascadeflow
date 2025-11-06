@@ -37,29 +37,25 @@ class PIIDetector:
         """Initialize PII detector with patterns"""
 
         # Email pattern
-        self._email_pattern = re.compile(
-            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        )
+        self._email_pattern = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
 
         # Phone number patterns (US)
         self._phone_patterns = [
-            re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b'),  # 123-456-7890
-            re.compile(r'\(\d{3}\)\s*\d{3}[-.]?\d{4}\b'),  # (123) 456-7890
+            re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"),  # 123-456-7890
+            re.compile(r"\(\d{3}\)\s*\d{3}[-.]?\d{4}\b"),  # (123) 456-7890
         ]
 
         # SSN pattern (US)
-        self._ssn_pattern = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
+        self._ssn_pattern = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 
         # Credit card patterns (basic)
         self._cc_patterns = [
-            re.compile(r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b'),  # 16 digit
-            re.compile(r'\b\d{4}[-\s]?\d{6}[-\s]?\d{5}\b'),  # 15 digit (Amex)
+            re.compile(r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b"),  # 16 digit
+            re.compile(r"\b\d{4}[-\s]?\d{6}[-\s]?\d{5}\b"),  # 15 digit (Amex)
         ]
 
         # IP address pattern
-        self._ip_pattern = re.compile(
-            r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
-        )
+        self._ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
     def detect(self, text: str) -> List[PIIMatch]:
         """
@@ -75,51 +71,57 @@ class PIIDetector:
 
         # Detect emails
         for match in self._email_pattern.finditer(text):
-            matches.append(PIIMatch(
-                pii_type="email",
-                value=f"{match.group()[:3]}***@***",
-                position=(match.start(), match.end())
-            ))
+            matches.append(
+                PIIMatch(
+                    pii_type="email",
+                    value=f"{match.group()[:3]}***@***",
+                    position=(match.start(), match.end()),
+                )
+            )
 
         # Detect phone numbers
         for pattern in self._phone_patterns:
             for match in pattern.finditer(text):
-                matches.append(PIIMatch(
-                    pii_type="phone",
-                    value="***-***-****",
-                    position=(match.start(), match.end())
-                ))
+                matches.append(
+                    PIIMatch(
+                        pii_type="phone",
+                        value="***-***-****",
+                        position=(match.start(), match.end()),
+                    )
+                )
 
         # Detect SSN
         for match in self._ssn_pattern.finditer(text):
-            matches.append(PIIMatch(
-                pii_type="ssn",
-                value="***-**-****",
-                position=(match.start(), match.end())
-            ))
+            matches.append(
+                PIIMatch(pii_type="ssn", value="***-**-****", position=(match.start(), match.end()))
+            )
 
         # Detect credit cards
         for pattern in self._cc_patterns:
             for match in pattern.finditer(text):
                 # Basic Luhn check to reduce false positives
-                digits = ''.join(c for c in match.group() if c.isdigit())
+                digits = "".join(c for c in match.group() if c.isdigit())
                 if self._luhn_check(digits):
-                    matches.append(PIIMatch(
-                        pii_type="credit_card",
-                        value="****-****-****-****",
-                        position=(match.start(), match.end())
-                    ))
+                    matches.append(
+                        PIIMatch(
+                            pii_type="credit_card",
+                            value="****-****-****-****",
+                            position=(match.start(), match.end()),
+                        )
+                    )
 
         # Detect IP addresses
         for match in self._ip_pattern.finditer(text):
             # Validate IP format
-            parts = match.group().split('.')
+            parts = match.group().split(".")
             if all(0 <= int(p) <= 255 for p in parts):
-                matches.append(PIIMatch(
-                    pii_type="ip_address",
-                    value="***.***.***.***",
-                    position=(match.start(), match.end())
-                ))
+                matches.append(
+                    PIIMatch(
+                        pii_type="ip_address",
+                        value="***.***.***.***",
+                        position=(match.start(), match.end()),
+                    )
+                )
 
         return matches
 
@@ -141,7 +143,9 @@ class PIIDetector:
         redacted_text = text
         for match in matches:
             start, end = match.position
-            redacted_text = redacted_text[:start] + f"[{match.pii_type.upper()}]" + redacted_text[end:]
+            redacted_text = (
+                redacted_text[:start] + f"[{match.pii_type.upper()}]" + redacted_text[end:]
+            )
 
         return redacted_text, matches
 
@@ -151,6 +155,7 @@ class PIIDetector:
 
     def _luhn_check(self, card_number: str) -> bool:
         """Luhn algorithm for credit card validation"""
+
         def digits_of(n):
             return [int(d) for d in str(n)]
 
