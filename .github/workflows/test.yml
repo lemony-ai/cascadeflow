@@ -34,7 +34,7 @@ jobs:
 
       - name: Run tests with pytest
         run: |
-          pytest tests/ -v --cov=cascadeflow --cov-report=xml --cov-report=term-missing
+          pytest tests/ -v -m "not integration and not requires_api and not requires_ollama and not requires_vllm" --cov=cascadeflow --cov-report=xml --cov-report=term-missing
         env:
           PYTHONPATH: ${{ github.workspace }}
 

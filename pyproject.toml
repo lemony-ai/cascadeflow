@@ -129,7 +129,7 @@ Repository = "https://github.com/lemony-ai/cascadeflow"
 Changelog = "https://github.com/lemony-ai/cascadeflow/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = {find = {}}  # Automatically find all packages
+packages = {find = {where = ["."], exclude = ["tests*", "examples*", "docs*", "packages*", "node_modules*", ".venv*", "build*", "dist*"]}}
 
 [tool.setuptools.package-data]
 cascadeflow = ["py.typed"]
@@ -201,6 +201,13 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--asyncio-mode=auto",
+]
+markers = [
+    "integration: marks tests that require external services or API keys (deselect with '-m \"not integration\"')",
+    "requires_api: marks tests that require API keys to run",
+    "requires_ollama: marks tests that require Ollama to be running",
+    "requires_vllm: marks tests that require vLLM to be running",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
 [tool.coverage.run]
