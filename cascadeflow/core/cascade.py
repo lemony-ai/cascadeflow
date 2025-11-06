@@ -223,6 +223,7 @@ class WholeResponseCascade:
         drafter: ModelConfig,
         verifier: ModelConfig,
         providers: dict,
+        model_providers: Optional[dict] = None,
         confidence_threshold: Optional[float] = None,
         quality_config: Optional[QualityConfig] = None,
         verbose: bool = False,
@@ -230,6 +231,7 @@ class WholeResponseCascade:
         self.drafter = drafter
         self.verifier = verifier
         self.providers = providers
+        self.model_providers = model_providers or {}  # Model name -> provider instance
         self.verbose = verbose
 
         # Quality control
@@ -352,6 +354,24 @@ class WholeResponseCascade:
                 "expert": {"total": 0, "accepted": 0},
             },
         }
+
+    # ═══════════════════════════════════════════════════════════
+    # PROVIDER LOOKUP (Multi-Instance Support)
+    # ═══════════════════════════════════════════════════════════
+
+    def _get_provider(self, model: ModelConfig):
+        """
+        Get provider instance for a model.
+
+        For multi-instance setups, returns the model-specific provider instance.
+        Falls back to provider-type lookup for backwards compatibility.
+        """
+        # First try model-specific provider (for multi-instance setups)
+        if model.name in self.model_providers:
+            return self.model_providers[model.name]
+
+        # Fallback to provider-type lookup (backwards compatibility)
+        return self.providers[model.provider]
 
     # ═══════════════════════════════════════════════════════════
     # COST CALCULATION METHODS (FIXED - Now Uses Input Tokens!)
@@ -1206,7 +1226,7 @@ class WholeResponseCascade:
 
         """
         try:
-            provider = self.providers[self.drafter.provider]
+            provider = self._get_provider(self.drafter)
 
             # === CRITICAL FIX: Route to correct method based on tools ===
             if tools:
@@ -1251,7 +1271,7 @@ class WholeResponseCascade:
 
         """
         try:
-            provider = self.providers[self.verifier.provider]
+            provider = self._get_provider(self.verifier)
 
             # === CRITICAL FIX: Route to correct method based on tools ===
             if tools:

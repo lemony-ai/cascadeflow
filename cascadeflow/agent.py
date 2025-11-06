@@ -309,6 +309,7 @@ class CascadeAgent:
                 drafter=self.models[0],
                 verifier=self.models[-1],
                 providers=self.providers,
+                model_providers=self.model_providers,  # Pass model-specific providers
                 quality_config=self.quality_config,
                 verbose=verbose,
             )
@@ -430,22 +431,70 @@ class CascadeAgent:
         return self.streaming_manager
 
     def _init_providers(self) -> dict[str, Any]:
-        """Initialize providers for all models."""
-        providers = {}
-        provider_types = {model.provider for model in self.models}
+        """
+        Initialize providers for all models.
 
-        for provider_type in provider_types:
-            if provider_type in PROVIDER_REGISTRY:
-                try:
-                    providers[provider_type] = PROVIDER_REGISTRY[provider_type]()
-                    logger.debug(f"Initialized provider: {provider_type}")
-                except Exception as e:
-                    logger.warning(f"Failed to initialize provider '{provider_type}': {e}")
+        For multi-instance setups, creates separate provider instances for each model
+        with model-specific base_url and api_key. For backwards compatibility, also
+        maintains provider-type keys.
+        """
+        providers = {}
+        model_providers = {}  # Model name -> provider instance
+
+        # Create provider instance for each model with its specific config
+        for model in self.models:
+            if model.provider not in PROVIDER_REGISTRY:
+                logger.warning(f"Unknown provider: {model.provider}")
+                continue
+
+            try:
+                provider_class = PROVIDER_REGISTRY[model.provider]
+
+                # Pass model-specific configuration to provider
+                provider_kwargs = {}
+                if model.api_key:
+                    provider_kwargs["api_key"] = model.api_key
+                if model.base_url:
+                    provider_kwargs["base_url"] = model.base_url
+
+                provider_instance = provider_class(**provider_kwargs)
+                model_providers[model.name] = provider_instance
+
+                # For backwards compatibility, also store by provider type
+                # (use first instance of each provider type)
+                if model.provider not in providers:
+                    providers[model.provider] = provider_instance
+
+                logger.debug(
+                    f"Initialized {model.provider} provider for model {model.name}"
+                    + (f" with base_url={model.base_url}" if model.base_url else "")
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize provider '{model.provider}' for model '{model.name}': {e}"
+                )
 
         if not providers:
             raise cascadeflowError("No providers could be initialized. Check your API keys.")
 
+        # Store model-to-provider mapping for multi-instance lookups
+        self.model_providers = model_providers
+
         return providers
+
+    def _get_provider(self, model: ModelConfig):
+        """
+        Get provider instance for a model.
+
+        For multi-instance setups, returns the model-specific provider instance.
+        Falls back to provider-type lookup for backwards compatibility.
+        """
+        # First try model-specific provider (for multi-instance setups)
+        if hasattr(self, 'model_providers') and model.name in self.model_providers:
+            return self.model_providers[model.name]
+
+        # Fallback to provider-type lookup (backwards compatibility)
+        return self.providers[model.provider]
 
     # ========================================================================
     # API 1: NON-STREAMING - WITH TOOL SUPPORT
@@ -883,7 +932,7 @@ class CascadeAgent:
             else:
                 # Fallback for manual streaming
                 best_model = available_models[-1] if available_models else self.models[-1]
-                provider = self.providers[best_model.provider]
+                provider = self._get_provider(best_model)
 
                 yield StreamEvent(
                     type=StreamEventType.ROUTING,
@@ -1093,7 +1142,7 @@ class CascadeAgent:
     ):
         """Execute direct routing with detailed timing and tool support."""
         best_model = available_models[-1] if available_models else self.models[-1]
-        provider = self.providers[best_model.provider]
+        provider = self._get_provider(best_model)
         reason = (
             "Forced direct routing"
             if force_direct
@@ -1154,7 +1203,7 @@ class CascadeAgent:
     ):
         """Stream directly from best model with timing tracking and tool support."""
         best_model = available_models[-1] if available_models else self.models[-1]
-        provider = self.providers[best_model.provider]
+        provider = self._get_provider(best_model)
         reason = (
             "Forced direct routing"
             if force_direct
