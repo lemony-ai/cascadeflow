@@ -495,23 +495,38 @@ Configure cascadeflow node:
 
 ---
 
-## ❓ **Frequently Asked Questions**
+## ❓ Frequently Asked Questions
 
-| **Does this work with my current setup?**
+### Does this work with my current setup?
+
 Yes! CascadeFlow works with any LLM provider (OpenAI, Anthropic, Groq, Ollama, etc.) and integrates in just 3 lines of code. No architecture changes needed.
-| **How much can I actually save?**
+
+### How much can I actually save?
+
 Typical savings range from 40-85% depending on your query complexity mix. Simple queries (70% of most applications) are handled by small models that cost 8-20x less than flagship models.
-| **Will this slow down my application?**
+
+### Will this slow down my application?
+
 No - it's actually faster! Small models respond in 50-200ms vs 500-2000ms for large models. Speculative execution means you get results 2-10x faster for most queries.
-| **What happens if a small model fails?**
+
+### What happens if a small model fails?
+
 CascadeFlow automatically escalates to the next model in your cascade. Quality validation is built-in, so users never see low-quality responses.
-| **Is this just prompt routing?**
+
+### Is this just prompt routing?
+
 No. Traditional routers make decisions before generation. CascadeFlow uses speculative cascading - it tries models optimistically during generation and validates quality in real-time. This enables much higher cost savings (40-85% vs 20-30% for routers).
-| **Do I need to change my prompts?**
+
+### Do I need to change my prompts?
+
 No. Use your existing prompts unchanged. CascadeFlow works transparently with your current implementation.
-| **Can I use this in production?**
+
+### Can I use this in production?
+
 Absolutely. CascadeFlow includes production features like streaming, caching, error handling, monitoring, and has been battle-tested in real applications.
-| **What's the catch?**
+
+### What's the catch?
+
 There isn't one. CascadeFlow is MIT licensed and free for commercial use. We're building managed services for enterprise customers who want hosted solutions, but the core library is always free.
 
 ---
