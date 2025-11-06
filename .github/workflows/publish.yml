@@ -58,14 +58,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build @cascadeflow/core
-        run: |
-          cd packages/core
-          pnpm build
-
       - name: Build @cascadeflow/ml
         run: |
           cd packages/ml
+          pnpm build
+
+      - name: Build @cascadeflow/core
+        run: |
+          cd packages/core
           pnpm build
 
       - name: Build @cascadeflow/n8n-nodes-cascadeflow
