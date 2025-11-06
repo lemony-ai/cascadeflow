@@ -63,6 +63,11 @@ jobs:
           cd packages/core
           pnpm build
 
+      - name: Build @cascadeflow/ml
+        run: |
+          cd packages/ml
+          pnpm build
+
       - name: Build @cascadeflow/n8n-nodes-cascadeflow
         run: |
           cd packages/integrations/n8n
@@ -73,6 +78,12 @@ jobs:
         with:
           name: npm-cascadeflow-core
           path: packages/core/
+
+      - name: Store @cascadeflow/ml package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-cascadeflow-ml
+          path: packages/ml/
 
       - name: Store @cascadeflow/n8n-nodes-cascadeflow package
         uses: actions/upload-artifact@v4
@@ -109,6 +120,9 @@ jobs:
     environment:
       name: npm
       url: https://www.npmjs.com/package/@cascadeflow/core
+    permissions:
+      contents: read
+      id-token: write  # Required for npm provenance
 
     steps:
       - name: Download @cascadeflow/core
@@ -116,6 +130,12 @@ jobs:
         with:
           name: npm-cascadeflow-core
           path: packages/core/
+
+      - name: Download @cascadeflow/ml
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-cascadeflow-ml
+          path: packages/ml/
 
       - name: Download @cascadeflow/n8n-nodes-cascadeflow
         uses: actions/download-artifact@v4
@@ -132,14 +152,21 @@ jobs:
       - name: Publish @cascadeflow/core
         run: |
           cd packages/core
-          npm publish --access public
+          npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @cascadeflow/ml
+        run: |
+          cd packages/ml
+          npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/n8n-nodes-cascadeflow
         run: |
           cd packages/integrations/n8n
-          npm publish --access public
+          npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
