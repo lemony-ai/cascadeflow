@@ -94,6 +94,17 @@ heuristic_models:
         - "Logprobs-based confidence"
         - "Heuristic fallback (length, word count)"
         - "Optional alignment integration"
+        - "Optional semantic validation (ML embeddings)"
+
+    - name: "SemanticQualityChecker"
+      type: "ML-based semantic validator"
+      purpose: "Semantic similarity validation using embeddings"
+      features:
+        - "Query-response semantic alignment"
+        - "BGE-small-en-v1.5 embeddings"
+        - "Request-scoped caching"
+        - "Graceful degradation"
+      latency: "50-100ms per check (with caching)"
 
 # Model Routing Strategy
 routing:
@@ -162,7 +173,8 @@ feature_parity:
   prerouter_logic: "✅ Full parity (Python & TypeScript)"
   alignment_scorer: "✅ Full parity (Python & TypeScript)"
   quality_validator: "✅ Full parity (Python & TypeScript)"
-  ml_embeddings: "⚠️ Implemented but NOT integrated (Python: Fully integrated, TypeScript: Exists in packages/ml but unused by core)"
+  ml_embeddings: "✅ Full parity (Python & TypeScript - Both use BGE-small-en-v1.5 via @cascadeflow/ml)"
+  semantic_validation: "✅ Full parity (Python & TypeScript - Integrated with QualityValidator)"
   litellm_integration: "⚠️ TypeScript uses fallback pricing (Python has real-time)"
   domain_routing: "❌ Python only (TypeScript: Basic complexity routing, no domain detection)"
   batch_processing: "❌ Python only (TypeScript: Not implemented)"

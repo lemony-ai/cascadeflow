@@ -12,6 +12,8 @@ Server-side TypeScript examples for Node.js applications:
 - **tool-calling.ts** - Function calling with type-safe tools
 - **multi-provider.ts** - Using multiple AI providers together
 - **reasoning-models.ts** - OpenAI o1/o3, Claude 3.7 Sonnet, DeepSeek-R1 reasoning models
+- **cost-tracking.ts** - Track and analyze costs across queries
+- **semantic-quality.ts** - ML-based semantic validation with embeddings
 - **production-patterns.ts** - Error handling, caching, rate limiting, monitoring
 
 [→ See nodejs/README.md for details](./nodejs/README.md)
@@ -51,8 +53,9 @@ vercel dev
 | Tool Calling | ✅ | ✅ |
 | Multi-Provider | ✅ | ✅ |
 | Reasoning Models | ✅ | ✅ |
-| Production Patterns | ✅ | ✅ |
 | Cost Tracking | ✅ | ✅ |
+| Semantic Quality (ML) | ✅ | ✅ |
+| Production Patterns | ✅ | ✅ |
 
 ## 🔑 Environment Setup
 

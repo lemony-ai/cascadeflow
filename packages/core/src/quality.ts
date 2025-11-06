@@ -5,6 +5,7 @@
  */
 
 import { QueryResponseAlignmentScorer } from './alignment';
+import { SemanticQualityChecker } from './quality-semantic';
 
 /**
  * Quality validation result
@@ -47,6 +48,9 @@ export interface QualityResult {
 
     /** Alignment reasoning */
     alignmentReasoning?: string;
+
+    /** Semantic similarity score (0-1) from ML embeddings */
+    semanticSimilarity?: number;
   };
 }
 
@@ -74,6 +78,12 @@ export interface QualityConfig {
 
   /** Minimum alignment score (0-1, default: 0.15 - alignment floor) */
   minAlignmentScore: number;
+
+  /** Enable ML-based semantic validation (requires @cascadeflow/ml) */
+  useSemanticValidation?: boolean;
+
+  /** Minimum semantic similarity score (0-1, default: 0.5) */
+  semanticThreshold?: number;
 }
 
 /**
@@ -214,6 +224,7 @@ export function estimateConfidenceFromContent(
 export class QualityValidator {
   private config: QualityConfig;
   private alignmentScorer: QueryResponseAlignmentScorer | null = null;
+  private semanticChecker: SemanticQualityChecker | null = null;
 
   constructor(config: Partial<QualityConfig> = {}) {
     this.config = { ...DEFAULT_QUALITY_CONFIG, ...config };
@@ -221,6 +232,13 @@ export class QualityValidator {
     // Initialize alignment scorer if enabled
     if (this.config.useAlignmentScoring) {
       this.alignmentScorer = new QueryResponseAlignmentScorer();
+    }
+
+    // Initialize semantic checker if enabled (optional ML feature)
+    if (this.config.useSemanticValidation !== false) {
+      this.semanticChecker = new SemanticQualityChecker(
+        this.config.semanticThreshold || 0.5
+      );
     }
   }
 
@@ -232,11 +250,11 @@ export class QualityValidator {
    * @param logprobs - Log probabilities (if available)
    * @returns Quality validation result
    */
-  validate(
+  async validate(
     content: string,
     query: string,
     logprobs?: number[]
-  ): QualityResult {
+  ): Promise<QualityResult> {
     // Step 1: Calculate confidence
     let confidence: number;
     let method: 'logprobs' | 'heuristic' | 'hybrid';
@@ -291,7 +309,7 @@ export class QualityValidator {
       }
     }
 
-    // Step 4: Calculate alignment score (NEW)
+    // Step 4: Calculate alignment score
     let alignmentScore: number | undefined;
     let alignmentReasoning: string | undefined;
     let alignmentPassed = true;
@@ -303,6 +321,20 @@ export class QualityValidator {
 
       // Check if alignment passes floor threshold (0.15)
       alignmentPassed = alignmentScore >= this.config.minAlignmentScore;
+    }
+
+    // Step 4.5: ML semantic validation (optional)
+    let semanticSimilarity: number | undefined;
+    let semanticPassed = true;
+
+    if (this.config.useSemanticValidation && this.semanticChecker) {
+      const isAvailable = await this.semanticChecker.isAvailable();
+
+      if (isAvailable) {
+        const semanticResult = await this.semanticChecker.checkSimilarity(query, content);
+        semanticSimilarity = semanticResult.similarity;
+        semanticPassed = semanticResult.passed;
+      }
     }
 
     // Step 5: Calculate overall quality score
@@ -330,7 +362,10 @@ export class QualityValidator {
 
     // Step 6: Determine pass/fail
     const passed =
-      score >= this.config.minConfidence && lengthOk && alignmentPassed;
+      score >= this.config.minConfidence &&
+      lengthOk &&
+      alignmentPassed &&
+      semanticPassed;
 
     // Step 7: Generate reason
     let reason: string;
@@ -339,8 +374,13 @@ export class QualityValidator {
       if (alignmentScore !== undefined) {
         reason += `, alignment: ${alignmentScore.toFixed(2)}`;
       }
+      if (semanticSimilarity !== undefined) {
+        reason += `, semantic: ${semanticSimilarity.toFixed(2)}`;
+      }
     } else if (!lengthOk) {
       reason = `Content too short (${wordCount} words, minimum: ${this.config.minWordCount})`;
+    } else if (!semanticPassed && semanticSimilarity !== undefined) {
+      reason = `Semantic similarity too low (${semanticSimilarity.toFixed(2)}, minimum: ${this.config.semanticThreshold || 0.5})`;
     } else if (!alignmentPassed && alignmentScore !== undefined) {
       reason = `Alignment too low (${alignmentScore.toFixed(2)}, minimum: ${this.config.minAlignmentScore})`;
     } else {
@@ -362,6 +402,7 @@ export class QualityValidator {
           uncertaintyMarkers.length > 0 ? uncertaintyMarkers : undefined,
         alignmentScore,
         alignmentReasoning,
+        semanticSimilarity,
       },
     };
   }
@@ -388,269 +429,3 @@ export class QualityValidator {
   }
 }
 
-// ============================================================================
-// SEMANTIC QUALITY VALIDATION (ML-BASED)
-// ============================================================================
-
-/**
- * Result of semantic quality check
- */
-export interface SemanticQualityResult {
-  /** Semantic similarity score (0-1) */
-  similarity: number;
-  /** Whether content is toxic */
-  isToxic: boolean;
-  /** Toxicity score (0-1, higher = more toxic) */
-  toxicityScore: number;
-  /** Whether quality check passed */
-  passed: boolean;
-  /** Optional failure reason */
-  reason?: string;
-  /** Additional check metadata */
-  metadata: Record<string, any>;
-}
-
-/**
- * Optional ML-based quality validation using embeddings.
- *
- * Uses @cascadeflow/ml for fast, lightweight semantic similarity checking.
- * Completely optional - gracefully degrades if dependencies not installed.
- */
-export class SemanticQualityChecker {
-  private embedder: any = null;
-  private cache: any = null;
-  private available: boolean = false;
-  private modelName: string;
-  private similarityThreshold: number;
-  private toxicityThreshold: number;
-  private useCache: boolean;
-  private initPromise: Promise<void>;
-
-  /**
-   * Initialize semantic quality checker.
-   *
-   * @param options - Configuration options
-   */
-  constructor(options: {
-    modelName?: string;
-    similarityThreshold?: number;
-    toxicityThreshold?: number;
-    embedder?: any;
-    useCache?: boolean;
-  } = {}) {
-    this.modelName = options.modelName || 'Xenova/bge-small-en-v1.5';
-    this.similarityThreshold = options.similarityThreshold ?? 0.5;
-    this.toxicityThreshold = options.toxicityThreshold ?? 0.7;
-    this.useCache = options.useCache ?? true;
-
-    // Initialize ML (async)
-    this.initPromise = this.initializeML(options.embedder);
-  }
-
-  /**
-   * Initialize ML components (lazy and optional)
-   */
-  private async initializeML(providedEmbedder?: any): Promise<void> {
-    try {
-      // Use provided embedder or try to import from @cascadeflow/ml
-      if (providedEmbedder) {
-        this.embedder = providedEmbedder;
-      } else {
-        try {
-          // @ts-ignore - Dynamic import of optional dependency
-          const ml = await import('@cascadeflow/ml');
-          this.embedder = new ml.UnifiedEmbeddingService(this.modelName);
-
-          // Create cache if requested
-          if (this.useCache && (await this.embedder.isAvailable())) {
-            this.cache = new ml.EmbeddingCache(this.embedder);
-          }
-        } catch (error: any) {
-          // ML package not available - graceful degradation
-          this.available = false;
-          return;
-        }
-      }
-
-      // Check if embedder is available
-      if (this.embedder) {
-        this.available = await this.embedder.isAvailable();
-      }
-    } catch (error: any) {
-      this.available = false;
-    }
-  }
-
-  /**
-   * Check if semantic quality checking is available
-   */
-  async isAvailable(): Promise<boolean> {
-    await this.initPromise;
-    return this.available;
-  }
-
-  /**
-   * Check semantic similarity between query and response.
-   *
-   * Uses cosine similarity of embeddings to measure how well the
-   * response aligns with the query semantically.
-   *
-   * @param query - Original query text
-   * @param response - Generated response text
-   * @returns Similarity score (0-1, higher = more similar)
-   */
-  async checkSimilarity(
-    query: string,
-    response: string
-  ): Promise<number> {
-    if (!(await this.isAvailable())) {
-      throw new Error(
-        'Semantic checking not available. Install @cascadeflow/ml'
-      );
-    }
-
-    // Use cache if available for better performance
-    let similarity: number | null;
-    if (this.cache) {
-      similarity = await this.cache.similarity(query, response);
-    } else {
-      // Fallback to direct embedder
-      similarity = await this.embedder.similarity(query, response);
-    }
-
-    return similarity ?? 0.0;
-  }
-
-  /**
-   * Check if text contains toxic content.
-   *
-   * Uses keyword-based heuristics. For production, consider using a
-   * dedicated toxicity API like Perspective API or OpenAI Moderation.
-   *
-   * @param text - Text to check
-   * @param threshold - Optional custom threshold
-   * @returns Tuple of [isToxic, toxicityScore]
-   */
-  async checkToxicity(
-    text: string,
-    threshold?: number
-  ): Promise<[boolean, number]> {
-    if (!(await this.isAvailable())) {
-      throw new Error('Semantic checking not available');
-    }
-
-    // Simple keyword-based toxicity check
-    // For production, use Perspective API or OpenAI Moderation
-    const toxicKeywords = [
-      'hate',
-      'kill',
-      'violent',
-      'racist',
-      'sexist',
-      // Add more as needed
-    ];
-
-    const textLower = text.toLowerCase();
-    const toxicCount = toxicKeywords.reduce(
-      (count, keyword) => (textLower.includes(keyword) ? count + 1 : count),
-      0
-    );
-
-    const toxicityScore = Math.min(1.0, toxicCount * 0.3); // Scale to 0-1
-    const isToxic = toxicityScore > (threshold ?? this.toxicityThreshold);
-
-    return [isToxic, toxicityScore];
-  }
-
-  /**
-   * Run full semantic quality validation.
-   *
-   * Combines similarity and toxicity checks into single validation.
-   *
-   * @param query - Original query text
-   * @param response - Generated response text
-   * @param checkToxicityFlag - Whether to check for toxic content
-   * @returns SemanticQualityResult with all check results
-   */
-  async validate(
-    query: string,
-    response: string,
-    checkToxicityFlag: boolean = true
-  ): Promise<SemanticQualityResult> {
-    if (!(await this.isAvailable())) {
-      return {
-        similarity: 0.0,
-        isToxic: false,
-        toxicityScore: 0.0,
-        passed: false,
-        reason: 'semantic_checking_unavailable',
-        metadata: { available: false },
-      };
-    }
-
-    // Check similarity
-    const similarity = await this.checkSimilarity(query, response);
-
-    // Check toxicity
-    let isToxic = false;
-    let toxicityScore = 0.0;
-    if (checkToxicityFlag) {
-      [isToxic, toxicityScore] = await this.checkToxicity(response);
-    }
-
-    // Determine if passed
-    const passed = similarity >= this.similarityThreshold && !isToxic;
-
-    let reason: string | undefined;
-    if (!passed) {
-      if (similarity < this.similarityThreshold) {
-        reason = `low_similarity (${similarity.toFixed(2)} < ${this.similarityThreshold})`;
-      } else if (isToxic) {
-        reason = `toxic_content (score: ${toxicityScore.toFixed(2)})`;
-      }
-    }
-
-    return {
-      similarity,
-      isToxic,
-      toxicityScore,
-      passed,
-      reason,
-      metadata: {
-        model: this.modelName,
-        similarityThreshold: this.similarityThreshold,
-        toxicityThreshold: this.toxicityThreshold,
-      },
-    };
-  }
-}
-
-/**
- * Convenience function for one-off semantic quality checks.
- *
- * Creates a checker instance and runs validation. Returns null if
- * semantic checking is not available.
- *
- * @param query - Original query text
- * @param response - Generated response text
- * @param options - Configuration options
- * @returns SemanticQualityResult or null if unavailable
- */
-export async function checkSemanticQuality(
-  query: string,
-  response: string,
-  options: {
-    similarityThreshold?: number;
-    checkToxicity?: boolean;
-  } = {}
-): Promise<SemanticQualityResult | null> {
-  const checker = new SemanticQualityChecker({
-    similarityThreshold: options.similarityThreshold,
-  });
-
-  if (!(await checker.isAvailable())) {
-    return null;
-  }
-
-  return checker.validate(query, response, options.checkToxicity ?? true);
-}

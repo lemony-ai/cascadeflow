@@ -72,6 +72,10 @@ export type {
   QualityConfig as QualityValidatorConfig,
 } from './quality';
 
+// Semantic quality validation (ML-based)
+export { SemanticQualityChecker } from './quality-semantic';
+export type { SemanticQualityResult } from './quality-semantic';
+
 // Alignment scoring
 export { QueryResponseAlignmentScorer } from './alignment';
 export type { AlignmentAnalysis } from './alignment';

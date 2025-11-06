@@ -178,8 +178,9 @@ async function main() {
     direct_routing: 0,
   };
 
-  // Track token usage for baseline calculation
-  let allGpt4Tokens = 0;
+  // Track savings from core calculations
+  let totalCostSaved = 0;
+  let totalBigonlyCost = 0;
 
   // Process each query
   for (let i = 0; i < testQueries.length; i++) {
@@ -214,10 +215,13 @@ async function main() {
       stats.draft_rejected += 1;
     }
 
-    // Estimate tokens for baseline (approximate)
-    const queryTokens = test.query.split(/\s+/).length * 1.3;
-    const responseTokens = result.content.split(/\s+/).length * 1.3;
-    allGpt4Tokens += queryTokens + responseTokens;
+    // Accumulate savings from core calculations
+    if (result.costSaved !== undefined) {
+      totalCostSaved += result.costSaved;
+    }
+    // Calculate bigonly cost (actual cost + savings)
+    const bigonly = result.totalCost + (result.costSaved || 0);
+    totalBigonlyCost += bigonly;
 
     // Show result
     const tier = modelUsed === 'gpt-4o-mini' ? 'Tier 1 (Cheap)' : 'Tier 2 (Expensive)';
@@ -323,19 +327,16 @@ async function main() {
   console.log(`   Total Cost:  $${stats.total_cost.toFixed(6)}`);
   console.log();
 
-  // Calculate savings vs all-GPT-4o (token-based estimate)
-  // GPT-4o pricing: ~$0.00625 per 1K tokens (blended)
-  const allGpt4oCost = (allGpt4Tokens / 1000) * 0.00625;
-  const savings = allGpt4oCost - stats.total_cost;
-  const savingsPct = allGpt4oCost > 0 ? (savings / allGpt4oCost) * 100 : 0.0;
+  // Calculate savings using core's calculations (actual token-based pricing)
+  const savingsPct = totalBigonlyCost > 0 ? (totalCostSaved / totalBigonlyCost) * 100 : 0.0;
 
   console.log('💎 Savings Compared to All-GPT-4o (Token-Based):');
-  console.log(`   All-GPT-4o Estimate: $${allGpt4oCost.toFixed(6)}`);
-  console.log(`   cascadeflow Cost:   $${stats.total_cost.toFixed(6)}`);
-  console.log(`   💰 SAVINGS:         $${savings.toFixed(6)} (${savingsPct.toFixed(1)}%)`);
+  console.log(`   All-GPT-4o Cost:     $${totalBigonlyCost.toFixed(6)}`);
+  console.log(`   cascadeflow Cost:    $${stats.total_cost.toFixed(6)}`);
+  console.log(`   💰 SAVINGS:          $${totalCostSaved.toFixed(6)} (${savingsPct.toFixed(1)}%)`);
   console.log();
   console.log(
-    `   ℹ️  Note: Savings based on actual token usage (~${Math.floor(allGpt4Tokens)} tokens)`
+    '   ℹ️  Note: Savings calculated from actual API token usage and split pricing'
   );
   console.log(
     '       Your savings will vary based on query complexity and response length.'
@@ -344,10 +345,10 @@ async function main() {
 
   // Extrapolate to realistic scale
   console.log('📈 Extrapolated to 10,000 Queries/Month:');
-  if (allGpt4Tokens > 0) {
+  if (totalBigonlyCost > 0) {
     const scaleFactor = 10_000 / totalQueries;
     const monthlyCascade = stats.total_cost * scaleFactor;
-    const monthlyGpt4o = allGpt4oCost * scaleFactor;
+    const monthlyGpt4o = totalBigonlyCost * scaleFactor;
     const monthlySavings = monthlyGpt4o - monthlyCascade;
 
     console.log(

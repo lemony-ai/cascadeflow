@@ -113,7 +113,35 @@ export OPENAI_API_KEY="your-key"
 npx tsx reasoning-models.ts
 ```
 
-### 6. Production Patterns (`production-patterns.ts`)
+### 6. Semantic Quality (`semantic-quality.ts`)
+
+ML-based semantic validation using embeddings for query-response alignment.
+
+**What it shows:**
+- Semantic similarity scoring (BGE-small-en-v1.5 embeddings)
+- Off-topic response detection
+- Integration with cascade quality validation
+- Request-scoped caching for performance
+- Comparison with traditional validation
+
+**Features:**
+- **Model**: BGE-small-en-v1.5 (~40MB, auto-downloads)
+- **Runtime**: CPU-based, fully local inference
+- **Latency**: ~50-100ms per check (with caching)
+- **Caching**: 50% latency reduction on cache hits
+
+**Installation:**
+```bash
+npm install @cascadeflow/ml @xenova/transformers
+```
+
+**Run:**
+```bash
+export OPENAI_API_KEY="your-key"
+npx tsx semantic-quality.ts
+```
+
+### 7. Production Patterns (`production-patterns.ts`)
 
 Best practices for deploying cascadeflow in production.
 

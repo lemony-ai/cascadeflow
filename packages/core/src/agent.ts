@@ -313,11 +313,12 @@ export class CascadeAgent {
     // Try draft model (cheapest)
     const draftModelConfig = this.models[0];
     const draftStart = Date.now();
+    let draftResponse: any; // Move to wider scope for savings calculation
 
     try {
       const draftProvider = providerRegistry.get(draftModelConfig.provider, draftModelConfig);
 
-      const draftResponse = await draftProvider.generate({
+      draftResponse = await draftProvider.generate({
         messages,
         model: draftModelConfig.name,
         maxTokens: options.maxTokens,
@@ -327,9 +328,9 @@ export class CascadeAgent {
       });
 
       draftLatency = Date.now() - draftStart;
-      draftModel = draftResponse.model;
-      finalContent = draftResponse.content;
-      modelUsed = draftModel;
+      draftModel = draftResponse?.model;
+      finalContent = draftResponse?.content || '';
+      modelUsed = draftModel || '';
       finalToolCalls = draftResponse.tool_calls;
 
       // Calculate draft cost
@@ -343,7 +344,7 @@ export class CascadeAgent {
 
       // Quality validation using logprobs and heuristics
       const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
-      const qualityResult = this.qualityValidator.validate(
+      const qualityResult = await this.qualityValidator.validate(
         draftResponse.content,
         query,
         draftResponse.logprobs
@@ -392,14 +393,33 @@ export class CascadeAgent {
 
       totalCost = draftCost + verifierCost;
 
-      // Calculate savings (vs always using most expensive model)
+      // Calculate savings (vs always using most expensive model) - matching Python's approach
       const expensiveModel = this.models[this.models.length - 1];
+      const expensiveProvider = providerRegistry.get(expensiveModel.provider, expensiveModel);
 
-      // Estimate cost if we used expensive model only
-      const estimatedExpensiveCost = expensiveModel.cost * 1.5; // Simple estimate
-      const costSaved = Math.max(0, estimatedExpensiveCost - totalCost);
-      const savingsPercentage = estimatedExpensiveCost > 0
-        ? (costSaved / estimatedExpensiveCost) * 100
+      let bigonlyCost = 0;
+      let costSaved = 0;
+
+      if (draftAccepted) {
+        // Draft accepted - calculate what it would cost if we used expensive model
+        // Use actual token counts from draft response
+        if (draftResponse.usage) {
+          bigonlyCost = expensiveProvider.calculateCost(
+            draftResponse.usage.prompt_tokens,
+            draftResponse.usage.completion_tokens,
+            expensiveModel.name
+          );
+          costSaved = bigonlyCost - draftCost; // Positive = saved money
+        }
+      } else {
+        // Draft rejected - both models were called
+        // Baseline is just the verifier cost (we would have called it anyway)
+        bigonlyCost = verifierCost;
+        costSaved = -draftCost; // Negative = wasted draft cost
+      }
+
+      const savingsPercentage = bigonlyCost > 0
+        ? (costSaved / bigonlyCost) * 100
         : 0;
 
       const latencyMs = Date.now() - startTime;
@@ -545,7 +565,7 @@ export class CascadeAgent {
 
       // Quality validation using logprobs and heuristics
       const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
-      const qualityResult = this.qualityValidator.validate(
+      const qualityResult = await this.qualityValidator.validate(
         draftContent,
         query,
         draftLogprobs.length > 0 ? draftLogprobs : undefined
