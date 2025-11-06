@@ -7,7 +7,10 @@ Implements per-user and per-tier rate limiting for cascadeflow.
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from cascadeflow.profiles import UserProfile
 
 
 class RateLimitError(Exception):

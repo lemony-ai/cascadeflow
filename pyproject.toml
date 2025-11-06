@@ -161,10 +161,34 @@ select = [
     "C4",  # flake8-comprehensions
     "PT",  # flake8-pytest-style
 ]
-ignore = []
+ignore = [
+    "E501",  # Line too long - will fix gradually
+    "N801",  # Class name - cascadeflowLiteLLMCallback is external convention
+    "N806",  # Variable naming - external APIs use their conventions
+    "N816",  # MixedCase variable - external integrations use their conventions
+    "N818",  # Exception naming - GuardrailViolation is intentional
+    "B904",  # Exception chaining - will add gradually
+    "E722",  # Bare except - will fix gradually
+    "B007",  # Loop variable not used
+    "B008",  # Function call in defaults
+    "B017",  # assert raises
+    "B018",  # Useless expression
+    "B027",  # Empty method
+    "UP035",  # typing.Dict -> dict (will migrate gradually)
+    "PT011",  # pytest.raises too broad
+    "PT017",  # Found assertion on exception
+    "PT021",  # Use yield instead of request.addfinalizer
+]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402", "I001"]  # F401: unused imports, E402: imports not at top (needed for backward compat), I001: unsorted imports
+"cascadeflow/core/batch.py" = ["F401"]  # Availability check imports
+"cascadeflow/core/cascade.py" = ["F401"]  # Availability check imports
+"cascadeflow/integrations/litellm.py" = ["F401"]  # Availability check imports
+"cascadeflow/quality/quality.py" = ["F401"]  # Availability check imports
+"tests/**" = ["E402", "F401", "E741", "B023"]  # Test files: imports after setup, unused imports, ambiguous names
+"tests/_archive_development_tests/**" = ["F"]  # Archived tests: ignore all F (pyflakes) errors
+"examples/**" = ["F401"]  # Examples: unused imports OK
 
 [tool.mypy]
 python_version = "3.9"

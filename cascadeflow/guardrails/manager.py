@@ -3,10 +3,13 @@ Guardrails manager for coordinating content safety checks.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from .content_moderator import ContentModerator, ModerationResult
 from .pii_detector import PIIDetector, PIIMatch
+
+if TYPE_CHECKING:
+    from cascadeflow.profiles import UserProfile
 
 
 class GuardrailViolation(Exception):

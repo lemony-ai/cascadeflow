@@ -56,11 +56,19 @@ import logging
 import sys
 import time
 from collections.abc import AsyncIterator
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
+if TYPE_CHECKING:
+    from .core.batch import BatchResult
+    from .core.batch_config import BatchConfig
+    from .profiles import UserProfile
+
 from .core.cascade import WholeResponseCascade
+
+# Phase 2C: Interface module imports
+from .interface import TerminalVisualConsumer
 from .providers import PROVIDER_REGISTRY, get_available_providers
 from .quality import QualityConfig
 
@@ -77,6 +85,8 @@ from .streaming import StreamEvent, StreamEventType, StreamManager
 # Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
 from .telemetry import CallbackManager, CostCalculator, MetricsCollector
 
+logger = logging.getLogger(__name__)
+
 # 🚀 NEW: Import ToolStreamManager for tool calling
 try:
     from .streaming.tools import ToolStreamManager
@@ -85,11 +95,6 @@ try:
 except ImportError:
     TOOL_STREAMING_AVAILABLE = False
     logger.warning("ToolStreamManager not available - tool streaming disabled")
-
-# Phase 2C: Interface module imports
-from .interface import TerminalVisualConsumer
-
-logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -668,13 +673,9 @@ class CascadeAgent:
         complexity_start = time.time()
 
         if complexity_hint:
-            try:
-                self.cost_calculator.calculate(spec_result, query_text=query)
-                complexity_confidence = 1.0
-            except ValueError:
-                complexity, complexity_confidence = self.complexity_detector.detect(
-                    query, return_metadata=False
-                )
+            # Use hint if provided
+            complexity = complexity_hint
+            complexity_confidence = 1.0
         else:
             complexity, complexity_confidence = self.complexity_detector.detect(
                 query, return_metadata=False
