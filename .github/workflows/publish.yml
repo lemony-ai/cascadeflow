@@ -63,7 +63,7 @@ jobs:
           cd packages/core
           pnpm build
 
-      - name: Build n8n-nodes-cascadeflow
+      - name: Build @cascadeflow/n8n-nodes-cascadeflow
         run: |
           cd packages/integrations/n8n
           pnpm build
@@ -74,10 +74,10 @@ jobs:
           name: npm-cascadeflow-core
           path: packages/core/
 
-      - name: Store n8n-nodes-cascadeflow package
+      - name: Store @cascadeflow/n8n-nodes-cascadeflow package
         uses: actions/upload-artifact@v4
         with:
-          name: npm-n8n-nodes-cascadeflow
+          name: npm-cascadeflow-n8n-nodes-cascadeflow
           path: packages/integrations/n8n/
 
   publish-to-pypi:
@@ -117,10 +117,10 @@ jobs:
           name: npm-cascadeflow-core
           path: packages/core/
 
-      - name: Download n8n-nodes-cascadeflow
+      - name: Download @cascadeflow/n8n-nodes-cascadeflow
         uses: actions/download-artifact@v4
         with:
-          name: npm-n8n-nodes-cascadeflow
+          name: npm-cascadeflow-n8n-nodes-cascadeflow
           path: packages/integrations/n8n/
 
       - name: Setup Node.js
@@ -136,7 +136,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish n8n-nodes-cascadeflow
+      - name: Publish @cascadeflow/n8n-nodes-cascadeflow
         run: |
           cd packages/integrations/n8n
           npm publish --access public

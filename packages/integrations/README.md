@@ -6,7 +6,7 @@ This directory contains official integrations for cascadeflow with popular platf
 
 ### 🔌 Workflow Automation
 
-#### [n8n](./n8n/) - `n8n-nodes-cascadeflow`
+#### [n8n](./n8n/) - `@cascadeflow/n8n-nodes-cascadeflow`
 No-code workflow automation with cascadeflow's intelligent model cascading.
 
 - **Install:** Search "cascadeflow" in n8n Community Nodes
@@ -35,7 +35,7 @@ We welcome community contributions! Here's how to add a new integration:
 **Workflow Integration** (special naming)
 - For workflow tools like n8n, Zapier
 - Follows platform conventions
-- Example: `n8n-nodes-cascadeflow`
+- Example: `@cascadeflow/n8n-nodes-cascadeflow`
 
 ### 2. Create Package Structure
 

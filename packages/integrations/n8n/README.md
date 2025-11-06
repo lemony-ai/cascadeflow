@@ -6,9 +6,9 @@
   <img alt="cascadeflow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="533">
 </picture>
 
-# n8n-nodes-cascadeflow
+# @cascadeflow/n8n-nodes-cascadeflow
 
-[![npm version](https://img.shields.io/npm/v/n8n-nodes-cascadeflow?color=red&label=npm)](https://www.npmjs.com/package/n8n-nodes-cascadeflow)
+[![npm version](https://img.shields.io/npm/v/@cascadeflow/n8n-nodes-cascadeflow?color=red&label=npm)](https://www.npmjs.com/package/@cascadeflow/n8n-nodes-cascadeflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../../LICENSE)
 [![n8n](https://img.shields.io/badge/n8n-1.0+-orange.svg)](https://n8n.io/)
 
@@ -34,7 +34,7 @@ Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes
 
 1. Go to **Settings** > **Community Nodes**
 2. Select **Install**
-3. Enter `n8n-nodes-cascadeflow` in **Enter npm package name**
+3. Enter `@cascadeflow/n8n-nodes-cascadeflow` in **Enter npm package name**
 4. Agree to the risks and install
 
 ### Manual installation
@@ -42,13 +42,13 @@ Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes
 To get started install the package in your n8n root directory:
 
 ```bash
-npm install n8n-nodes-cascadeflow
+npm install @cascadeflow/n8n-nodes-cascadeflow
 ```
 
 For Docker-based deployments add the following line before the font installation command in your [n8n Dockerfile](https://github.com/n8n-io/n8n/blob/master/docker/images/n8n/Dockerfile):
 
 ```dockerfile
-RUN cd /usr/local/lib/node_modules/n8n && npm install n8n-nodes-cascadeflow
+RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cascadeflow
 ```
 
 ## Operations

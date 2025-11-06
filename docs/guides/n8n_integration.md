@@ -16,7 +16,7 @@ This guide shows how to use cascadeflow in n8n workflows for intelligent AI mode
 
 ## Overview
 
-The **n8n-nodes-cascadeflow** package brings cascadeflow's intelligent model cascading to n8n workflows.
+The **@cascadeflow/n8n-nodes-cascadeflow** package brings cascadeflow's intelligent model cascading to n8n workflows.
 
 ### What is Model Cascading?
 
@@ -55,7 +55,7 @@ Result: 50-85% cost savings
 1. Open n8n
 2. Go to **Settings** > **Community Nodes**
 3. Click **Install**
-4. Enter: `n8n-nodes-cascadeflow`
+4. Enter: `@cascadeflow/n8n-nodes-cascadeflow`
 5. Click **Install**
 6. Restart n8n
 
@@ -63,7 +63,7 @@ Result: 50-85% cost savings
 
 ```bash
 # In your n8n directory
-npm install n8n-nodes-cascadeflow
+npm install @cascadeflow/n8n-nodes-cascadeflow
 ```
 
 ### Method 3: Docker
@@ -71,7 +71,7 @@ npm install n8n-nodes-cascadeflow
 Add to your Dockerfile before font installation:
 
 ```dockerfile
-RUN cd /usr/local/lib/node_modules/n8n && npm install n8n-nodes-cascadeflow
+RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cascadeflow
 ```
 
 ---
