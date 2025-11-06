@@ -82,7 +82,7 @@ const agent = new CascadeAgent({
 });
 ```
 
-### Even Easier: Use Presets (NEW in v0.1.1)
+### Even Easier: Use Presets
 
 **No configuration needed** - just import a preset and go:
 

@@ -311,6 +311,5 @@ print('✅ All imports working!')
 ## 📝 Notes
 
 - **tiktoken removed**: Not used in current implementation
-- **Semantic routing**: Coming in future release
 - **Ollama**: No Python package needed - uses HTTP directly
 - **Core is minimal**: Only 2 dependencies for maximum flexibility

@@ -251,23 +251,6 @@ results = await asyncio.gather(*[agent.run(q) for q in queries])
 - Parallel: O(1) time (with sufficient concurrency)
 - Best for batch jobs
 
-### 4. Caching (Future Feature)
-
-For repeat queries (planned for v0.2.0):
-
-```python
-# First query: 2s
-result = await agent.run("What is Python?")
-
-# Cached query: ~10ms (200x faster)
-result = await agent.run("What is Python?")
-```
-
-**Impact:**
-- Cache hit: ~10ms (99.5% faster)
-- Perfect for common queries
-- Planned for v0.2.0
-
 ---
 
 ## Cascade Overhead Analysis

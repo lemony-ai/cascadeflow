@@ -1,6 +1,6 @@
 # Per-User Budget Tracking
 
-**NEW in v0.2.0** - Track and enforce budgets per user with automatic time-based resets.
+Track and enforce budgets per user with automatic time-based resets.
 
 ## Overview
 
@@ -82,7 +82,7 @@ from cascadeflow.telemetry import BudgetConfig, CostTracker
 
 tracker = CostTracker(
     budget_limit=100.0,  # Optional global budget (v0.1.1 - backward compatible)
-    user_budgets={       # NEW in v0.2.0
+    user_budgets={       # Per-user budgets
         "free": BudgetConfig(daily=0.10),
         "pro": BudgetConfig(daily=1.0, weekly=5.0),
         "enterprise": BudgetConfig(daily=10.0, monthly=200.0),
