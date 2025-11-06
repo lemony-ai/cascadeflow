@@ -166,7 +166,7 @@ jobs:
       - name: Publish @cascadeflow/n8n-nodes-cascadeflow
         run: |
           cd packages/integrations/n8n
-          npm publish --access public --provenance
+          npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
