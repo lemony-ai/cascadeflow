@@ -320,7 +320,6 @@ git secrets --scan
 
 - Watch this repository for security updates
 - Subscribe to security advisories
-- Follow our security blog (coming soon)
 
 ---
 
