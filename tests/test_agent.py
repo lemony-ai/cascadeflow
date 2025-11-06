@@ -552,7 +552,9 @@ class TestErrorHandling:
     """Test error handling."""
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Error handling behavior needs review - agent may catch exceptions instead of propagating")
+    @pytest.mark.skip(
+        reason="Error handling behavior needs review - agent may catch exceptions instead of propagating"
+    )
     async def test_provider_error(self, mock_agent):
         """Test handling of provider errors."""
         # Mock ALL providers to raise error (both draft and verifier in cascade)

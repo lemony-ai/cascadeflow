@@ -52,7 +52,9 @@ class TestAnthropicProvider:
                 AnthropicProvider()
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Mocking strategy needs update - client.post mock not working with current provider implementation")
+    @pytest.mark.skip(
+        reason="Mocking strategy needs update - client.post mock not working with current provider implementation"
+    )
     async def test_complete_success(self, anthropic_provider, mock_anthropic_response):
         """Test successful completion."""
         with patch.object(anthropic_provider.client, "post") as mock_post:
