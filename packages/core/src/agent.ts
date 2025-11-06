@@ -10,6 +10,7 @@ import { TogetherProvider } from './providers/together';
 import { OllamaProvider } from './providers/ollama';
 import { HuggingFaceProvider } from './providers/huggingface';
 import { VLLMProvider } from './providers/vllm';
+import { OpenRouterProvider } from './providers/openrouter';
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
 import type { Message, Tool } from './types';
@@ -31,6 +32,7 @@ providerRegistry.register('together', TogetherProvider);
 providerRegistry.register('ollama', OllamaProvider);
 providerRegistry.register('huggingface', HuggingFaceProvider);
 providerRegistry.register('vllm', VLLMProvider);
+providerRegistry.register('openrouter', OpenRouterProvider);
 
 /**
  * Run options for agent

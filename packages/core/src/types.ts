@@ -13,6 +13,7 @@ export type Provider =
   | 'huggingface'
   | 'together'
   | 'vllm'
+  | 'openrouter'
   | 'replicate'
   | 'custom';
 
