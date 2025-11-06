@@ -400,6 +400,7 @@ Configure cascadeflow node:
 | **Tool Calling** | Function calling with tools (Node.js) | [View](./packages/core/examples/nodejs/tool-calling.ts) |
 | **Multi-Provider** | Mix providers in TypeScript (Node.js) | [View](./packages/core/examples/nodejs/multi-provider.ts) |
 | **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./packages/core/examples/nodejs/reasoning-models.ts) |
+| **Cost Tracking** | Track and analyze costs across queries | [View](./packages/core/examples/nodejs/cost-tracking.ts) |
 | **Streaming** | Stream responses in TypeScript | [View](./packages/core/examples/streaming.ts) |
 
 </details>

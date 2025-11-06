@@ -182,6 +182,15 @@ MILESTONE_*.md
 STRATEGIC_*.md
 V0.*.md
 
+# Feature comparison and analysis (development only)
+docs/PYTHON_VS_TYPESCRIPT_FEATURES.md
+docs/QUICK_COMPARISON_TABLE.md
+docs/DOCUMENTATION_VALIDATION_REPORT.md
+docs/DOCUMENTATION_UPDATES_SUMMARY.md
+
+# Release notes (keep versioned releases, ignore working drafts)
+docs/RELEASE_NOTES_*.md
+
 # Exception: Keep useful checklists in .github
 !.github/*_CHECKLIST.md
 !.github/*_READINESS.md
