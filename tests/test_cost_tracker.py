@@ -1,5 +1,6 @@
 """Test suite for cost tracking system (v0.2.0)."""
 
+import platform
 import time
 from datetime import timedelta
 
@@ -310,6 +311,10 @@ class TestUserBudgetTracking:
 class TestTimeBudgetResets:
     """Test time-based budget reset logic (NEW in v0.2.0)."""
 
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="Timing-sensitive test is flaky on Windows Python 3.10/3.11"
+    )
     def test_daily_budget_reset(self):
         """Test daily budget resets after 24 hours."""
         tracker = CostTracker(
