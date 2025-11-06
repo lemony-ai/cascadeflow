@@ -83,7 +83,7 @@ export class cascadeflow implements INodeType {
 												displayName: 'Draft Model Cost',
 												name: 'draftCost',
 												type: 'number',
-												default: 0.00015,
+												default: 0.000375,
 												description: 'Cost per 1K tokens (blended)',
 											},
 											{
@@ -195,11 +195,14 @@ export class cascadeflow implements INodeType {
                 description: 'Minimum quality score to accept draft (0-1)',
               },
               {
-                displayName: 'Require Validation',
-                name: 'requireValidation',
-                type: 'boolean',
-                default: true,
-                description: 'Whether to validate draft before accepting',
+                displayName: 'Require Minimum Tokens',
+                name: 'requireMinimumTokens',
+                type: 'number',
+                default: 10,
+                typeOptions: {
+                  minValue: 0,
+                },
+                description: 'Minimum response length in tokens',
               },
             ],
           },
@@ -334,7 +337,7 @@ export class cascadeflow implements INodeType {
           {
             name: models.draftModel || 'gpt-4o-mini',
             provider: models.draftProvider || 'openai',
-            cost: models.draftCost || 0.00015,
+            cost: models.draftCost || 0.000375,
             apiKey: getApiKeyForProvider(credentials, models.draftProvider || 'openai'),
           },
           // Verifier model
@@ -351,7 +354,7 @@ export class cascadeflow implements INodeType {
           models: modelConfigs,
           quality: {
             threshold: quality.threshold || 0.7,
-            requireValidation: quality.requireValidation !== false,
+            requireMinimumTokens: quality.requireMinimumTokens || 10,
           },
         });
 
