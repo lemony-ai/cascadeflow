@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  cascadeflow-proxy:
+    build:
+      context: ..
+      dockerfile: examples/routing_proxy.Dockerfile
+    container_name: cascadeflow-proxy
+    ports:
+      - "8000:8000"
+    environment:
+      # CascadeFlow API Key (set your own secret key)
+      - CASCADEFLOW_API_KEY=${CASCADEFLOW_API_KEY:-}
+
+      # Provider API Keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+
+      # Optional: Python logging level
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Optional: Resource limits
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 512M
+
+    # Optional: Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Networks for multiple services
+# networks:
+#   cascadeflow:
+#     driver: bridge
