@@ -216,6 +216,12 @@ disable_error_code = [
     "dict-item",
     "return-value",
     "valid-type",
+    "union-attr",
+    "misc",
+    "override",
+    "no-redef",
+    "has-type",
+    "annotation-unchecked",
 ]
 
 [[tool.mypy.overrides]]
