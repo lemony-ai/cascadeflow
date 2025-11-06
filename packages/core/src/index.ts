@@ -124,6 +124,7 @@ export { TogetherProvider } from './providers/together';
 export { OllamaProvider } from './providers/ollama';
 export { HuggingFaceProvider, HuggingFaceEndpointType } from './providers/huggingface';
 export { VLLMProvider } from './providers/vllm';
+export { OpenRouterProvider } from './providers/openrouter';
 
 // Presets
 export {

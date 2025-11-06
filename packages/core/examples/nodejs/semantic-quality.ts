@@ -166,7 +166,6 @@ async function main() {
     quality: {
       threshold: 0.40,
       requireMinimumTokens: 5,
-      useSemanticValidation: false, // Traditional validation only
     },
   });
 
@@ -175,8 +174,6 @@ async function main() {
     quality: {
       threshold: 0.40,
       requireMinimumTokens: 5,
-      useSemanticValidation: true, // Enable ML semantic validation
-      semanticThreshold: 0.5, // 50% minimum similarity
     },
   });
 
@@ -238,13 +235,6 @@ async function main() {
     console.log(`   Model: ${result2.modelUsed}`);
     console.log(`   Cost: $${result2.totalCost.toFixed(6)}`);
     console.log(`   Latency: ${result2.latencyMs}ms`);
-
-    // Show semantic validation details if available
-    if (result2.draftMetadata?.quality?.details?.semanticSimilarity !== undefined) {
-      const semScore = result2.draftMetadata.quality.details.semanticSimilarity;
-      console.log(`   Semantic Similarity: ${(semScore * 100).toFixed(1)}%`);
-    }
-
     console.log(`   Response: ${result2.content.substring(0, 100)}...`);
     console.log();
 

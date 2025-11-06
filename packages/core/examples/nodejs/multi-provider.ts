@@ -73,7 +73,6 @@ async function main() {
       name: 'llama-3.1-8b-instant',
       provider: 'groq',
       cost: 0.00005, // Very cheap
-      qualityThreshold: 0.6,
       apiKey: process.env.GROQ_API_KEY,
     });
   }
@@ -84,7 +83,6 @@ async function main() {
       name: 'gpt-4o-mini',
       provider: 'openai',
       cost: 0.00015,
-      qualityThreshold: 0.75,
       apiKey: process.env.OPENAI_API_KEY,
     });
   }
@@ -95,7 +93,6 @@ async function main() {
       name: 'claude-haiku-4-5',
       provider: 'anthropic',
       cost: 0.001,
-      qualityThreshold: 0.85,
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
   }
@@ -106,7 +103,6 @@ async function main() {
       name: 'gpt-4o',
       provider: 'openai',
       cost: 0.00625,
-      qualityThreshold: 0.95,
       apiKey: process.env.OPENAI_API_KEY,
     });
   }

@@ -46,7 +46,9 @@ async function main() {
         apiKey: process.env.OPENROUTER_API_KEY,
       },
     ],
-    initialThreshold: 0.7,
+    quality: {
+      threshold: 0.7,
+    },
   });
 
   // Test queries with varying complexity

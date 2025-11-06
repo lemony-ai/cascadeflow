@@ -184,11 +184,17 @@ jobs:
       - name: Build ml package for type checking
         run: pnpm --filter @cascadeflow/ml build
 
+      - name: Build core package for type checking
+        run: pnpm --filter @cascadeflow/core build
+
       - name: Lint TypeScript Core
-        run: pnpm --filter @cascadeflow/core lint || echo "Lint not configured"
+        run: pnpm --filter @cascadeflow/core lint
 
       - name: Type check TypeScript Core
-        run: pnpm --filter @cascadeflow/core exec tsc --noEmit
+        run: pnpm --filter @cascadeflow/core typecheck
+
+      - name: Type check TypeScript Examples
+        run: pnpm --filter @cascadeflow/core typecheck:examples
 
       - name: Lint n8n Integration
         run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow lint

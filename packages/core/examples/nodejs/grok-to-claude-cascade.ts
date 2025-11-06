@@ -56,7 +56,6 @@ async function main() {
         name: 'x-ai/grok-code-fast-1',
         provider: 'openrouter',
         cost: 0, // FREE!
-        qualityThreshold: 0.7, // Accept if 70%+ confident
         apiKey: process.env.OPENROUTER_API_KEY,
       },
       {
