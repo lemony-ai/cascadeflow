@@ -333,7 +333,7 @@ Use cascadeflow in n8n workflows for no-code AI automation with automatic cost o
 
 1. Open n8n
 2. Go to **Settings** → **Community Nodes**
-3. Search for: `n8n-nodes-cascadeflow`
+3. Search for: `@cascadeflow/n8n-nodes-cascadeflow`
 4. Click **Install**
 
 ### Quick Example
