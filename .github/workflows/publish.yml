@@ -95,9 +95,6 @@ jobs:
     name: Publish to PyPI
     needs: build-python
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/cascadeflow
     permissions:
       id-token: write  # For trusted publishing
 
@@ -118,9 +115,6 @@ jobs:
     name: Publish to npm
     needs: build-typescript
     runs-on: ubuntu-latest
-    environment:
-      name: npm
-      url: https://www.npmjs.com/package/@cascadeflow/core
     permissions:
       contents: read
       id-token: write  # Required for npm provenance
@@ -179,9 +173,6 @@ jobs:
     needs: build-python
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'  # Only on manual trigger
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/cascadeflow
     permissions:
       id-token: write  # For trusted publishing
 
