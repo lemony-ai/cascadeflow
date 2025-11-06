@@ -28,7 +28,7 @@
  * Zero configuration required - cascadeflow auto-detects capabilities!
  */
 
-import { CascadeAgent } from '../../src/index';
+import { CascadeAgent } from '../../src';
 
 async function reasoningModelsExample() {
   // Example 1: o4-mini (latest fast reasoning model)
@@ -38,24 +38,18 @@ async function reasoningModelsExample() {
       {
         name: 'o4-mini', // Auto-detected as reasoning model
         provider: 'openai',
+        cost: 0.004, // Estimate
       },
     ],
-    defaultProvider: 'openai',
   });
 
-  const result1 = await agent1.run({
-    query: 'Solve this problem step by step: If a train travels at 80 km/h for 2.5 hours, then slows to 60 km/h for the next hour, what is the total distance traveled?',
-    maxTokens: 2000,
-  });
+  const result1 = await agent1.run(
+    'Solve this problem step by step: If a train travels at 80 km/h for 2.5 hours, then slows to 60 km/h for the next hour, what is the total distance traveled?',
+    { maxTokens: 2000 }
+  );
 
   console.log('Response:', result1.content);
-  console.log('\nUsage:', {
-    promptTokens: result1.usage?.prompt_tokens,
-    completionTokens: result1.usage?.completion_tokens,
-    reasoningTokens: result1.usage?.reasoning_tokens, // Hidden reasoning tokens
-    totalTokens: result1.usage?.total_tokens,
-  });
-  console.log('Cost:', `$${result1.cost.toFixed(6)}`);
+  console.log('Cost:', `$${result1.totalCost.toFixed(6)}`);
 
   // Example 2: o3 (latest advanced reasoning model with reasoning_effort)
   console.log('\n=== Example 2: o3 with reasoning_effort ===');
@@ -64,23 +58,19 @@ async function reasoningModelsExample() {
       {
         name: 'o3',
         provider: 'openai',
+        cost: 0.008, // Estimate
       },
     ],
-    defaultProvider: 'openai',
   });
 
   // High reasoning effort for complex problem
-  const result2 = await agent2.run({
-    query: 'Design an efficient algorithm to find all palindromic substrings in a string of length n. Analyze the time and space complexity.',
-    maxTokens: 4000,
-    extra: {
-      reasoning_effort: 'high', // More thorough reasoning
-    },
-  });
+  const result2 = await agent2.run(
+    'Design an efficient algorithm to find all palindromic substrings in a string of length n. Analyze the time and space complexity.',
+    { maxTokens: 4000 }
+  );
 
   console.log('Response:', result2.content.substring(0, 500) + '...');
-  console.log('\nReasoning tokens used:', result2.usage?.reasoning_tokens);
-  console.log('Cost:', `$${result2.cost.toFixed(6)}`);
+  console.log('Cost:', `$${result2.totalCost.toFixed(6)}`);
 
   // Example 3: Using in cascade (auto-routing to reasoning model)
   console.log('\n=== Example 3: Cascade with reasoning model fallback ===');
@@ -89,22 +79,25 @@ async function reasoningModelsExample() {
       {
         name: 'gpt-4o-mini', // Fast, cheap model tries first
         provider: 'openai',
+        cost: 0.00015,
       },
       {
         name: 'o4-mini', // Falls back to reasoning model if needed
         provider: 'openai',
+        cost: 0.004,
       },
     ],
-    defaultProvider: 'openai',
-    minQuality: 0.8, // High quality threshold
+    quality: {
+      threshold: 0.8, // High quality threshold
+    },
   });
 
-  const result3 = await agent3.run({
-    query: 'Prove that the square root of 2 is irrational.',
-    maxTokens: 2000,
-  });
+  const result3 = await agent3.run(
+    'Prove that the square root of 2 is irrational.',
+    { maxTokens: 2000 }
+  );
 
-  console.log('Model used:', result3.model);
+  console.log('Model used:', result3.modelUsed);
   console.log('Response:', result3.content.substring(0, 300) + '...');
   console.log('Quality score:', result3.qualityScore);
 
@@ -115,18 +108,10 @@ async function reasoningModelsExample() {
   const efforts: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];
 
   for (const effort of efforts) {
-    const result = await agent2.run({
-      query,
-      maxTokens: 1000,
-      extra: {
-        reasoning_effort: effort,
-      },
-    });
+    const result = await agent2.run(query, { maxTokens: 1000 });
 
     console.log(`\n${effort.toUpperCase()} effort:`);
-    console.log('  Reasoning tokens:', result.usage?.reasoning_tokens);
-    console.log('  Total tokens:', result.usage?.total_tokens);
-    console.log('  Cost:', `$${result.cost.toFixed(6)}`);
+    console.log('  Cost:', `$${result.totalCost.toFixed(6)}`);
     console.log('  Response length:', result.content.length, 'chars');
   }
 
@@ -137,26 +122,18 @@ async function reasoningModelsExample() {
       {
         name: 'claude-sonnet-4-5',
         provider: 'anthropic',
+        cost: 0.003,
       },
     ],
-    defaultProvider: 'anthropic',
   });
 
-  const result4 = await agent4.run({
-    query: 'Design a fault-tolerant distributed consensus algorithm. Explain your reasoning process.',
-    maxTokens: 5000,
-    extra: {
-      thinkingBudget: 2048, // Enable extended thinking (min 1024)
-    },
-  });
+  const result4 = await agent4.run(
+    'Design a fault-tolerant distributed consensus algorithm. Explain your reasoning process.',
+    { maxTokens: 5000 }
+  );
 
   console.log('Response:', result4.content.substring(0, 500) + '...');
-  console.log('\nUsage:', {
-    promptTokens: result4.usage?.prompt_tokens,
-    completionTokens: result4.usage?.completion_tokens,
-    totalTokens: result4.usage?.total_tokens,
-  });
-  console.log('Cost:', `$${result4.cost.toFixed(6)}`);
+  console.log('Cost:', `$${result4.totalCost.toFixed(6)}`);
   console.log('\nNote: Claude extended thinking produces visible reasoning in the response!');
 
   // Example 6: DeepSeek-R1 via Ollama (Free Local Inference)
@@ -171,18 +148,18 @@ async function reasoningModelsExample() {
         {
           name: 'deepseek-r1:8b', // Auto-detected as reasoning model
           provider: 'ollama',
+          cost: 0,
         },
       ],
-      defaultProvider: 'ollama',
     });
 
-    const result5 = await agent5.run({
-      query: 'Explain the time complexity of quicksort in best, average, and worst cases.',
-      maxTokens: 2000,
-    });
+    const result5 = await agent5.run(
+      'Explain the time complexity of quicksort in best, average, and worst cases.',
+      { maxTokens: 2000 }
+    );
 
     console.log('Response:', result5.content.substring(0, 400) + '...');
-    console.log('Cost:', `$${result5.cost.toFixed(6)}`, '(FREE - local inference)');
+    console.log('Cost:', `$${result5.totalCost.toFixed(6)}`, '(FREE - local inference)');
   } catch (error) {
     console.log('Skipping - Ollama not available:', (error as Error).message);
     console.log('Install from: https://ollama.ai');
@@ -203,18 +180,18 @@ async function reasoningModelsExample() {
           name: 'deepseek-ai/DeepSeek-R1-Distill-Llama-8B',
           provider: 'vllm',
           baseUrl: process.env.VLLM_BASE_URL || 'http://localhost:8000/v1',
+          cost: 0,
         },
       ],
-      defaultProvider: 'vllm',
     });
 
-    const result6 = await agent6.run({
-      query: 'What is the difference between TCP and UDP? When would you use each?',
-      maxTokens: 1500,
-    });
+    const result6 = await agent6.run(
+      'What is the difference between TCP and UDP? When would you use each?',
+      { maxTokens: 1500 }
+    );
 
     console.log('Response:', result6.content.substring(0, 400) + '...');
-    console.log('Cost:', `$${result6.cost.toFixed(6)}`, '(FREE - self-hosted)');
+    console.log('Cost:', `$${result6.totalCost.toFixed(6)}`, '(FREE - self-hosted)');
     console.log('Note: vLLM provides 24x faster inference than standard serving!');
   } catch (error) {
     console.log('Skipping - vLLM server not available:', (error as Error).message);
@@ -233,13 +210,17 @@ async function reasoningModelsExample() {
       {
         name: 'o4-mini',
         provider: 'openai',
+        cost: 0.004,
       },
       {
         name: 'claude-sonnet-4-5',
         provider: 'anthropic',
+        cost: 0.003,
       },
     ],
-    minQuality: 0.85,
+    quality: {
+      threshold: 0.85,
+    },
   });
 
   console.log('This cascade tries:');

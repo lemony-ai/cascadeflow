@@ -33,6 +33,7 @@
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc --noEmit -p examples/nodejs/tsconfig.json",
     "clean": "rm -rf dist"
   },
   "keywords": [
