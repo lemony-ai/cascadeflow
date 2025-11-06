@@ -399,6 +399,8 @@ Configure cascadeflow node:
 | **Multi-Step Cascade** | Build complex multi-step cascades | [View](./examples/multi_step_cascade.py) |
 | **Edge Device** | Run cascades on edge devices with local models | [View](./examples/edge_device.py) |
 | **vLLM Example** | Use vLLM for local model deployment | [View](./examples/vllm_example.py) |
+| **Multi-Instance Ollama** | Run draft/verifier on separate Ollama instances | [View](./examples/multi_instance_ollama.py) |
+| **Multi-Instance vLLM** | Run draft/verifier on separate vLLM instances | [View](./examples/multi_instance_vllm.py) |
 | **Custom Cascade** | Build custom cascade strategies | [View](./examples/custom_cascade.py) |
 | **Custom Validation** | Implement custom quality validators | [View](./examples/custom_validation.py) |
 | **User Budget Tracking** | Per-user budget enforcement and tracking | [View](./examples/user_budget_tracking.py) |
@@ -434,6 +436,8 @@ Configure cascadeflow node:
 | Example | Description | Link |
 |---------|-------------|------|
 | **Production Patterns** | Production best practices (Node.js) | [View](./packages/core/examples/nodejs/production-patterns.ts) |
+| **Multi-Instance Ollama** | Run draft/verifier on separate Ollama instances | [View](./packages/core/examples/nodejs/multi-instance-ollama.ts) |
+| **Multi-Instance vLLM** | Run draft/verifier on separate vLLM instances | [View](./packages/core/examples/nodejs/multi-instance-vllm.ts) |
 | **Browser/Edge** | Vercel Edge runtime example | [View](./packages/core/examples/browser/vercel-edge/) |
 
 </details>

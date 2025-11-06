@@ -50,7 +50,7 @@ python examples/basic_usage.py
 - **Access DeepSeek/Gemini/Azure?** → `integrations/litellm_providers.py`
 - **Deploy to production?** → `production_patterns.py`, `fastapi_integration.py`
 - **Monitor in production?** → `integrations/opentelemetry_grafana.py`
-- **Run locally/edge?** → `edge_device.py`, `integrations/local_providers_setup.py`, `vllm_example.py`
+- **Run locally/edge?** → `edge_device.py`, `integrations/local_providers_setup.py`, `vllm_example.py`, `multi_instance_ollama.py`, `multi_instance_vllm.py`
 - **Use reasoning models?** → `reasoning_models.py`
 - **Manage user budgets?** → `user_budget_tracking.py`, `profile_database_integration.py`
 - **Integrate with Stripe?** → `enforcement/stripe_integration.py`
@@ -68,7 +68,7 @@ python examples/basic_usage.py
 - [🔌 Integrations](#-integrations-5-examples) - LiteLLM, OpenTelemetry, local providers
 - [🛡️ Enforcement](#%EF%B8%8F-enforcement-2-examples) - Budget enforcement and Stripe
 - [⚡ Advanced](#-advanced-patterns-6-examples) - Custom routing and validation
-- [🌐 Edge](#-edge--local-deployment-1-example) - Edge device deployment
+- [🌐 Edge](#-edge--local-deployment-3-examples) - Edge device deployment and multi-instance configurations
 
 ---
 
@@ -466,11 +466,11 @@ Self-hosted inference with vLLM.
 </details>
 
 <details>
-<summary><h3>🔌 Edge & Local Deployment (1 example)</h3></summary>
+<summary><h3>🔌 Edge & Local Deployment (3 examples)</h3></summary>
 
-Run cascadeflow on edge devices with local inference.
+Run cascadeflow on edge devices with local inference and multi-instance configurations.
 
-#### Edge Device Deployment
+#### 1. Edge Device Deployment
 **File:** [`edge_device.py`](edge_device.py)
 **Time:** 20 minutes
 **What you'll learn:**
@@ -492,6 +492,40 @@ Run cascadeflow on edge devices with local inference.
 - IoT gateways
 
 **Cost savings:** 70% + privacy + lower latency
+
+#### 2. Multi-Instance Ollama
+**File:** [`multi_instance_ollama.py`](multi_instance_ollama.py)
+**Time:** 15 minutes
+**What you'll learn:**
+- Run draft and verifier models on separate Ollama instances
+- Multi-GPU configuration with Docker Compose
+- Health checks and instance validation
+- GPU resource isolation for optimal performance
+
+**Use cases:**
+- Multi-GPU systems (draft on GPU 0, verifier on GPU 1)
+- Distributed inference across network
+- Load balancing between instances
+- Better fault isolation
+
+**Setup:** See [Docker Compose guide](docker/multi-instance-ollama/)
+
+#### 3. Multi-Instance vLLM
+**File:** [`multi_instance_vllm.py`](multi_instance_vllm.py)
+**Time:** 15 minutes
+**What you'll learn:**
+- Run draft and verifier models on separate vLLM instances
+- High-performance inference with PagedAttention
+- Kubernetes pod configuration
+- Production-scale deployments
+
+**Use cases:**
+- GPU 0: Fast 7B model (200+ tokens/sec)
+- GPU 1: Powerful 70B model (50+ tokens/sec)
+- Kubernetes StatefulSets
+- Load-balanced inference clusters
+
+**Performance:** 10-24x faster than standard serving
 
 </details>
 
