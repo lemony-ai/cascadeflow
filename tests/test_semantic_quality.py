@@ -38,7 +38,7 @@ def mock_fastembed_available():
     ]
     mock_fastembed.TextEmbedding.return_value = mock_model
 
-    with patch.dict('sys.modules', {'fastembed': mock_fastembed}):
+    with patch.dict("sys.modules", {"fastembed": mock_fastembed}):
         yield mock_fastembed
 
 
@@ -46,10 +46,10 @@ def mock_fastembed_available():
 def mock_fastembed_unavailable():
     """Mock FastEmbed as unavailable."""
     # Remove fastembed from sys.modules if it exists
-    if 'fastembed' in sys.modules:
-        del sys.modules['fastembed']
+    if "fastembed" in sys.modules:
+        del sys.modules["fastembed"]
     # Make import fail
-    with patch.dict('sys.modules', {'fastembed': None}):
+    with patch.dict("sys.modules", {"fastembed": None}):
         yield
 
 
@@ -97,6 +97,7 @@ def test_semantic_checker_custom_thresholds(mock_fastembed_available):
 def test_check_similarity_high(mock_fastembed_available):
     """Test high semantic similarity between related texts."""
     import numpy as np
+
     checker = SemanticQualityChecker()
 
     # Mock identical embeddings (perfect similarity)
@@ -105,7 +106,7 @@ def test_check_similarity_high(mock_fastembed_available):
 
     similarity = checker.check_similarity(
         query="What is machine learning?",
-        response="Machine learning is a subset of AI that enables computers to learn."
+        response="Machine learning is a subset of AI that enables computers to learn.",
     )
 
     # Identical embeddings should have similarity 1.0
@@ -115,6 +116,7 @@ def test_check_similarity_high(mock_fastembed_available):
 def test_check_similarity_low(mock_fastembed_available):
     """Test low semantic similarity between unrelated texts."""
     import numpy as np
+
     checker = SemanticQualityChecker()
 
     # Mock orthogonal embeddings (zero similarity)
@@ -131,8 +133,7 @@ def test_check_similarity_low(mock_fastembed_available):
     checker.embedder.embed = mock_embed
 
     similarity = checker.check_similarity(
-        query="What is machine learning?",
-        response="The weather is sunny today."
+        query="What is machine learning?", response="The weather is sunny today."
     )
 
     # Orthogonal embeddings should have similarity ~0.0
@@ -150,6 +151,7 @@ def test_check_similarity_unavailable(mock_fastembed_unavailable):
 def test_check_similarity_empty_strings(mock_fastembed_available):
     """Test similarity check with empty strings."""
     import numpy as np
+
     checker = SemanticQualityChecker()
 
     # Mock zero embeddings
@@ -182,9 +184,7 @@ def test_check_toxicity_single_keyword(mock_fastembed_available):
     """Test toxicity check with single toxic keyword."""
     checker = SemanticQualityChecker()
 
-    is_toxic, score = checker.check_toxicity(
-        "I hate this implementation."
-    )
+    is_toxic, score = checker.check_toxicity("I hate this implementation.")
 
     # Should detect "hate" keyword
     assert score > 0.0
@@ -231,14 +231,14 @@ def test_check_toxicity_unavailable(mock_fastembed_unavailable):
 def test_validate_pass(mock_fastembed_available):
     """Test validation passes with high similarity and no toxicity."""
     import numpy as np
+
     checker = SemanticQualityChecker(similarity_threshold=0.5)
 
     # Mock high similarity embeddings
     checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate(
-        query="What is Python?",
-        response="Python is a high-level programming language."
+        query="What is Python?", response="Python is a high-level programming language."
     )
 
     assert result.passed
@@ -250,6 +250,7 @@ def test_validate_pass(mock_fastembed_available):
 def test_validate_fail_low_similarity(mock_fastembed_available):
     """Test validation fails due to low similarity."""
     import numpy as np
+
     checker = SemanticQualityChecker(similarity_threshold=0.8)
 
     # Mock medium similarity embeddings - use different vectors for query/response
@@ -264,10 +265,7 @@ def test_validate_fail_low_similarity(mock_fastembed_available):
 
     checker.embedder.embed = mock_embed
 
-    result = checker.validate(
-        query="What is AI?",
-        response="The weather is nice."
-    )
+    result = checker.validate(query="What is AI?", response="The weather is nice.")
 
     assert not result.passed
     assert result.similarity < 0.8
@@ -277,6 +275,7 @@ def test_validate_fail_low_similarity(mock_fastembed_available):
 def test_validate_fail_toxic(mock_fastembed_available):
     """Test validation fails due to toxic content."""
     import numpy as np
+
     checker = SemanticQualityChecker(similarity_threshold=0.5)
 
     # Mock high similarity embeddings
@@ -285,7 +284,7 @@ def test_validate_fail_toxic(mock_fastembed_available):
     result = checker.validate(
         query="Explain the concept.",
         response="This violent and hateful racist content is inappropriate.",
-        check_toxicity=True
+        check_toxicity=True,
     )
 
     assert not result.passed
@@ -296,15 +295,14 @@ def test_validate_fail_toxic(mock_fastembed_available):
 def test_validate_skip_toxicity(mock_fastembed_available):
     """Test validation can skip toxicity check."""
     import numpy as np
+
     checker = SemanticQualityChecker()
 
     # Mock high similarity embeddings
     checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate(
-        query="Query",
-        response="Response with hate keyword",
-        check_toxicity=False
+        query="Query", response="Response with hate keyword", check_toxicity=False
     )
 
     # Should pass because toxicity check was skipped
@@ -328,6 +326,7 @@ def test_validate_unavailable(mock_fastembed_unavailable):
 def test_validate_metadata(mock_fastembed_available):
     """Test validation includes proper metadata."""
     import numpy as np
+
     checker = SemanticQualityChecker(
         model_name="BAAI/bge-small-en-v1.5",
         similarity_threshold=0.6,
@@ -364,8 +363,7 @@ def test_check_semantic_quality_convenience(mock_fastembed_available):
         mock_checker.return_value = mock_instance
 
         result = check_semantic_quality(
-            query="What is AI?",
-            response="AI is artificial intelligence."
+            query="What is AI?", response="AI is artificial intelligence."
         )
 
         assert result is not None
@@ -414,6 +412,7 @@ def test_cosine_similarity_one_zero_vector(mock_fastembed_available):
 def test_very_long_text(mock_fastembed_available):
     """Test semantic checking handles very long texts."""
     import numpy as np
+
     checker = SemanticQualityChecker()
 
     # Mock embeddings
@@ -421,10 +420,7 @@ def test_very_long_text(mock_fastembed_available):
 
     long_text = "This is a very long text. " * 1000  # ~5000 words
 
-    result = checker.validate(
-        query="Summarize this document",
-        response=long_text
-    )
+    result = checker.validate(query="Summarize this document", response=long_text)
 
     # Should not crash, should return valid result
     assert isinstance(result, SemanticQualityResult)
@@ -433,14 +429,14 @@ def test_very_long_text(mock_fastembed_available):
 def test_unicode_text(mock_fastembed_available):
     """Test semantic checking handles unicode text."""
     import numpy as np
+
     checker = SemanticQualityChecker()
 
     # Mock embeddings
     checker.embedder.embed = lambda text: np.array([0.5, 0.5, 0.5])
 
     result = checker.validate(
-        query="Qu'est-ce que l'IA?",
-        response="L'IA est l'intelligence artificielle. 🤖"
+        query="Qu'est-ce que l'IA?", response="L'IA est l'intelligence artificielle. 🤖"
     )
 
     assert isinstance(result, SemanticQualityResult)

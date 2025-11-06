@@ -177,12 +177,11 @@ class TestMultiStepCascadeExecutor:
 
     def test_executor_custom_validators(self):
         """Test executor with custom validators."""
+
         def custom_validator(response, metadata):
             return True, 1.0, {"custom": True}
 
-        executor = MultiStepCascadeExecutor(
-            custom_validators={"custom": custom_validator}
-        )
+        executor = MultiStepCascadeExecutor(custom_validators={"custom": custom_validator})
 
         assert "custom" in executor.custom_validators
 
@@ -191,9 +190,7 @@ class TestMultiStepCascadeExecutor:
         code_strategy = get_code_strategy()
         medical_strategy = get_medical_strategy()
 
-        executor = MultiStepCascadeExecutor(
-            strategies=[code_strategy, medical_strategy]
-        )
+        executor = MultiStepCascadeExecutor(strategies=[code_strategy, medical_strategy])
 
         # Should return CODE strategy
         strategy = executor.get_strategy(Domain.CODE)

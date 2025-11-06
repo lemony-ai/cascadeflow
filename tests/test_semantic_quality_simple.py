@@ -24,8 +24,8 @@ def test_semantic_checker_init_graceful_degradation():
 
     # Should not crash, just warn
     assert isinstance(checker, SemanticQualityChecker)
-    assert hasattr(checker, 'model')
-    assert hasattr(checker, 'available')
+    assert hasattr(checker, "model")
+    assert hasattr(checker, "available")
 
 
 def test_semantic_checker_custom_thresholds():
@@ -114,8 +114,7 @@ def test_check_similarity_available():
     if checker.is_available():
         # Should not raise error
         similarity = checker.check_similarity(
-            query="What is machine learning?",
-            response="Machine learning is a subset of AI."
+            query="What is machine learning?", response="Machine learning is a subset of AI."
         )
 
         assert isinstance(similarity, float)
@@ -130,9 +129,7 @@ def test_check_toxicity_available():
 
     if checker.is_available():
         # Test clean text
-        is_toxic, score = checker.check_toxicity(
-            "This is a helpful and informative response."
-        )
+        is_toxic, score = checker.check_toxicity("This is a helpful and informative response.")
 
         assert isinstance(is_toxic, bool)
         assert isinstance(score, float)
@@ -148,8 +145,7 @@ def test_validate_available():
 
     if checker.is_available():
         result = checker.validate(
-            query="What is Python?",
-            response="Python is a high-level programming language."
+            query="What is Python?", response="Python is a high-level programming language."
         )
 
         assert isinstance(result, SemanticQualityResult)
@@ -166,11 +162,7 @@ def test_validate_skip_toxicity_check():
     checker = SemanticQualityChecker()
 
     if checker.is_available():
-        result = checker.validate(
-            query="Query",
-            response="Response",
-            check_toxicity=False
-        )
+        result = checker.validate(query="Query", response="Response", check_toxicity=False)
 
         assert isinstance(result, SemanticQualityResult)
         assert result.toxicity_score == 0.0
@@ -210,7 +202,7 @@ def test_semantic_quality_result_structure():
         toxicity_score=0.1,
         passed=True,
         reason=None,
-        metadata={"test": "data"}
+        metadata={"test": "data"},
     )
 
     assert result.similarity == 0.85
@@ -223,12 +215,7 @@ def test_semantic_quality_result_structure():
 
 def test_semantic_quality_result_post_init():
     """Test SemanticQualityResult __post_init__ sets default metadata."""
-    result = SemanticQualityResult(
-        similarity=0.5,
-        is_toxic=False,
-        toxicity_score=0.0,
-        passed=True
-    )
+    result = SemanticQualityResult(similarity=0.5, is_toxic=False, toxicity_score=0.0, passed=True)
 
     # Should initialize empty metadata dict
     assert result.metadata is not None
@@ -261,10 +248,7 @@ def test_very_long_text():
     if checker.is_available():
         long_text = "This is a test sentence. " * 1000  # ~5000 words
 
-        result = checker.validate(
-            query="Summarize",
-            response=long_text
-        )
+        result = checker.validate(query="Summarize", response=long_text)
 
         # Should not crash
         assert isinstance(result, SemanticQualityResult)
@@ -278,8 +262,7 @@ def test_unicode_text():
 
     if checker.is_available():
         result = checker.validate(
-            query="Qu'est-ce que l'IA?",
-            response="L'IA est l'intelligence artificielle. 🤖"
+            query="Qu'est-ce que l'IA?", response="L'IA est l'intelligence artificielle. 🤖"
         )
 
         assert isinstance(result, SemanticQualityResult)
@@ -298,10 +281,7 @@ def test_high_similarity_query_response_pair():
 
     if checker.is_available():
         # Very similar pair
-        result = checker.validate(
-            query="What is 2 + 2?",
-            response="2 plus 2 equals 4."
-        )
+        result = checker.validate(query="What is 2 + 2?", response="2 plus 2 equals 4.")
 
         # Should have reasonable similarity (not testing exact value)
         assert result.similarity > 0.3  # Relaxed threshold
@@ -317,7 +297,7 @@ def test_low_similarity_unrelated_pair():
         # Completely unrelated pair
         result = checker.validate(
             query="What is quantum physics?",
-            response="I like to eat apples and bananas for breakfast."
+            response="I like to eat apples and bananas for breakfast.",
         )
 
         # Unrelated text should have lower similarity than related text

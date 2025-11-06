@@ -40,6 +40,7 @@ from typing import Optional, Tuple
 
 try:
     from ..ml.embedding import UnifiedEmbeddingService, EmbeddingCache
+
     HAS_ML_MODULE = True
 except ImportError:
     HAS_ML_MODULE = False
@@ -136,9 +137,7 @@ class SemanticQualityChecker:
         if self.available:
             logger.info("✓ Semantic quality checking enabled (UnifiedEmbeddingService)")
         else:
-            logger.warning(
-                "⚠️ ML module not available. Semantic quality checking unavailable."
-            )
+            logger.warning("⚠️ ML module not available. Semantic quality checking unavailable.")
             logger.warning("Install with: pip install fastembed")
 
     def is_available(self) -> bool:
@@ -170,8 +169,7 @@ class SemanticQualityChecker:
         """
         if not self.is_available():
             raise RuntimeError(
-                "Semantic checking not available. Install fastembed: "
-                "pip install fastembed"
+                "Semantic checking not available. Install fastembed: " "pip install fastembed"
             )
 
         # Use cache if available for better performance
@@ -284,7 +282,6 @@ class SemanticQualityChecker:
                 "toxicity_threshold": self.toxicity_threshold,
             },
         )
-
 
 
 # ============================================================================

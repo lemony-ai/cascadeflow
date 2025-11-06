@@ -78,7 +78,9 @@ async def main():
         custom_daily_budget=0.01,  # Very low budget
     )
 
-    print(f"Custom limits: {test_profile.get_requests_per_hour()} req/hour, ${test_profile.get_daily_budget()} budget")
+    print(
+        f"Custom limits: {test_profile.get_requests_per_hour()} req/hour, ${test_profile.get_daily_budget()} budget"
+    )
 
     # Try to exceed hourly limit
     print(f"\nAttempting 5 requests (limit is 3)...")
@@ -125,9 +127,15 @@ async def main():
 
     stats = await limiter.get_usage_stats(pro_profile)
     print(f"\nPRO user usage:")
-    print(f"  Hourly: {stats['hourly_requests']}/{stats['hourly_limit']} ({stats['hourly_remaining']} remaining)")
-    print(f"  Daily: {stats['daily_requests']}/{stats['daily_limit']} ({stats['daily_remaining']} remaining)")
-    print(f"  Budget: ${stats['daily_cost']:.6f}/${stats['daily_budget']} (${stats['budget_remaining']:.4f} remaining)")
+    print(
+        f"  Hourly: {stats['hourly_requests']}/{stats['hourly_limit']} ({stats['hourly_remaining']} remaining)"
+    )
+    print(
+        f"  Daily: {stats['daily_requests']}/{stats['daily_limit']} ({stats['daily_remaining']} remaining)"
+    )
+    print(
+        f"  Budget: ${stats['daily_cost']:.6f}/${stats['daily_budget']} (${stats['budget_remaining']:.4f} remaining)"
+    )
 
     # ========================================================================
     # Example 4: Budget-based rate limiting

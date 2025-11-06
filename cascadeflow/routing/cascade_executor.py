@@ -96,7 +96,9 @@ def validate_syntax(response: str, metadata: Dict[str, Any]) -> tuple[bool, floa
     return passed, score, details
 
 
-def validate_fact_check(response: str, metadata: Dict[str, Any]) -> tuple[bool, float, Dict[str, Any]]:
+def validate_fact_check(
+    response: str, metadata: Dict[str, Any]
+) -> tuple[bool, float, Dict[str, Any]]:
     """
     Basic fact-checking validation for medical/legal domains.
 
@@ -238,7 +240,9 @@ def validate_quality(response: str, metadata: Dict[str, Any]) -> tuple[bool, flo
     return passed, score, details
 
 
-def validate_full_quality(response: str, metadata: Dict[str, Any]) -> tuple[bool, float, Dict[str, Any]]:
+def validate_full_quality(
+    response: str, metadata: Dict[str, Any]
+) -> tuple[bool, float, Dict[str, Any]]:
     """
     Comprehensive quality validation (combines multiple checks).
 
@@ -337,11 +341,7 @@ class MultiStepCascadeExecutor:
         return self.strategy_map.get(domain)
 
     async def execute(
-        self,
-        query: str,
-        domain: Domain,
-        user_id: Optional[str] = None,
-        **kwargs
+        self, query: str, domain: Domain, user_id: Optional[str] = None, **kwargs
     ) -> CascadeExecutionResult:
         """
         Execute multi-step cascade for a domain.
@@ -370,7 +370,7 @@ class MultiStepCascadeExecutor:
                 total_tokens=0,
                 quality_score=0.0,
                 fallback_used=False,
-                metadata={"error": f"No strategy found for domain {domain}"}
+                metadata={"error": f"No strategy found for domain {domain}"},
             )
 
         if not strategy.enabled:
@@ -386,7 +386,7 @@ class MultiStepCascadeExecutor:
                 total_tokens=0,
                 quality_score=0.0,
                 fallback_used=False,
-                metadata={"error": "Strategy disabled"}
+                metadata={"error": "Strategy disabled"},
             )
 
         logger.info(f"Executing {domain} strategy: {strategy.description}")
@@ -454,16 +454,14 @@ class MultiStepCascadeExecutor:
                 "query": query,
                 "user_id": user_id,
                 "steps_attempted": len(steps_executed),
-                "steps_successful": len([s for s in steps_executed if s.status == StepStatus.SUCCESS]),
-            }
+                "steps_successful": len(
+                    [s for s in steps_executed if s.status == StepStatus.SUCCESS]
+                ),
+            },
         )
 
     async def _execute_step(
-        self,
-        step: CascadeStep,
-        query: str,
-        user_id: Optional[str],
-        **kwargs
+        self, step: CascadeStep, query: str, user_id: Optional[str], **kwargs
     ) -> StepResult:
         """
         Execute a single cascade step.
@@ -525,7 +523,7 @@ class MultiStepCascadeExecutor:
                     "provider": step.provider,
                     "validation": step.validation,
                     "threshold": step.quality_threshold,
-                }
+                },
             )
 
         except Exception as e:
@@ -538,7 +536,7 @@ class MultiStepCascadeExecutor:
                 status=StepStatus.FAILED_ERROR,
                 error=str(e),
                 latency_ms=latency_ms,
-                metadata={"model": step.model, "provider": step.provider}
+                metadata={"model": step.model, "provider": step.provider},
             )
 
     async def _simulate_model_call(self, step: CascadeStep, query: str) -> str:

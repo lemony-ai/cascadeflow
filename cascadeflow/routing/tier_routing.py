@@ -135,9 +135,7 @@ class TierAwareRouter:
             else:
                 self.stats["models_filtered_out"] += 1
                 if self.verbose:
-                    logger.debug(
-                        f"Model '{model.name}' filtered out by tier '{tier_name}'"
-                    )
+                    logger.debug(f"Model '{model.name}' filtered out by tier '{tier_name}'")
 
         if self.verbose:
             logger.info(
@@ -207,9 +205,7 @@ class TierAwareRouter:
         Returns:
             Dictionary of statistics
         """
-        avg_filtered = (
-            self.stats["models_filtered_out"] / max(self.stats["total_filters"], 1)
-        )
+        avg_filtered = self.stats["models_filtered_out"] / max(self.stats["total_filters"], 1)
 
         return {
             **self.stats,

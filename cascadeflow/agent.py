@@ -149,7 +149,9 @@ class CascadeAgent:
         # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
         # ========================================================================
         config: Optional[CascadeConfig] = None,  # DEPRECATED - use quality_config
-        tiers: Optional[dict[str, UserTier]] = None,  # DEPRECATED - tier system being re-implemented
+        tiers: Optional[
+            dict[str, UserTier]
+        ] = None,  # DEPRECATED - tier system being re-implemented
         workflows: Optional[dict[str, WorkflowProfile]] = None,  # DEPRECATED - workflow system
         enable_caching: bool = False,  # DEPRECATED - caching system being re-implemented
         cache_size: int = 1000,  # DEPRECATED - caching system being re-implemented
@@ -209,10 +211,11 @@ class CascadeAgent:
             self._legacy_tiers = tiers
             # Initialize TierAwareRouter (OPTIONAL - only if tiers provided)
             from .routing import TierAwareRouter
+
             self.tier_router = TierAwareRouter(
                 tiers=tiers,
                 models=sorted(models, key=lambda m: m.cost),  # Use models before self.models is set
-                verbose=verbose
+                verbose=verbose,
             )
         else:
             self._legacy_tiers = None
@@ -1689,11 +1692,8 @@ class CascadeAgent:
     # ========================================================================
 
     async def run_batch(
-        self,
-        queries: List[str],
-        batch_config: Optional['BatchConfig'] = None,
-        **kwargs
-    ) -> 'BatchResult':
+        self, queries: List[str], batch_config: Optional["BatchConfig"] = None, **kwargs
+    ) -> "BatchResult":
         """
         Process multiple queries in batch.
 
@@ -1728,7 +1728,7 @@ class CascadeAgent:
         """
         from .core.batch import BatchProcessor
 
-        if not hasattr(self, '_batch_processor') or self._batch_processor is None:
+        if not hasattr(self, "_batch_processor") or self._batch_processor is None:
             self._batch_processor = BatchProcessor(self)
 
         return await self._batch_processor.process_batch(queries, batch_config, **kwargs)
@@ -1804,7 +1804,7 @@ class CascadeAgent:
     @classmethod
     def from_profile(
         cls,
-        profile: 'UserProfile',
+        profile: "UserProfile",
         quality_config: Optional[QualityConfig] = None,
         verbose: bool = False,
     ):

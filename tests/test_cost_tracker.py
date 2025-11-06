@@ -133,15 +133,11 @@ class TestCostTrackerPerUserTracking:
         """Test tracking multiple users."""
         tracker = CostTracker()
 
-        tracker.add_cost(
-            model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_1"
-        )
+        tracker.add_cost(model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_1")
         tracker.add_cost(
             model="gpt-3.5-turbo", provider="openai", tokens=500, cost=0.001, user_id="user_2"
         )
-        tracker.add_cost(
-            model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_1"
-        )
+        tracker.add_cost(model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_1")
 
         assert tracker.by_user["user_1"] == 0.006
         assert tracker.by_user["user_2"] == 0.001
@@ -151,12 +147,8 @@ class TestCostTrackerPerUserTracking:
         """Test getting all tracked users."""
         tracker = CostTracker()
 
-        tracker.add_cost(
-            model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_1"
-        )
-        tracker.add_cost(
-            model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_2"
-        )
+        tracker.add_cost(model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_1")
+        tracker.add_cost(model="gpt-4", provider="openai", tokens=100, cost=0.003, user_id="user_2")
 
         users = tracker.get_all_users()
         assert len(users) == 2
@@ -466,9 +458,7 @@ class TestEdgeCases:
         """Test handling negative cost (refund scenario)."""
         tracker = CostTracker()
         tracker.add_cost(model="gpt-4", provider="openai", tokens=100, cost=0.01)
-        tracker.add_cost(
-            model="refund", provider="openai", tokens=0, cost=-0.005
-        )  # Refund
+        tracker.add_cost(model="refund", provider="openai", tokens=0, cost=-0.005)  # Refund
 
         assert tracker.total_cost == 0.005
 

@@ -23,10 +23,8 @@ from cascadeflow.routing.cascade_pipeline import ValidationMethod
 # EMBEDDING SERVICE TESTS
 # ============================================================================
 
-@pytest.mark.skipif(
-    not UnifiedEmbeddingService().is_available,
-    reason="FastEmbed not available"
-)
+
+@pytest.mark.skipif(not UnifiedEmbeddingService().is_available, reason="FastEmbed not available")
 class TestUnifiedEmbeddingService:
     """Test the unified embedding service."""
 
@@ -73,21 +71,22 @@ class TestUnifiedEmbeddingService:
         assert emb2 is not None
         # Should be the same object from cache
         import numpy as np
+
         assert np.array_equal(emb1, emb2)
 
         # Cache info
         info = cache.cache_info()
-        assert info['size'] >= 1
-        assert 'texts' in info
+        assert info["size"] >= 1
+        assert "texts" in info
 
 
 # ============================================================================
 # SEMANTIC QUALITY TESTS
 # ============================================================================
 
+
 @pytest.mark.skipif(
-    not SemanticQualityChecker().is_available(),
-    reason="Semantic quality checker not available"
+    not SemanticQualityChecker().is_available(), reason="Semantic quality checker not available"
 )
 class TestSemanticQuality:
     """Test semantic quality checking."""
@@ -100,20 +99,14 @@ class TestSemanticQuality:
     def test_high_similarity(self):
         """Test high similarity detection."""
         checker = SemanticQualityChecker(similarity_threshold=0.7)
-        result = checker.validate(
-            "What is Python?",
-            "Python is a programming language"
-        )
+        result = checker.validate("What is Python?", "Python is a programming language")
         assert result.passed
         assert result.similarity > 0.7
 
     def test_low_similarity(self):
         """Test low similarity rejection."""
         checker = SemanticQualityChecker(similarity_threshold=0.8)
-        result = checker.validate(
-            "What is Python?",
-            "The weather is sunny"
-        )
+        result = checker.validate("What is Python?", "The weather is sunny")
         assert not result.passed
         assert "low_similarity" in result.reason
 
@@ -122,9 +115,9 @@ class TestSemanticQuality:
 # SEMANTIC DOMAIN DETECTION TESTS
 # ============================================================================
 
+
 @pytest.mark.skipif(
-    not SemanticDomainDetector().is_available,
-    reason="Semantic domain detector not available"
+    not SemanticDomainDetector().is_available, reason="Semantic domain detector not available"
 )
 class TestSemanticDomainDetection:
     """Test semantic domain detection."""
@@ -167,9 +160,10 @@ class TestSemanticDomainDetection:
 # SEMANTIC COMPLEXITY DETECTION TESTS
 # ============================================================================
 
+
 @pytest.mark.skipif(
     not SemanticComplexityDetector().is_available,
-    reason="Semantic complexity detector not available"
+    reason="Semantic complexity detector not available",
 )
 class TestSemanticComplexityDetection:
     """Test semantic complexity detection."""
@@ -219,9 +213,9 @@ class TestSemanticComplexityDetection:
 # SEMANTIC ALIGNMENT SCORING TESTS
 # ============================================================================
 
+
 @pytest.mark.skipif(
-    not SemanticAlignmentScorer().is_available,
-    reason="Semantic alignment scorer not available"
+    not SemanticAlignmentScorer().is_available, reason="Semantic alignment scorer not available"
 )
 class TestSemanticAlignmentScoring:
     """Test semantic alignment scoring."""
@@ -234,35 +228,26 @@ class TestSemanticAlignmentScoring:
     def test_high_alignment(self):
         """Test high alignment score."""
         scorer = SemanticAlignmentScorer()
-        score = scorer.score_alignment(
-            "What is Python?",
-            "Python is a programming language"
-        )
+        score = scorer.score_alignment("What is Python?", "Python is a programming language")
         assert score > 0.7
 
     def test_low_alignment(self):
         """Test low alignment score."""
         scorer = SemanticAlignmentScorer()
-        score = scorer.score_alignment(
-            "What is Python?",
-            "The sky is blue"
-        )
+        score = scorer.score_alignment("What is Python?", "The sky is blue")
         assert score < 0.5
 
     def test_hybrid_scoring(self):
         """Test hybrid mode (ML + rule-based)."""
         scorer = SemanticAlignmentScorer()
-        score = scorer.score_alignment(
-            "What is 2+2?",
-            "4",
-            use_hybrid=True
-        )
+        score = scorer.score_alignment("What is 2+2?", "4", use_hybrid=True)
         assert 0 <= score <= 1
 
 
 # ============================================================================
 # PIPELINE SEMANTIC VALIDATION TESTS
 # ============================================================================
+
 
 class TestPipelineSemanticValidation:
     """Test semantic validation in pipelines."""
@@ -280,10 +265,8 @@ class TestPipelineSemanticValidation:
 # INTEGRATION TESTS
 # ============================================================================
 
-@pytest.mark.skipif(
-    not UnifiedEmbeddingService().is_available,
-    reason="ML features not available"
-)
+
+@pytest.mark.skipif(not UnifiedEmbeddingService().is_available, reason="ML features not available")
 class TestMLIntegration:
     """Test complete ML integration."""
 

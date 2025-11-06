@@ -170,9 +170,7 @@ class TestVLLMProvider:
     def test_init_network_deployment_example(self):
         """Test configuration for network deployment scenario."""
         # Simulate network deployment (another machine on LAN)
-        with patch.dict(os.environ, {
-            "VLLM_BASE_URL": "http://192.168.1.200:8000/v1"
-        }, clear=True):
+        with patch.dict(os.environ, {"VLLM_BASE_URL": "http://192.168.1.200:8000/v1"}, clear=True):
             provider = VLLMProvider()
             assert provider.base_url == "http://192.168.1.200:8000/v1"
             # No API key needed for trusted network
@@ -181,10 +179,14 @@ class TestVLLMProvider:
     def test_init_remote_deployment_example(self):
         """Test configuration for remote deployment with authentication."""
         # Simulate remote deployment (external server with auth)
-        with patch.dict(os.environ, {
-            "VLLM_BASE_URL": "https://vllm.yourdomain.com/v1",
-            "VLLM_API_KEY": "secure-vllm-key-789"
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "VLLM_BASE_URL": "https://vllm.yourdomain.com/v1",
+                "VLLM_API_KEY": "secure-vllm-key-789",
+            },
+            clear=True,
+        ):
             provider = VLLMProvider()
             assert provider.base_url == "https://vllm.yourdomain.com/v1"
             assert provider.api_key == "secure-vllm-key-789"
@@ -192,14 +194,12 @@ class TestVLLMProvider:
 
     def test_init_parameter_override_env(self):
         """Test that constructor parameters override environment variables."""
-        with patch.dict(os.environ, {
-            "VLLM_BASE_URL": "http://env-server:8000/v1",
-            "VLLM_API_KEY": "env-key"
-        }, clear=True):
-            provider = VLLMProvider(
-                base_url="http://custom-server:8000/v1",
-                api_key="custom-key"
-            )
+        with patch.dict(
+            os.environ,
+            {"VLLM_BASE_URL": "http://env-server:8000/v1", "VLLM_API_KEY": "env-key"},
+            clear=True,
+        ):
+            provider = VLLMProvider(base_url="http://custom-server:8000/v1", api_key="custom-key")
             assert provider.base_url == "http://custom-server:8000/v1"
             assert provider.api_key == "custom-key"
 

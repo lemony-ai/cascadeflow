@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 # Check if LiteLLM batch is available
 try:
     from litellm import batch_completion
+
     HAS_LITELLM_BATCH = True
 except (ImportError, AttributeError):
     HAS_LITELLM_BATCH = False
@@ -25,7 +26,7 @@ except (ImportError, AttributeError):
 class BatchResult:
     """Result from batch processing"""
 
-    results: List[Optional['CascadeResult']]
+    results: List[Optional["CascadeResult"]]
     """Results for each query (None if failed)"""
 
     success_count: int
@@ -80,7 +81,7 @@ class BatchProcessor:
     - Error handling and retry logic
     """
 
-    def __init__(self, agent: 'CascadeAgent'):
+    def __init__(self, agent: "CascadeAgent"):
         """
         Initialize batch processor.
 
@@ -90,10 +91,7 @@ class BatchProcessor:
         self.agent = agent
 
     async def process_batch(
-        self,
-        queries: List[str],
-        config: Optional[BatchConfig] = None,
-        **kwargs
+        self, queries: List[str], config: Optional[BatchConfig] = None, **kwargs
     ) -> BatchResult:
         """
         Process a batch of queries.
@@ -146,7 +144,7 @@ class BatchProcessor:
             total_time=total_time,
             strategy_used=strategy.value,
             errors=errors,
-            metadata=config.metadata
+            metadata=config.metadata,
         )
 
     def _choose_strategy(self, strategy: BatchStrategy) -> BatchStrategy:
@@ -156,11 +154,8 @@ class BatchProcessor:
         return strategy
 
     async def _process_litellm_batch(
-        self,
-        queries: List[str],
-        config: BatchConfig,
-        **kwargs
-    ) -> tuple[List[Optional['CascadeResult']], List[Optional[str]]]:
+        self, queries: List[str], config: BatchConfig, **kwargs
+    ) -> tuple[List[Optional["CascadeResult"]], List[Optional[str]]]:
         """
         Process batch using LiteLLM native batch API.
 
@@ -173,25 +168,23 @@ class BatchProcessor:
         return await self._process_sequential_batch(queries, config, **kwargs)
 
     async def _process_sequential_batch(
-        self,
-        queries: List[str],
-        config: BatchConfig,
-        **kwargs
-    ) -> tuple[List[Optional['CascadeResult']], List[Optional[str]]]:
+        self, queries: List[str], config: BatchConfig, **kwargs
+    ) -> tuple[List[Optional["CascadeResult"]], List[Optional[str]]]:
         """Process batch sequentially with concurrency control"""
-        results: List[Optional['CascadeResult']] = []
+        results: List[Optional["CascadeResult"]] = []
         errors: List[Optional[str]] = []
 
         # Semaphore for concurrency control
         semaphore = asyncio.Semaphore(config.max_parallel)
 
-        async def process_one(query: str, index: int) -> tuple[int, Optional['CascadeResult'], Optional[str]]:
+        async def process_one(
+            query: str, index: int
+        ) -> tuple[int, Optional["CascadeResult"], Optional[str]]:
             """Process single query with semaphore"""
             async with semaphore:
                 try:
                     result = await asyncio.wait_for(
-                        self.agent.run(query, **kwargs),
-                        timeout=config.timeout_per_query
+                        self.agent.run(query, **kwargs), timeout=config.timeout_per_query
                     )
                     return index, result, None
 
@@ -200,8 +193,7 @@ class BatchProcessor:
                         # Retry once
                         try:
                             result = await asyncio.wait_for(
-                                self.agent.run(query, **kwargs),
-                                timeout=config.timeout_per_query
+                                self.agent.run(query, **kwargs), timeout=config.timeout_per_query
                             )
                             return index, result, None
                         except Exception as e:
@@ -219,8 +211,7 @@ class BatchProcessor:
                         # Retry once
                         try:
                             result = await asyncio.wait_for(
-                                self.agent.run(query, **kwargs),
-                                timeout=config.timeout_per_query
+                                self.agent.run(query, **kwargs), timeout=config.timeout_per_query
                             )
                             return index, result, None
                         except Exception as retry_e:
@@ -239,8 +230,7 @@ class BatchProcessor:
         # Process with total timeout
         try:
             completed = await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=config.total_timeout
+                asyncio.gather(*tasks, return_exceptions=True), timeout=config.total_timeout
             )
         except asyncio.TimeoutError:
             # Total timeout exceeded - return partial results
@@ -270,4 +260,5 @@ class BatchProcessor:
 
 class BatchProcessingError(Exception):
     """Error during batch processing"""
+
     pass

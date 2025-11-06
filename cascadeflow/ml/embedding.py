@@ -35,6 +35,7 @@ from typing import Optional, Dict, Any, Union
 # Optional dependency - numpy comes with FastEmbed
 try:
     import numpy as np
+
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
@@ -102,9 +103,7 @@ class UnifiedEmbeddingService:
             logger.info("Embedding service initialized successfully")
 
         except ImportError:
-            logger.warning(
-                "FastEmbed not available. Install with: pip install fastembed"
-            )
+            logger.warning("FastEmbed not available. Install with: pip install fastembed")
             self._is_available = False
 
         except Exception as e:

@@ -199,9 +199,7 @@ class TestDomainCascadeStrategy:
     def test_strategy_first_step_cannot_be_fallback_only(self):
         """Test first step cannot be fallback-only."""
         steps = [
-            CascadeStep(
-                name="fallback", model="gpt-4", provider="openai", fallback_only=True
-            ),
+            CascadeStep(name="fallback", model="gpt-4", provider="openai", fallback_only=True),
         ]
 
         with pytest.raises(ValueError, match="First step cannot be fallback-only"):

@@ -61,6 +61,7 @@ from cascadeflow.routing.domain import Domain
 # Optional ML imports
 try:
     from ..quality.semantic import SemanticQualityChecker
+
     HAS_SEMANTIC = True
 except ImportError:
     HAS_SEMANTIC = False
@@ -139,7 +140,9 @@ class CascadeStep:
     def __post_init__(self):
         """Validate step configuration."""
         if not 0 <= self.quality_threshold <= 1:
-            raise ValueError(f"quality_threshold must be between 0 and 1, got {self.quality_threshold}")
+            raise ValueError(
+                f"quality_threshold must be between 0 and 1, got {self.quality_threshold}"
+            )
 
         if self.max_tokens <= 0:
             raise ValueError(f"max_tokens must be positive, got {self.max_tokens}")
@@ -263,17 +266,11 @@ class CascadeExecutionResult:
 
     def get_cost_breakdown(self) -> Dict[str, float]:
         """Get cost breakdown by step."""
-        return {
-            result.step_name: result.cost
-            for result in self.steps_executed
-        }
+        return {result.step_name: result.cost for result in self.steps_executed}
 
     def get_successful_steps(self) -> List[StepResult]:
         """Get all successful steps."""
-        return [
-            result for result in self.steps_executed
-            if result.status == StepStatus.SUCCESS
-        ]
+        return [result for result in self.steps_executed if result.status == StepStatus.SUCCESS]
 
 
 # ============================================================================
@@ -303,7 +300,7 @@ def get_code_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.7,
                 fallback_only=False,
                 temperature=0.3,  # Lower temperature for code
-                metadata={"step_type": "draft", "optimized_for": "code"}
+                metadata={"step_type": "draft", "optimized_for": "code"},
             ),
             CascadeStep(
                 name="verify",
@@ -313,9 +310,9 @@ def get_code_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.85,
                 fallback_only=True,  # Only if draft fails
                 temperature=0.3,
-                metadata={"step_type": "verify", "expensive": True}
-            )
-        ]
+                metadata={"step_type": "verify", "expensive": True},
+            ),
+        ],
     )
 
 
@@ -341,7 +338,7 @@ def get_medical_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.75,
                 fallback_only=False,
                 temperature=0.2,  # Very low temperature for medical
-                metadata={"step_type": "draft", "domain": "medical"}
+                metadata={"step_type": "draft", "domain": "medical"},
             ),
             CascadeStep(
                 name="verify",
@@ -351,9 +348,9 @@ def get_medical_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.9,  # High threshold for medical
                 fallback_only=True,
                 temperature=0.2,
-                metadata={"step_type": "verify", "safety_critical": True}
-            )
-        ]
+                metadata={"step_type": "verify", "safety_critical": True},
+            ),
+        ],
     )
 
 
@@ -379,7 +376,7 @@ def get_general_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.7,
                 fallback_only=False,
                 temperature=0.7,
-                metadata={"step_type": "draft", "fast": True}
+                metadata={"step_type": "draft", "fast": True},
             ),
             CascadeStep(
                 name="verify",
@@ -389,9 +386,9 @@ def get_general_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.85,
                 fallback_only=True,
                 temperature=0.7,
-                metadata={"step_type": "verify"}
-            )
-        ]
+                metadata={"step_type": "verify"},
+            ),
+        ],
     )
 
 
@@ -417,7 +414,7 @@ def get_data_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.75,
                 fallback_only=False,
                 temperature=0.3,  # Lower for precise data queries
-                metadata={"step_type": "draft", "domain": "data"}
+                metadata={"step_type": "draft", "domain": "data"},
             ),
             CascadeStep(
                 name="verify",
@@ -427,9 +424,9 @@ def get_data_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.85,
                 fallback_only=True,
                 temperature=0.3,
-                metadata={"step_type": "verify"}
-            )
-        ]
+                metadata={"step_type": "verify"},
+            ),
+        ],
     )
 
 
@@ -456,7 +453,7 @@ def get_math_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.75,
                 fallback_only=False,
                 temperature=0.2,  # Precise calculations
-                metadata={"step_type": "draft", "domain": "math"}
+                metadata={"step_type": "draft", "domain": "math"},
             ),
             CascadeStep(
                 name="verify",
@@ -466,9 +463,9 @@ def get_math_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.90,  # High accuracy for math
                 fallback_only=True,
                 temperature=0.1,  # Deterministic
-                metadata={"step_type": "verify", "precision": "high"}
-            )
-        ]
+                metadata={"step_type": "verify", "precision": "high"},
+            ),
+        ],
     )
 
 
@@ -498,8 +495,8 @@ def get_structured_strategy() -> DomainCascadeStrategy:
                 metadata={
                     "step_type": "draft",
                     "domain": "structured",
-                    "json_mode": True  # Enable JSON mode
-                }
+                    "json_mode": True,  # Enable JSON mode
+                },
             ),
             CascadeStep(
                 name="verify",
@@ -509,9 +506,9 @@ def get_structured_strategy() -> DomainCascadeStrategy:
                 quality_threshold=0.85,
                 fallback_only=True,
                 temperature=0.2,
-                metadata={"step_type": "verify", "schema_validation": True}
-            )
-        ]
+                metadata={"step_type": "verify", "schema_validation": True},
+            ),
+        ],
     )
 
 

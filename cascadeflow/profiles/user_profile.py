@@ -50,7 +50,7 @@ class UserProfile:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_tier(cls, tier: TierLevel, user_id: str, **kwargs) -> 'UserProfile':
+    def from_tier(cls, tier: TierLevel, user_id: str, **kwargs) -> "UserProfile":
         """
         Simple factory: Create profile from tier preset.
 
@@ -116,7 +116,7 @@ class UserProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'UserProfile':
+    def from_dict(cls, data: Dict[str, Any]) -> "UserProfile":
         """Deserialize from dict"""
         # Parse tier
         tier_data = data.get("tier", {})
@@ -131,11 +131,7 @@ class UserProfile:
 
         # Parse datetime
         created_at_str = data.get("created_at")
-        created_at = (
-            datetime.fromisoformat(created_at_str)
-            if created_at_str
-            else datetime.utcnow()
-        )
+        created_at = datetime.fromisoformat(created_at_str) if created_at_str else datetime.utcnow()
 
         return cls(
             user_id=data["user_id"],

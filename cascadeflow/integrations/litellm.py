@@ -65,6 +65,7 @@ except ImportError:
 # SUPPORTED PROVIDERS
 # ============================================================================
 
+
 @dataclass
 class ProviderInfo:
     """Information about a supported provider."""
@@ -94,7 +95,12 @@ SUPPORTED_PROVIDERS = {
         value_prop="Best for reasoning and analysis, strong safety features",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["anthropic/claude-3-opus-20240229", "anthropic/claude-3-5-sonnet-20241022", "anthropic/claude-3-sonnet-20240229", "anthropic/claude-3-haiku-20240307"],
+        example_models=[
+            "anthropic/claude-3-opus-20240229",
+            "anthropic/claude-3-5-sonnet-20241022",
+            "anthropic/claude-3-sonnet-20240229",
+            "anthropic/claude-3-haiku-20240307",
+        ],
     ),
     "groq": ProviderInfo(
         name="groq",
@@ -102,7 +108,11 @@ SUPPORTED_PROVIDERS = {
         value_prop="Fastest inference speed, ultra-low latency, free tier",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["groq/llama-3.1-70b-versatile", "groq/llama-3.1-8b-instant", "groq/mixtral-8x7b-32768"],
+        example_models=[
+            "groq/llama-3.1-70b-versatile",
+            "groq/llama-3.1-8b-instant",
+            "groq/mixtral-8x7b-32768",
+        ],
     ),
     "together": ProviderInfo(
         name="together",
@@ -110,7 +120,11 @@ SUPPORTED_PROVIDERS = {
         value_prop="Cost-effective, wide model selection, good for experimentation",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "together_ai/meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo"],
+        example_models=[
+            "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+            "together_ai/meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+            "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo",
+        ],
     ),
     "huggingface": ProviderInfo(
         name="huggingface",
@@ -118,7 +132,10 @@ SUPPORTED_PROVIDERS = {
         value_prop="Open-source models, community-driven, flexible deployment",
         pricing_available=True,
         requires_api_key=True,
-        example_models=["huggingface/mistralai/Mistral-7B-Instruct-v0.2", "huggingface/meta-llama/Llama-2-70b-chat"],
+        example_models=[
+            "huggingface/mistralai/Mistral-7B-Instruct-v0.2",
+            "huggingface/meta-llama/Llama-2-70b-chat",
+        ],
     ),
     "ollama": ProviderInfo(
         name="ollama",
@@ -183,10 +200,7 @@ def validate_provider(provider: str) -> bool:
 
     if not supported:
         available = ", ".join(SUPPORTED_PROVIDERS.keys())
-        logger.warning(
-            f"Provider '{provider}' not in supported list. "
-            f"Available: {available}"
-        )
+        logger.warning(f"Provider '{provider}' not in supported list. " f"Available: {available}")
 
     return supported
 
@@ -246,9 +260,7 @@ class LiteLLMCostProvider:
         self.fallback_enabled = fallback_enabled
 
         if not LITELLM_AVAILABLE:
-            logger.warning(
-                "LiteLLM not available. Cost calculations will use fallback estimates."
-            )
+            logger.warning("LiteLLM not available. Cost calculations will use fallback estimates.")
 
     def calculate_cost(
         self,
@@ -598,9 +610,7 @@ class LiteLLMBudgetTracker:
             self.budget_manager.create_budget(user=user, max_budget=max_budget)
             logger.info(f"Set budget for {user}: ${max_budget:.2f}")
         else:
-            logger.warning(
-                f"Cannot set budget for {user} - BudgetManager unavailable"
-            )
+            logger.warning(f"Cannot set budget for {user} - BudgetManager unavailable")
 
     def update_cost(
         self,
@@ -644,9 +654,7 @@ class LiteLLMBudgetTracker:
             try:
                 # If we have actual API response, use it
                 if response:
-                    cost = self.budget_manager.update_cost(
-                        completion_obj=response, user=user
-                    )
+                    cost = self.budget_manager.update_cost(completion_obj=response, user=user)
                 else:
                     # Calculate cost from tokens
                     cost = self.cost_provider.calculate_cost(
@@ -971,10 +979,7 @@ class cascadeflowLiteLLMCallback:
             user_id = kwargs.get("user", None)
             error = str(response_obj)
 
-            logger.warning(
-                f"LiteLLM call failed: model={model}, user={user_id}, "
-                f"error={error}"
-            )
+            logger.warning(f"LiteLLM call failed: model={model}, user={user_id}, " f"error={error}")
 
             # Could integrate with error tracking systems here
             if self.callback_manager:
@@ -1022,8 +1027,7 @@ def setup_litellm_callbacks(
     """
     if not LITELLM_AVAILABLE:
         logger.warning(
-            "LiteLLM not installed. Cannot set up callbacks. "
-            "Install with: pip install litellm"
+            "LiteLLM not installed. Cannot set up callbacks. " "Install with: pip install litellm"
         )
         return False
 

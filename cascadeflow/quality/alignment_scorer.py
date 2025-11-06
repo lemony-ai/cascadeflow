@@ -40,6 +40,7 @@ from typing import Optional
 # Optional ML imports
 try:
     from ..ml.embedding import UnifiedEmbeddingService
+
     HAS_ML = True
 except ImportError:
     HAS_ML = False
@@ -829,6 +830,7 @@ if __name__ == "__main__":
 # SEMANTIC ALIGNMENT SCORING (ML-BASED)
 # ============================================================================
 
+
 class SemanticAlignmentScorer:
     """
     Optional ML-based alignment scorer using semantic embeddings.
@@ -873,10 +875,7 @@ class SemanticAlignmentScorer:
         self.rule_scorer = None
 
         # Check availability
-        self.is_available = (
-            self.embedder is not None and
-            self.embedder.is_available
-        )
+        self.is_available = self.embedder is not None and self.embedder.is_available
 
     def score_alignment(
         self,
@@ -928,10 +927,7 @@ class SemanticAlignmentScorer:
             ml_weight = self.similarity_weight
             rule_weight = 1.0 - self.similarity_weight
 
-            combined_score = (
-                similarity * ml_weight +
-                rule_score * rule_weight
-            )
+            combined_score = similarity * ml_weight + rule_score * rule_weight
             return float(combined_score)
 
         return float(similarity)

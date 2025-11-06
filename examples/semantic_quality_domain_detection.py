@@ -35,10 +35,7 @@ def demo_semantic_quality():
     from cascadeflow.quality.semantic import SemanticQualityChecker
 
     # Initialize checker (downloads model on first use)
-    checker = SemanticQualityChecker(
-        similarity_threshold=0.5,
-        toxicity_threshold=0.7
-    )
+    checker = SemanticQualityChecker(similarity_threshold=0.5, toxicity_threshold=0.7)
 
     if not checker.is_available():
         print("⚠️  FastEmbed not available. Install with: pip install fastembed")
@@ -221,7 +218,7 @@ def demo_model_recommendations():
 
         for i, model in enumerate(models[:3], 1):  # Show top 3
             print(f"{i}. {model['name']}")
-            reason = model.get('reason', 'Recommended for this domain')
+            reason = model.get("reason", "Recommended for this domain")
             print(f"   Reason: {reason}")
 
         print()
@@ -253,7 +250,10 @@ def demo_keyword_weighting():
     queries = [
         ("Use async and await in Python", "Many very_strong CODE keywords"),
         ("Write some code", "Generic keywords only"),
-        ("Implement pandas ETL with SQL correlation analysis", "Multiple very_strong DATA keywords"),
+        (
+            "Implement pandas ETL with SQL correlation analysis",
+            "Multiple very_strong DATA keywords",
+        ),
     ]
 
     for query, description in queries:
@@ -331,12 +331,16 @@ def demo_cost_optimization():
         total_without += without_cost
         total_with += with_cost
 
-        print(f"{query[:48]:<50} ${without_cost:.2f} ({scenario['without_routing']:<8}) "
-              f"${with_cost:.2f} ({domain.value[:8]:<8}) {savings_pct:>5.0f}%")
+        print(
+            f"{query[:48]:<50} ${without_cost:.2f} ({scenario['without_routing']:<8}) "
+            f"${with_cost:.2f} ({domain.value[:8]:<8}) {savings_pct:>5.0f}%"
+        )
 
     print("-" * 80)
     total_savings_pct = ((total_without - total_with) / total_without) * 100
-    print(f"{'TOTAL':<50} ${total_without:.2f}{' '*12}${total_with:.2f}{' '*12}{total_savings_pct:>5.0f}%")
+    print(
+        f"{'TOTAL':<50} ${total_without:.2f}{' '*12}${total_with:.2f}{' '*12}{total_savings_pct:>5.0f}%"
+    )
     print()
 
     print(f"💰 Total savings: ${total_without - total_with:.2f} ({total_savings_pct:.0f}%)")

@@ -176,9 +176,7 @@ class TestLiteLLMCostProvider:
         provider = LiteLLMCostProvider()
 
         gpt4_cost = provider.calculate_cost("gpt-4", input_tokens=1000, output_tokens=1000)
-        gpt35_cost = provider.calculate_cost(
-            "gpt-3.5-turbo", input_tokens=1000, output_tokens=1000
-        )
+        gpt35_cost = provider.calculate_cost("gpt-3.5-turbo", input_tokens=1000, output_tokens=1000)
 
         # GPT-4 should be more expensive than GPT-3.5
         assert gpt4_cost > gpt35_cost
@@ -244,9 +242,7 @@ class TestConvenienceFunctions:
     def test_calculate_cost_with_kwargs(self):
         """Should accept additional kwargs."""
         # Should not raise even with extra kwargs
-        cost = calculate_cost(
-            "gpt-4", input_tokens=100, output_tokens=50, custom_param="test"
-        )
+        cost = calculate_cost("gpt-4", input_tokens=100, output_tokens=50, custom_param="test")
 
         assert isinstance(cost, float)
 

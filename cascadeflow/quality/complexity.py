@@ -25,6 +25,7 @@ from typing import Optional, Union, Tuple, Dict, Any, List
 # Optional ML imports
 try:
     from ..ml.embedding import UnifiedEmbeddingService
+
     HAS_ML = True
 except ImportError:
     HAS_ML = False
@@ -1302,10 +1303,7 @@ class SemanticComplexityDetector:
         self._embeddings_computed = False
 
         # Check availability
-        self.is_available = (
-            self.embedder is not None and
-            self.embedder.is_available
-        )
+        self.is_available = self.embedder is not None and self.embedder.is_available
 
         if not self.is_available:
             logger.warning(
@@ -1328,13 +1326,16 @@ class SemanticComplexityDetector:
                 # Average exemplar embeddings to get complexity centroid
                 try:
                     import numpy as np
+
                     complexity_embedding = np.mean(embeddings, axis=0)
                     self._complexity_embeddings[complexity] = complexity_embedding
                 except Exception as e:
                     logger.warning(f"Failed to compute embedding for {complexity}: {e}")
 
         self._embeddings_computed = True
-        logger.info(f"✓ Computed embeddings for {len(self._complexity_embeddings)} complexity levels")
+        logger.info(
+            f"✓ Computed embeddings for {len(self._complexity_embeddings)} complexity levels"
+        )
 
     def detect(self, query: str) -> Tuple[QueryComplexity, float]:
         """
@@ -1370,9 +1371,7 @@ class SemanticComplexityDetector:
         # Calculate similarity to each complexity level
         scores: Dict[QueryComplexity, float] = {}
         for complexity, complexity_embedding in self._complexity_embeddings.items():
-            similarity = self.embedder._cosine_similarity(
-                query_embedding, complexity_embedding
-            )
+            similarity = self.embedder._cosine_similarity(query_embedding, complexity_embedding)
             scores[complexity] = float(similarity) if similarity is not None else 0.0
 
         # Find best match

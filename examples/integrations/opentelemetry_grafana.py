@@ -35,7 +35,8 @@ Dimensions (tags):
 import asyncio
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from cascadeflow.integrations.otel import (
     OpenTelemetryExporter,
@@ -66,7 +67,9 @@ async def simulate_queries():
     if not exporter.enabled:
         print("\n⚠️  OpenTelemetry not available!")
         print("   Install with:")
-        print("   pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http")
+        print(
+            "   pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http"
+        )
         print("\n   Or set OTEL_EXPORTER_OTLP_ENDPOINT to disable this warning.")
         return
 

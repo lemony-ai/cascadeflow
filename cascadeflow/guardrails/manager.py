@@ -56,7 +56,7 @@ class GuardrailsManager:
     async def check_content(
         self,
         text: str,
-        profile: 'UserProfile',
+        profile: "UserProfile",
     ) -> GuardrailsCheck:
         """
         Check content against enabled guardrails.
@@ -91,13 +91,13 @@ class GuardrailsManager:
             is_safe=is_safe,
             content_moderation=moderation_result,
             pii_detected=pii_matches,
-            violations=violations
+            violations=violations,
         )
 
     async def redact_pii(
         self,
         text: str,
-        profile: 'UserProfile',
+        profile: "UserProfile",
     ) -> Tuple[str, List[PIIMatch]]:
         """
         Redact PII from text if PII detection is enabled.

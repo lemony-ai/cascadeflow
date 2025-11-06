@@ -16,6 +16,7 @@ from .base import BaseProvider, ModelResponse, RetryConfig
 # REASONING MODEL SUPPORT
 # ==============================================================================
 
+
 class ReasoningModelInfo:
     """
     Information about reasoning model capabilities and limitations.
@@ -77,7 +78,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
     name = model_name.lower()
 
     # O1 preview/mini (original reasoning models)
-    if 'o1-preview' in name or 'o1-mini' in name:
+    if "o1-preview" in name or "o1-mini" in name:
         return ReasoningModelInfo(
             is_reasoning=True,
             supports_streaming=True,
@@ -88,7 +89,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         )
 
     # O1 (2024-12-17) - more capable with reasoning_effort
-    if 'o1-2024-12-17' in name or name == 'o1':
+    if "o1-2024-12-17" in name or name == "o1":
         return ReasoningModelInfo(
             is_reasoning=True,
             supports_streaming=False,  # Not supported
@@ -99,7 +100,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         )
 
     # O3-mini (future reasoning model)
-    if 'o3-mini' in name:
+    if "o3-mini" in name:
         return ReasoningModelInfo(
             is_reasoning=True,
             supports_streaming=True,
@@ -110,7 +111,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         )
 
     # GPT-5 series (reasoning model like o1/o3)
-    if name.startswith('gpt-5'):
+    if name.startswith("gpt-5"):
         return ReasoningModelInfo(
             is_reasoning=True,  # GPT-5 is a reasoning model with internal reasoning tokens
             supports_streaming=True,
@@ -620,7 +621,7 @@ class OpenAIProvider(BaseProvider):
         messages.append({"role": "user", "content": prompt})
 
         # Check if this is GPT-5 model for correct token parameter
-        is_gpt5 = model.lower().startswith('gpt-5')
+        is_gpt5 = model.lower().startswith("gpt-5")
 
         # Build request payload with correct parameters
         payload = {
