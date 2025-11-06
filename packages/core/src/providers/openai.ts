@@ -46,14 +46,18 @@ const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-4o-2024-08-06': { input: 0.0025, output: 0.010 },
   'gpt-4o-2024-05-13': { input: 0.005, output: 0.015 },
 
-  // O1 series (reasoning models)
+  // O1 series (reasoning models - previous generation)
   'o1-preview': { input: 0.015, output: 0.060 },
   'o1-mini': { input: 0.003, output: 0.012 },
   'o1': { input: 0.015, output: 0.060 }, // o1-2024-12-17
   'o1-2024-12-17': { input: 0.015, output: 0.060 },
 
-  // O3 series (reasoning models - future)
+  // O3 series (reasoning models - released April 2025)
+  'o3': { input: 0.010, output: 0.040 },
   'o3-mini': { input: 0.001, output: 0.005 },
+
+  // O4 series (reasoning models - latest, optimized for speed and cost)
+  'o4-mini': { input: 0.0008, output: 0.004 },
 
   // GPT-4 series (previous generation)
   'gpt-4-turbo': { input: 0.010, output: 0.030 },
@@ -103,8 +107,33 @@ export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
     };
   }
 
-  // O3-mini (future reasoning model)
+  // O3 series (released April 2025)
   if (name.includes('o3-mini')) {
+    return {
+      isReasoning: true,
+      provider: 'openai',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsSystemMessages: false,
+      supportsReasoningEffort: true,
+      requiresMaxCompletionTokens: true,
+    };
+  }
+
+  if (name === 'o3' || name.startsWith('o3-')) {
+    return {
+      isReasoning: true,
+      provider: 'openai',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsSystemMessages: false,
+      supportsReasoningEffort: true,
+      requiresMaxCompletionTokens: true,
+    };
+  }
+
+  // O4 series (latest reasoning models)
+  if (name.includes('o4-mini') || name.includes('o4')) {
     return {
       isReasoning: true,
       provider: 'openai',

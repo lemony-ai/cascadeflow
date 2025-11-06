@@ -92,9 +92,9 @@ async function main() {
   // Anthropic: Mid-tier
   if (process.env.ANTHROPIC_API_KEY) {
     models.push({
-      name: 'claude-3-haiku-20240307',
+      name: 'claude-haiku-4-5',
       provider: 'anthropic',
-      cost: 0.00075,
+      cost: 0.001,
       qualityThreshold: 0.85,
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
