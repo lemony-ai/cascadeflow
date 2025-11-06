@@ -82,6 +82,7 @@ local = [
 # Semantic routing (optional feature)
 semantic = [
     "sentence-transformers>=2.2.0",
+    "fastembed>=0.2.0",
 ]
 
 # Development tools (includes rich for terminal output)
@@ -90,6 +91,8 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "python-dotenv>=1.0.0",
+    "fastembed>=0.2.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.5.0",
@@ -115,6 +118,7 @@ all = [
     "together>=0.2.0",
     "vllm>=0.2.0",
     "sentence-transformers>=2.2.0",
+    "fastembed>=0.2.0",
 ]
 
 [project.urls]
@@ -125,7 +129,7 @@ Repository = "https://github.com/lemony-ai/cascadeflow"
 Changelog = "https://github.com/lemony-ai/cascadeflow/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = {find = {}}  # Automatically find all packages
+packages = {find = {where = ["."], exclude = ["tests*", "examples*", "docs*", "packages*", "node_modules*", ".venv*", "build*", "dist*"]}}
 
 [tool.setuptools.package-data]
 cascadeflow = ["py.typed"]
@@ -246,6 +250,13 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--asyncio-mode=auto",
+]
+markers = [
+    "integration: marks tests that require external services or API keys (deselect with '-m \"not integration\"')",
+    "requires_api: marks tests that require API keys to run",
+    "requires_ollama: marks tests that require Ollama to be running",
+    "requires_vllm: marks tests that require vLLM to be running",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
 [tool.coverage.run]

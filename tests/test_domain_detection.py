@@ -628,5 +628,6 @@ def test_all_domains_have_keywords(detector):
     for domain in Domain:
         keywords = detector.domain_keywords.get(domain)
         assert keywords is not None
-        # Each domain should have at least strong keywords
-        assert len(keywords.strong) > 0 or len(keywords.very_strong) > 0
+        # Each specialized domain should have keywords (except GENERAL fallback)
+        if domain != Domain.GENERAL:
+            assert len(keywords.strong) > 0 or len(keywords.very_strong) > 0

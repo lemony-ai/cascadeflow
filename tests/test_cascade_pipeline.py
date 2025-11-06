@@ -432,7 +432,9 @@ class TestBuiltInStrategies:
         assert Domain.MEDICAL in available
         assert Domain.GENERAL in available
         assert Domain.DATA in available
-        assert len(available) == 4
+        assert Domain.MATH in available
+        assert Domain.STRUCTURED in available
+        assert len(available) == 6
 
 
 # ============================================================================
