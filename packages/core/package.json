@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/core",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "cascadeflow TypeScript library - Smart AI model cascading for cost optimization",
   "author": {
     "name": "Lemony Inc.",
