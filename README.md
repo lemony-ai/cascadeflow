@@ -376,7 +376,7 @@ Configure cascadeflow node:
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
 | **Preset Usage** | Use built-in presets for quick setup | [View](./docs/guides/presets.md) |
 | **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
-| **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
+| **Reasoning Models**  | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
 | **Streaming Text** | Stream responses from cascade agents | [View](./examples/streaming_text.py) |
 | **Cost Tracking** | Track and analyze costs across queries | [View](./examples/cost_tracking.py) |
