@@ -109,6 +109,7 @@ jobs:
           path: dist/
 
       - name: Publish to PyPI
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
@@ -150,6 +151,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Publish @cascadeflow/core
+        continue-on-error: true
         run: |
           cd packages/core
           npm publish --access public --provenance
@@ -157,6 +159,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/ml
+        continue-on-error: true
         run: |
           cd packages/ml
           npm publish --access public --provenance
@@ -164,6 +167,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/n8n-nodes-cascadeflow
+        continue-on-error: true
         run: |
           cd packages/integrations/n8n
           npm publish --access public --provenance --ignore-scripts
@@ -189,6 +193,7 @@ jobs:
           path: dist/
 
       - name: Publish to TestPyPI
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
