@@ -125,10 +125,10 @@ jobs:
         run: |
           pnpm --filter @cascadeflow/ml build
           pnpm --filter @cascadeflow/core build
-          pnpm --filter n8n-nodes-cascadeflow build
+          pnpm --filter @cascadeflow/n8n-nodes-cascadeflow build
 
       - name: Lint n8n package
-        run: pnpm --filter n8n-nodes-cascadeflow lint
+        run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow lint
 
   # Python Code Quality
   lint-python:
@@ -191,7 +191,7 @@ jobs:
         run: pnpm --filter @cascadeflow/core exec tsc --noEmit
 
       - name: Lint n8n Integration
-        run: pnpm --filter n8n-nodes-cascadeflow lint
+        run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow lint
 
   # Security Scanning
   security:
