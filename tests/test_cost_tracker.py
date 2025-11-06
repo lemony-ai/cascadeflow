@@ -313,7 +313,7 @@ class TestTimeBudgetResets:
 
     @pytest.mark.skipif(
         platform.system() == "Windows",
-        reason="Timing-sensitive test is flaky on Windows Python 3.10/3.11"
+        reason="Timing-sensitive test is flaky on Windows Python 3.10/3.11",
     )
     def test_daily_budget_reset(self):
         """Test daily budget resets after 24 hours."""

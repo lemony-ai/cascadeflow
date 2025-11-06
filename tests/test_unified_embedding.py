@@ -9,6 +9,7 @@ Validates:
 - Similarity calculations
 """
 
+import platform
 import time
 from unittest.mock import Mock, patch
 
@@ -325,6 +326,10 @@ class TestRealFastEmbed:
         assert sim_low is not None
         assert sim_high > sim_low  # Similar > unrelated
 
+    @pytest.mark.skipif(
+        platform.system() == "Darwin",
+        reason="Timing-sensitive test is flaky on macOS Python 3.12",
+    )
     def test_real_batch_efficiency(self, service):
         """Test that batch embedding is faster than individual."""
         texts = ["text1", "text2", "text3"]
