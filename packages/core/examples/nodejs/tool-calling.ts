@@ -42,36 +42,42 @@ async function main() {
 
   const tools = [
     {
-      name: 'get_weather',
-      description: 'Get the current weather for a location',
-      parameters: {
-        type: 'object',
-        properties: {
-          location: {
-            type: 'string',
-            description: 'City name, e.g., "San Francisco"',
+      type: 'function' as const,
+      function: {
+        name: 'get_weather',
+        description: 'Get the current weather for a location',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: {
+              type: 'string',
+              description: 'City name, e.g., "San Francisco"',
+            },
+            unit: {
+              type: 'string',
+              enum: ['celsius', 'fahrenheit'],
+              description: 'Temperature unit',
+            },
           },
-          unit: {
-            type: 'string',
-            enum: ['celsius', 'fahrenheit'],
-            description: 'Temperature unit',
-          },
+          required: ['location'],
         },
-        required: ['location'],
       },
     },
     {
-      name: 'calculate',
-      description: 'Perform a mathematical calculation',
-      parameters: {
-        type: 'object',
-        properties: {
-          expression: {
-            type: 'string',
-            description: 'Mathematical expression to evaluate, e.g., "2 + 2"',
+      type: 'function' as const,
+      function: {
+        name: 'calculate',
+        description: 'Perform a mathematical calculation',
+        parameters: {
+          type: 'object',
+          properties: {
+            expression: {
+              type: 'string',
+              description: 'Mathematical expression to evaluate, e.g., "2 + 2"',
+            },
           },
+          required: ['expression'],
         },
-        required: ['expression'],
       },
     },
   ];
@@ -133,7 +139,7 @@ async function main() {
     if (result.toolCalls && result.toolCalls.length > 0) {
       console.log(`   🔧 Tool Calls: ${result.toolCalls.length}`);
       result.toolCalls.forEach((call, i) => {
-        console.log(`      ${i + 1}. ${call.name}(${JSON.stringify(call.arguments)})`);
+        console.log(`      ${i + 1}. ${call.function.name}(${call.function.arguments})`);
       });
     } else {
       console.log('   🔧 Tool Calls: None (answered directly)');

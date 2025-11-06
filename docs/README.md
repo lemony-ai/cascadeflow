@@ -37,16 +37,16 @@ Welcome to cascadeflow documentation! 🌊
 
 ## 📚 Examples
 
-See the [examples/](../examples/) directory for comprehensive working code samples:
+Comprehensive working code samples:
 
-**Python Examples:**
+**Python Examples:** [examples/](../examples/)
 - Basic usage, preset usage, multi-provider
 - Tool execution, streaming, cost tracking
 - Production patterns, FastAPI integration
 - Edge device deployment, vLLM integration
 - Custom cascades and validation
 
-**TypeScript Examples:**
+**TypeScript Examples:** [packages/core/examples/](../packages/core/examples/)
 - Basic usage, tool calling, multi-provider
 - Streaming responses
 - Production patterns

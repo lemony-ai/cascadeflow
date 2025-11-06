@@ -1,6 +1,6 @@
-# cascadeflow Quick Start Guide
+# cascadeflow Quick Start Guide (TypeScript)
 
-Get started with cascadeflow in 5 minutes. This guide walks you through the basics of intelligent model cascading.
+Get started with cascadeflow in TypeScript/JavaScript in 5 minutes. This guide walks you through the basics of intelligent model cascading.
 
 ---
 
@@ -49,10 +49,25 @@ Complex query → GPT-4o-mini ❌ (draft rejected) → GPT-4o ✅ → Cost: $0.0
 ### Step 1: Install cascadeflow
 
 ```bash
-pip install cascadeflow[all]
+npm install @cascadeflow/core
 ```
 
-### Step 2: Set Up API Key
+### Step 2: Install Provider SDKs
+
+Install the SDK for your chosen provider:
+
+```bash
+# OpenAI (most common)
+npm install openai
+
+# Anthropic
+npm install @anthropic-ai/sdk
+
+# Groq
+npm install groq-sdk
+```
+
+### Step 3: Set Up API Key
 
 ```bash
 # OpenAI
@@ -62,65 +77,66 @@ export OPENAI_API_KEY="sk-..."
 echo "OPENAI_API_KEY=sk-..." >> .env
 ```
 
-### Step 3: Verify Installation
+### Step 4: Verify Installation
 
 ```bash
-python -c "import cascadeflow; print(cascadeflow.__version__)"
+node -e "import('@cascadeflow/core').then(m => console.log('✅ Installed'))"
 ```
 
 ---
 
 ## Your First Cascade
 
-Create a file called `my_first_cascade.py`:
+Create a file called `my-first-cascade.ts`:
 
-```python
-import asyncio
-from cascadeflow import CascadeAgent, ModelConfig
+```typescript
+import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
 
-async def main():
-    # Configure cascade with two tiers
-    agent = CascadeAgent(models=[
-        # Tier 1: Cheap model (tries first)
-        ModelConfig(
-            name="gpt-4o-mini",
-            provider="openai",
-            cost=0.000375,  # $0.375 per 1M tokens (blended)
-        ),
+async function main() {
+  // Configure cascade with two tiers
+  const agent = new CascadeAgent({
+    models: [
+      // Tier 1: Cheap model (tries first)
+      {
+        name: 'gpt-4o-mini',
+        provider: 'openai',
+        cost: 0.000375,  // $0.375 per 1M tokens (blended)
+      },
 
-        # Tier 2: Expensive model (only if needed)
-        ModelConfig(
-            name="gpt-4o",
-            provider="openai",
-            cost=0.00625,  # $6.25 per 1M tokens (blended)
-        ),
-    ])
-    # Quality validation uses default cascade-optimized config (0.7 threshold)
-    # See "Quality Configuration" section below to customize
+      // Tier 2: Expensive model (only if needed)
+      {
+        name: 'gpt-4o',
+        provider: 'openai',
+        cost: 0.00625,  // $6.25 per 1M tokens (blended)
+      },
+    ],
+  });
+  // Quality validation uses default cascade-optimized config (0.7 threshold)
+  // See "Configuration Options" section below to customize
 
-    # Try a simple query
-    result = await agent.run("What color is the sky?")
+  // Try a simple query
+  const result = await agent.run('What color is the sky?');
 
-    print(f"Response: {result.content}")
-    print(f"Model used: {result.model_used}")
-    print(f"Cost: ${result.total_cost:.6f}")
-    print(f"Draft accepted: {result.draft_accepted}")
+  console.log(`Response: ${result.content}`);
+  console.log(`Model used: ${result.modelUsed}`);
+  console.log(`Cost: $${result.totalCost.toFixed(6)}`);
+  console.log(`Draft accepted: ${result.draftAccepted}`);
+}
 
-if __name__ == "__main__":
-    asyncio.run(main())
+main().catch(console.error);
 ```
 
 Run it:
 ```bash
-python my_first_cascade.py
+npx tsx my-first-cascade.ts
 ```
 
 Expected output:
 ```
 Response: The sky is typically blue during the day.
 Model used: gpt-4o-mini
-Cost: $0.000014
-Draft accepted: True
+Cost: $0.000081
+Draft accepted: true
 ```
 
 **What happened?**
@@ -221,20 +237,20 @@ Draft accepted: True
 
 cascadeflow uses **actual token-based pricing**, not flat rates:
 
-```python
-# Your query
-query = "What is Python?"  # ~4 tokens
+```typescript
+// Your query
+const query = "What is TypeScript?";  // ~4 tokens
 
-# Model's response
-response = "Python is a programming language..."  # ~50 tokens
+// Model's response
+const response = "TypeScript is a programming language...";  // ~50 tokens
 
-# Total tokens
-total = 4 (input) + 50 (output) = 54 tokens
+// Total tokens
+const total = 4 (input) + 50 (output) = 54 tokens
 
-# Cost calculation (GPT-4o-mini example)
-input_cost  = (4 / 1000) × $0.00015 = $0.0000006
-output_cost = (50 / 1000) × $0.0006 = $0.000030
-total_cost  = $0.0000306
+// Cost calculation (GPT-4o-mini example)
+const inputCost  = (4 / 1000) × $0.00015 = $0.0000006
+const outputCost = (50 / 1000) × $0.0006 = $0.000030
+const totalCost  = $0.0000306
 ```
 
 ### Cost Breakdown by Scenario
@@ -296,56 +312,59 @@ Your savings depend on your query mix:
 
 ### Model Configuration
 
-```python
-ModelConfig(
-    name="gpt-4o-mini",             # Model name
-    provider="openai",              # Provider (openai, anthropic, groq, ollama)
-    cost=0.000375,                  # Cost per 1K tokens (blended estimate)
-    speed_ms=500,                   # Expected latency (optional)
-    supports_tools=True,            # Whether model supports tool calling (optional)
-)
+```typescript
+import { ModelConfig } from '@cascadeflow/core';
+
+const modelConfig: ModelConfig = {
+  name: 'gpt-4o-mini',               // Model name
+  provider: 'openai',                // Provider (openai, anthropic, groq, ollama)
+  cost: 0.000375,                    // Cost per 1K tokens (blended estimate)
+  apiKey: process.env.OPENAI_API_KEY // Optional: override default API key
+};
 ```
 
 ### Agent Configuration
 
-```python
-agent = CascadeAgent(
-    models=[tier1, tier2],          # List of models (ordered by cost)
-    verbose=True,                   # Enable logging
-    enable_cascade=True,            # Enable cascade system
-)
+```typescript
+const agent = new CascadeAgent({
+  models: [tier1, tier2],            // List of models (ordered by cost)
+  verbose: true,                     // Enable logging
+  enableCascade: true,               // Enable cascade system
+});
 ```
 
 ### Quality Configuration
 
-Quality validation is controlled via `QualityConfig`, not individual models:
+Quality validation is controlled via the `quality` option on the agent:
 
-```python
-from cascadeflow import CascadeAgent, ModelConfig, QualityConfig
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
 
-# Option 1: Use preset configurations
-agent = CascadeAgent(
-    models=[...],
-    quality_config=QualityConfig.for_cascade()     # Optimized for cascading (default)
-)
+// Option 1: Use default (recommended for cascading)
+const agent = new CascadeAgent({
+  models: [...],
+  // Default quality config automatically applied (0.7 threshold)
+});
 
-# Option 2: Use other presets
-quality_config = QualityConfig.for_production()    # Balanced (0.80 threshold)
-quality_config = QualityConfig.for_development()   # Lenient (0.65 threshold)
-quality_config = QualityConfig.strict()            # Rigorous (0.95 threshold)
+// Option 2: Customize quality settings
+const agent = new CascadeAgent({
+  models: [...],
+  quality: {
+    threshold: 0.7,                  // Confidence threshold (0.0-1.0)
+    requireMinimumTokens: 10,        // Minimum response length
+  },
+});
 
-# Option 3: Customize thresholds by complexity
-quality_config = QualityConfig(
-    confidence_thresholds={
-        'trivial': 0.6,    # Very simple queries
-        'simple': 0.7,     # Simple queries
-        'moderate': 0.75,  # Moderate complexity
-        'hard': 0.8,       # Hard queries
-        'expert': 0.85     # Expert-level queries
-    }
-)
-
-agent = CascadeAgent(models=[...], quality_config=quality_config)
+// Option 3: Enable semantic validation with ML
+const agent = new CascadeAgent({
+  models: [...],
+  quality: {
+    threshold: 0.40,                 // Traditional confidence threshold
+    requireMinimumTokens: 5,
+    useSemanticValidation: true,     // Enable ML-based validation
+    semanticThreshold: 0.5,          // 50% minimum similarity
+  },
+});
 ```
 
 **Quality Threshold Trade-offs:**
@@ -361,8 +380,8 @@ agent = CascadeAgent(models=[...], quality_config=quality_config)
 
 **Good Combinations:**
 - GPT-4o-mini → GPT-4o (balanced, recommended)
-- GPT-4o-mini → GPT-4 Turbo (quality-focused)
-- Llama 3.1 8B → GPT-4o (maximum savings)
+- Claude Haiku → GPT-4o (cross-provider)
+- Llama 3.1 8B (Groq) → GPT-4o (maximum savings)
 
 **Avoid:**
 - Similar-tier models (GPT-4o-mini → GPT-3.5 Turbo)
@@ -372,15 +391,16 @@ agent = CascadeAgent(models=[...], quality_config=quality_config)
 
 Start with default (0.7) and adjust based on your needs:
 
-```python
-# Track acceptance rates
-results = []
-for query in your_queries:
-    result = await agent.run(query)
-    results.append(result.draft_accepted)
+```typescript
+// Track acceptance rates
+const results: boolean[] = [];
+for (const query of yourQueries) {
+  const result = await agent.run(query);
+  results.push(result.draftAccepted || false);
+}
 
-acceptance_rate = sum(results) / len(results)
-print(f"Draft acceptance rate: {acceptance_rate:.1%}")
+const acceptanceRate = results.filter(Boolean).length / results.length;
+console.log(`Draft acceptance rate: ${(acceptanceRate * 100).toFixed(1)}%`);
 ```
 
 **If acceptance rate is:**
@@ -390,38 +410,41 @@ print(f"Draft acceptance rate: {acceptance_rate:.1%}")
 
 ### 3. Monitor Costs
 
-```python
-# Track costs over time
-total_cost = 0
-for query in your_queries:
-    result = await agent.run(query)
-    total_cost += result.total_cost
+```typescript
+// Track costs over time
+let totalCost = 0;
+for (const query of yourQueries) {
+  const result = await agent.run(query);
+  totalCost += result.totalCost;
+}
 
-print(f"Total cost: ${total_cost:.6f}")
-print(f"Average per query: ${total_cost/len(your_queries):.6f}")
+console.log(`Total cost: $${totalCost.toFixed(6)}`);
+console.log(`Average per query: $${(totalCost / yourQueries.length).toFixed(6)}`);
 ```
 
 ### 4. Handle Failures Gracefully
 
-```python
-try:
-    result = await agent.run(query)
-except Exception as e:
-    print(f"Error: {e}")
-    # Fallback logic here
+```typescript
+try {
+  const result = await agent.run(query);
+  console.log(result.content);
+} catch (error) {
+  console.error('Error:', error);
+  // Fallback logic here
+}
 ```
 
 ### 5. Use Appropriate Max Tokens
 
-```python
-# Short responses (save cost)
-result = await agent.run(query, max_tokens=50)
+```typescript
+// Short responses (save cost)
+const result = await agent.run(query, { maxTokens: 50 });
 
-# Medium responses (balanced)
-result = await agent.run(query, max_tokens=150)
+// Medium responses (balanced)
+const result = await agent.run(query, { maxTokens: 150 });
 
-# Long responses (quality)
-result = await agent.run(query, max_tokens=500)
+// Long responses (quality)
+const result = await agent.run(query, { maxTokens: 500 });
 ```
 
 ---
@@ -435,10 +458,12 @@ result = await agent.run(query, max_tokens=500)
 - Costs almost same as GPT-4 only
 
 **Solutions:**
-1. Lower quality threshold via QualityConfig:
-   ```python
-   quality_config = QualityConfig(confidence_thresholds={'moderate': 0.6})
-   agent = CascadeAgent(models=[...], quality_config=quality_config)
+1. Lower quality threshold:
+   ```typescript
+   const agent = new CascadeAgent({
+     models: [...],
+     quality: { threshold: 0.6 }
+   });
    ```
 2. Use better draft model: Try GPT-4o-mini (already recommended)
 3. Check query complexity: Ensure you have simple queries in your mix
@@ -450,13 +475,15 @@ result = await agent.run(query, max_tokens=500)
 - Responses are incorrect or low quality
 
 **Solutions:**
-1. Raise quality threshold via QualityConfig:
-   ```python
-   quality_config = QualityConfig(confidence_thresholds={'moderate': 0.75})
-   agent = CascadeAgent(models=[...], quality_config=quality_config)
+1. Raise quality threshold:
+   ```typescript
+   const agent = new CascadeAgent({
+     models: [...],
+     quality: { threshold: 0.75 }
+   });
    ```
 2. Use better verifier model: Try GPT-4o instead of GPT-4
-3. Enable verbose mode to see quality scores: `verbose=True`
+3. Enable verbose mode to see quality scores: `verbose: true`
 
 ### Issue: High Latency
 
@@ -466,9 +493,8 @@ result = await agent.run(query, max_tokens=500)
 
 **Solutions:**
 1. Use faster models: Groq Llama for draft, GPT-4o-mini for verifier
-2. Enable streaming: `enable_streaming=True`
-3. Reduce max_tokens: `max_tokens=100`
-4. Skip cascade for time-critical queries
+2. Reduce max_tokens: `maxTokens: 100`
+3. Skip cascade for time-critical queries
 
 ### Issue: Costs Higher Than Expected
 
@@ -486,13 +512,35 @@ result = await agent.run(query, max_tokens=500)
 2. Lower quality threshold slightly
 3. Use cheaper draft model (Groq Llama, Ollama)
 
+### Issue: TypeScript Type Errors
+
+**Symptoms:**
+- Compilation errors about missing types
+- IDE not showing autocomplete
+
+**Solutions:**
+1. Ensure TypeScript version 4.5+:
+   ```bash
+   npm install -D typescript@latest
+   ```
+2. Check `tsconfig.json` includes:
+   ```json
+   {
+     "compilerOptions": {
+       "moduleResolution": "node16",
+       "module": "ES2022"
+     }
+   }
+   ```
+
 ---
 
 ## Next Steps
 
 ### 1. Run the Basic Example
 ```bash
-python examples/basic_usage.py
+cd packages/core/examples/nodejs
+npx tsx basic-usage.ts
 ```
 
 ### 2. Customize for Your Use Case
@@ -501,17 +549,25 @@ python examples/basic_usage.py
 - Add your queries
 
 ### 3. Read Advanced Guides
-- [Streaming Responses](./streaming.md)
-- [Tool Calling](./tools.md)
 - [Multi-Provider Setup](./providers.md)
+- [Custom Validation](./custom_validation.md)
+- [Browser/Edge Deployment](./browser_cascading.md)
 
-### 4. Deploy to Production
+### 4. Explore More Examples
+- **Tool Calling:** `tool-calling.ts`
+- **Cost Tracking:** `cost-tracking.ts`
+- **Multi-Provider:** `multi-provider.ts`
+- **Reasoning Models:** `reasoning-models.ts`
+- **Semantic Quality:** `semantic-quality.ts`
+- **Production Patterns:** `production-patterns.ts`
+
+### 5. Deploy to Production
 - Set up monitoring
 - Configure logging
 - Implement fallbacks
 - Track costs
 
-### 5. Join the Community
+### 6. Join the Community
 - ⭐ Star the [GitHub repo](https://github.com/lemony-ai/cascadeflow)
 - 💬 Join [Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
 - 🐛 Report issues
@@ -525,44 +581,119 @@ python examples/basic_usage.py
 
 ```bash
 # Install
-pip install cascadeflow[all]
+npm install @cascadeflow/core openai
 
 # Run example
-python examples/basic_usage.py
+npx tsx my-cascade.ts
 
-# Check version
-python -c "import cascadeflow; print(cascadeflow.__version__)"
+# Check types
+npx tsc --noEmit
 
-# Run with verbose logging
-python examples/basic_usage.py --verbose
+# Run with watch mode
+npx tsx watch my-cascade.ts
 ```
 
 ### Code Snippets
 
 **Basic Usage:**
-```python
-from cascadeflow import CascadeAgent, ModelConfig
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
 
-agent = CascadeAgent(models=[
-    ModelConfig("gpt-4o-mini", "openai", cost=0.000375),
-    ModelConfig("gpt-4o", "openai", cost=0.00625),
-])
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
 
-result = await agent.run("Your query here")
+const result = await agent.run('Your query here');
 ```
 
 **Check Result:**
-```python
-print(f"Response: {result.content}")
-print(f"Model: {result.model_used}")
-print(f"Cost: ${result.total_cost:.6f}")
-print(f"Draft accepted: {result.draft_accepted}")
+```typescript
+console.log(`Response: ${result.content}`);
+console.log(`Model: ${result.modelUsed}`);
+console.log(`Cost: $${result.totalCost.toFixed(6)}`);
+console.log(`Draft accepted: ${result.draftAccepted}`);
 ```
 
 **Track Costs:**
-```python
-total = sum(r.total_cost for r in results)
-print(f"Total: ${total:.6f}")
+```typescript
+const total = results.reduce((sum, r) => sum + r.totalCost, 0);
+console.log(`Total: $${total.toFixed(6)}`);
+```
+
+**With Tools:**
+```typescript
+const result = await agent.run(query, {
+  tools: [
+    {
+      type: 'function',
+      function: {
+        name: 'get_weather',
+        description: 'Get weather for a location',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: { type: 'string' }
+          }
+        }
+      }
+    }
+  ]
+});
+```
+
+---
+
+## TypeScript-Specific Features
+
+### Full Type Safety
+
+```typescript
+import { CascadeAgent, ModelConfig, CascadeResult } from '@cascadeflow/core';
+
+const models: ModelConfig[] = [
+  { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+  { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+];
+
+const agent = new CascadeAgent({ models });
+const result: CascadeResult = await agent.run('Hello');
+
+// IDE autocomplete for all properties
+result.content;
+result.modelUsed;
+result.totalCost;
+result.draftAccepted;
+result.cascaded;
+```
+
+### Async/Await
+
+All operations are async - use `await` or `.then()`:
+
+```typescript
+// Using await
+const result = await agent.run(query);
+
+// Using .then()
+agent.run(query).then(result => {
+  console.log(result.content);
+});
+```
+
+### Universal Runtime Support
+
+Works in Node.js, browser, and edge runtimes:
+
+```typescript
+// Node.js
+import { CascadeAgent } from '@cascadeflow/core';
+
+// Browser/Edge
+import { CascadeAgent } from '@cascadeflow/core';
+// Same code works everywhere!
 ```
 
 ---
@@ -572,6 +703,7 @@ print(f"Total: ${total:.6f}")
 Need help?
 - 💬 Ask in [Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
 - 🐛 Report a [bug](https://github.com/lemony-ai/cascadeflow/issues)
+- 📧 Email [hello@lemony.ai](mailto:hello@lemony.ai)
 
 ---
 

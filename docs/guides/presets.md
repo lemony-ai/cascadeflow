@@ -630,9 +630,10 @@ print(f"Cost: ${result.total_cost:.6f}")
 ### Old Presets (v0.1.x):
 
 ```python
-from cascadeflow import CascadeAgent, PRESET_BEST_OVERALL
+from cascadeflow import get_balanced_agent
 
-agent = CascadeAgent(models=PRESET_BEST_OVERALL)
+# v0.1.x style (deprecated)
+agent = get_balanced_agent()
 ```
 
 ### New Presets 2.0 (v0.2.0):
@@ -741,9 +742,8 @@ def get_agent_for_tier(tier):
 - [Production Guide](./production.md) - Deploy to production
 
 ### Examples:
-- [examples/quickstart_v2.py](../../examples/quickstart_v2.py) - Simple example
-- [examples/preset_comparison.py](../../examples/preset_comparison.py) - Compare all presets
-- [examples/migration_example.py](../../examples/migration_example.py) - Migration example
+- [examples/basic_usage.py](../../examples/basic_usage.py) - Basic example
+- [examples/multi_provider.py](../../examples/multi_provider.py) - Multi-provider setup
 
 ### Validation:
 - [V0.2.0_FINAL_VALIDATION_REPORT.md](../../benchmark_results/V0.2.0_FINAL_VALIDATION_REPORT.md) - Full validation
@@ -761,7 +761,7 @@ Questions? Feedback?
 
 ---
 
-**Last Updated:** October 28, 2025
+**Last Updated:** October 28, 2024
 **Version:** v0.2.0
 **Status:** Production Ready
 

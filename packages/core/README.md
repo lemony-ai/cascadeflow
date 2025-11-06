@@ -45,7 +45,7 @@ const agent = new CascadeAgent({
     {
       name: 'claude-3-5-haiku-20241022',
       provider: 'anthropic',
-      cost: 0.0008  // Fast, high-quality drafter
+      cost: 0.00008  // Fast, high-quality drafter
     },
     {
       name: 'gpt-5',

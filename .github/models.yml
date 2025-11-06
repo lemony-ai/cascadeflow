@@ -1,0 +1,181 @@
+# GitHub Models Configuration for cascadeflow
+# Documents ML models used internally by the cascadeflow project
+
+# Embedding Model (Optional ML Enhancement)
+# This is the actual downloadable ML model used for semantic similarity
+ml_models:
+  embedding:
+    name: "BGE-small-en-v1.5"
+    description: "Semantic embedding model for query-response alignment scoring"
+
+    # Python Implementation
+    python:
+      model_id: "BAAI/bge-small-en-v1.5"
+      framework: "FastEmbed"
+      runtime: "ONNX"
+      size: "~40MB"
+      parameters: "45M"
+      dimensions: 384
+      latency: "20-30ms per embedding (CPU)"
+      mteb_score: 91.8
+      license: "MIT"
+      optional: true
+      fallback: "Heuristic-only alignment scoring"
+
+    # TypeScript Implementation
+    typescript:
+      model_id: "Xenova/bge-small-en-v1.5"
+      framework: "Transformers.js"
+      runtime: "ONNX"
+      size: "~40MB"
+      parameters: "45M"
+      dimensions: 384
+      latency: "20-50ms per embedding (CPU)"
+      mteb_score: 91.8
+      license: "MIT"
+      optional: true
+      fallback: "Heuristic-only alignment scoring"
+      works_in:
+        - "Node.js"
+        - "Browser"
+        - "Edge Functions"
+
+    use_cases:
+      - "Query-response semantic alignment"
+      - "Off-topic detection"
+      - "Enhanced quality validation"
+
+    installation:
+      python: "pip install fastembed"
+      typescript: "npm install @xenova/transformers"
+
+# Heuristic Models (No ML Required)
+heuristic_models:
+  python:
+    - name: "ComplexityDetector"
+      type: "Rule-based classifier"
+      purpose: "Query complexity detection (trivial/simple/moderate/hard/expert)"
+      size: "~500 technical terms database"
+
+    - name: "AlignmentScorer"
+      type: "Keyword-based scorer"
+      purpose: "Query-response relevance validation"
+      features:
+        - "Keyword overlap analysis"
+        - "Synonym matching (60+ abbreviations)"
+        - "Alignment floor: 0.15"
+
+    - name: "QualityValidator"
+      type: "Hybrid validator"
+      purpose: "Multi-signal quality validation"
+      signals:
+        - "Logprobs-based confidence"
+        - "Heuristic fallback (length, word count)"
+        - "Optional alignment integration"
+
+  typescript:
+    - name: "ComplexityDetector"
+      type: "Rule-based classifier"
+      purpose: "Query complexity detection (trivial/simple/moderate/hard/expert)"
+      size: "~500 technical terms database"
+
+    - name: "QueryResponseAlignmentScorer"
+      type: "Keyword-based scorer"
+      purpose: "Query-response relevance validation"
+      features:
+        - "Keyword overlap analysis"
+        - "Synonym matching (8 common pairs)"
+        - "Alignment floor: 0.15"
+
+    - name: "QualityValidator"
+      type: "Hybrid validator"
+      purpose: "Multi-signal quality validation"
+      signals:
+        - "Logprobs-based confidence"
+        - "Heuristic fallback (length, word count)"
+        - "Optional alignment integration"
+        - "Optional semantic validation (ML embeddings)"
+
+    - name: "SemanticQualityChecker"
+      type: "ML-based semantic validator"
+      purpose: "Semantic similarity validation using embeddings"
+      features:
+        - "Query-response semantic alignment"
+        - "BGE-small-en-v1.5 embeddings"
+        - "Request-scoped caching"
+        - "Graceful degradation"
+      latency: "50-100ms per check (with caching)"
+
+# Model Routing Strategy
+routing:
+  prerouter:
+    - complexity: ["trivial", "simple", "moderate"]
+      route: "cascade"
+      description: "Try cheap model first"
+
+    - complexity: ["hard", "expert"]
+      route: "direct"
+      description: "Route directly to expensive model"
+
+  cascade_tiers:
+    tier1:
+      description: "Draft model (cheap)"
+      examples:
+        - "gpt-4o-mini"
+        - "claude-3-5-haiku"
+        - "llama-3.1-8b"
+
+    tier2:
+      description: "Verifier model (expensive, used if draft rejected)"
+      examples:
+        - "gpt-4o"
+        - "claude-3-5-sonnet"
+        - "gpt-5"
+
+# Testing Models
+testing:
+  primary_test_models:
+    - provider: "openai"
+      models: ["gpt-4o-mini", "gpt-4o"]
+      purpose: "Primary test suite"
+
+    - provider: "anthropic"
+      models: ["claude-3-5-haiku", "claude-3-5-sonnet"]
+      purpose: "Alternative provider testing"
+
+  local_testing:
+    - provider: "ollama"
+      models: ["llama3.1:8b", "qwen2.5:7b"]
+      purpose: "Free local development"
+
+# Integration Libraries (Not ML Models)
+integrations:
+  python:
+    - name: "LiteLLM"
+      purpose: "Real-time cost calculations across 100+ models"
+      features:
+        - "Real-time pricing updates"
+        - "Batch/cached token pricing"
+        - "10+ provider support"
+
+  typescript:
+    - name: "LiteLLMCostProvider"
+      purpose: "Cost calculations with fallback pricing"
+      note: "Uses hardcoded fallback (LiteLLM is Python-only)"
+      features:
+        - "10 strategic providers"
+        - "9 common models"
+        - "Async API"
+
+# Feature Parity Status
+feature_parity:
+  complexity_detector: "✅ Full parity (Python & TypeScript)"
+  prerouter_logic: "✅ Full parity (Python & TypeScript)"
+  alignment_scorer: "✅ Full parity (Python & TypeScript)"
+  quality_validator: "✅ Full parity (Python & TypeScript)"
+  ml_embeddings: "✅ Full parity (Python & TypeScript - Both use BGE-small-en-v1.5 via @cascadeflow/ml)"
+  semantic_validation: "✅ Full parity (Python & TypeScript - Integrated with QualityValidator)"
+  litellm_integration: "⚠️ TypeScript uses fallback pricing (Python has real-time)"
+  domain_routing: "❌ Python only (TypeScript: Basic complexity routing, no domain detection)"
+  batch_processing: "❌ Python only (TypeScript: Not implemented)"
+  telemetry_advanced: "⚠️ Partial (Python: Full suite with anomaly/degradation detection, TypeScript: Cost forecasting only)"

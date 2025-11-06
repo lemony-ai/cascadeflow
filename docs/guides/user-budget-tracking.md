@@ -489,9 +489,9 @@ tracker.add_cost(
 ## Next Steps
 
 - [Production Deployment Guide](production.md) - Deploy with user tracking
-- [Cost Optimization](cost-optimization.md) - Reduce costs with cascading
+- [Cost Tracking Guide](cost_tracking.md) - Reduce costs with cascading
 - [API Reference](../api/telemetry.md) - Full telemetry API docs
-- [Examples](../../examples/user_budget_tracking.py) - Complete working example
+- [Budget Enforcement Examples](../../examples/enforcement/) - Complete working examples
 
 ## Troubleshooting
 

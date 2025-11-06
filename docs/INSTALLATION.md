@@ -155,7 +155,7 @@ ollama pull llama3.2:1b
 pip install cascadeflow
 
 # Test
-python examples/ollama_example.py
+python examples/multi_provider.py
 ```
 
 ## 📋 Dependencies Summary

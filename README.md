@@ -141,8 +141,8 @@ from cascadeflow import CascadeAgent, ModelConfig
 
 # Define your cascade - try cheap model first, escalate if needed
 agent = CascadeAgent(models=[
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),  # Try first (~$0.375/1M tokens)
-    ModelConfig(name="gpt-5", provider="openai", cost=0.00562),         # Fallback (~$5.62/1M tokens)
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),  # Draft model (~$0.375/1M tokens)
+    ModelConfig(name="gpt-5", provider="openai", cost=0.00562),         # Verifier model (~$5.62/1M tokens)
 ])
 
 # Run query - automatically routes to optimal model
@@ -196,9 +196,9 @@ print(f"Toxic: {result.is_toxic}")
 
 </details>
 
-> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow examples work without- GPT-5 is only called when needed (typically 20-30% of requests).
+> **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow examples work without - GPT-5 is only called when needed (typically 20-30% of requests).
 
-📖 **Learn more:** [Python Documentation](./docs/) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
+📖 **Learn more:** [Python Documentation](./docs/README.md) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
 
 ### <img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> TypeScript
 
@@ -212,7 +212,7 @@ import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
 // Same API as Python!
 const agent = new CascadeAgent({
   models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
   ],
 });
@@ -224,49 +224,69 @@ console.log(`Saved: ${result.savingsPercentage}%`);
 ```
 
 <details>
-<summary><b>💡 Optional: Use ML-based Semantic Quality Validation</b></summary>
+<summary><b>💡 Optional: ML-based Semantic Quality Validation</b></summary>
 
-For advanced use cases, you can add ML-based semantic similarity checking to validate that responses align with queries.
+For advanced quality validation, enable ML-based semantic similarity checking to ensure responses align with queries.
 
-**Step 1:** Install the optional ML package:
+**Step 1:** Install the optional ML packages:
 
 ```bash
-npm install @cascadeflow/ml  # Adds semantic similarity via Transformers.js
+npm install @cascadeflow/ml @xenova/transformers
 ```
 
-**Step 2:** Use semantic quality validation:
+**Step 2:** Enable semantic validation in your cascade:
 
 ```tsx
-import { SemanticQualityChecker } from '@cascadeflow/ml';
+import { CascadeAgent, SemanticQualityChecker } from '@cascadeflow/core';
 
-// Initialize semantic checker (downloads model on first use)
-const checker = new SemanticQualityChecker({
-  similarityThreshold: 0.5,  // Minimum similarity score (0-1)
-  toxicityThreshold: 0.7     // Maximum toxicity score (0-1)
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+  quality: {
+    threshold: 0.40,                    // Traditional confidence threshold
+    requireMinimumTokens: 5,            // Minimum response length
+    useSemanticValidation: true,        // Enable ML validation
+    semanticThreshold: 0.5,             // 50% minimum similarity
+  },
 });
 
-// Validate query-response alignment
-const query = 'Explain TypeScript generics';
-const response = 'Generics allow you to create reusable components...';
+// Responses now validated for semantic alignment
+const result = await agent.run('Explain TypeScript generics');
+```
 
-const result = await checker.validate(query, response, { checkToxicity: true });
+**Step 3:** Or use semantic validation directly:
 
-console.log(`Similarity: ${(result.similarity * 100).toFixed(1)}%`);
-console.log(`Passed: ${result.passed}`);
-console.log(`Toxic: ${result.isToxic}`);
+```tsx
+import { SemanticQualityChecker } from '@cascadeflow/core';
+
+const checker = new SemanticQualityChecker();
+
+if (await checker.isAvailable()) {
+  const result = await checker.checkSimilarity(
+    'What is TypeScript?',
+    'TypeScript is a typed superset of JavaScript.'
+  );
+
+  console.log(`Similarity: ${(result.similarity * 100).toFixed(1)}%`);
+  console.log(`Passed: ${result.passed}`);
+}
 ```
 
 **What you get:**
-- 🎯 Semantic similarity scoring (query ↔ response alignment)
-- 🛡️ Optional toxicity detection
-- 🔄 Automatic model download and caching
-- 🚀 Fast inference (~100ms per check)
+- 🎯 Query-response semantic alignment detection
+- 🚫 Off-topic response filtering
+- 📦 BGE-small-en-v1.5 embeddings (~40MB, auto-downloads)
+- ⚡ Fast CPU inference (~50-100ms with caching)
+- 🔄 Request-scoped caching (50% latency reduction)
+- 🌐 Works in Node.js, Browser, and Edge Functions
 
-**Note:** TypeScript ML uses Transformers.js for browser/Node.js compatibility. See quality.ts for API details.
+**Example:** [semantic-quality.ts](./packages/core/examples/nodejs/semantic-quality.ts)
 
 </details>
 
-📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
+📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Quickstart Guide](./docs/guides/quickstart-typescript.md) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
 
 ### 🔄 Migration Example
 
@@ -358,7 +378,7 @@ Configure cascadeflow node:
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
 | **Preset Usage** | Use built-in presets for quick setup | [View](./docs/guides/presets.md) |
 | **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
-| **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
+| **Reasoning Models**  | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
 | **Streaming Text** | Stream responses from cascade agents | [View](./examples/streaming_text.py) |
 | **Cost Tracking** | Track and analyze costs across queries | [View](./examples/cost_tracking.py) |
@@ -399,7 +419,9 @@ Configure cascadeflow node:
 | **Basic Usage** | Simple cascade setup (Node.js) | [View](./packages/core/examples/nodejs/basic-usage.ts) |
 | **Tool Calling** | Function calling with tools (Node.js) | [View](./packages/core/examples/nodejs/tool-calling.ts) |
 | **Multi-Provider** | Mix providers in TypeScript (Node.js) | [View](./packages/core/examples/nodejs/multi-provider.ts) |
-| **Reasoning Models** 🆕 | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./packages/core/examples/nodejs/reasoning-models.ts) |
+| **Reasoning Models**  | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./packages/core/examples/nodejs/reasoning-models.ts) |
+| **Cost Tracking** | Track and analyze costs across queries | [View](./packages/core/examples/nodejs/cost-tracking.ts) |
+| **Semantic Quality**  | ML-based semantic validation with embeddings | [View](./packages/core/examples/nodejs/semantic-quality.ts) |
 | **Streaming** | Stream responses in TypeScript | [View](./packages/core/examples/streaming.ts) |
 
 </details>
@@ -459,17 +481,17 @@ Configure cascadeflow node:
 | 🎯 **Speculative Cascading** | Tries cheap models first, escalates intelligently                                                                                      |
 | 💰 **40-85% Cost Savings** | Research-backed, proven in production                                                                                                  |
 | ⚡ **2-10x Faster** | Small models respond in <50ms vs 500-2000ms                                                                                            |
-| ⚡ **Low Latency** 🆕 | Sub-2ms framework overhead, negligible performance impact                                                                              |
-| 🔄 **Mix Any Providers** 🆕 | OpenAI, Anthropic, Groq, Ollama, vLLM, Together + LiteLLM (optional)                                                                   |
-| 👤 **User Profile System** 🆕 | Per-user budgets, tier-aware routing, enforcement callbacks                                                                            |
-| ✅ **Quality Validation** 🆕 | Automatic checks + semantic similarity (optional ML, ~80MB, CPU)                                                                       |
-| 🎨 **Cascading Policies** 🆕 | Domain-specific pipelines, multi-step validation strategies                                                                            |
-| 🧠 **Domain Understanding** 🆕 | Auto-detects code/medical/legal/math/structured data, routes to specialists                                                            |
+| ⚡ **Low Latency**  | Sub-2ms framework overhead, negligible performance impact                                                                              |
+| 🔄 **Mix Any Providers**  | OpenAI, Anthropic, Groq, Ollama, vLLM, Together + LiteLLM (optional)                                                                   |
+| 👤 **User Profile System**  | Per-user budgets, tier-aware routing, enforcement callbacks                                                                            |
+| ✅ **Quality Validation**  | Automatic checks + semantic similarity (optional ML, ~80MB, CPU)                                                                       |
+| 🎨 **Cascading Policies**  | Domain-specific pipelines, multi-step validation strategies                                                                            |
+| 🧠 **Domain Understanding**  | Auto-detects code/medical/legal/math/structured data, routes to specialists                                                            |
 | 🤖 **Drafter/Validator Pattern** | 20-60% savings for agent/tool systems                                                                                                  |
-| 🔧 **Tool Calling Support** 🆕 | Universal format, works across all providers                                                                                           |
-| 📊 **Cost Tracking** 🆕 | Built-in analytics + OpenTelemetry export (vendor-neutral)                                                                             |
+| 🔧 **Tool Calling Support**  | Universal format, works across all providers                                                                                           |
+| 📊 **Cost Tracking**  | Built-in analytics + OpenTelemetry export (vendor-neutral)                                                                             |
 | 🚀 **3-Line Integration** | Zero architecture changes needed                                                                                                       |
-| 🏭 **Production Ready** 🆕 | Streaming, batch processing, tool handling, reasoning model support, caching, error recovery, anomaly detection |
+| 🏭 **Production Ready**  | Streaming, batch processing, tool handling, reasoning model support, caching, error recovery, anomaly detection |
 
 ---
 

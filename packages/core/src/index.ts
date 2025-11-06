@@ -65,11 +65,28 @@ export {
   calculateConfidenceFromLogprobs,
   estimateConfidenceFromContent,
   DEFAULT_QUALITY_CONFIG as DEFAULT_QUALITY_VALIDATOR_CONFIG,
+  CASCADE_QUALITY_CONFIG,
 } from './quality';
 export type {
   QualityResult,
   QualityConfig as QualityValidatorConfig,
 } from './quality';
+
+// Semantic quality validation (ML-based)
+export { SemanticQualityChecker } from './quality-semantic';
+export type { SemanticQualityResult } from './quality-semantic';
+
+// Alignment scoring
+export { QueryResponseAlignmentScorer } from './alignment';
+export type { AlignmentAnalysis } from './alignment';
+
+// Complexity detection
+export {
+  ComplexityDetector,
+} from './complexity';
+export type {
+  ComplexityResult,
+} from './complexity';
 
 // Types
 export type {
@@ -177,6 +194,21 @@ export {
   GuardrailsManager,
   GuardrailViolation,
 } from './guardrails';
+
+// LiteLLM Integration
+export {
+  LiteLLMCostProvider,
+  SUPPORTED_PROVIDERS,
+  validateProvider,
+  getProviderInfo,
+  getModelCost,
+  calculateCost,
+} from './integrations/litellm';
+export type {
+  ProviderInfo,
+  ModelPricing,
+  CostCalculationOptions,
+} from './integrations/litellm';
 
 // Version
 export const VERSION = '1.0.0';

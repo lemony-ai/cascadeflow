@@ -592,12 +592,20 @@ export class OpenAIProvider extends BaseProvider {
     let pricing = OPENAI_PRICING[modelLower];
 
     // Try prefix matching for versioned models
+    // Match the LONGEST prefix to avoid "gpt-4o" matching "gpt-4o-mini"
     if (!pricing) {
+      let longestMatch = '';
+      let longestMatchPricing = null;
+
       for (const [key, value] of Object.entries(OPENAI_PRICING)) {
-        if (modelLower.startsWith(key)) {
-          pricing = value;
-          break;
+        if (modelLower.startsWith(key) && key.length > longestMatch.length) {
+          longestMatch = key;
+          longestMatchPricing = value;
         }
+      }
+
+      if (longestMatchPricing) {
+        pricing = longestMatchPricing;
       }
     }
 
@@ -612,8 +620,8 @@ export class OpenAIProvider extends BaseProvider {
     // - completion_tokens_details.reasoning_tokens: breakdown of reasoning portion
     const inputCost = (promptTokens / 1000) * pricing.input;
     const outputCost = (completionTokens / 1000) * pricing.output;
-
-    return inputCost + outputCost;
+    const totalCost = inputCost + outputCost;
+    return totalCost;
   }
 
   /**

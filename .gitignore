@@ -141,6 +141,8 @@ MONOREPO_ARCHITECTURE.md
 TYPESCRIPT_ROADMAP.md
 TYPESCRIPT_STRUCTURE_PLAN.md
 TYPESCRIPT_FEATURE_GAPS.md
+docs/TS_ML_INTEGRATION_PLAN.md
+LAUNCH_DAY_PLAN.md
 
 # Audit and analysis reports
 PRE_RELEASE_AUDIT.md
@@ -181,6 +183,16 @@ PUBLISHING_SETUP_GUIDE.md
 MILESTONE_*.md
 STRATEGIC_*.md
 V0.*.md
+
+# Feature comparison and analysis (development only)
+docs/PYTHON_VS_TYPESCRIPT_FEATURES.md
+docs/QUICK_COMPARISON_TABLE.md
+docs/DOCUMENTATION_VALIDATION_REPORT.md
+docs/DOCUMENTATION_UPDATES_SUMMARY.md
+PYTHON_VS_TYPESCRIPT_FEATURES.md
+
+# Release notes (keep versioned releases, ignore working drafts)
+docs/RELEASE_NOTES_*.md
 
 # Exception: Keep useful checklists in .github
 !.github/*_CHECKLIST.md

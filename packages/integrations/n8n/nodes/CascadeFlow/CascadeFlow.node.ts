@@ -79,75 +79,91 @@ export class cascadeflow implements INodeType {
             name: 'models',
             displayName: 'Models',
             values: [
-              // Draft Model (Required)
-              {
-                displayName: 'Draft Model Provider',
-                name: 'draftProvider',
-                type: 'options',
-                default: 'openai',
-                options: [
-                  { name: 'OpenAI', value: 'openai' },
-                  { name: 'Anthropic', value: 'anthropic' },
-                  { name: 'Groq', value: 'groq' },
-                  { name: 'Together AI', value: 'together' },
-                  { name: 'Ollama (Local)', value: 'ollama' },
-                ],
-                description: 'Provider for the cheap draft model',
-              },
-              {
-                displayName: 'Draft Model Name',
-                name: 'draftModel',
-                type: 'string',
-                default: 'gpt-4o-mini',
-                description: 'Model name for draft generation',
-                placeholder: 'gpt-4o-mini',
-              },
-              {
-                displayName: 'Draft Model Cost',
-                name: 'draftCost',
-                type: 'number',
-                default: 0.00015,
-                typeOptions: {
-                  minValue: 0,
-                  numberPrecision: 6,
-                },
-                description: 'Cost per 1K tokens (blended)',
-              },
-
-              // Verifier Model (Required)
-              {
-                displayName: 'Verifier Model Provider',
-                name: 'verifierProvider',
-                type: 'options',
-                default: 'openai',
-                options: [
-                  { name: 'OpenAI', value: 'openai' },
-                  { name: 'Anthropic', value: 'anthropic' },
-                  { name: 'Groq', value: 'groq' },
-                  { name: 'Together AI', value: 'together' },
-                ],
-                description: 'Provider for the expensive verifier model',
-              },
-              {
-                displayName: 'Verifier Model Name',
-                name: 'verifierModel',
-                type: 'string',
-                default: 'gpt-4o',
-                description: 'Model name for verification',
-                placeholder: 'gpt-4o',
-              },
-              {
-                displayName: 'Verifier Model Cost',
-                name: 'verifierCost',
-                type: 'number',
-                default: 0.00625,
-                typeOptions: {
-                  minValue: 0,
-                  numberPrecision: 6,
-                },
-                description: 'Cost per 1K tokens (blended)',
-              },
-            ],
+											{
+												displayName: 'Draft Model Cost',
+												name: 'draftCost',
+												type: 'number',
+												default: 0.000375,
+												description: 'Cost per 1K tokens (blended)',
+											},
+											{
+												displayName: 'Draft Model Name',
+												name: 'draftModel',
+												type: 'string',
+												default: 'gpt-4o-mini',
+												description: 'Model name for draft generation',
+												placeholder: 'gpt-4o-mini',
+											},
+											{
+												displayName: 'Draft Model Provider',
+												name: 'draftProvider',
+												type: 'options',
+												default: 'openai',
+												options: [
+													{
+														name: 'Anthropic',
+														value: 'anthropic',
+													},
+													{
+														name: 'Groq',
+														value: 'groq',
+													},
+													{
+														name: 'Ollama (Local)',
+														value: 'ollama',
+													},
+													{
+														name: 'OpenAI',
+														value: 'openai',
+													},
+													{
+														name: 'Together AI',
+														value: 'together',
+													},
+												],
+												description: 'Provider for the cheap draft model',
+											},
+											{
+												displayName: 'Verifier Model Cost',
+												name: 'verifierCost',
+												type: 'number',
+												default: 0.00625,
+												description: 'Cost per 1K tokens (blended)',
+											},
+											{
+												displayName: 'Verifier Model Name',
+												name: 'verifierModel',
+												type: 'string',
+												default: 'gpt-4o',
+												description: 'Model name for verification',
+												placeholder: 'gpt-4o',
+											},
+											{
+												displayName: 'Verifier Model Provider',
+												name: 'verifierProvider',
+												type: 'options',
+												default: 'openai',
+												options: [
+													{
+														name: 'OpenAI',
+														value: 'openai',
+													},
+													{
+														name: 'Anthropic',
+														value: 'anthropic',
+													},
+													{
+														name: 'Groq',
+														value: 'groq',
+													},
+													{
+														name: 'Together AI',
+														value: 'together',
+													},
+													],
+												description: 'Provider for the expensive verifier model',
+											},
+									],
           },
         ],
       },
@@ -179,11 +195,14 @@ export class cascadeflow implements INodeType {
                 description: 'Minimum quality score to accept draft (0-1)',
               },
               {
-                displayName: 'Require Validation',
-                name: 'requireValidation',
-                type: 'boolean',
-                default: true,
-                description: 'Whether to validate draft before accepting',
+                displayName: 'Require Minimum Tokens',
+                name: 'requireMinimumTokens',
+                type: 'number',
+                default: 10,
+                typeOptions: {
+                  minValue: 0,
+                },
+                description: 'Minimum response length in tokens',
               },
             ],
           },
@@ -318,7 +337,7 @@ export class cascadeflow implements INodeType {
           {
             name: models.draftModel || 'gpt-4o-mini',
             provider: models.draftProvider || 'openai',
-            cost: models.draftCost || 0.00015,
+            cost: models.draftCost || 0.000375,
             apiKey: getApiKeyForProvider(credentials, models.draftProvider || 'openai'),
           },
           // Verifier model
@@ -335,7 +354,7 @@ export class cascadeflow implements INodeType {
           models: modelConfigs,
           quality: {
             threshold: quality.threshold || 0.7,
-            requireValidation: quality.requireValidation !== false,
+            requireMinimumTokens: quality.requireMinimumTokens || 10,
           },
         });
 

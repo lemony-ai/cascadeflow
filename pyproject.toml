@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cascadeflow"
-version = "0.2.0"
+version = "0.3.0"
 description = "Smart AI model cascading for cost optimization - Save 40-85% on LLM costs with 2-6x faster responses. Available for Python and TypeScript/JavaScript."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -99,6 +99,7 @@ dev = [
     "isort>=5.12.0",
     "pre-commit>=3.5.0",
     "rich>=13.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 # Documentation tools

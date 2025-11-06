@@ -13,14 +13,14 @@ from cascadeflow import CascadeAgent, ModelConfig
 ```python
 CascadeAgent(
     models: List[ModelConfig],
-    quality: Optional[QualityConfig] = None,
+    quality_config: Optional[QualityConfig] = None,
     cascade: Optional[CascadeConfig] = None
 )
 ```
 
 **Parameters:**
 - `models` (`List[ModelConfig]`, required): List of models to cascade through, automatically sorted by cost
-- `quality` (`QualityConfig`, optional): Quality validation configuration
+- `quality_config` (`QualityConfig`, optional): Quality validation configuration
 - `cascade` (`CascadeConfig`, optional): Advanced cascade settings
 
 **Example:**
@@ -166,7 +166,7 @@ agent = CascadeAgent(
         ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
         ModelConfig(name="gpt-4o", provider="openai", cost=0.00625)
     ],
-    quality=QualityConfig(
+    quality_config=QualityConfig(
         threshold=0.8,  # Stricter quality requirements
         require_minimum_tokens=20
     )

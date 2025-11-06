@@ -29,7 +29,7 @@ export type RoutingStrategy =
 /**
  * Query complexity levels
  */
-export type QueryComplexity = 'simple' | 'moderate' | 'complex' | 'expert';
+export type QueryComplexity = 'trivial' | 'simple' | 'moderate' | 'hard' | 'expert';
 
 /**
  * Message role in chat format
@@ -131,7 +131,7 @@ export interface ReasoningModelInfo {
   supportsTools: boolean;
   supportsSystemMessages: boolean;
   supportsReasoningEffort?: boolean; // OpenAI o1/o3
-  supportsExtendedThinking?: boolean; // Anthropic Claude 3.7
+  supportsExtendedThinking?: boolean; // Anthropic Claude 4.5
   requiresMaxCompletionTokens?: boolean; // OpenAI specific
   requiresThinkingBudget?: boolean; // Anthropic specific
 }

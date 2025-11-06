@@ -843,9 +843,77 @@ def test_medical_validator():
 
 ---
 
+## TypeScript Implementation
+
+cascadeflow TypeScript also supports custom quality validation with ML-based semantic similarity checking.
+
+### Semantic Quality Validation
+
+Use embeddings to validate query-response alignment:
+
+```typescript
+import { CascadeAgent, SemanticQualityChecker } from '@cascadeflow/core';
+
+// Enable semantic validation in cascade
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+  quality: {
+    threshold: 0.40,                    // Traditional confidence threshold
+    requireMinimumTokens: 5,            // Minimum response length
+    useSemanticValidation: true,        // Enable ML validation
+    semanticThreshold: 0.5,             // 50% minimum similarity
+  },
+});
+
+// Responses are now validated for semantic alignment
+const result = await agent.run('Explain quantum computing');
+```
+
+### Direct Semantic Checking
+
+Use the semantic checker directly for custom validation:
+
+```typescript
+import { SemanticQualityChecker } from '@cascadeflow/core';
+
+const checker = new SemanticQualityChecker();
+
+if (await checker.isAvailable()) {
+  const result = await checker.checkSimilarity(
+    'What is machine learning?',
+    'Machine learning is a subset of AI that enables systems to learn.'
+  );
+
+  console.log(`Similarity: ${(result.similarity * 100).toFixed(1)}%`);
+  console.log(`Passed: ${result.passed}`);
+
+  if (!result.passed) {
+    console.log(`Reason: ${result.reason}`);
+  }
+}
+```
+
+**Features:**
+- BGE-small-en-v1.5 embeddings (~40MB, auto-downloads)
+- CPU-based inference (~50-100ms with caching)
+- Request-scoped caching (50% latency reduction)
+- Graceful degradation if ML dependencies not installed
+
+**Installation:**
+```bash
+npm install @cascadeflow/ml @xenova/transformers
+```
+
+---
+
 ## Examples
 
-See [`examples/custom_validation.py`](../../examples/custom_validation.py) for complete working examples.
+**Python:** See [`examples/custom_validation.py`](../../examples/custom_validation.py) for complete working examples.
+
+**TypeScript:** See [`packages/core/examples/nodejs/semantic-quality.ts`](../../packages/core/examples/nodejs/semantic-quality.ts) for ML-based semantic validation.
 
 ---
 
