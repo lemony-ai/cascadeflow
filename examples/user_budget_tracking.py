@@ -32,7 +32,7 @@ def main():
         verbose=True,  # Show logging
     )
 
-    print(f"✓ Configured budgets for 2 tiers")
+    print("✓ Configured budgets for 2 tiers")
     print(f"  - Free tier: {tracker.user_budgets['free']}")
     print(f"  - Pro tier: {tracker.user_budgets['pro']}")
     print()
@@ -59,7 +59,7 @@ def main():
     summary = tracker.get_user_summary(free_user, "free")
     daily = summary["period_costs"]["daily"]
     print()
-    print(f"  Free user status:")
+    print("  Free user status:")
     print(f"    Total cost: ${summary['total_cost']:.3f}")
     print(f"    Daily budget: ${daily['limit']:.2f}")
     print(f"    Daily used: ${daily['cost']:.3f} ({daily['used_pct']:.1f}%)")
@@ -80,9 +80,9 @@ def main():
 
     summary = tracker.get_user_summary(free_user, "free")
     daily = summary["period_costs"]["daily"]
-    print(f"  Query 4: Added $0.060")
+    print("  Query 4: Added $0.060")
     print()
-    print(f"  Free user status:")
+    print("  Free user status:")
     print(f"    Total cost: ${summary['total_cost']:.3f}")
     print(f"    Daily used: ${daily['cost']:.3f} ({daily['used_pct']:.1f}%)")
     print(f"    Daily remaining: ${daily['remaining']:.3f}")
@@ -110,9 +110,9 @@ def main():
     daily = summary["period_costs"]["daily"]
     weekly = summary["period_costs"]["weekly"]
 
-    print(f"  Pro user made 10 queries @ $0.045 each")
+    print("  Pro user made 10 queries @ $0.045 each")
     print()
-    print(f"  Pro user status:")
+    print("  Pro user status:")
     print(f"    Total cost: ${summary['total_cost']:.3f}")
     print(f"    Daily budget: ${daily['limit']:.2f}")
     print(f"    Daily used: ${daily['cost']:.3f} ({daily['used_pct']:.1f}%)")
@@ -131,7 +131,7 @@ def main():
     print(f"  Total users tracked: {len(all_users)}")
     print(f"  Total cost across all users: ${global_summary['total_cost']:.3f}")
     print()
-    print(f"  Cost by model:")
+    print("  Cost by model:")
     for model, cost in sorted(global_summary["by_model"].items(), key=lambda x: x[1], reverse=True):
         print(f"    {model}: ${cost:.3f}")
     print()

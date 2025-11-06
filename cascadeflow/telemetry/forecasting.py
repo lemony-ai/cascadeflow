@@ -35,8 +35,7 @@ Example:
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ class CostPrediction:
     method: str = "exponential_smoothing"
     historical_average: float = 0.0
     trend: str = "stable"
-    metadata: Dict[str, any] = field(default_factory=dict)
+    metadata: dict[str, any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate prediction values."""
@@ -218,7 +217,7 @@ class CostForecaster:
         self,
         budget_remaining: float,
         user_id: Optional[str] = None,
-    ) -> Tuple[int, float]:
+    ) -> tuple[int, float]:
         """Calculate how many days until budget is exhausted.
 
         Args:
@@ -245,7 +244,7 @@ class CostForecaster:
 
         return (days_remaining, prediction.confidence)
 
-    def _get_daily_costs(self, user_id: Optional[str] = None) -> List[float]:
+    def _get_daily_costs(self, user_id: Optional[str] = None) -> list[float]:
         """Get historical daily costs from tracker.
 
         Args:
@@ -264,7 +263,7 @@ class CostForecaster:
             return []
 
         # Group by day and sum
-        daily_totals: Dict[str, float] = {}
+        daily_totals: dict[str, float] = {}
         for entry in entries:
             day_key = entry.timestamp.strftime("%Y-%m-%d")
             daily_totals[day_key] = daily_totals.get(day_key, 0.0) + entry.cost
@@ -273,7 +272,7 @@ class CostForecaster:
         sorted_days = sorted(daily_totals.keys())
         return [daily_totals[day] for day in sorted_days]
 
-    def _exponential_smoothing(self, values: List[float]) -> List[float]:
+    def _exponential_smoothing(self, values: list[float]) -> list[float]:
         """Apply exponential smoothing to time series.
 
         Args:
@@ -294,7 +293,7 @@ class CostForecaster:
 
         return smoothed
 
-    def _calculate_trend(self, smoothed_values: List[float]) -> Tuple[str, float]:
+    def _calculate_trend(self, smoothed_values: list[float]) -> tuple[str, float]:
         """Calculate trend direction and strength.
 
         Args:
@@ -337,8 +336,8 @@ class CostForecaster:
 
     def _calculate_confidence(
         self,
-        actual: List[float],
-        smoothed: List[float],
+        actual: list[float],
+        smoothed: list[float],
     ) -> float:
         """Calculate confidence score based on prediction accuracy.
 
@@ -376,8 +375,8 @@ class CostForecaster:
 
     def _calculate_std_error(
         self,
-        actual: List[float],
-        smoothed: List[float],
+        actual: list[float],
+        smoothed: list[float],
     ) -> float:
         """Calculate standard error of prediction.
 

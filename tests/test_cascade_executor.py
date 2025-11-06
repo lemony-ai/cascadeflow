@@ -5,13 +5,14 @@ Tests the cascade executor and validation functions.
 """
 
 import pytest
+
 from cascadeflow.routing.cascade_executor import (
     MultiStepCascadeExecutor,
-    validate_syntax,
     validate_fact_check,
-    validate_safety,
-    validate_quality,
     validate_full_quality,
+    validate_quality,
+    validate_safety,
+    validate_syntax,
 )
 from cascadeflow.routing.cascade_pipeline import (
     CascadeStep,
@@ -21,7 +22,6 @@ from cascadeflow.routing.cascade_pipeline import (
     get_medical_strategy,
 )
 from cascadeflow.routing.domain import Domain
-
 
 # ============================================================================
 # TEST: Validation Functions

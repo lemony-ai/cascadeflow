@@ -11,14 +11,15 @@ Tests:
 """
 
 import os
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 # Import the classes (will work even if opentelemetry not installed)
 from cascadeflow.integrations.otel import (
     MetricDimensions,
-    cascadeflowMetrics,
     OpenTelemetryExporter,
+    cascadeflowMetrics,
     create_exporter_from_env,
 )
 

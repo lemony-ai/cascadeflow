@@ -74,7 +74,7 @@ class TierAwareRouter:
         # Statistics
         self.stats = {
             "total_filters": 0,
-            "by_tier": {tier_name: 0 for tier_name in tiers.keys()},
+            "by_tier": dict.fromkeys(tiers.keys(), 0),
             "models_filtered_out": 0,
         }
 
@@ -216,7 +216,7 @@ class TierAwareRouter:
         """Reset statistics."""
         self.stats = {
             "total_filters": 0,
-            "by_tier": {tier_name: 0 for tier_name in self.tiers.keys()},
+            "by_tier": dict.fromkeys(self.tiers.keys(), 0),
             "models_filtered_out": 0,
         }
 

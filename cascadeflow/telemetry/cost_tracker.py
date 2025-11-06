@@ -683,8 +683,8 @@ class CostTracker:
         Example:
             >>> tracker.export_to_sqlite("costs.db")
         """
-        import sqlite3
         import json
+        import sqlite3
 
         conn = sqlite3.connect(filepath)
         cursor = conn.cursor()

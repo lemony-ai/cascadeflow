@@ -140,12 +140,12 @@ def main():
 
         # Handle action
         if action == EnforcementAction.BLOCK:
-            print(f"  → ⛔ BLOCKED - Upgrade required")
+            print("  → ⛔ BLOCKED - Upgrade required")
             print(f"     Upgrade to {get_upgrade_tier(tier_name)} for higher limits!")
             return None
 
         elif action == EnforcementAction.WARN:
-            print(f"  → ⚠️  ALLOWED (with warning) - Approaching limit")
+            print("  → ⚠️  ALLOWED (with warning) - Approaching limit")
             # Track cost
             tracker.add_cost(
                 model="gpt-4",
@@ -158,7 +158,7 @@ def main():
             return "Response with warning..."
 
         elif action == EnforcementAction.DEGRADE:
-            print(f"  → ⬇️  DEGRADED - Using cheaper model")
+            print("  → ⬇️  DEGRADED - Using cheaper model")
             # Use cheaper model
             tracker.add_cost(
                 model="gpt-3.5-turbo",  # Cheaper model
@@ -171,7 +171,7 @@ def main():
             return "Response from cheaper model..."
 
         else:  # ALLOW
-            print(f"  → ✅ ALLOWED - Under budget")
+            print("  → ✅ ALLOWED - Under budget")
             tracker.add_cost(
                 model="gpt-4",
                 provider="openai",

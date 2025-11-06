@@ -8,7 +8,6 @@ with LiteLLM's moderation APIs.
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Set
 
 
 @dataclass
@@ -16,8 +15,8 @@ class ModerationResult:
     """Result from content moderation check"""
 
     is_safe: bool
-    violations: List[str] = field(default_factory=list)
-    categories: List[str] = field(default_factory=list)
+    violations: list[str] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
     confidence: float = 1.0
 
 
@@ -76,7 +75,7 @@ class ContentModerator:
         ]
 
         # Compile patterns
-        self._compiled_patterns: Dict[str, List[re.Pattern]] = {
+        self._compiled_patterns: dict[str, list[re.Pattern]] = {
             "hate": [re.compile(p, re.IGNORECASE) for p in self._hate_patterns],
             "violence": [re.compile(p, re.IGNORECASE) for p in self._violence_patterns],
             "self-harm": [re.compile(p, re.IGNORECASE) for p in self._self_harm_patterns],

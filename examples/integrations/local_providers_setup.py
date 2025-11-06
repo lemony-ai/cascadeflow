@@ -13,7 +13,6 @@ Both providers are FREE (no API costs) and offer privacy-first inference.
 import asyncio
 import os
 
-
 # ============================================================================
 # SCENARIO 1: Local Installation (Default)
 # ============================================================================
@@ -349,7 +348,7 @@ async def example_4_hybrid_setup():
     from cascadeflow import CascadeAgent, ModelConfig
 
     # Create agent with cascading fallback
-    agent = CascadeAgent(
+    CascadeAgent(
         models=[
             ModelConfig(
                 name="meta-llama/Llama-3-70B-Instruct",
@@ -366,8 +365,8 @@ async def example_4_hybrid_setup():
     )
 
     print("\n✓ Configuration:")
-    print(f"  Primary: vLLM (Llama-3-70B) - High quality")
-    print(f"  Fallback: Ollama (llama3.2:1b) - Fast & free")
+    print("  Primary: vLLM (Llama-3-70B) - High quality")
+    print("  Fallback: Ollama (llama3.2:1b) - Fast & free")
     print("\nBenefits:")
     print("  ✓ Best quality when vLLM available")
     print("  ✓ Always works (fallback to Ollama)")

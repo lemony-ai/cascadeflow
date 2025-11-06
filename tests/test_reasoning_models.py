@@ -7,20 +7,29 @@ Tests auto-detection, cost calculation, and parameter handling for:
 """
 
 import pytest
-from cascadeflow.providers.openai import (
-    OpenAIProvider,
-    get_reasoning_model_info as get_openai_reasoning_model_info,
-)
+
 from cascadeflow.providers.anthropic import (
     AnthropicProvider,
+)
+from cascadeflow.providers.anthropic import (
     get_reasoning_model_info as get_anthropic_reasoning_model_info,
 )
 from cascadeflow.providers.ollama import (
     OllamaProvider,
+)
+from cascadeflow.providers.ollama import (
     get_reasoning_model_info as get_ollama_reasoning_model_info,
+)
+from cascadeflow.providers.openai import (
+    OpenAIProvider,
+)
+from cascadeflow.providers.openai import (
+    get_reasoning_model_info as get_openai_reasoning_model_info,
 )
 from cascadeflow.providers.vllm import (
     VLLMProvider,
+)
+from cascadeflow.providers.vllm import (
     get_reasoning_model_info as get_vllm_reasoning_model_info,
 )
 
@@ -173,7 +182,7 @@ class TestReasoningModelPricing:
     """Test comprehensive pricing for all supported models."""
 
     @pytest.mark.parametrize(
-        "model,input_price,output_price",
+        ("model", "input_price", "output_price"),
         [
             # GPT-5 series (only base model, others use prefix matching)
             ("gpt-5", 0.00125, 0.010),
@@ -357,7 +366,7 @@ class TestAnthropicPricingMatrix:
     """Test comprehensive pricing for all Anthropic models."""
 
     @pytest.mark.parametrize(
-        "model,expected_blended",
+        ("model", "expected_blended"),
         [
             # Claude 4 Series
             ("claude-opus-4.1", 45.0),

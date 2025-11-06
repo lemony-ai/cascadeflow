@@ -5,7 +5,8 @@ This example demonstrates batch processing capabilities.
 """
 
 import asyncio
-from cascadeflow import CascadeAgent, BatchConfig, BatchStrategy
+
+from cascadeflow import CascadeAgent
 
 
 async def main():

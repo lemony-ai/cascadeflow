@@ -7,8 +7,7 @@ Implements per-user and per-tier rate limiting for cascadeflow.
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Optional
 
 
 class RateLimitError(Exception):
@@ -28,8 +27,8 @@ class RateLimitState:
     """
 
     user_id: str
-    hourly_requests: List[float] = field(default_factory=list)
-    daily_requests: List[float] = field(default_factory=list)
+    hourly_requests: list[float] = field(default_factory=list)
+    daily_requests: list[float] = field(default_factory=list)
     daily_cost: float = 0.0
     cost_reset_time: float = field(default_factory=time.time)
 
@@ -76,12 +75,12 @@ class RateLimiter:
 
     def __init__(self):
         """Initialize rate limiter with user state tracking"""
-        self._states: Dict[str, RateLimitState] = {}
+        self._states: dict[str, RateLimitState] = {}
         self._lock = asyncio.Lock()
 
     async def check_rate_limit(
         self, profile: "UserProfile", cost: float = 0.0
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, Optional[str]]:
         """
         Check if request is allowed under rate limits.
 
@@ -164,7 +163,7 @@ class RateLimiter:
             # Add cost to daily total
             state.daily_cost += cost
 
-    async def get_usage_stats(self, profile: "UserProfile") -> Dict:
+    async def get_usage_stats(self, profile: "UserProfile") -> dict:
         """
         Get current usage statistics for a user.
 

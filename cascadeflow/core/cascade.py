@@ -278,8 +278,8 @@ class WholeResponseCascade:
 
         # SEMANTIC QUALITY CHECKER (ML-based, optional)
         try:
-            from ..quality.semantic import SemanticQualityChecker
             from ..ml.embedding import UnifiedEmbeddingService
+            from ..quality.semantic import SemanticQualityChecker
 
             # Create shared embedding service for all ML features
             self.embedder = UnifiedEmbeddingService()

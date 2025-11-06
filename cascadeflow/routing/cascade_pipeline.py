@@ -51,10 +51,10 @@ Example:
     ... )
 """
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Dict, Any, Callable
-import logging
+from typing import Any, Optional
 
 from cascadeflow.routing.domain import Domain
 
@@ -135,7 +135,7 @@ class CascadeStep:
     fallback_only: bool = False
     max_tokens: int = 1000
     temperature: float = 0.7
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate step configuration."""
@@ -176,9 +176,9 @@ class StepResult:
     cost: float = 0.0
     latency_ms: float = 0.0
     tokens_used: int = 0
-    validation_details: Dict[str, Any] = field(default_factory=dict)
+    validation_details: dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -200,10 +200,10 @@ class DomainCascadeStrategy:
     """
 
     domain: Domain
-    steps: List[CascadeStep]
+    steps: list[CascadeStep]
     description: str = ""
     enabled: bool = True
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate strategy configuration."""
@@ -212,7 +212,7 @@ class DomainCascadeStrategy:
 
         # Ensure first step is not fallback-only
         if self.steps[0].fallback_only:
-            raise ValueError(f"First step cannot be fallback-only")
+            raise ValueError("First step cannot be fallback-only")
 
     def get_step(self, step_name: str) -> Optional[CascadeStep]:
         """Get step by name."""
@@ -221,7 +221,7 @@ class DomainCascadeStrategy:
                 return step
         return None
 
-    def get_fallback_steps(self) -> List[CascadeStep]:
+    def get_fallback_steps(self) -> list[CascadeStep]:
         """Get all fallback-only steps."""
         return [step for step in self.steps if step.fallback_only]
 
@@ -249,13 +249,13 @@ class CascadeExecutionResult:
     domain: Domain
     strategy_used: str
     final_response: str
-    steps_executed: List[StepResult]
+    steps_executed: list[StepResult]
     total_cost: float
     total_latency_ms: float
     total_tokens: int
     quality_score: float
     fallback_used: bool
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def get_step_result(self, step_name: str) -> Optional[StepResult]:
         """Get result for a specific step."""
@@ -264,11 +264,11 @@ class CascadeExecutionResult:
                 return result
         return None
 
-    def get_cost_breakdown(self) -> Dict[str, float]:
+    def get_cost_breakdown(self) -> dict[str, float]:
         """Get cost breakdown by step."""
         return {result.step_name: result.cost for result in self.steps_executed}
 
-    def get_successful_steps(self) -> List[StepResult]:
+    def get_successful_steps(self) -> list[StepResult]:
         """Get all successful steps."""
         return [result for result in self.steps_executed if result.status == StepStatus.SUCCESS]
 
@@ -543,7 +543,7 @@ def get_strategy_for_domain(domain: Domain) -> Optional[DomainCascadeStrategy]:
     return None
 
 
-def list_available_strategies() -> List[Domain]:
+def list_available_strategies() -> list[Domain]:
     """
     List domains with built-in strategies.
 

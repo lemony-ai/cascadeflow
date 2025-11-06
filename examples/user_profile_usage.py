@@ -6,7 +6,8 @@ thousands of users with different subscription tiers.
 """
 
 import asyncio
-from cascadeflow import CascadeAgent, UserProfile, TierLevel, UserProfileManager
+
+from cascadeflow import CascadeAgent, TierLevel, UserProfile, UserProfileManager
 
 
 async def main():
@@ -37,7 +38,7 @@ async def main():
 
     # Run query with profile limits
     result = await agent.run("What is the capital of France?")
-    print(f"\nQuery result:")
+    print("\nQuery result:")
     print(f"  Model: {result.model_used}")
     print(f"  Cost: ${result.total_cost:.6f}")
     print(f"  Quality: {result.quality_score:.2f}")

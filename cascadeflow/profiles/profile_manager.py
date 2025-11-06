@@ -1,11 +1,12 @@
 """Profile manager for scaling to thousands of users."""
 
-from typing import Dict, Optional, Callable, Awaitable, List
 import asyncio
+from collections.abc import Awaitable
 from datetime import datetime, timedelta
+from typing import Callable, Optional
 
-from .user_profile import UserProfile
 from .tier_config import TierLevel
+from .user_profile import UserProfile
 
 
 class UserProfileManager:
@@ -33,7 +34,7 @@ class UserProfileManager:
             load_callback: Async function to load profile from database
             save_callback: Async function to save profile to database
         """
-        self._cache: Dict[str, tuple[UserProfile, datetime]] = {}
+        self._cache: dict[str, tuple[UserProfile, datetime]] = {}
         self._cache_ttl = timedelta(seconds=cache_ttl_seconds)
         self._load_callback = load_callback
         self._save_callback = save_callback
@@ -86,7 +87,7 @@ class UserProfileManager:
         if user_id in self._cache:
             del self._cache[user_id]
 
-    def create_bulk(self, user_data: List[Dict]) -> List[UserProfile]:
+    def create_bulk(self, user_data: list[dict]) -> list[UserProfile]:
         """Create multiple profiles efficiently"""
         profiles = []
         for data in user_data:

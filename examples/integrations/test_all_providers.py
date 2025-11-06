@@ -11,7 +11,6 @@ Run this to validate the complete LiteLLM integration.
 """
 
 import os
-import sys
 
 # Load .env file if available
 try:
@@ -36,7 +35,6 @@ from cascadeflow.integrations.litellm import (
     SUPPORTED_PROVIDERS,
     LiteLLMCostProvider,
     validate_provider,
-    get_provider_info,
 )
 
 
@@ -313,7 +311,7 @@ def main():
     if missing:
         print("⚠️  Action needed:")
         print(f"   - Add {len(missing)} missing API keys to .env file")
-        print(f"   - See .env.template for the template")
+        print("   - See .env.template for the template")
         print()
 
     total_ready = len(configured) + len(local)

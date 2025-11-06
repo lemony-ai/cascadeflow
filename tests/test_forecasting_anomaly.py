@@ -7,18 +7,18 @@ Tests:
 - Integration: Combined forecasting + anomaly detection scenarios
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, MagicMock
 
-from cascadeflow.telemetry.cost_tracker import CostTracker, CostEntry
-from cascadeflow.telemetry.forecasting import CostForecaster, CostPrediction
+import pytest
+
 from cascadeflow.telemetry.anomaly import (
-    AnomalyDetector,
     Anomaly,
+    AnomalyDetector,
     AnomalySeverity,
     create_anomaly_alerts,
 )
+from cascadeflow.telemetry.cost_tracker import CostTracker
+from cascadeflow.telemetry.forecasting import CostForecaster
 
 
 def add_cost_on_day(tracker, day_offset, cost, user_id="user1"):

@@ -39,7 +39,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Optional
 
 # Optional ML imports
 try:
@@ -84,14 +84,14 @@ class DomainKeywords:
         weak: Low-confidence keywords (weight: 0.3) - Increased from 0.25
     """
 
-    very_strong: List[str] = field(default_factory=list)  # NEW: 1.5 weight
-    strong: List[str] = field(default_factory=list)
-    moderate: List[str] = field(default_factory=list)
-    weak: List[str] = field(default_factory=list)
+    very_strong: list[str] = field(default_factory=list)  # NEW: 1.5 weight
+    strong: list[str] = field(default_factory=list)
+    moderate: list[str] = field(default_factory=list)
+    weak: list[str] = field(default_factory=list)
 
 
 # Built-in domain keyword mappings (15 production domains)
-DOMAIN_KEYWORDS: Dict[Domain, DomainKeywords] = {
+DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
     Domain.CODE: DomainKeywords(
         very_strong=[  # Highly discriminative (Research: 77% accuracy)
             "async",
@@ -563,8 +563,8 @@ class DomainDetectionResult:
 
     domain: Domain
     confidence: float
-    scores: Dict[Domain, float] = field(default_factory=dict)
-    metadata: Dict[str, any] = field(default_factory=dict)
+    scores: dict[Domain, float] = field(default_factory=dict)
+    metadata: dict[str, any] = field(default_factory=dict)
 
 
 class DomainDetector:
@@ -582,7 +582,7 @@ class DomainDetector:
     def __init__(
         self,
         confidence_threshold: float = 0.3,
-        custom_keywords: Optional[Dict[str, DomainKeywords]] = None,
+        custom_keywords: Optional[dict[str, DomainKeywords]] = None,
     ):
         """
         Initialize domain detector.
@@ -603,7 +603,7 @@ class DomainDetector:
                 except ValueError:
                     logger.warning(f"Unknown domain: {domain_name}, skipping")
 
-    def detect(self, query: str) -> Tuple[Domain, float]:
+    def detect(self, query: str) -> tuple[Domain, float]:
         """
         Detect domain from query text.
 
@@ -635,7 +635,7 @@ class DomainDetector:
         query_lower = query.lower()
 
         # Calculate scores for each domain
-        scores: Dict[Domain, float] = {}
+        scores: dict[Domain, float] = {}
 
         for domain, keywords in self.keywords.items():
             score = self._calculate_domain_score(query_lower, keywords)
@@ -663,8 +663,8 @@ class DomainDetector:
     def get_recommended_models(
         self,
         domain: Domain,
-        all_models: Optional[List[Dict]] = None,
-    ) -> List[Dict]:
+        all_models: Optional[list[dict]] = None,
+    ) -> list[dict]:
         """
         Get recommended models for a domain.
 
@@ -833,7 +833,7 @@ class DomainDetector:
 # ============================================================================
 
 # Domain exemplar queries for embedding-based detection
-DOMAIN_EXEMPLARS: Dict[Domain, List[str]] = {
+DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
     Domain.CODE: [
         "Write a Python function to sort a list",
         "Debug this JavaScript async/await code",
@@ -997,7 +997,7 @@ class SemanticDomainDetector:
         self.rule_detector = DomainDetector() if use_hybrid else None
 
         # Domain embeddings (lazy-computed)
-        self._domain_embeddings: Optional[Dict[Domain, Any]] = None
+        self._domain_embeddings: Optional[dict[Domain, Any]] = None
         self._embeddings_computed = False
 
         # Check availability
@@ -1033,7 +1033,7 @@ class SemanticDomainDetector:
         self._embeddings_computed = True
         logger.info(f"✓ Computed embeddings for {len(self._domain_embeddings)} domains")
 
-    def detect(self, query: str) -> Tuple[Domain, float]:
+    def detect(self, query: str) -> tuple[Domain, float]:
         """
         Detect domain from query using semantic similarity.
 
@@ -1086,7 +1086,7 @@ class SemanticDomainDetector:
             )
 
         # Calculate similarity to each domain
-        scores: Dict[Domain, float] = {}
+        scores: dict[Domain, float] = {}
         for domain, domain_embedding in self._domain_embeddings.items():
             similarity = self.embedder._cosine_similarity(query_embedding, domain_embedding)
             scores[domain] = float(similarity) if similarity is not None else 0.0

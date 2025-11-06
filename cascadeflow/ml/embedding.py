@@ -30,7 +30,7 @@ Example:
 """
 
 import logging
-from typing import Optional, Dict, Any, Union
+from typing import Any, Optional
 
 # Optional dependency - numpy comes with FastEmbed
 try:
@@ -233,7 +233,7 @@ class EmbeddingCache:
             embedder: UnifiedEmbeddingService instance
         """
         self.embedder = embedder
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
 
     def get_or_embed(self, text: str) -> Optional[Any]:
         """
@@ -281,7 +281,7 @@ class EmbeddingCache:
         """Get number of cached embeddings."""
         return len(self._cache)
 
-    def cache_info(self) -> Dict[str, Any]:
+    def cache_info(self) -> dict[str, Any]:
         """Get cache statistics."""
         return {
             "size": len(self._cache),

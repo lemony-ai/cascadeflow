@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, List
+from typing import Optional
 
 
 class TierLevel(str, Enum):
@@ -46,8 +46,8 @@ class TierConfig:
     target_quality: float = 0.80
 
     # Model access
-    allowed_models: Optional[List[str]] = None
-    blocked_models: Optional[List[str]] = None
+    allowed_models: Optional[list[str]] = None
+    blocked_models: Optional[list[str]] = None
 
     # Support level
     support_priority: str = "community"  # community, priority, dedicated

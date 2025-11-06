@@ -5,8 +5,7 @@ Detects common PII patterns in text using regex.
 """
 
 import re
-from dataclasses import dataclass, field
-from typing import List, Tuple
+from dataclasses import dataclass
 
 
 @dataclass
@@ -15,7 +14,7 @@ class PIIMatch:
 
     pii_type: str
     value: str  # Redacted version
-    position: Tuple[int, int]  # Start, end positions
+    position: tuple[int, int]  # Start, end positions
 
 
 class PIIDetector:
@@ -57,7 +56,7 @@ class PIIDetector:
         # IP address pattern
         self._ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
-    def detect(self, text: str) -> List[PIIMatch]:
+    def detect(self, text: str) -> list[PIIMatch]:
         """
         Detect PII in text.
 
@@ -125,7 +124,7 @@ class PIIDetector:
 
         return matches
 
-    def redact(self, text: str) -> Tuple[str, List[PIIMatch]]:
+    def redact(self, text: str) -> tuple[str, list[PIIMatch]]:
         """
         Redact PII from text.
 
@@ -149,7 +148,7 @@ class PIIDetector:
 
         return redacted_text, matches
 
-    async def detect_async(self, text: str) -> List[PIIMatch]:
+    async def detect_async(self, text: str) -> list[PIIMatch]:
         """Async version of detect (for future API integration)"""
         return self.detect(text)
 

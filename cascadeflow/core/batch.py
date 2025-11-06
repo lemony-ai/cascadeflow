@@ -1,10 +1,9 @@
 """Batch processing for cascadeflow."""
 
 import asyncio
-from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING
-from dataclasses import dataclass
 import time
-from enum import Enum
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional
 
 from .batch_config import BatchConfig, BatchStrategy
 
@@ -26,7 +25,7 @@ except (ImportError, AttributeError):
 class BatchResult:
     """Result from batch processing"""
 
-    results: List[Optional["CascadeResult"]]
+    results: list[Optional["CascadeResult"]]
     """Results for each query (None if failed)"""
 
     success_count: int
@@ -44,10 +43,10 @@ class BatchResult:
     strategy_used: str
     """Strategy used (litellm_native or sequential)"""
 
-    errors: List[Optional[str]]
+    errors: list[Optional[str]]
     """Error messages for failed queries"""
 
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     """Custom metadata"""
 
     @property
@@ -91,7 +90,7 @@ class BatchProcessor:
         self.agent = agent
 
     async def process_batch(
-        self, queries: List[str], config: Optional[BatchConfig] = None, **kwargs
+        self, queries: list[str], config: Optional[BatchConfig] = None, **kwargs
     ) -> BatchResult:
         """
         Process a batch of queries.
@@ -154,8 +153,8 @@ class BatchProcessor:
         return strategy
 
     async def _process_litellm_batch(
-        self, queries: List[str], config: BatchConfig, **kwargs
-    ) -> tuple[List[Optional["CascadeResult"]], List[Optional[str]]]:
+        self, queries: list[str], config: BatchConfig, **kwargs
+    ) -> tuple[list[Optional["CascadeResult"]], list[Optional[str]]]:
         """
         Process batch using LiteLLM native batch API.
 
@@ -168,11 +167,11 @@ class BatchProcessor:
         return await self._process_sequential_batch(queries, config, **kwargs)
 
     async def _process_sequential_batch(
-        self, queries: List[str], config: BatchConfig, **kwargs
-    ) -> tuple[List[Optional["CascadeResult"]], List[Optional[str]]]:
+        self, queries: list[str], config: BatchConfig, **kwargs
+    ) -> tuple[list[Optional["CascadeResult"]], list[Optional[str]]]:
         """Process batch sequentially with concurrency control"""
-        results: List[Optional["CascadeResult"]] = []
-        errors: List[Optional[str]] = []
+        results: list[Optional[CascadeResult]] = []
+        errors: list[Optional[str]] = []
 
         # Semaphore for concurrency control
         semaphore = asyncio.Semaphore(config.max_parallel)

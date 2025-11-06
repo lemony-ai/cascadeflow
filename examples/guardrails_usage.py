@@ -5,11 +5,11 @@ Demonstrates content safety and PII detection for production use.
 """
 
 import asyncio
+
 from cascadeflow import (
-    UserProfile,
-    TierLevel,
     GuardrailsManager,
-    GuardrailViolation,
+    TierLevel,
+    UserProfile,
 )
 
 
@@ -26,7 +26,7 @@ async def main():
         enable_pii_detection=True,
     )
 
-    print(f"\nUser profile:")
+    print("\nUser profile:")
     print(f"  Tier: {profile.tier.name}")
     print(f"  Content moderation: {profile.enable_content_moderation}")
     print(f"  PII detection: {profile.enable_pii_detection}")

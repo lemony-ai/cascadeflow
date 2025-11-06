@@ -14,6 +14,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from dotenv import load_dotenv
+
+from cascadeflow import CascadeAgent
+from cascadeflow.quality.complexity import QueryComplexity
 from cascadeflow.schema.config import (
     LatencyProfile,
     ModelConfig,
@@ -21,10 +25,6 @@ from cascadeflow.schema.config import (
     UserTier,
     WorkflowProfile,
 )
-from dotenv import load_dotenv
-
-from cascadeflow import CascadeAgent
-from cascadeflow.quality.complexity import QueryComplexity
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent / ".env"

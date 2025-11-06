@@ -1,10 +1,10 @@
 """User profile system for cascadeflow."""
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any, Optional
 
-from .tier_config import TierConfig, TierLevel, TIER_PRESETS
+from .tier_config import TierConfig, TierLevel
 
 
 @dataclass
@@ -37,17 +37,17 @@ class UserProfile:
     custom_requests_per_day: Optional[int] = None
 
     # 4. Preferences (How They Want It)
-    preferred_models: Optional[List[str]] = None
+    preferred_models: Optional[list[str]] = None
     cost_sensitivity: str = "balanced"  # aggressive, balanced, quality_first
-    preferred_domains: Optional[List[str]] = None  # e.g., ["code", "medical", "legal"]
-    domain_models: Optional[Dict[str, List[str]]] = None  # Domain-specific model overrides
+    preferred_domains: Optional[list[str]] = None  # e.g., ["code", "medical", "legal"]
+    domain_models: Optional[dict[str, list[str]]] = None  # Domain-specific model overrides
 
     # 5. Guardrails (Safety & Compliance) - v0.2.1 basic flags
     enable_content_moderation: bool = False
     enable_pii_detection: bool = False
 
     # 6. Telemetry (Observability)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_tier(cls, tier: TierLevel, user_id: str, **kwargs) -> "UserProfile":
@@ -87,7 +87,7 @@ class UserProfile:
             else self.tier.requests_per_day
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for storage"""
         return {
             "user_id": self.user_id,
@@ -116,7 +116,7 @@ class UserProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "UserProfile":
+    def from_dict(cls, data: dict[str, Any]) -> "UserProfile":
         """Deserialize from dict"""
         # Parse tier
         tier_data = data.get("tier", {})

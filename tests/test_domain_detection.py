@@ -11,13 +11,13 @@ This module tests the 15-domain detection system including:
 """
 
 import pytest
+
 from cascadeflow.routing.domain import (
     Domain,
-    DomainDetector,
     DomainDetectionResult,
+    DomainDetector,
     DomainKeywords,
 )
-
 
 # ============================================================================
 # FIXTURES
@@ -415,7 +415,7 @@ def test_normalization_prevents_overflow(detector):
     )
 
     # All scores should be <= 1.0
-    for domain, score in result.scores.items():
+    for _domain, score in result.scores.items():
         assert 0.0 <= score <= 1.0
 
 

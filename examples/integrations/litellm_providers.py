@@ -33,7 +33,6 @@ What you'll learn:
 - Manage budgets per user
 """
 
-import asyncio
 import os
 
 # Load environment variables from .env file
@@ -46,7 +45,6 @@ except ImportError:
 
 from cascadeflow.integrations.litellm import (
     SUPPORTED_PROVIDERS,
-    LiteLLMBudgetTracker,
     LiteLLMCostProvider,
     calculate_cost,
     get_model_cost,
@@ -67,7 +65,7 @@ def example_1_supported_providers():
 
     print("cascadeflow supports these providers through LiteLLM integration:\n")
 
-    for provider_name, provider_info in SUPPORTED_PROVIDERS.items():
+    for _provider_name, provider_info in SUPPORTED_PROVIDERS.items():
         print(f"📦 {provider_info.display_name}")
         print(f"   Value: {provider_info.value_prop}")
         print(f"   Models: {', '.join(provider_info.example_models[:2])}...")

@@ -36,10 +36,10 @@ Example:
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional
 
 try:
-    from ..ml.embedding import UnifiedEmbeddingService, EmbeddingCache
+    from ..ml.embedding import EmbeddingCache, UnifiedEmbeddingService
 
     HAS_ML_MODULE = True
 except ImportError:
@@ -185,7 +185,7 @@ class SemanticQualityChecker:
         self,
         text: str,
         threshold: Optional[float] = None,
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """
         Check if text contains toxic content.
 

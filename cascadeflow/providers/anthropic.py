@@ -11,7 +11,6 @@ import httpx
 from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, ModelResponse, RetryConfig
 
-
 # ==============================================================================
 # REASONING MODEL SUPPORT
 # ==============================================================================

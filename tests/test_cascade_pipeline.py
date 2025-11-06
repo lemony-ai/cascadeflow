@@ -5,22 +5,22 @@ Tests the cascade pipeline data structures and built-in strategies.
 """
 
 import pytest
+
 from cascadeflow.routing.cascade_pipeline import (
+    CascadeExecutionResult,
     CascadeStep,
     DomainCascadeStrategy,
-    CascadeExecutionResult,
     StepResult,
     StepStatus,
     ValidationMethod,
     get_code_strategy,
-    get_medical_strategy,
-    get_general_strategy,
     get_data_strategy,
+    get_general_strategy,
+    get_medical_strategy,
     get_strategy_for_domain,
     list_available_strategies,
 )
 from cascadeflow.routing.domain import Domain
-
 
 # ============================================================================
 # TEST: CascadeStep

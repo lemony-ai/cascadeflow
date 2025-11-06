@@ -27,6 +27,7 @@ Zero configuration required - cascadeflow auto-detects capabilities!
 """
 
 import asyncio
+
 from cascadeflow import CascadeAgent, ModelConfig
 
 
@@ -48,7 +49,7 @@ async def main():
     )
 
     print(f"Response: {result1.content}")
-    print(f"\nUsage:")
+    print("\nUsage:")
     print(f"  Prompt tokens: {result1.metadata.get('prompt_tokens')}")
     print(f"  Completion tokens: {result1.metadata.get('completion_tokens')}")
     print(f"  Reasoning tokens: {result1.metadata.get('reasoning_tokens')}")  # Hidden reasoning
@@ -138,7 +139,7 @@ async def main():
     )
 
     print(f"Response: {result4.content[:500]}...")
-    print(f"\nUsage:")
+    print("\nUsage:")
     print(f"  Prompt tokens: {result4.metadata.get('prompt_tokens')}")
     print(f"  Completion tokens: {result4.metadata.get('completion_tokens')}")
     print(f"Cost: ${result4.cost:.6f}")
@@ -206,7 +207,7 @@ async def main():
 
     # Example 8: Multi-Provider Reasoning Cascade
     print("\n=== Example 8: Multi-Provider Reasoning Cascade ===")
-    agent7 = CascadeAgent(
+    CascadeAgent(
         models=[
             ModelConfig(
                 name="deepseek-r1:8b",

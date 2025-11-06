@@ -2,8 +2,8 @@
 Guardrails manager for coordinating content safety checks.
 """
 
-from typing import Tuple, List, Optional
 from dataclasses import dataclass
+from typing import Optional
 
 from .content_moderator import ContentModerator, ModerationResult
 from .pii_detector import PIIDetector, PIIMatch
@@ -12,7 +12,7 @@ from .pii_detector import PIIDetector, PIIMatch
 class GuardrailViolation(Exception):
     """Exception raised when content violates guardrails"""
 
-    def __init__(self, message: str, violations: List[str]):
+    def __init__(self, message: str, violations: list[str]):
         super().__init__(message)
         self.violations = violations
 
@@ -23,8 +23,8 @@ class GuardrailsCheck:
 
     is_safe: bool
     content_moderation: Optional[ModerationResult] = None
-    pii_detected: Optional[List[PIIMatch]] = None
-    violations: List[str] = None
+    pii_detected: Optional[list[PIIMatch]] = None
+    violations: list[str] = None
 
     def __post_init__(self):
         if self.violations is None:
@@ -98,7 +98,7 @@ class GuardrailsManager:
         self,
         text: str,
         profile: "UserProfile",
-    ) -> Tuple[str, List[PIIMatch]]:
+    ) -> tuple[str, list[PIIMatch]]:
         """
         Redact PII from text if PII detection is enabled.
 

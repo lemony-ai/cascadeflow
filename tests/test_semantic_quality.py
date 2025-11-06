@@ -9,10 +9,10 @@ This module tests the semantic quality checking functionality including:
 - Edge cases
 """
 
-import pytest
-from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
 import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Import the module
 from cascadeflow.quality.semantic import (
@@ -20,7 +20,6 @@ from cascadeflow.quality.semantic import (
     SemanticQualityResult,
     check_semantic_quality,
 )
-
 
 # ============================================================================
 # FIXTURES
@@ -386,6 +385,7 @@ def test_check_semantic_quality_unavailable(mock_fastembed_unavailable):
 def test_cosine_similarity_zero_vectors(mock_fastembed_available):
     """Test cosine similarity handles zero vectors."""
     import numpy as np
+
     from cascadeflow.ml.embedding import UnifiedEmbeddingService
 
     # Test the static method directly
@@ -399,6 +399,7 @@ def test_cosine_similarity_zero_vectors(mock_fastembed_available):
 def test_cosine_similarity_one_zero_vector(mock_fastembed_available):
     """Test cosine similarity handles one zero vector."""
     import numpy as np
+
     from cascadeflow.ml.embedding import UnifiedEmbeddingService
 
     # Test the static method directly

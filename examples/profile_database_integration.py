@@ -13,17 +13,16 @@ Key Features:
 """
 
 import asyncio
-import json
-from typing import Optional, Dict
-from cascadeflow import CascadeAgent, UserProfile, TierLevel, UserProfileManager
+from typing import Optional
 
+from cascadeflow import CascadeAgent, TierLevel, UserProfile, UserProfileManager
 
 # ============================================================================
 # Pattern 1: Simple Profile Creation from User Data
 # ============================================================================
 
 
-def create_profile_from_user_data(user_data: Dict) -> UserProfile:
+def create_profile_from_user_data(user_data: dict) -> UserProfile:
     """
     Create cascadeflow profile from existing user database record.
 
@@ -184,13 +183,13 @@ async def production_integration_example():
     print(f"   Daily budget: ${profile.get_daily_budget()}")
 
     # Example: User upgrades to Pro tier
-    print(f"\n2. Upgrading user to PRO tier...")
+    print("\n2. Upgrading user to PRO tier...")
     profile = await profile_manager.update_tier(user_id, TierLevel.PRO)
     print(f"   New tier: {profile.tier.name}")
     print(f"   New daily budget: ${profile.get_daily_budget()}")
 
     # Example: Create agent from profile
-    print(f"\n3. Creating agent from profile...")
+    print("\n3. Creating agent from profile...")
     agent = CascadeAgent.from_profile(profile)
     print(f"   Agent created with {len(agent.models)} models")
 
@@ -235,7 +234,7 @@ async def simple_integration_example():
     # Use it!
     result = await agent.run("Write a Python function to calculate compound interest")
 
-    print(f"\n✓ Profile created from existing user data")
+    print("\n✓ Profile created from existing user data")
     print(f"✓ User tier: {profile.tier.name}")
     print(f"✓ Domains: {profile.preferred_domains}")
     print(f"✓ Domain models: {profile.domain_models}")
@@ -261,10 +260,10 @@ async def domain_aware_routing_example():
         user_id="doc_smith", domains=["medical", "code"]
     )
 
-    print(f"\n1. Medical Professional Profile")
+    print("\n1. Medical Professional Profile")
     print(f"   Tier: {medical_profile.tier.name}")
     print(f"   Domains: {medical_profile.preferred_domains}")
-    print(f"   Domain-specific models:")
+    print("   Domain-specific models:")
     for domain, models in (medical_profile.domain_models or {}).items():
         print(f"     - {domain}: {models}")
 
@@ -273,7 +272,7 @@ async def domain_aware_routing_example():
 
     # Run medical query (would use medical-specific models if configured)
     result = await agent.run("Explain the mechanism of action for beta blockers")
-    print(f"\n2. Medical Query Result")
+    print("\n2. Medical Query Result")
     print(f"   Model used: {result.model_used}")
     print(f"   Cost: ${result.total_cost:.6f}")
 
@@ -307,7 +306,7 @@ def bulk_migration_example():
         profiles.append(profile)
 
         # Save to database (would be actual DB call)
-        profile_dict = profile.to_dict()
+        profile.to_dict()
         print(f"\n✓ Migrated {user['id']}:")
         print(f"  - Tier: {profile.tier.name}")
         print(f"  - Daily budget: ${profile.get_daily_budget()}")

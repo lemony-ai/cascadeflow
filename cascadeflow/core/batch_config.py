@@ -1,8 +1,8 @@
 """Batch processing configuration for cascadeflow."""
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
 from enum import Enum
+from typing import Any, Optional
 
 
 class BatchStrategy(str, Enum):
@@ -62,7 +62,7 @@ class BatchConfig:
     preserve_order: bool = True
     """Preserve query order in results"""
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     """Custom metadata for batch"""
 
     def __post_init__(self):

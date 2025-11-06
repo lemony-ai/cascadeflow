@@ -104,7 +104,7 @@ def demo_domain_detection():
     print("=" * 80)
     print()
 
-    from cascadeflow.routing.domain import DomainDetector, Domain
+    from cascadeflow.routing.domain import Domain, DomainDetector
 
     # Initialize detector
     detector = DomainDetector(confidence_threshold=0.3)
@@ -196,7 +196,7 @@ def demo_model_recommendations():
     print("=" * 80)
     print()
 
-    from cascadeflow.routing.domain import DomainDetector, Domain
+    from cascadeflow.routing.domain import Domain, DomainDetector
 
     detector = DomainDetector()
 
@@ -234,7 +234,7 @@ def demo_keyword_weighting():
     print("=" * 80)
     print()
 
-    from cascadeflow.routing.domain import DomainDetector, Domain
+    from cascadeflow.routing.domain import DomainDetector
 
     detector = DomainDetector()
 
@@ -274,7 +274,7 @@ def demo_cost_optimization():
     print("=" * 80)
     print()
 
-    from cascadeflow.routing.domain import DomainDetector, Domain
+    from cascadeflow.routing.domain import Domain, DomainDetector
 
     detector = DomainDetector()
 

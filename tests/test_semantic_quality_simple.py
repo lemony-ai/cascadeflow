@@ -6,12 +6,12 @@ They test graceful degradation and the public API.
 """
 
 import pytest
+
 from cascadeflow.quality.semantic import (
     SemanticQualityChecker,
     SemanticQualityResult,
     check_semantic_quality,
 )
-
 
 # ============================================================================
 # INITIALIZATION TESTS (No FastEmbed Required)

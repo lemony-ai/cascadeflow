@@ -11,13 +11,13 @@ Tests the complete ML integration including:
 """
 
 import pytest
-from cascadeflow.ml.embedding import UnifiedEmbeddingService, EmbeddingCache
-from cascadeflow.quality.semantic import SemanticQualityChecker
-from cascadeflow.routing.domain import SemanticDomainDetector, Domain
-from cascadeflow.quality.complexity import SemanticComplexityDetector, QueryComplexity
-from cascadeflow.quality.alignment_scorer import SemanticAlignmentScorer
-from cascadeflow.routing.cascade_pipeline import ValidationMethod
 
+from cascadeflow.ml.embedding import EmbeddingCache, UnifiedEmbeddingService
+from cascadeflow.quality.alignment_scorer import SemanticAlignmentScorer
+from cascadeflow.quality.complexity import QueryComplexity, SemanticComplexityDetector
+from cascadeflow.quality.semantic import SemanticQualityChecker
+from cascadeflow.routing.cascade_pipeline import ValidationMethod
+from cascadeflow.routing.domain import Domain, SemanticDomainDetector
 
 # ============================================================================
 # EMBEDDING SERVICE TESTS

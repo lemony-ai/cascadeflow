@@ -20,10 +20,10 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from cascadeflow.telemetry import (
-    CostTracker,
-    CostForecaster,
     AnomalyDetector,
     AnomalySeverity,
+    CostForecaster,
+    CostTracker,
     create_anomaly_alerts,
 )
 
@@ -62,7 +62,7 @@ def simulate_anomalous_spike(tracker: CostTracker, user_id: str = "user_1"):
         user_id=user_id,
     )
 
-    print(f"🔥 Added $3.00 cost (20x normal!)")
+    print("🔥 Added $3.00 cost (20x normal!)")
 
 
 def demo_cost_forecasting():
@@ -86,7 +86,7 @@ def demo_cost_forecasting():
     print("\n📈 Forecasting next 7 days...")
     prediction = forecaster.forecast_daily(days=7, user_id="user_1")
 
-    print(f"\n✨ Prediction Results:")
+    print("\n✨ Prediction Results:")
     print(f"  Predicted cost: ${prediction.predicted_cost:.4f}")
     print(f"  Confidence interval: ${prediction.lower_bound:.4f} - ${prediction.upper_bound:.4f}")
     print(f"  Confidence: {prediction.confidence:.1%}")
@@ -157,7 +157,7 @@ def demo_anomaly_detection():
         alerts = create_anomaly_alerts(anomalies, min_severity=AnomalySeverity.MEDIUM)
 
         for alert in alerts:
-            print(f"\n  Alert:")
+            print("\n  Alert:")
             print(f"    {alert['title']}")
             print(f"    {alert['message']}")
             print(f"    Severity: {alert['severity']}")

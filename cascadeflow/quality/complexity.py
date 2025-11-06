@@ -20,7 +20,7 @@ Based on research:
 import logging
 import re
 from enum import Enum
-from typing import Optional, Union, Tuple, Dict, Any, List
+from typing import Any, Optional, Union
 
 # Optional ML imports
 try:
@@ -1214,7 +1214,7 @@ if __name__ == "__main__":
 # ============================================================================
 
 # Complexity exemplar queries for embedding-based detection
-COMPLEXITY_EXEMPLARS: Dict[QueryComplexity, List[str]] = {
+COMPLEXITY_EXEMPLARS: dict[QueryComplexity, list[str]] = {
     QueryComplexity.TRIVIAL: [
         "What is 2+2?",
         "What color is the sky?",
@@ -1299,7 +1299,7 @@ class SemanticComplexityDetector:
         self.rule_detector = ComplexityDetector() if use_hybrid else None
 
         # Complexity embeddings (lazy-computed)
-        self._complexity_embeddings: Optional[Dict[QueryComplexity, Any]] = None
+        self._complexity_embeddings: Optional[dict[QueryComplexity, Any]] = None
         self._embeddings_computed = False
 
         # Check availability
@@ -1337,7 +1337,7 @@ class SemanticComplexityDetector:
             f"✓ Computed embeddings for {len(self._complexity_embeddings)} complexity levels"
         )
 
-    def detect(self, query: str) -> Tuple[QueryComplexity, float]:
+    def detect(self, query: str) -> tuple[QueryComplexity, float]:
         """
         Detect query complexity using semantic similarity.
 
@@ -1369,7 +1369,7 @@ class SemanticComplexityDetector:
             return QueryComplexity.MODERATE, 0.5
 
         # Calculate similarity to each complexity level
-        scores: Dict[QueryComplexity, float] = {}
+        scores: dict[QueryComplexity, float] = {}
         for complexity, complexity_embedding in self._complexity_embeddings.items():
             similarity = self.embedder._cosine_similarity(query_embedding, complexity_embedding)
             scores[complexity] = float(similarity) if similarity is not None else 0.0

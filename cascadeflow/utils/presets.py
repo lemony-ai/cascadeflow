@@ -25,7 +25,6 @@ Available Presets:
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +98,8 @@ def get_cost_optimized_agent(
         >>> print(f"Cost: ${result.total_cost:.6f}")  # Typically $0.00001-0.00005
     """
     from cascadeflow import CascadeAgent
-    from cascadeflow.schema.config import ModelConfig
     from cascadeflow.quality import QualityConfig
+    from cascadeflow.schema.config import ModelConfig
 
     providers = _detect_available_providers()
     models = []
@@ -224,8 +223,8 @@ def get_balanced_agent(
         >>> print(f"Quality: {result.quality_score:.2f}")  # Typically 0.80-0.90
     """
     from cascadeflow import CascadeAgent
-    from cascadeflow.schema.config import ModelConfig
     from cascadeflow.quality import QualityConfig
+    from cascadeflow.schema.config import ModelConfig
 
     providers = _detect_available_providers()
     models = []
@@ -334,8 +333,8 @@ def get_speed_optimized_agent(
         >>> print(f"Latency: {result.latency_ms:.0f}ms")  # Typically 300-800ms
     """
     from cascadeflow import CascadeAgent
-    from cascadeflow.schema.config import ModelConfig
     from cascadeflow.quality import QualityConfig
+    from cascadeflow.schema.config import ModelConfig
 
     providers = _detect_available_providers()
     models = []
@@ -444,8 +443,8 @@ def get_quality_optimized_agent(
         >>> print(f"Quality: {result.quality_score:.2f}")  # Typically 0.90+
     """
     from cascadeflow import CascadeAgent
-    from cascadeflow.schema.config import ModelConfig
     from cascadeflow.quality import QualityConfig
+    from cascadeflow.schema.config import ModelConfig
 
     providers = _detect_available_providers()
     models = []
@@ -555,8 +554,8 @@ def get_development_agent(
         >>> # Verbose output shows all routing decisions
     """
     from cascadeflow import CascadeAgent
-    from cascadeflow.schema.config import ModelConfig
     from cascadeflow.quality import QualityConfig
+    from cascadeflow.schema.config import ModelConfig
 
     providers = _detect_available_providers()
     models = []

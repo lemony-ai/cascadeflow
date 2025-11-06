@@ -1,11 +1,11 @@
 """Test suite for cost tracking system (v0.2.0)."""
 
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
-from cascadeflow.telemetry import BudgetConfig, CostEntry, CostTracker
+from cascadeflow.telemetry import BudgetConfig, CostTracker
 
 
 class TestBudgetConfig:
@@ -521,7 +521,7 @@ class TestRealWorldScenarios:
         )
 
         # Free user makes 5 queries
-        for i in range(5):
+        for _i in range(5):
             tracker.add_cost(
                 model="gpt-3.5-turbo",
                 provider="openai",

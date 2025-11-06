@@ -20,8 +20,8 @@ Benefits:
 - Intelligent fallback only when needed
 """
 
-import sys
 import asyncio
+import sys
 from pathlib import Path
 
 # Add parent directory to path
@@ -244,9 +244,9 @@ async def demo_multi_domain_executor():
     from cascadeflow.routing.cascade_executor import MultiStepCascadeExecutor
     from cascadeflow.routing.cascade_pipeline import (
         get_code_strategy,
-        get_medical_strategy,
-        get_general_strategy,
         get_data_strategy,
+        get_general_strategy,
+        get_medical_strategy,
     )
     from cascadeflow.routing.domain import Domain
 

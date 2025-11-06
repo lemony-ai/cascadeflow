@@ -157,7 +157,6 @@ from .profiles import (
 from .limits import (
     RateLimiter,
     RateLimitState,
-    RateLimitError,
 )
 
 # NEW: Guardrails (v0.2.1 - Milestone 5)

@@ -56,7 +56,7 @@ import logging
 import sys
 import time
 from collections.abc import AsyncIterator
-from typing import Any, Optional, List
+from typing import Any, Optional
 
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
@@ -67,7 +67,7 @@ from .quality import QualityConfig
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
 from .routing import PreRouter, ToolRouter
-from .schema.config import ModelConfig, UserTier, WorkflowProfile, CascadeConfig
+from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
 
@@ -75,7 +75,7 @@ from .schema.result import CascadeResult
 from .streaming import StreamEvent, StreamEventType, StreamManager
 
 # Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
-from .telemetry import CostCalculator, MetricsCollector, CallbackManager
+from .telemetry import CallbackManager, CostCalculator, MetricsCollector
 
 # 🚀 NEW: Import ToolStreamManager for tool calling
 try:
@@ -343,7 +343,7 @@ class CascadeAgent:
         if self._legacy_workflows:
             compat_notes.append(f"workflows={len(self._legacy_workflows)} (stored, not yet active)")
         if self._cache_enabled:
-            compat_notes.append(f"caching=requested (not yet implemented)")
+            compat_notes.append("caching=requested (not yet implemented)")
 
         compat_status = f"\n  Legacy v0.1.x: {', '.join(compat_notes)}" if compat_notes else ""
 
@@ -1692,7 +1692,7 @@ class CascadeAgent:
     # ========================================================================
 
     async def run_batch(
-        self, queries: List[str], batch_config: Optional["BatchConfig"] = None, **kwargs
+        self, queries: list[str], batch_config: Optional["BatchConfig"] = None, **kwargs
     ) -> "BatchResult":
         """
         Process multiple queries in batch.
@@ -1835,7 +1835,6 @@ class CascadeAgent:
             >>> # Run queries with tier limits applied
             >>> result = await agent.run("What is Python?")
         """
-        from .profiles import UserProfile
 
         # Auto-discover providers from environment
         providers = get_available_providers()

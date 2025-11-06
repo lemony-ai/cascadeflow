@@ -381,7 +381,7 @@ class LiteLLMCostProvider:
 
                     # Derive per-token costs (assuming equal input/output in the mock)
                     # completion_cost will use actual model pricing
-                    per_token_cost = total_cost / 2_000_000
+                    total_cost / 2_000_000
 
                     # Get separate costs by testing with just input tokens
                     mock_input_only = ModelResponse(

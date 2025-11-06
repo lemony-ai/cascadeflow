@@ -38,7 +38,7 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class Anomaly:
     severity: AnomalySeverity
     metric: str = "cost"
     user_id: Optional[str] = None
-    metadata: Dict[str, any] = field(default_factory=dict)
+    metadata: dict[str, any] = field(default_factory=dict)
 
     @property
     def deviation_percent(self) -> float:
@@ -141,7 +141,7 @@ class AnomalyDetector:
     def detect_global_anomalies(
         self,
         lookback_days: int = 7,
-    ) -> List[Anomaly]:
+    ) -> list[Anomaly]:
         """Detect anomalies in global (all users) costs.
 
         Args:
@@ -170,7 +170,7 @@ class AnomalyDetector:
         self,
         user_id: str,
         lookback_days: int = 7,
-    ) -> List[Anomaly]:
+    ) -> list[Anomaly]:
         """Detect anomalies for a specific user.
 
         Args:
@@ -199,7 +199,7 @@ class AnomalyDetector:
     def detect_all_users(
         self,
         lookback_days: int = 7,
-    ) -> Dict[str, List[Anomaly]]:
+    ) -> dict[str, list[Anomaly]]:
         """Detect anomalies for all users.
 
         Args:
@@ -238,7 +238,7 @@ class AnomalyDetector:
         self,
         user_id: Optional[str],
         lookback_days: int,
-    ) -> List[tuple[datetime, float]]:
+    ) -> list[tuple[datetime, float]]:
         """Get daily costs for analysis.
 
         Args:
@@ -262,7 +262,7 @@ class AnomalyDetector:
         entries = [e for e in entries if e.timestamp >= cutoff]
 
         # Group by day
-        daily_totals: Dict[str, tuple[datetime, float]] = {}
+        daily_totals: dict[str, tuple[datetime, float]] = {}
         for entry in entries:
             day_key = entry.timestamp.strftime("%Y-%m-%d")
             if day_key not in daily_totals:
@@ -277,10 +277,10 @@ class AnomalyDetector:
 
     def _detect_anomalies_in_series(
         self,
-        data: List[tuple[datetime, float]],
+        data: list[tuple[datetime, float]],
         metric: str,
         user_id: Optional[str],
-    ) -> List[Anomaly]:
+    ) -> list[Anomaly]:
         """Detect anomalies in a time series using z-score.
 
         Args:
@@ -357,9 +357,9 @@ class AnomalyDetector:
 
 
 def create_anomaly_alerts(
-    anomalies: List[Anomaly],
+    anomalies: list[Anomaly],
     min_severity: AnomalySeverity = AnomalySeverity.MEDIUM,
-) -> List[Dict[str, any]]:
+) -> list[dict[str, any]]:
     """Create alert notifications from anomalies.
 
     Filters anomalies by severity and formats them for alerting systems

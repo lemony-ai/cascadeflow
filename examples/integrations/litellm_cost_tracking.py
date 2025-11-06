@@ -46,7 +46,7 @@ def main():
     print(f"cascadeflow supports {len(SUPPORTED_PROVIDERS)} strategic providers:")
     print()
 
-    for name, info in SUPPORTED_PROVIDERS.items():
+    for _name, info in SUPPORTED_PROVIDERS.items():
         requires = "API key required" if info.requires_api_key else "No API key (local/self-hosted)"
         pricing = "LiteLLM pricing" if info.pricing_available else "Free/self-hosted"
 

@@ -37,7 +37,7 @@ Example:
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class MetricDimensions:
     provider: Optional[str] = None
     domain: Optional[str] = None
 
-    def to_attributes(self) -> Dict[str, str]:
+    def to_attributes(self) -> dict[str, str]:
         """Convert dimensions to OpenTelemetry attributes."""
         attrs = {}
         if self.user_id:
@@ -195,7 +195,7 @@ class OpenTelemetryExporter:
             from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
             from opentelemetry.sdk.metrics import MeterProvider
             from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-            from opentelemetry.sdk.resources import Resource, SERVICE_NAME, DEPLOYMENT_ENVIRONMENT
+            from opentelemetry.sdk.resources import DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, Resource
 
             # Create resource with service name and environment
             resource = Resource(

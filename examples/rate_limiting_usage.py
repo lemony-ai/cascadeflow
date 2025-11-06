@@ -6,12 +6,12 @@ with the sliding window algorithm.
 """
 
 import asyncio
+
 from cascadeflow import (
     CascadeAgent,
-    UserProfile,
-    TierLevel,
     RateLimiter,
-    RateLimitError,
+    TierLevel,
+    UserProfile,
 )
 
 
@@ -40,7 +40,7 @@ async def main():
     agent = CascadeAgent.from_profile(free_profile)
 
     # Make some requests
-    print(f"\nMaking 5 requests...")
+    print("\nMaking 5 requests...")
     for i in range(5):
         # Check rate limit before making request
         allowed, reason = await limiter.check_rate_limit(free_profile)
@@ -59,7 +59,7 @@ async def main():
 
     # Check usage stats
     stats = await limiter.get_usage_stats(free_profile)
-    print(f"\nUsage stats:")
+    print("\nUsage stats:")
     print(f"  Hourly: {stats['hourly_requests']}/{stats['hourly_limit']}")
     print(f"  Daily: {stats['daily_requests']}/{stats['daily_limit']}")
     print(f"  Cost: ${stats['daily_cost']:.6f}/${stats['daily_budget']}")
@@ -83,7 +83,7 @@ async def main():
     )
 
     # Try to exceed hourly limit
-    print(f"\nAttempting 5 requests (limit is 3)...")
+    print("\nAttempting 5 requests (limit is 3)...")
     request_count = 0
     blocked_count = 0
 
@@ -115,7 +115,7 @@ async def main():
     print(f"Daily budget: ${pro_profile.get_daily_budget()}")
 
     # PRO users can make many more requests
-    print(f"\nMaking 10 rapid requests...")
+    print("\nMaking 10 rapid requests...")
     for i in range(10):
         allowed, reason = await limiter.check_rate_limit(pro_profile)
         if allowed:
@@ -126,7 +126,7 @@ async def main():
             print(f"  Request {i+1}: BLOCKED")
 
     stats = await limiter.get_usage_stats(pro_profile)
-    print(f"\nPRO user usage:")
+    print("\nPRO user usage:")
     print(
         f"  Hourly: {stats['hourly_requests']}/{stats['hourly_limit']} ({stats['hourly_remaining']} remaining)"
     )
@@ -152,7 +152,7 @@ async def main():
     print(f"Daily budget: ${budget_profile.get_daily_budget()}")
 
     # Simulate requests until budget is exceeded
-    print(f"\nMaking requests until budget exceeded...")
+    print("\nMaking requests until budget exceeded...")
     total_cost = 0.0
     request_num = 0
 

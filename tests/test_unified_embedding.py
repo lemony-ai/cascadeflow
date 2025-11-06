@@ -9,9 +9,10 @@ Validates:
 - Similarity calculations
 """
 
-import pytest
 import time
 from unittest.mock import Mock, patch
+
+import pytest
 
 # Optional numpy (comes with FastEmbed)
 try:
@@ -22,7 +23,7 @@ except ImportError:
     HAS_NUMPY = False
     np = None
 
-from cascadeflow.ml.embedding import UnifiedEmbeddingService, EmbeddingCache
+from cascadeflow.ml.embedding import EmbeddingCache, UnifiedEmbeddingService
 
 
 class TestUnifiedEmbeddingService:
@@ -214,11 +215,11 @@ class TestEmbeddingCache:
         cache = EmbeddingCache(service)
 
         # First text
-        emb1 = cache.get_or_embed("text1")
+        cache.get_or_embed("text1")
         assert cache.cache_size() == 1
 
         # Different text - should compute new
-        emb2 = cache.get_or_embed("text2")
+        cache.get_or_embed("text2")
         assert mock_embedder.embed.call_count == 2
         assert cache.cache_size() == 2
 

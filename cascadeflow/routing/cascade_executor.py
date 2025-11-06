@@ -24,20 +24,20 @@ Example:
     >>> print(f"Steps: {len(result.steps_executed)}")
 """
 
-import time
-import logging
-from typing import List, Optional, Dict, Any, Callable
 import asyncio
+import logging
+import time
+from typing import Any, Callable, Optional
 
-from cascadeflow.routing.domain import Domain
 from cascadeflow.routing.cascade_pipeline import (
-    DomainCascadeStrategy,
-    CascadeStep,
-    StepResult,
     CascadeExecutionResult,
+    CascadeStep,
+    DomainCascadeStrategy,
+    StepResult,
     StepStatus,
     ValidationMethod,
 )
+from cascadeflow.routing.domain import Domain
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-def validate_syntax(response: str, metadata: Dict[str, Any]) -> tuple[bool, float, Dict[str, Any]]:
+def validate_syntax(response: str, metadata: dict[str, Any]) -> tuple[bool, float, dict[str, Any]]:
     """
     Validate code syntax.
 
@@ -97,8 +97,8 @@ def validate_syntax(response: str, metadata: Dict[str, Any]) -> tuple[bool, floa
 
 
 def validate_fact_check(
-    response: str, metadata: Dict[str, Any]
-) -> tuple[bool, float, Dict[str, Any]]:
+    response: str, metadata: dict[str, Any]
+) -> tuple[bool, float, dict[str, Any]]:
     """
     Basic fact-checking validation for medical/legal domains.
 
@@ -151,7 +151,7 @@ def validate_fact_check(
     return passed, score, details
 
 
-def validate_safety(response: str, metadata: Dict[str, Any]) -> tuple[bool, float, Dict[str, Any]]:
+def validate_safety(response: str, metadata: dict[str, Any]) -> tuple[bool, float, dict[str, Any]]:
     """
     Safety and toxicity validation.
 
@@ -185,7 +185,7 @@ def validate_safety(response: str, metadata: Dict[str, Any]) -> tuple[bool, floa
     return passed, score, details
 
 
-def validate_quality(response: str, metadata: Dict[str, Any]) -> tuple[bool, float, Dict[str, Any]]:
+def validate_quality(response: str, metadata: dict[str, Any]) -> tuple[bool, float, dict[str, Any]]:
     """
     General quality validation.
 
@@ -241,8 +241,8 @@ def validate_quality(response: str, metadata: Dict[str, Any]) -> tuple[bool, flo
 
 
 def validate_full_quality(
-    response: str, metadata: Dict[str, Any]
-) -> tuple[bool, float, Dict[str, Any]]:
+    response: str, metadata: dict[str, Any]
+) -> tuple[bool, float, dict[str, Any]]:
     """
     Comprehensive quality validation (combines multiple checks).
 
@@ -306,10 +306,10 @@ class MultiStepCascadeExecutor:
 
     def __init__(
         self,
-        strategies: Optional[List[DomainCascadeStrategy]] = None,
+        strategies: Optional[list[DomainCascadeStrategy]] = None,
         enable_fallback: bool = True,
         max_retries: int = 2,
-        custom_validators: Optional[Dict[str, Callable]] = None,
+        custom_validators: Optional[dict[str, Callable]] = None,
     ):
         """
         Initialize executor.
@@ -326,7 +326,7 @@ class MultiStepCascadeExecutor:
         self.custom_validators = custom_validators or {}
 
         # Build strategy map
-        self.strategy_map: Dict[Domain, DomainCascadeStrategy] = {}
+        self.strategy_map: dict[Domain, DomainCascadeStrategy] = {}
         for strategy in self.strategies:
             self.strategy_map[strategy.domain] = strategy
 
@@ -419,7 +419,7 @@ class MultiStepCascadeExecutor:
 
         # If primary steps failed, execute fallback steps
         if not final_response and self.enable_fallback:
-            logger.info(f"Primary steps failed, executing fallback steps")
+            logger.info("Primary steps failed, executing fallback steps")
             fallback_used = True
 
             fallback_steps = strategy.get_fallback_steps()

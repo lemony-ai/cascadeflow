@@ -4,10 +4,10 @@ import pytest
 
 from cascadeflow import (
     BudgetExceededError,
-    cascadeflowError,
     ModelError,
     ProviderError,
     QualityThresholdError,
+    cascadeflowError,
 )
 
 
