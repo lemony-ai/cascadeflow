@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Draft model - Fast, small model for initial responses
+  # Uses GPU 0 for quick inference
+  ollama-draft:
+    image: ollama/ollama:latest
+    container_name: ollama-draft
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-draft-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']  # Use first GPU
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Verifier model - Powerful, large model for quality checks
+  # Uses GPU 1 for accurate responses
+  ollama-verifier:
+    image: ollama/ollama:latest
+    container_name: ollama-verifier
+    ports:
+      - "11435:11434"  # Different external port
+    volumes:
+      - ollama-verifier-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']  # Use second GPU
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ollama-draft-data:
+    driver: local
+  ollama-verifier-data:
+    driver: local
