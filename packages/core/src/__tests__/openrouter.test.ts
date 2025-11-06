@@ -42,62 +42,20 @@ describe('OpenRouter Provider', () => {
   });
 
   describe('Cost Calculation', () => {
-    it('should calculate cost for gpt-4o correctly', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'openai/gpt-4o' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'openai/gpt-4o');
-
-      // Input: 1M tokens at $2.50/1M = $2.50
-      // Output: 1M tokens at $10.00/1M = $10.00
-      // Total: $12.50
-      expect(cost).toBeCloseTo(12.50, 2);
-    });
-
-    it('should calculate cost for claude-opus-4 correctly', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'anthropic/claude-opus-4' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'anthropic/claude-opus-4');
-
-      // Input: 1M tokens at $15/1M = $15.00
-      // Output: 1M tokens at $75/1M = $75.00
-      // Total: $90.00
-      expect(cost).toBeCloseTo(90.0, 2);
-    });
-
-    it('should calculate cost for claude-4.5-sonnet correctly', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'anthropic/claude-4.5-sonnet-20250929' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'anthropic/claude-4.5-sonnet-20250929');
-
-      // Input: 1M tokens at $3/1M = $3.00
-      // Output: 1M tokens at $15/1M = $15.00
-      // Total: $18.00
-      expect(cost).toBeCloseTo(18.0, 2);
-    });
-
-    it('should calculate cost for gemini-2.5-flash correctly', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'google/gemini-2.5-flash' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'google/gemini-2.5-flash');
-
-      // Input: 1M tokens at $0.15/1M = $0.15
-      // Output: 1M tokens at $0.60/1M = $0.60
-      // Total: $0.75
-      expect(cost).toBeCloseTo(0.75, 2);
-    });
-
-    it('should calculate cost for llama-3.1-8b correctly', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'meta-llama/llama-3.1-8b-instruct' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'meta-llama/llama-3.1-8b-instruct');
-
-      // Input: 1M tokens at $0.05/1M = $0.05
-      // Output: 1M tokens at $0.05/1M = $0.05
-      // Total: $0.10
-      expect(cost).toBeCloseTo(0.10, 2);
-    });
-
-    it('should return zero cost for free models', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'deepseek/deepseek-chat' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'deepseek/deepseek-chat');
-
-      // Free model
-      expect(cost).toBe(0);
+    it.each([
+      ['openai/gpt-4o', 1_000_000, 1_000_000, 12.50],
+      ['anthropic/claude-opus-4', 1_000_000, 1_000_000, 90.00],
+      ['anthropic/claude-4.5-sonnet-20250929', 1_000_000, 1_000_000, 18.00],
+      ['google/gemini-2.5-flash', 1_000_000, 1_000_000, 0.75],
+      ['meta-llama/llama-3.1-8b-instruct', 1_000_000, 1_000_000, 0.10],
+      ['deepseek/deepseek-chat', 1_000_000, 1_000_000, 0], // free
+      ['x-ai/grok-code-fast-1', 1_000_000, 1_000_000, 0], // free
+      ['deepseek/deepseek-coder-v2', 1_000_000, 1_000_000, 1.37],
+      ['minimax/minimax-m2', 1_000_000, 1_000_000, 0.20],
+    ])('should calculate cost for %s correctly', (model, promptTokens, completionTokens, expected) => {
+      const provider = new OpenRouterProvider({ ...mockConfig, name: model });
+      const cost = provider.calculateCost(promptTokens, completionTokens, model);
+      expect(cost).toBeCloseTo(expected, 2);
     });
 
     it('should handle unknown models with fallback pricing', () => {
@@ -416,26 +374,6 @@ describe('OpenRouter Provider', () => {
 
       // Should return empty array on error, not throw
       expect(models).toEqual([]);
-    });
-  });
-
-  describe('Top 2025 Models', () => {
-    it('should have pricing for Grok Code Fast', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'x-ai/grok-code-fast-1' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'x-ai/grok-code-fast-1');
-      expect(cost).toBe(0); // Free
-    });
-
-    it('should have pricing for DeepSeek Coder V2', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'deepseek/deepseek-coder-v2' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'deepseek/deepseek-coder-v2');
-      expect(cost).toBeCloseTo(1.37, 2); // $0.27 + $1.10
-    });
-
-    it('should have pricing for MiniMax M2', () => {
-      const provider = new OpenRouterProvider({ ...mockConfig, name: 'minimax/minimax-m2' });
-      const cost = provider.calculateCost(1_000_000, 1_000_000, 'minimax/minimax-m2');
-      expect(cost).toBeCloseTo(0.2, 2); // $0.10 + $0.10
     });
   });
 });

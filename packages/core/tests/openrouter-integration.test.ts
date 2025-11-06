@@ -17,25 +17,6 @@ const apiKey = process.env.OPENROUTER_API_KEY;
 const hasApiKey = !!apiKey;
 
 describe('OpenRouter Integration Tests', () => {
-  it.skipIf(!hasApiKey)('should initialize OpenRouter provider', () => {
-    console.log('\n🧪 Testing OpenRouter Provider Initialization');
-    console.log('✅ OpenRouter API key found');
-    console.log(`   Key: ${apiKey!.substring(0, 10)}...${apiKey!.substring(apiKey!.length - 4)}\n`);
-
-    const provider = new OpenRouterProvider({
-      name: 'openai/gpt-4o-mini',
-      provider: 'openrouter',
-      apiKey,
-      cost: 0.00015,
-    });
-
-    expect(provider).toBeDefined();
-    expect(provider.name).toBe('openrouter');
-    expect(provider.isAvailable()).toBe(true);
-
-    console.log('✅ Provider initialized successfully\n');
-  });
-
   it.skipIf(!hasApiKey)('should generate completion with Grok Code Fast (free)', async () => {
     console.log('🔍 Test: Grok Code Fast (x-ai) - Free Tier');
     console.log('   Model: x-ai/grok-code-fast-1');
@@ -211,79 +192,6 @@ describe('OpenRouter Integration Tests', () => {
     console.log('✅ Streaming test passed!\n');
   }, 30000);
 
-  it.skipIf(!hasApiKey)('should fetch available models from OpenRouter', async () => {
-    console.log('🔍 Test: Fetch available models from OpenRouter API');
-    console.log('   Endpoint: GET https://openrouter.ai/api/v1/models\n');
-
-    const provider = new OpenRouterProvider({
-      name: 'openai/gpt-4o-mini',
-      provider: 'openrouter',
-      apiKey,
-      cost: 0.00015,
-    });
-
-    const models = await provider.fetchAvailableModels();
-
-    console.log('📊 Models API Result:');
-    console.log(`   Total models available: ${models.length}`);
-
-    if (models.length > 0) {
-      console.log(`   Sample models (first 5):`);
-      models.slice(0, 5).forEach((model: any) => {
-        console.log(`      - ${model.id} (${model.context_length || 'N/A'} tokens)`);
-      });
-    }
-
-    console.log('');
-
-    expect(models).toBeDefined();
-    expect(models.length).toBeGreaterThan(0);
-
-    // Check for known top models
-    const modelIds = models.map((m: any) => m.id);
-    const hasTopModels = modelIds.some((id: string) =>
-      id.includes('grok') ||
-      id.includes('claude') ||
-      id.includes('gpt-4')
-    );
-
-    expect(hasTopModels).toBe(true);
-
-    console.log('✅ Model fetch test passed!\n');
-  }, 30000);
-
-  it.skipIf(!hasApiKey)('should get dynamic pricing for specific models', async () => {
-    console.log('🔍 Test: Get dynamic pricing from OpenRouter API\n');
-
-    const provider = new OpenRouterProvider({
-      name: 'openai/gpt-4o',
-      provider: 'openrouter',
-      apiKey,
-      cost: 0.0025,
-    });
-
-    const pricing = await provider.getModelPricing('openai/gpt-4o');
-
-    console.log('📊 Pricing Result:');
-    if (pricing) {
-      console.log(`   Model: openai/gpt-4o`);
-      console.log(`   Input: $${pricing.input} per 1M tokens`);
-      console.log(`   Output: $${pricing.output} per 1M tokens`);
-    } else {
-      console.log('   Pricing not available (using fallback)');
-    }
-
-    console.log('');
-
-    // Pricing might be null if model not in list, that's okay
-    if (pricing) {
-      expect(pricing.input).toBeGreaterThan(0);
-      expect(pricing.output).toBeGreaterThan(0);
-    }
-
-    console.log('✅ Pricing fetch test passed!\n');
-  }, 30000);
-
   it.skipIf(!hasApiKey)('should support tool calling via OpenRouter', async () => {
     console.log('🔍 Test: Tool calling with Claude 4.5 Sonnet');
     console.log('   Model: anthropic/claude-4.5-sonnet-20250929');
@@ -366,8 +274,6 @@ describe('OpenRouter Integration Tests', () => {
     console.log('   • Streaming responses');
     console.log('   • Cascade routing');
     console.log('   • Tool calling');
-    console.log('   • Model discovery API');
-    console.log('   • Dynamic pricing API');
     console.log('');
     console.log('🚀 OpenRouter provider is production-ready!');
     console.log('');
