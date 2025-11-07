@@ -22,8 +22,10 @@ export class CascadeFlow implements INodeType {
     },
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: ['main', 'main', 'main'],
-    inputNames: ['Input', 'Drafter Model', 'Verifier Model'],
-    outputs: ['main'],
+    inputNames: ['Chat/Agent Output', 'Drafter Provider', 'Verifier Provider'],
+    // eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
+    outputs: ['main', 'main'],
+    outputNames: ['Draft Accepted', 'Escalated to Verifier'],
     properties: [
       // Quality Threshold
       {
@@ -39,9 +41,18 @@ export class CascadeFlow implements INodeType {
         description: 'Minimum quality score (0-1) to accept drafter response. Lower = more cost savings, higher = better quality.',
       },
 
+      // Split Output by Path
+      {
+        displayName: 'Split Output by Path',
+        name: 'splitOutput',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to split output into two connectors: one for draft-accepted responses, one for escalated responses. Enables visual flow tracking.',
+      },
+
       // Output Options
       {
-        displayName: 'Output',
+        displayName: 'Output Format',
         name: 'output',
         type: 'options',
         default: 'contentOnly',
@@ -69,6 +80,7 @@ export class CascadeFlow implements INodeType {
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const returnData: INodeExecutionData[] = [];
+    const escalatedData: INodeExecutionData[] = [];
 
     // Get data from all three inputs
     const inputData = this.getInputData(0); // Input (prompt/query)
@@ -165,6 +177,9 @@ export class CascadeFlow implements INodeType {
 
     const modelConfigs: ModelConfig[] = [drafterConfig, verifierConfig];
 
+    // Get split output setting (same for all items)
+    const splitOutput = this.getNodeParameter('splitOutput', 0, false) as boolean;
+
     // Process each input item
     for (let itemIndex = 0; itemIndex < inputData.length; itemIndex++) {
       try {
@@ -252,26 +267,46 @@ export class CascadeFlow implements INodeType {
             outputData = result;
         }
 
-        returnData.push({
+        const outputItem = {
           json: outputData,
           pairedItem: { item: itemIndex },
-        });
+        };
+
+        // Route to appropriate output based on splitOutput setting
+        if (splitOutput) {
+          if (result.draftAccepted) {
+            returnData.push(outputItem);
+          } else {
+            escalatedData.push(outputItem);
+          }
+        } else {
+          returnData.push(outputItem);
+        }
 
       } catch (error) {
         if (this.continueOnFail()) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          returnData.push({
+          const errorItem = {
             json: {
               error: errorMessage,
             },
             pairedItem: { item: itemIndex },
-          });
+          };
+          // Errors always go to first output
+          returnData.push(errorItem);
           continue;
         }
         throw error;
       }
     }
 
-    return [returnData];
+    // Return appropriate outputs based on splitOutput setting
+    if (splitOutput) {
+      // Split mode: Draft accepted goes to output 0, escalated to output 1
+      return [returnData, escalatedData];
+    } else {
+      // Single output mode: All results go to output 0, output 1 is empty
+      return [returnData, []];
+    }
   }
 }
