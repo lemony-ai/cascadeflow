@@ -49,7 +49,7 @@
  *     docs/guides/quickstart.md
  */
 
-import { CascadeAgent, type ModelConfig } from '@cascadeflow/core';
+import { CascadeAgent, CASCADE_QUALITY_CONFIG, type ModelConfig } from '@cascadeflow/core';
 
 interface TestQuery {
   query: string;
@@ -91,21 +91,19 @@ async function main() {
       name: 'gpt-4o-mini',
       provider: 'openai',
       cost: 0.000375, // $0.375 per 1M tokens (blended estimate)
+      qualityThreshold: 0.7,  // Accept if confidence >= 70%
     },
     // Expensive model - only if needed
     {
       name: 'gpt-4o',
       provider: 'openai',
       cost: 0.00625, // $6.25 per 1M tokens (blended estimate)
+      qualityThreshold: 0.95,  // Very high quality
     },
   ];
 
   const agent = new CascadeAgent({
     models,
-    quality: {
-      threshold: 0.40,  // CASCADE-OPTIMIZED: Much lower than production (0.7)
-      requireMinimumTokens: 5,  // Relaxed from 10 for short answers
-    },
   });
 
   console.log('   ✅ Tier 1: gpt-4o-mini (~$0.375/1M tokens) - Tries first');
@@ -178,9 +176,8 @@ async function main() {
     direct_routing: 0,
   };
 
-  // Track savings from core calculations
-  let totalCostSaved = 0;
-  let totalBigonlyCost = 0;
+  // Track tokens for baseline comparison (manual estimation)
+  let all_gpt4_tokens = 0;
 
   // Process each query
   for (let i = 0; i < testQueries.length; i++) {
@@ -215,13 +212,10 @@ async function main() {
       stats.draft_rejected += 1;
     }
 
-    // Accumulate savings from core calculations
-    if (result.costSaved !== undefined) {
-      totalCostSaved += result.costSaved;
-    }
-    // Calculate bigonly cost (actual cost + savings)
-    const bigonly = result.totalCost + (result.costSaved || 0);
-    totalBigonlyCost += bigonly;
+    // Estimate tokens for baseline comparison (approximate)
+    const query_tokens = test.query.split(/\s+/).length * 1.3;
+    const response_tokens = result.content.split(/\s+/).length * 1.3;
+    all_gpt4_tokens += query_tokens + response_tokens;
 
     // Show result
     const tier = modelUsed === 'gpt-4o-mini' ? 'Tier 1 (Cheap)' : 'Tier 2 (Expensive)';
@@ -274,15 +268,16 @@ async function main() {
     // - routingStrategy='direct' means query was routed directly to expensive model (HARD/EXPERT complexity)
     // - draftAccepted=true means draft passed quality check (cascade used, verifier skipped)
     // - cascaded=true with draftAccepted=false means both models were used (draft rejected, escalated)
-    if (result.routingStrategy === 'direct') {
+    if (result.cascaded) {
+      if (result.draftAccepted) {
+        console.log('   ✅ Draft Accepted: GPT-4o-mini response passed quality check');
+        console.log('   💡 Verifier Skipped: GPT-4o was not called (cost saved!)');
+      } else {
+        console.log('   ❌ Draft Rejected: Quality check failed, escalated to GPT-4o');
+        console.log('   💸 Both Models Used: Paid for GPT-4o-mini + GPT-4o');
+      }
+    } else {
       console.log('   🎯 Direct Route: Query sent directly to GPT-4o (no cascade)');
-      console.log(`   💡 Reason: ${result.complexity} complexity detected by PreRouter`);
-    } else if (result.draftAccepted) {
-      console.log('   ✅ Draft Accepted: GPT-4o-mini response passed quality check');
-      console.log('   💡 Verifier Skipped: GPT-4o was not called (cost saved!)');
-    } else if (result.cascaded) {
-      console.log('   ❌ Draft Rejected: Quality check failed, escalated to GPT-4o');
-      console.log('   💸 Both Models Used: Paid for GPT-4o-mini + GPT-4o');
     }
 
     // Show first part of response
@@ -327,16 +322,18 @@ async function main() {
   console.log(`   Total Cost:  $${stats.total_cost.toFixed(6)}`);
   console.log();
 
-  // Calculate savings using core's calculations (actual token-based pricing)
-  const savingsPct = totalBigonlyCost > 0 ? (totalCostSaved / totalBigonlyCost) * 100 : 0.0;
+  // Calculate savings vs all-GPT-4o (token-based estimate)
+  const all_gpt4o_cost = (all_gpt4_tokens / 1000) * 0.00625;
+  const savings = all_gpt4o_cost - stats.total_cost;
+  const savings_pct = all_gpt4o_cost > 0 ? (savings / all_gpt4o_cost * 100) : 0.0;
 
   console.log('💎 Savings Compared to All-GPT-4o (Token-Based):');
-  console.log(`   All-GPT-4o Cost:     $${totalBigonlyCost.toFixed(6)}`);
+  console.log(`   All-GPT-4o Cost:     $${all_gpt4o_cost.toFixed(6)}`);
   console.log(`   cascadeflow Cost:    $${stats.total_cost.toFixed(6)}`);
-  console.log(`   💰 SAVINGS:          $${totalCostSaved.toFixed(6)} (${savingsPct.toFixed(1)}%)`);
+  console.log(`   💰 SAVINGS:          $${savings.toFixed(6)} (${savings_pct.toFixed(1)}%)`);
   console.log();
   console.log(
-    '   ℹ️  Note: Savings calculated from actual API token usage and split pricing'
+    `   ℹ️  Note: Savings based on actual token usage (~${Math.floor(all_gpt4_tokens)} tokens)`
   );
   console.log(
     '       Your savings will vary based on query complexity and response length.'
@@ -345,10 +342,10 @@ async function main() {
 
   // Extrapolate to realistic scale
   console.log('📈 Extrapolated to 10,000 Queries/Month:');
-  if (totalBigonlyCost > 0) {
+  if (all_gpt4o_cost > 0) {
     const scaleFactor = 10_000 / totalQueries;
     const monthlyCascade = stats.total_cost * scaleFactor;
-    const monthlyGpt4o = totalBigonlyCost * scaleFactor;
+    const monthlyGpt4o = all_gpt4o_cost * scaleFactor;
     const monthlySavings = monthlyGpt4o - monthlyCascade;
 
     console.log(
@@ -377,7 +374,7 @@ async function main() {
   console.log('   3. Complex queries escalate to expensive models (GPT-4o)');
   console.log('   4. When draft is accepted, verifier is SKIPPED (saves cost!)');
   console.log('   5. Token-based pricing means actual costs depend on query/response length');
-  console.log(`   6. You achieved ${savingsPct.toFixed(1)}% savings on this query mix`);
+  console.log(`   6. You achieved ${savings_pct.toFixed(1)}% savings on this query mix`);
   console.log();
 
   console.log('🚀 Next Steps:');

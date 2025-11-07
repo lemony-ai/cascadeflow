@@ -25,6 +25,14 @@
  *     - Detailed breakdowns by model and provider
  *     - Cost optimization insights
  *
+ * Note on Pricing:
+ *     This example uses simplified input-only cost estimates for demonstration:
+ *     - gpt-4o-mini: ~$0.15 per 1M tokens (input-only)
+ *     - gpt-4o: ~$6.25 per 1M tokens (input-only)
+ *
+ *     For more accurate blended pricing (input + output), see basic-usage.ts
+ *     This example focuses on cost TRACKING mechanics, not pricing accuracy.
+ *
  * Documentation:
  *     📖 Cost Tracking Guide: docs/guides/cost_tracking.md
  *     📚 Examples README: examples/README.md
@@ -35,7 +43,10 @@ import { CascadeAgent, type ModelConfig, type CascadeResult } from '@cascadeflow
 // ═══════════════════════════════════════════════════════════════════════
 // Simple Cost Tracker Implementation
 // ═══════════════════════════════════════════════════════════════════════
-// Note: TypeScript doesn't have telemetry module yet, so we implement basic tracking
+// TODO: TypeScript will get proper telemetry module in the future
+// Python has cascadeflow.telemetry with CostTracker and MetricsCollector
+// For now, we implement manual tracking with SimpleCostTracker and SimpleMetricsCollector
+// See: examples/cost_tracking.py for the proper telemetry module usage
 
 interface CostEntry {
   timestamp: Date;
@@ -207,25 +218,29 @@ async function main() {
   console.log('  Warn threshold: 80%\n');
 
   // STEP 3: Setup Agent with Cascade
+  // Create agent with 2-tier cascade:
+  // - Tier 1 (gpt-4o-mini): Fast & cheap (~$0.15 per 1M tokens - input-only estimate)
+  // - Tier 2 (gpt-4o): Slower & expensive (~$6.25 per 1M tokens - input-only estimate)
+  //
+  // Note: These are simplified input-only estimates for demonstration.
+  // For more accurate costs, see basic-usage.ts which uses blended input/output pricing.
   const models: ModelConfig[] = [
     {
       name: 'gpt-4o-mini',
       provider: 'openai',
-      cost: 0.00015,  // Cost per 1K tokens
+      cost: 0.00015,  // Cost per 1K tokens (~$0.15 per 1M tokens)
     },
     {
       name: 'gpt-4o',
       provider: 'openai',
-      cost: 0.00625,
+      cost: 0.00625,  // Cost per 1K tokens (~$6.25 per 1M tokens)
     },
   ];
 
   const agent = new CascadeAgent({
     models,
-    quality: {
-      threshold: 0.40,  // CASCADE-OPTIMIZED: Much lower than production (0.7)
-      requireMinimumTokens: 5,  // Relaxed from 10 for short answers
-    },
+    // Using default quality config (no explicit quality parameter)
+    // This matches Python's approach and uses sensible defaults
   });
 
   console.log('✓ Agent ready with 2-tier cascade\n');

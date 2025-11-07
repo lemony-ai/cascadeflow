@@ -107,12 +107,29 @@ async function main() {
     });
   }
 
-  const agent = new CascadeAgent({ models });
+  const agent = new CascadeAgent({
+    models,
+    quality: {
+      // Complexity-aware thresholds work across all providers
+      confidenceThresholds: {
+        simple: 0.5,      // Simple queries stay on cheap providers (Groq, mini)
+        moderate: 0.65,   // Moderate queries may escalate to mid-tier
+        hard: 0.75,    // Complex queries more likely to use premium
+        expert: 0.85      // Expert queries escalate to best available model
+      },
+      requireMinimumTokens: 10,
+    },
+  });
 
   console.log(`   ✅ Configured ${models.length}-tier cascade:`);
   models.forEach((m, i) => {
     console.log(`      Tier ${i + 1}: ${m.name} (${m.provider}) - $${m.cost}/1K tokens`);
   });
+  console.log();
+  console.log('   🎯 Quality Strategy:');
+  console.log('      - Complexity-aware routing across all providers');
+  console.log('      - Simple queries stay on cheapest tier');
+  console.log('      - Complex queries automatically escalate');
   console.log();
 
   // ========================================================================
