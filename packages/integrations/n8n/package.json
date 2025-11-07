@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/n8n-nodes-cascadeflow",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "n8n node for cascadeflow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
