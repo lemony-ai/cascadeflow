@@ -72,7 +72,7 @@ async function main() {
     models.push({
       name: 'llama-3.1-8b-instant',
       provider: 'groq',
-      cost: 0.00005, // Very cheap
+      cost: 0.0, // FREE
       apiKey: process.env.GROQ_API_KEY,
     });
   }
@@ -109,27 +109,13 @@ async function main() {
 
   const agent = new CascadeAgent({
     models,
-    quality: {
-      // Complexity-aware thresholds work across all providers
-      confidenceThresholds: {
-        simple: 0.5,      // Simple queries stay on cheap providers (Groq, mini)
-        moderate: 0.65,   // Moderate queries may escalate to mid-tier
-        hard: 0.75,    // Complex queries more likely to use premium
-        expert: 0.85      // Expert queries escalate to best available model
-      },
-      requireMinimumTokens: 10,
-    },
+    // Using default quality config (matches Python approach)
   });
 
   console.log(`   ✅ Configured ${models.length}-tier cascade:`);
   models.forEach((m, i) => {
     console.log(`      Tier ${i + 1}: ${m.name} (${m.provider}) - $${m.cost}/1K tokens`);
   });
-  console.log();
-  console.log('   🎯 Quality Strategy:');
-  console.log('      - Complexity-aware routing across all providers');
-  console.log('      - Simple queries stay on cheapest tier');
-  console.log('      - Complex queries automatically escalate');
   console.log();
 
   // ========================================================================
