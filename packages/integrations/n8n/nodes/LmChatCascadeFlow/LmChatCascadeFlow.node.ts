@@ -139,13 +139,13 @@ export class LmChatCascadeFlow implements INodeType {
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: [
       {
-        displayName: 'Drafter Model',
+        displayName: 'Drafter',
         type: 'ai_languageModel' as any,
         maxConnections: 1,
         required: true,
       },
       {
-        displayName: 'Verifier Model',
+        displayName: 'Verifier',
         type: 'ai_languageModel' as any,
         maxConnections: 1,
         required: true,
@@ -189,20 +189,20 @@ export class LmChatCascadeFlow implements INodeType {
     if (!drafterModel) {
       throw new NodeOperationError(
         this.getNode(),
-        'Drafter model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Drafter Model" input.'
+        'Drafter model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Drafter" input.'
       );
     }
 
     if (!verifierModel) {
       throw new NodeOperationError(
         this.getNode(),
-        'Verifier model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Verifier Model" input.'
+        'Verifier model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Verifier" input.'
       );
     }
 
     console.log('🚀 CascadeFlow initialized');
-    console.log(`   Drafter: ${drafterModel._llmType()}`);
-    console.log(`   Verifier: ${verifierModel._llmType()}`);
+    console.log(`   Drafter: ${typeof drafterModel._llmType === 'function' ? drafterModel._llmType() : 'connected'}`);
+    console.log(`   Verifier: ${typeof verifierModel._llmType === 'function' ? verifierModel._llmType() : 'connected'}`);
     console.log(`   Quality threshold: ${qualityThreshold}`);
 
     // Create and return the cascade model
