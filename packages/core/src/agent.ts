@@ -20,7 +20,11 @@ import {
   createStreamEvent,
   type StreamOptions,
 } from './streaming';
-import { QualityValidator } from './quality';
+import {
+  QualityValidator,
+  DEFAULT_QUALITY_CONFIG as DEFAULT_VALIDATOR_QUALITY_CONFIG,
+} from './quality';
+import type { QualityConfig as QualityValidatorConfig } from './quality';
 import { ComplexityDetector } from './complexity';
 import type { QueryComplexity } from './types';
 
@@ -126,16 +130,33 @@ export class CascadeAgent {
     this.models = [...config.models].sort((a, b) => a.cost - b.cost);
 
     // Initialize quality validator
-    // Map AgentConfig.quality to QualityValidator config format
-    const validatorConfig = config.quality
-      ? {
-          minConfidence: config.quality.threshold ?? 0.7,
-          minWordCount: config.quality.requireMinimumTokens ?? 10,
-          useLogprobs: true,
-          fallbackToHeuristic: true,
-          strictMode: false,
-        }
-      : undefined;
+    const qualityOptions = config.quality ?? config.cascade?.quality;
+    let validatorConfig: Partial<QualityValidatorConfig> | undefined;
+
+    if (qualityOptions) {
+      const {
+        threshold,
+        requireMinimumTokens,
+        requireValidation: _requireValidation,
+        enableAdaptive: _enableAdaptive,
+        ...validatorParams
+      } = qualityOptions;
+
+      const validatorCandidate: Partial<QualityValidatorConfig> = validatorParams;
+
+      validatorConfig = {
+        ...validatorCandidate,
+        minConfidence:
+          validatorCandidate.minConfidence ??
+          threshold ??
+          DEFAULT_VALIDATOR_QUALITY_CONFIG.minConfidence,
+        minWordCount:
+          validatorCandidate.minWordCount ??
+          requireMinimumTokens ??
+          DEFAULT_VALIDATOR_QUALITY_CONFIG.minWordCount,
+      };
+    }
+
     this.qualityValidator = new QualityValidator(validatorConfig);
 
     // Initialize complexity detector
@@ -349,7 +370,9 @@ export class CascadeAgent {
       const qualityResult = await this.qualityValidator.validate(
         draftResponse.content,
         query,
-        draftResponse.logprobs
+        draftResponse.logprobs,
+        complexity,
+        draftModelConfig.qualityThreshold // Per-model threshold override
       );
       const qualityPassed = qualityResult.passed;
 
@@ -478,6 +501,25 @@ export class CascadeAgent {
     const messages: Message[] =
       typeof input === 'string' ? [{ role: 'user', content: input }] : input;
 
+    // Extract query text for complexity detection
+    const queryText = typeof input === 'string'
+      ? input
+      : input.map(m => m.content).join('\n');
+
+    // Detect complexity
+    const complexityResult = this.complexityDetector.detect(queryText);
+    const { complexity } = complexityResult;
+
+    const cascadeComplexities: QueryComplexity[] = [
+      'trivial',
+      'simple',
+      'moderate',
+    ];
+    const shouldCascade =
+      !options.forceDirect &&
+      this.models.length > 1 &&
+      cascadeComplexities.includes(complexity);
+
     // For MVP, use simple cascade logic similar to run()
     let draftCost = 0;
     let verifierCost = 0;
@@ -496,13 +538,100 @@ export class CascadeAgent {
     let draftToolCalls: any[] | undefined;
     let verifierToolCalls: any[] | undefined;
 
+    const routingStrategy = shouldCascade ? 'cascade' : 'direct';
+
     // Emit ROUTING event
     yield createStreamEvent(StreamEventType.ROUTING, '', {
-      strategy: this.models.length > 1 ? 'cascade' : 'direct',
-      complexity: 'unknown',
+      strategy: routingStrategy,
+      complexity,
     });
 
     try {
+      if (!shouldCascade) {
+        const bestModelConfig = this.models[this.models.length - 1];
+        const directProvider = providerRegistry.get(
+          bestModelConfig.provider,
+          bestModelConfig
+        );
+
+        if (!directProvider.stream) {
+          // Fallback to non-streaming path
+          const result = await this.run(input, {
+            maxTokens: options.maxTokens,
+            temperature: options.temperature,
+            systemPrompt: options.systemPrompt,
+            tools: options.tools,
+            forceDirect: true,
+          });
+          yield createStreamEvent(StreamEventType.CHUNK, result.content, {
+            model: result.modelUsed,
+            phase: 'direct',
+            provider: bestModelConfig.provider,
+            streaming_supported: false,
+          });
+          yield createStreamEvent(StreamEventType.COMPLETE, '', { result });
+          return;
+        }
+
+        let directContent = '';
+        let directToolCalls: any[] | undefined;
+
+        for await (const chunk of directProvider.stream({
+          messages,
+          model: bestModelConfig.name,
+          maxTokens: options.maxTokens,
+          temperature: options.temperature,
+          systemPrompt: options.systemPrompt,
+          tools: options.tools,
+        })) {
+          directContent += chunk.content;
+
+          if (chunk.tool_calls) {
+            directToolCalls = chunk.tool_calls;
+          }
+
+          yield createStreamEvent(StreamEventType.CHUNK, chunk.content, {
+            model: bestModelConfig.name,
+            phase: 'direct',
+            provider: bestModelConfig.provider,
+          });
+
+          if (chunk.done) {
+            break;
+          }
+        }
+
+        const latencyMs = Date.now() - startTime;
+        const wordCount = directContent.split(/\s+/).length;
+        const estimatedTokens = Math.ceil(wordCount * 1.3);
+        totalCost = (estimatedTokens / 1000) * bestModelConfig.cost;
+
+        const result: CascadeResult = {
+          content: directContent,
+          modelUsed: bestModelConfig.name,
+          totalCost,
+          latencyMs,
+          complexity,
+          cascaded: false,
+          draftAccepted: false,
+          routingStrategy: 'direct',
+          reason: `Direct route (${complexity} complexity detected)`,
+          toolCalls: directToolCalls,
+          hasToolCalls: !!directToolCalls && directToolCalls.length > 0,
+          draftModel: undefined,
+          draftCost: 0,
+          draftLatencyMs: 0,
+          verifierModel: undefined,
+          verifierCost: 0,
+          verifierLatencyMs: 0,
+          costSaved: 0,
+          savingsPercentage: 0,
+        };
+
+        yield createStreamEvent(StreamEventType.COMPLETE, '', { result });
+        return;
+      }
+
       // Try draft model (cheapest)
       const draftModelConfig = this.models[0];
       const draftProvider = providerRegistry.get(draftModelConfig.provider, draftModelConfig);
@@ -570,7 +699,9 @@ export class CascadeAgent {
       const qualityResult = await this.qualityValidator.validate(
         draftContent,
         query,
-        draftLogprobs.length > 0 ? draftLogprobs : undefined
+        draftLogprobs.length > 0 ? draftLogprobs : undefined,
+        complexity,
+        draftModelConfig.qualityThreshold // Per-model threshold override
       );
       const qualityPassed = qualityResult.passed;
 
@@ -699,7 +830,7 @@ export class CascadeAgent {
         modelUsed,
         totalCost,
         latencyMs,
-        complexity: 'unknown',
+        complexity,
         cascaded,
         draftAccepted,
         routingStrategy: cascaded ? 'cascade' : 'direct',

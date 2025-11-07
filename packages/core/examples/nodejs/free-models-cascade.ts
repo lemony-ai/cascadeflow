@@ -26,8 +26,9 @@ async function main() {
   }
 
   console.log('Cascade Configuration:');
-  console.log('  Tier 1: x-ai/grok-code-fast-1 (free, threshold 0.7)');
+  console.log('  Tier 1: x-ai/grok-code-fast-1 (free, complexity-aware thresholds)');
   console.log('  Tier 2: minimax/minimax-m2 ($0.10/1M tokens)');
+  console.log('  Strategy: Lower thresholds to maximize free tier usage');
   console.log();
 
   // Configure 2-tier cascade
@@ -46,7 +47,16 @@ async function main() {
         apiKey: process.env.OPENROUTER_API_KEY,
       },
     ],
-    initialThreshold: 0.7,
+    quality: {
+      // Lower thresholds for free tier - maximize free model usage
+      confidenceThresholds: {
+        simple: 0.35,     // Very lenient for simple queries (free model is fine)
+        moderate: 0.5,    // Moderate leniency for comparisons
+        hard: 0.65,    // More selective for complex queries
+        expert: 0.75      // Escalate expert queries to paid tier
+      },
+      requireMinimumTokens: 5,
+    },
   });
 
   // Test queries with varying complexity

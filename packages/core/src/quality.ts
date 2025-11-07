@@ -4,6 +4,7 @@
  * Based on Python quality validation with TypeScript patterns
  */
 
+import type { QueryComplexity } from './types';
 import { QueryResponseAlignmentScorer } from './alignment';
 // SemanticQualityChecker is imported dynamically to avoid loading @cascadeflow/ml dependencies
 // when they're not needed (fixes n8n crash issue)
@@ -59,8 +60,17 @@ export interface QualityResult {
  * Quality configuration
  */
 export interface QualityConfig {
-  /** Minimum confidence threshold (0-1) */
+  /** Minimum confidence threshold (0-1) - fallback if confidenceThresholds not provided */
   minConfidence: number;
+
+  /** Adaptive confidence thresholds by complexity (overrides minConfidence) */
+  confidenceThresholds?: {
+    trivial?: number;
+    simple?: number;
+    moderate?: number;
+    hard?: number;
+    expert?: number;
+  };
 
   /** Minimum word count */
   minWordCount: number;
@@ -232,6 +242,21 @@ export class QualityValidator {
   constructor(config: Partial<QualityConfig> = {}) {
     this.config = { ...DEFAULT_QUALITY_CONFIG, ...config };
 
+    // Validate minConfidence
+    if (this.config.minConfidence < 0 || this.config.minConfidence > 1) {
+      throw new Error(`minConfidence must be between 0 and 1, got ${this.config.minConfidence}`);
+    }
+
+    // Validate confidenceThresholds if provided
+    if (this.config.confidenceThresholds) {
+      const thresholds = this.config.confidenceThresholds;
+      for (const [level, value] of Object.entries(thresholds)) {
+        if (value !== undefined && (value < 0 || value > 1)) {
+          throw new Error(`confidenceThresholds.${level} must be between 0 and 1, got ${value}`);
+        }
+      }
+    }
+
     // Initialize alignment scorer if enabled
     if (this.config.useAlignmentScoring) {
       this.alignmentScorer = new QueryResponseAlignmentScorer();
@@ -273,17 +298,62 @@ export class QualityValidator {
   }
 
   /**
+   * Get the appropriate confidence threshold for given complexity level
+   *
+   * @param complexity - Query complexity level
+   * @returns Confidence threshold to use (0-1)
+   */
+  private getThresholdForComplexity(complexity?: QueryComplexity): number {
+    // If no complexity provided, use default
+    if (!complexity) {
+      return this.config.minConfidence;
+    }
+
+    // If confidenceThresholds configured, use complexity-specific threshold
+    if (this.config.confidenceThresholds) {
+      const thresholds = this.config.confidenceThresholds;
+
+      // Get threshold for specific complexity, fallback to default
+      switch (complexity) {
+        case 'trivial':
+          return thresholds.trivial ?? this.config.minConfidence;
+        case 'simple':
+          return thresholds.simple ?? this.config.minConfidence;
+        case 'moderate':
+          return thresholds.moderate ?? this.config.minConfidence;
+        case 'hard':
+          return thresholds.hard ?? this.config.minConfidence;
+        case 'expert':
+          return thresholds.expert ?? this.config.minConfidence;
+        default: {
+          // TypeScript will catch this if we add new complexity levels
+          const _exhaustiveCheck: never = complexity;
+          console.warn(`Unknown complexity level: ${_exhaustiveCheck}, using default threshold`);
+          return this.config.minConfidence;
+        }
+      }
+    }
+
+    // Fallback to default threshold
+    return this.config.minConfidence;
+  }
+
+  /**
    * Validate response quality
    *
    * @param content - Generated content
    * @param query - Original query
    * @param logprobs - Log probabilities (if available)
+   * @param complexity - Query complexity level (for adaptive thresholds)
+   * @param thresholdOverride - Per-model threshold override (takes precedence over complexity-based thresholds)
    * @returns Quality validation result
    */
   async validate(
     content: string,
     query: string,
-    logprobs?: number[]
+    logprobs?: number[],
+    complexity?: QueryComplexity,
+    thresholdOverride?: number
   ): Promise<QualityResult> {
     // Step 1: Calculate confidence
     let confidence: number;
@@ -395,9 +465,10 @@ export class QualityValidator {
       score = Math.min(score, this.config.minAlignmentScore);
     }
 
-    // Step 6: Determine pass/fail
+    // Step 6: Determine pass/fail using threshold (per-model override or complexity-aware)
+    const effectiveThreshold = thresholdOverride ?? this.getThresholdForComplexity(complexity);
     const passed =
-      score >= this.config.minConfidence &&
+      score >= effectiveThreshold &&
       lengthOk &&
       alignmentPassed &&
       semanticPassed;
@@ -405,7 +476,10 @@ export class QualityValidator {
     // Step 7: Generate reason
     let reason: string;
     if (passed) {
-      reason = `Quality check passed (score: ${score.toFixed(2)}, confidence: ${confidence.toFixed(2)})`;
+      reason = `Quality check passed (score: ${score.toFixed(2)}, confidence: ${confidence.toFixed(2)}, threshold: ${effectiveThreshold.toFixed(2)})`;
+      if (complexity) {
+        reason += `, complexity: ${complexity}`;
+      }
       if (alignmentScore !== undefined) {
         reason += `, alignment: ${alignmentScore.toFixed(2)}`;
       }
@@ -419,7 +493,7 @@ export class QualityValidator {
     } else if (!alignmentPassed && alignmentScore !== undefined) {
       reason = `Alignment too low (${alignmentScore.toFixed(2)}, minimum: ${this.config.minAlignmentScore})`;
     } else {
-      reason = `Confidence too low (${confidence.toFixed(2)}, minimum: ${this.config.minConfidence})`;
+      reason = `Confidence too low (${confidence.toFixed(2)}, threshold: ${effectiveThreshold.toFixed(2)} for ${complexity || 'unknown'} complexity)`;
     }
 
     return {

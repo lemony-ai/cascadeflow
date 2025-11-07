@@ -80,7 +80,7 @@ importers:
   packages/integrations/n8n:
     dependencies:
       '@cascadeflow/core':
-        specifier: workspace:*
+        specifier: ^0.4.0
         version: link:../../core
       '@langchain/core':
         specifier: ^0.3.0
