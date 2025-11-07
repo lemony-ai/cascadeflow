@@ -10,7 +10,7 @@ import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
-import { ChatResult } from '@langchain/core/outputs';
+import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 
 /**
  * Custom CascadeChatModel that wraps two models (drafter and verifier)
@@ -51,9 +51,8 @@ class CascadeChatModel extends BaseChatModel {
       // Step 1: Try the drafter model
       console.log('🎯 CascadeFlow: Trying drafter model...');
       const drafterStartTime = Date.now();
-      const drafterResult = await this.drafterModel._generate(messages, options, runManager);
+      const drafterMessage = await this.drafterModel.invoke(messages, options);
       const drafterLatency = Date.now() - drafterStartTime;
-      const drafterMessage = drafterResult.generations[0].message;
 
       this.drafterCount++;
 
@@ -74,7 +73,12 @@ class CascadeChatModel extends BaseChatModel {
         console.log(`   💰 Cost savings: ~${savings}% (used cheap model)`);
         console.log(`   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier`);
 
-        return drafterResult;
+        return {
+          generations: [{
+            text: drafterMessage.content.toString(),
+            message: drafterMessage,
+          }],
+        };
       }
 
       // Step 4: Otherwise, escalate to verifier
@@ -83,7 +87,7 @@ class CascadeChatModel extends BaseChatModel {
       console.log(`   Drafter latency: ${drafterLatency}ms`);
 
       const verifierStartTime = Date.now();
-      const verifierResult = await this.verifierModel._generate(messages, options, runManager);
+      const verifierMessage = await this.verifierModel.invoke(messages, options);
       const verifierLatency = Date.now() - verifierStartTime;
 
       this.verifierCount++;
@@ -96,17 +100,27 @@ class CascadeChatModel extends BaseChatModel {
       console.log(`   Total latency: ${totalLatency}ms`);
       console.log(`   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier`);
 
-      return verifierResult;
+      return {
+        generations: [{
+          text: verifierMessage.content.toString(),
+          message: verifierMessage,
+        }],
+      };
     } catch (error) {
       // Fallback to verifier on error
       console.log(`❌ CascadeFlow: Drafter failed, falling back to verifier`);
       console.log(`   Error: ${error instanceof Error ? error.message : String(error)}`);
 
-      const verifierResult = await this.verifierModel._generate(messages, options, runManager);
+      const verifierMessage = await this.verifierModel.invoke(messages, options);
       this.verifierCount++;
 
       console.log('✅ CascadeFlow: Verifier fallback completed');
-      return verifierResult;
+      return {
+        generations: [{
+          text: verifierMessage.content.toString(),
+          message: verifierMessage,
+        }],
+      };
     }
   }
 }
