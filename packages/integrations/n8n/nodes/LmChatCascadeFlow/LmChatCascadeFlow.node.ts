@@ -12,6 +12,8 @@ import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 
+import { QualityValidator, CASCADE_QUALITY_CONFIG } from '@cascadeflow/core';
+
 /**
  * Custom CascadeChatModel that wraps two models (drafter and verifier)
  * and implements cascading logic with cost tracking
@@ -30,6 +32,9 @@ class CascadeChatModel extends BaseChatModel {
   // Lazy-loaded verifier
   private verifierModel?: BaseChatModel;
 
+  // Quality validator with CASCADE config
+  private qualityValidator: QualityValidator;
+
   constructor(
     drafterModel: BaseChatModel,
     verifierModelGetter: () => Promise<BaseChatModel>,
@@ -39,6 +44,12 @@ class CascadeChatModel extends BaseChatModel {
     this.drafterModel = drafterModel;
     this.verifierModelGetter = verifierModelGetter;
     this.qualityThreshold = qualityThreshold;
+
+    // Initialize quality validator with CASCADE-optimized config
+    this.qualityValidator = new QualityValidator({
+      ...CASCADE_QUALITY_CONFIG,
+      minConfidence: qualityThreshold, // Use user's threshold
+    });
   }
 
   private async getVerifierModel(): Promise<BaseChatModel> {
@@ -67,19 +78,30 @@ class CascadeChatModel extends BaseChatModel {
 
       this.drafterCount++;
 
-      // Step 2: Quality check
+      // Step 2: Quality check using CascadeFlow validator
       const responseText = drafterMessage.content.toString();
-      const qualityScore = Math.min(responseText.length / 100, 1.0);
+
+      // Extract query text from messages
+      const queryText = messages.map(m => m.content.toString()).join(' ');
+
+      // Validate response quality
+      const validationResult = await this.qualityValidator.validate(responseText, queryText);
+
+      console.log(`   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, method=${validationResult.method}`);
+      if (validationResult.details?.alignmentScore) {
+        console.log(`   🎯 Alignment: ${validationResult.details.alignmentScore.toFixed(2)}`);
+      }
 
       // Step 3: If quality is sufficient, return drafter response
-      if (qualityScore >= this.qualityThreshold) {
+      if (validationResult.passed) {
         // Estimate cost savings
         const estimatedDrafterCost = 0.0001; // $0.0001 per request (rough estimate)
         const estimatedVerifierCost = 0.0016; // $0.0016 per request (rough estimate)
         const savings = ((estimatedVerifierCost - estimatedDrafterCost) / estimatedVerifierCost * 100).toFixed(1);
 
         console.log(`✅ CascadeFlow: Drafter accepted!`);
-        console.log(`   Quality: ${qualityScore.toFixed(2)} (threshold: ${this.qualityThreshold})`);
+        console.log(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})`);
+        console.log(`   Quality score: ${validationResult.score.toFixed(2)}`);
         console.log(`   Latency: ${drafterLatency}ms`);
         console.log(`   💰 Cost savings: ~${savings}% (used cheap model)`);
         console.log(`   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier`);
@@ -94,7 +116,8 @@ class CascadeChatModel extends BaseChatModel {
 
       // Step 4: Otherwise, escalate to verifier
       console.log(`⚠️ CascadeFlow: Quality below threshold, escalating to verifier...`);
-      console.log(`   Quality: ${qualityScore.toFixed(2)} < ${this.qualityThreshold}`);
+      console.log(`   Confidence: ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold}`);
+      console.log(`   Reason: ${validationResult.reason}`);
       console.log(`   Drafter latency: ${drafterLatency}ms`);
 
       const verifierStartTime = Date.now();
