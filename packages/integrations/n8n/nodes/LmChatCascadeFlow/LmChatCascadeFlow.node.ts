@@ -190,15 +190,12 @@ export class LmChatCascadeFlow implements INodeType {
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.7) as number;
 
     // Get the connected chat models from inputs
-    const drafterModel = (await this.getInputConnectionData(
-      'ai_languageModel' as any,
-      0
-    )) as BaseChatModel;
+    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 0);
+    const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 1);
 
-    const verifierModel = (await this.getInputConnectionData(
-      'ai_languageModel' as any,
-      1
-    )) as BaseChatModel;
+    // Extract model from array if needed (n8n returns arrays for ai_languageModel connections)
+    const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
+    const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
 
     if (!drafterModel) {
       throw new NodeOperationError(
