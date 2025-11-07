@@ -13,9 +13,9 @@
  *
  * Setup Options:
  *
- * Option 1: Docker Compose (see examples/docker/multi-instance-vllm/)
+ * Option 1: Multiple local vLLM servers
  * Option 2: Kubernetes StatefulSets
- * Option 3: Multiple local vLLM servers
+ * Option 3: Docker containers (manual setup)
  *
  * Requirements:
  *   - Two vLLM instances running
@@ -47,8 +47,8 @@ interface MultiInstanceConfig {
  * Example configurations for different scenarios
  */
 const CONFIGURATIONS = {
-  // Scenario 1: Docker Compose with GPU separation
-  docker: {
+  // Scenario 1: Local servers with GPU separation
+  local: {
     draftInstance: {
       url: 'http://localhost:8000/v1',
       model: 'Qwen/Qwen2.5-7B-Instruct',
@@ -197,8 +197,6 @@ async function main() {
     console.error(`   python -m vllm.entrypoints.openai.api_server \\`);
     console.error(`     --model ${config.verifierInstance.model} \\`);
     console.error(`     --port 8001`);
-    console.error('');
-    console.error('Or use Docker Compose (see examples/docker/multi-instance-vllm/)');
     process.exit(1);
   }
 
@@ -254,10 +252,6 @@ async function main() {
     console.log(`  Draft accepted: ${result.draftAccepted}`);
     console.log(`  Latency: ${elapsed}ms`);
 
-    if (result.usage) {
-      console.log(`  Tokens: ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion`);
-    }
-
     console.log();
     console.log(`Response preview: ${result.content.substring(0, 300)}...`);
     console.log();
@@ -272,16 +266,11 @@ async function main() {
   const draftCount = results.filter(r => r.modelUsed === config.draftInstance.model).length;
   const verifierCount = results.length - draftCount;
   const avgLatency = results.reduce((sum, r) => sum + (r.latencyMs || 0), 0) / results.length;
-  const totalTokens = results.reduce(
-    (sum, r) => sum + (r.usage?.total_tokens || 0),
-    0
-  );
 
   console.log(`Total queries: ${results.length}`);
   console.log(`Draft instance: ${draftCount} queries (${(draftCount/results.length*100).toFixed(0)}%)`);
   console.log(`Verifier instance: ${verifierCount} queries (${(verifierCount/results.length*100).toFixed(0)}%)`);
   console.log(`Average latency: ${avgLatency.toFixed(0)}ms`);
-  console.log(`Total tokens: ${totalTokens}`);
   console.log();
 
   console.log('Multi-Instance Benefits:');

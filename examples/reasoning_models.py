@@ -27,11 +27,23 @@ Zero configuration required - cascadeflow auto-detects capabilities!
 """
 
 import asyncio
+import os
 
 from cascadeflow import CascadeAgent, ModelConfig
 
 
 async def main():
+    # Check for required API key
+    if not os.getenv("OPENAI_API_KEY"):
+        print("\n❌ Error: OPENAI_API_KEY environment variable not set")
+        print("\nThis example requires an OpenAI API key to run.")
+        print("\nSetup:")
+        print("  1. Get your API key from: https://platform.openai.com/api-keys")
+        print("  2. Set the environment variable:")
+        print("     export OPENAI_API_KEY='sk-...'")
+        print("\nNote: o1-mini and o1 models require Tier 3+ API access")
+        print("      Check your tier at: https://platform.openai.com/settings/organization/limits")
+        return
     # Example 1: o1-mini (supports streaming, no tools, no system messages)
     print("\n=== Example 1: o1-mini (original reasoning model) ===")
     agent1 = CascadeAgent(

@@ -902,7 +902,7 @@ class WholeResponseCascade:
         if self.tool_quality_validator:
             try:
                 # Convert complexity string to ToolComplexityLevel
-                from .routing.tool_complexity import ToolComplexityLevel
+                from ..routing.tool_complexity import ToolComplexityLevel
 
                 complexity_level = ToolComplexityLevel(complexity.lower())
             except (ValueError, AttributeError):

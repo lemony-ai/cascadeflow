@@ -5,7 +5,7 @@ import {
   INodeProperties,
 } from 'n8n-workflow';
 
-export class cascadeflowApi implements ICredentialType {
+export class CascadeFlowApi implements ICredentialType {
   name = 'cascadeFlowApi';
   displayName = 'Cascadeflow API';
   documentationUrl = 'https://github.com/lemony-ai/cascadeflow';

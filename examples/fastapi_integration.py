@@ -34,11 +34,13 @@ Setup:
     python examples/fastapi_integration.py
 
 Run:
-    # The app starts automatically on http://localhost:8000
-    # Visit http://localhost:8000/docs for interactive API docs
+    # Direct execution (recommended):
+    python examples/fastapi_integration.py
 
-    # Or run with uvicorn:
+    # Or with uvicorn for development with auto-reload:
     uvicorn fastapi_integration:app --reload
+
+    # Visit http://localhost:8000/docs for interactive API docs
 
 Test:
     # Non-streaming
@@ -67,7 +69,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from cascadeflow import CascadeAgent, ModelConfig
 
@@ -89,13 +91,8 @@ logger = logging.getLogger(__name__)
 class QueryRequest(BaseModel):
     """Request model for query endpoint."""
 
-    query: str = Field(..., description="User query text", min_length=1, max_length=2000)
-    max_tokens: int = Field(default=100, ge=1, le=4000, description="Maximum tokens to generate")
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
-    force_direct: bool = Field(default=False, description="Skip cascade, use best model")
-
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query": "What is machine learning?",
                 "max_tokens": 150,
@@ -103,21 +100,19 @@ class QueryRequest(BaseModel):
                 "force_direct": False,
             }
         }
+    )
+
+    query: str = Field(..., description="User query text", min_length=1, max_length=2000)
+    max_tokens: int = Field(default=100, ge=1, le=4000, description="Maximum tokens to generate")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
+    force_direct: bool = Field(default=False, description="Skip cascade, use best model")
 
 
 class QueryResponse(BaseModel):
     """Response model for query endpoint."""
 
-    content: str = Field(..., description="Generated response")
-    model_used: str = Field(..., description="Model that generated the response")
-    cost: float = Field(..., description="Cost in USD")
-    latency_ms: float = Field(..., description="Response latency in milliseconds")
-    cascaded: bool = Field(..., description="Whether cascade was used")
-    draft_accepted: Optional[bool] = Field(None, description="Whether draft was accepted")
-    complexity: Optional[str] = Field(None, description="Query complexity")
-
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "content": "Machine learning is a subset of artificial intelligence...",
                 "model_used": "gpt-4o-mini",
@@ -128,20 +123,22 @@ class QueryResponse(BaseModel):
                 "complexity": "moderate",
             }
         }
+    )
+
+    content: str = Field(..., description="Generated response")
+    model_used: str = Field(..., description="Model that generated the response")
+    cost: float = Field(..., description="Cost in USD")
+    latency_ms: float = Field(..., description="Response latency in milliseconds")
+    cascaded: bool = Field(..., description="Whether cascade was used")
+    draft_accepted: Optional[bool] = Field(None, description="Whether draft was accepted")
+    complexity: Optional[str] = Field(None, description="Query complexity")
 
 
 class StatsResponse(BaseModel):
     """Response model for stats endpoint."""
 
-    total_queries: int
-    total_cost: float
-    avg_latency_ms: float
-    cascade_used_count: int
-    models_used: dict[str, int]
-    uptime_seconds: float
-
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_queries": 1523,
                 "total_cost": 2.45,
@@ -151,18 +148,21 @@ class StatsResponse(BaseModel):
                 "uptime_seconds": 3600.0,
             }
         }
+    )
+
+    total_queries: int
+    total_cost: float
+    avg_latency_ms: float
+    cascade_used_count: int
+    models_used: dict[str, int]
+    uptime_seconds: float
 
 
 class HealthResponse(BaseModel):
     """Response model for health check."""
 
-    status: str
-    version: str
-    agent_initialized: bool
-    providers_available: list[str]
-
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "healthy",
                 "version": "1.0.0",
@@ -170,6 +170,12 @@ class HealthResponse(BaseModel):
                 "providers_available": ["openai", "anthropic"],
             }
         }
+    )
+
+    status: str
+    version: str
+    agent_initialized: bool
+    providers_available: list[str]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -471,6 +477,4 @@ if __name__ == "__main__":
     print("\n🚀 Starting server...")
     print("=" * 70 + "\n")
 
-    uvicorn.run(
-        "fastapi_integration:app", host="0.0.0.0", port=8000, reload=False, log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

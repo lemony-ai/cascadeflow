@@ -72,7 +72,7 @@ async function main() {
     models.push({
       name: 'llama-3.1-8b-instant',
       provider: 'groq',
-      cost: 0.00005, // Very cheap
+      cost: 0.0, // FREE
       apiKey: process.env.GROQ_API_KEY,
     });
   }
@@ -107,7 +107,10 @@ async function main() {
     });
   }
 
-  const agent = new CascadeAgent({ models });
+  const agent = new CascadeAgent({
+    models,
+    // Using default quality config (matches Python approach)
+  });
 
   console.log(`   ✅ Configured ${models.length}-tier cascade:`);
   models.forEach((m, i) => {

@@ -3,6 +3,7 @@
  */
 
 import type { Provider, RoutingStrategy } from './types';
+import type { QualityConfig as QualityValidatorConfig } from './quality';
 
 /**
  * Configuration for a single model in the cascade
@@ -59,6 +60,9 @@ export interface ModelConfig {
 
   /** Whether model supports tool/function calling */
   supportsTools?: boolean;
+
+  /** Per-model quality threshold for cascade acceptance (0-1, overrides global threshold) */
+  qualityThreshold?: number;
 }
 
 /**
@@ -79,23 +83,27 @@ export interface ModelConfig {
  * ```typescript
  * const config: QualityConfig = {
  *   confidenceThresholds: {
+ *     trivial: 0.5,   // Very low bar for trivial queries
  *     simple: 0.6,    // Lower bar for simple queries
  *     moderate: 0.7,  // Medium bar
- *     complex: 0.8,   // High bar for complex queries
+ *     hard: 0.8,      // High bar for hard queries
  *     expert: 0.9     // Very high bar for expert-level
  *   }
  * };
  * ```
  */
-export interface QualityConfig {
+type QualityValidatorParams = Partial<QualityValidatorConfig>;
+
+export interface QualityConfig extends QualityValidatorParams {
   /** Minimum confidence threshold to accept result (0-1, default: 0.7) */
   threshold?: number;
 
   /** Confidence thresholds by complexity level (overrides global threshold) */
   confidenceThresholds?: {
+    trivial?: number;
     simple?: number;
     moderate?: number;
-    complex?: number;
+    hard?: number;
     expert?: number;
   };
 
@@ -252,17 +260,21 @@ export function validateModelConfig(config: ModelConfig): void {
   if (config.maxTokens !== undefined && config.maxTokens <= 0) {
     throw new Error('maxTokens must be positive');
   }
+  if (config.qualityThreshold !== undefined && (config.qualityThreshold < 0 || config.qualityThreshold > 1)) {
+    throw new Error('qualityThreshold must be between 0 and 1');
+  }
 }
 
 /**
  * Default quality configuration
  */
-export const DEFAULT_QUALITY_CONFIG: Required<QualityConfig> = {
+export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   threshold: 0.7,
   confidenceThresholds: {
+    trivial: 0.5,
     simple: 0.6,
     moderate: 0.7,
-    complex: 0.8,
+    hard: 0.8,
     expert: 0.85,
   },
   requireMinimumTokens: 10,

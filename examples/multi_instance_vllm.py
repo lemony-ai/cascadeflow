@@ -13,9 +13,9 @@ Use Cases:
 
 Setup Options:
 
-Option 1: Docker Compose (see examples/docker/multi-instance-vllm/)
+Option 1: Multiple local vLLM servers
 Option 2: Kubernetes StatefulSets
-Option 3: Multiple local vLLM servers
+Option 3: Docker containers (manual setup)
 
 Requirements:
     - Two vLLM instances running
@@ -57,6 +57,7 @@ from cascadeflow import CascadeAgent, ModelConfig
 @dataclass
 class InstanceConfig:
     """Configuration for a vLLM instance"""
+
     url: str
     model: str
     description: str
@@ -66,14 +67,15 @@ class InstanceConfig:
 @dataclass
 class MultiInstanceConfig:
     """Configuration for multi-instance vLLM setup"""
+
     draft_instance: InstanceConfig
     verifier_instance: InstanceConfig
 
 
 # Example configurations for different scenarios
 CONFIGURATIONS = {
-    # Scenario 1: Docker Compose with GPU separation
-    "docker": MultiInstanceConfig(
+    # Scenario 1: Local servers with GPU separation
+    "local": MultiInstanceConfig(
         draft_instance=InstanceConfig(
             url="http://localhost:8000/v1",
             model="Qwen/Qwen2.5-7B-Instruct",
@@ -140,9 +142,7 @@ def create_multi_instance_agent(config: MultiInstanceConfig) -> CascadeAgent:
     )
 
 
-async def check_instance_health(
-    url: str, api_key: Optional[str] = None
-) -> tuple[bool, list[str]]:
+async def check_instance_health(url: str, api_key: Optional[str] = None) -> tuple[bool, list[str]]:
     """Health check for vLLM instances"""
     try:
         headers = {"Content-Type": "application/json"}
@@ -206,8 +206,6 @@ async def main():
         print("   python -m vllm.entrypoints.openai.api_server \\")
         print(f"     --model {config.verifier_instance.model} \\")
         print("     --port 8001")
-        print()
-        print("Or use Docker Compose (see examples/docker/multi-instance-vllm/)")
         return
 
     print(f"  ✅ Draft instance: {config.draft_instance.url}")
@@ -280,17 +278,13 @@ async def main():
     print("=" * 80)
     print()
 
-    draft_count = sum(
-        1 for r in results if r.model_used == config.draft_instance.model
-    )
+    draft_count = sum(1 for r in results if r.model_used == config.draft_instance.model)
     verifier_count = len(results) - draft_count
     avg_latency = sum(r.latency_ms or 0 for r in results) / len(results)
     total_cost = sum(r.total_cost for r in results)
 
     print(f"Total queries: {len(results)}")
-    print(
-        f"Draft instance: {draft_count} queries ({draft_count / len(results) * 100:.0f}%)"
-    )
+    print(f"Draft instance: {draft_count} queries ({draft_count / len(results) * 100:.0f}%)")
     print(
         f"Verifier instance: {verifier_count} queries ({verifier_count / len(results) * 100:.0f}%)"
     )

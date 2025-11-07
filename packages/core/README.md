@@ -43,9 +43,9 @@ import { CascadeAgent } from '@cascadeflow/core';
 const agent = new CascadeAgent({
   models: [
     {
-      name: 'claude-3-5-haiku-20241022',
+      name: 'claude-haiku-4-5',
       provider: 'anthropic',
-      cost: 0.00008  // Fast, high-quality drafter
+      cost: 0.001  // Fast, high-quality drafter
     },
     {
       name: 'gpt-5',
@@ -62,6 +62,59 @@ console.log(`Cost: $${result.totalCost}`);
 console.log(`Savings: ${result.savingsPercentage}%`);
 ```
 
+### Quality Configuration
+
+Control when the cascade uses the drafter vs. verifier with quality thresholds:
+
+```typescript
+// Recommended: Complexity-aware thresholds
+const agent = new CascadeAgent({
+  models: [
+    { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
+    { name: 'gpt-5', provider: 'openai', cost: 0.00125 }
+  ],
+  quality: {
+    confidenceThresholds: {
+      simple: 0.6,      // "What is Python?" - Accept 60%+ confidence
+      moderate: 0.7,    // "Compare Python vs Java" - Accept 70%+
+      hard: 0.8,     // "Analyze quantum computing" - Accept 80%+
+      expert: 0.85      // "Implement distributed cache" - Accept 85%+
+    }
+  }
+});
+```
+
+**Quick Configuration Options:**
+
+```typescript
+// Option 1: Use CASCADE_QUALITY_CONFIG (optimized for 50-60% acceptance)
+import { CascadeAgent, CASCADE_QUALITY_CONFIG } from '@cascadeflow/core';
+const agent = new CascadeAgent({
+  models: [...],
+  quality: CASCADE_QUALITY_CONFIG  // Lower threshold (0.40) = more cost savings
+});
+
+// Option 2: Simple flat threshold
+const agent = new CascadeAgent({
+  models: [...],
+  quality: {
+    threshold: 0.7,              // 70% confidence required (default)
+    requireMinimumTokens: 10     // Minimum response length
+  }
+});
+
+// Option 3: Use defaults (no quality config needed)
+const agent = new CascadeAgent({
+  models: [...]
+  // Automatically uses threshold: 0.7
+});
+```
+
+**When to adjust:**
+- **Lower thresholds (0.4-0.6)**: More drafts accepted → higher cost savings, slightly lower quality
+- **Higher thresholds (0.8-0.9)**: Fewer drafts accepted → lower savings, maximum quality
+- **Complexity-aware**: Best balance → adjusts automatically based on query difficulty
+
 > **⚠️ GPT-5 Requires Organization Verification**
 >
 > To use GPT-5, your OpenAI organization must be verified:
@@ -70,6 +123,14 @@ console.log(`Savings: ${result.savingsPercentage}%`);
 > 3. Wait ~15 minutes for access to propagate
 >
 > **Works immediately:** The cascade above works right away! Claude Haiku handles 75% of queries, GPT-5 only called when needed.
+
+> **📝 Model Naming**
+>
+> Both naming conventions work with CascadeFlow:
+> - `claude-haiku-4-5` (used in presets, recommended)
+> - `claude-3-5-haiku-20241022` (Anthropic API format)
+>
+> The library accepts both formats and routes them correctly.
 
 ### OpenAI Only
 
@@ -103,9 +164,9 @@ const result = await agent.run('Your query here');
 | Preset | Best For | Speed | Cost/Query | API Keys |
 |--------|----------|-------|-----------|----------|
 | `PRESET_BEST_OVERALL` | Most use cases | Fast (~2-3s) | ~$0.0008 | Anthropic + OpenAI |
-| `PRESET_ULTRA_FAST` | Real-time apps | Ultra-fast (~1-2s) | ~$0.00005 | Groq |
+| `PRESET_ULTRA_FAST` | Real-time apps | Ultra-fast (~1-2s) | ~$0.0002 | Groq |
 | `PRESET_ULTRA_CHEAP` | High volume | Very fast (~1-3s) | ~$0.00008 | Groq + OpenAI |
-| `PRESET_OPENAI_ONLY` | Single provider | Fast (~2-4s) | ~$0.0005 | OpenAI |
+| `PRESET_OPENAI_ONLY` | Single provider | Fast (~2-4s) | ~$0.0004 | OpenAI |
 | `PRESET_ANTHROPIC_ONLY` | Claude fans | Fast (~2-3s) | ~$0.002 | Anthropic |
 | `PRESET_FREE_LOCAL` | Privacy/offline | Moderate (~3-5s) | $0 (free) | None (Ollama) |
 

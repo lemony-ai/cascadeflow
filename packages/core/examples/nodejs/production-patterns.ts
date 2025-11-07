@@ -49,6 +49,15 @@ async function example1_ErrorHandling() {
       { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
       { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
+    quality: {
+      // Production-grade thresholds for reliability
+      confidenceThresholds: {
+        simple: 0.6,
+        moderate: 0.7,
+        hard: 0.8,
+        expert: 0.85
+      },
+    },
   });
 
   try {
@@ -109,6 +118,15 @@ async function example2_Caching() {
       { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
       { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
+    quality: {
+      // Balanced thresholds for cached responses
+      confidenceThresholds: {
+        simple: 0.6,
+        moderate: 0.7,
+        hard: 0.8,
+        expert: 0.85
+      },
+    },
   });
 
   const cache = new ResponseCache(60); // 60 minute TTL
@@ -181,6 +199,11 @@ async function example3_RateLimiting() {
     models: [
       { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
     ],
+    quality: {
+      // Single-model with quality checks
+      threshold: 0.5,  // No cascade, but still validate quality
+      requireMinimumTokens: 10,
+    },
   });
 
   const rateLimiter = new RateLimiter(10); // 10 requests per minute
@@ -249,6 +272,15 @@ async function example4_CostTracking() {
       { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
       { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
+    quality: {
+      // Cost-optimized thresholds to stay within budget
+      confidenceThresholds: {
+        simple: 0.5,     // More lenient to reduce costs
+        moderate: 0.65,
+        hard: 0.75,
+        expert: 0.85
+      },
+    },
   });
 
   const tracker = new CostTracker(1.00); // $1 daily budget
@@ -317,6 +349,15 @@ async function example5_Monitoring() {
       { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
       { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
+    quality: {
+      // Standard production thresholds for monitoring
+      confidenceThresholds: {
+        simple: 0.6,
+        moderate: 0.7,
+        hard: 0.8,
+        expert: 0.85
+      },
+    },
   });
 
   const logger = new QueryLogger();
@@ -346,6 +387,15 @@ async function example6_Failover() {
       { name: 'claude-haiku-4-5', provider: 'anthropic', cost: 0.001 },
       { name: 'claude-sonnet-4-5', provider: 'anthropic', cost: 0.003 },
     ],
+    quality: {
+      // Standard thresholds for primary cascade
+      confidenceThresholds: {
+        simple: 0.6,
+        moderate: 0.7,
+        hard: 0.8,
+        expert: 0.85
+      },
+    },
   });
 
   // Fallback cascade (different providers)
@@ -354,6 +404,15 @@ async function example6_Failover() {
       { name: 'llama-4-scout', provider: 'groq', cost: 0.00011 },
       { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
     ],
+    quality: {
+      // More lenient thresholds for fallback (emergency mode)
+      confidenceThresholds: {
+        simple: 0.5,
+        moderate: 0.6,
+        hard: 0.7,
+        expert: 0.8
+      },
+    },
   });
 
   const query = 'Explain neural networks briefly';
