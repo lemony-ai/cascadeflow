@@ -12,7 +12,17 @@ import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 
-import { QualityValidator, CASCADE_QUALITY_CONFIG } from '@cascadeflow/core';
+// Quality validation - optional import, fallback if unavailable
+let QualityValidator: any;
+let CASCADE_QUALITY_CONFIG: any;
+try {
+  const cascadeCore = require('@cascadeflow/core');
+  QualityValidator = cascadeCore.QualityValidator;
+  CASCADE_QUALITY_CONFIG = cascadeCore.CASCADE_QUALITY_CONFIG;
+} catch (e) {
+  // @cascadeflow/core not available - use simple validation
+  console.warn('⚠️  @cascadeflow/core not available, using simple quality check');
+}
 
 /**
  * Custom CascadeChatModel that wraps two models (drafter and verifier)
@@ -32,8 +42,8 @@ class CascadeChatModel extends BaseChatModel {
   // Lazy-loaded verifier
   private verifierModel?: BaseChatModel;
 
-  // Quality validator with CASCADE config
-  private qualityValidator: QualityValidator;
+  // Quality validator with CASCADE config (optional)
+  private qualityValidator: any;
 
   constructor(
     drafterModel: BaseChatModel,
@@ -45,11 +55,21 @@ class CascadeChatModel extends BaseChatModel {
     this.verifierModelGetter = verifierModelGetter;
     this.qualityThreshold = qualityThreshold;
 
-    // Initialize quality validator with CASCADE-optimized config
-    this.qualityValidator = new QualityValidator({
-      ...CASCADE_QUALITY_CONFIG,
-      minConfidence: qualityThreshold, // Use user's threshold
-    });
+    // Initialize quality validator with CASCADE-optimized config (if available)
+    if (QualityValidator && CASCADE_QUALITY_CONFIG) {
+      try {
+        this.qualityValidator = new QualityValidator({
+          ...CASCADE_QUALITY_CONFIG,
+          minConfidence: qualityThreshold,
+        });
+        console.log('✅ CascadeFlow quality validator initialized');
+      } catch (e) {
+        console.warn('⚠️  Quality validator initialization failed, using simple check');
+        this.qualityValidator = null;
+      }
+    } else {
+      this.qualityValidator = null;
+    }
   }
 
   private async getVerifierModel(): Promise<BaseChatModel> {
@@ -58,6 +78,39 @@ class CascadeChatModel extends BaseChatModel {
       this.verifierModel = await this.verifierModelGetter();
     }
     return this.verifierModel;
+  }
+
+  /**
+   * Simple quality validation fallback (when @cascadeflow/core not available)
+   */
+  private simpleQualityCheck(responseText: string): { passed: boolean; confidence: number; score: number; reason: string } {
+    const wordCount = responseText.split(/\s+/).length;
+
+    // Base confidence on response length and structure
+    let confidence = 0.75;
+
+    // Very short responses get lower confidence
+    if (wordCount < 5) {
+      confidence = 0.50;
+    } else if (wordCount < 15) {
+      confidence = 0.65;
+    } else if (wordCount > 30) {
+      confidence = 0.85;
+    }
+
+    // Check for uncertainty markers
+    const uncertaintyMarkers = ['i don\'t know', 'i\'m not sure', 'unclear', 'uncertain'];
+    const hasUncertainty = uncertaintyMarkers.some(marker => responseText.toLowerCase().includes(marker));
+    if (hasUncertainty) {
+      confidence -= 0.20;
+    }
+
+    const passed = confidence >= this.qualityThreshold;
+    const reason = passed
+      ? `Simple check passed (confidence: ${confidence.toFixed(2)} >= ${this.qualityThreshold})`
+      : `Simple check failed (confidence: ${confidence.toFixed(2)} < ${this.qualityThreshold})`;
+
+    return { passed, confidence, score: confidence, reason };
   }
 
   _llmType(): string {
@@ -78,18 +131,28 @@ class CascadeChatModel extends BaseChatModel {
 
       this.drafterCount++;
 
-      // Step 2: Quality check using CascadeFlow validator
+      // Step 2: Quality check using CascadeFlow validator (or simple fallback)
       const responseText = drafterMessage.content.toString();
 
-      // Extract query text from messages
-      const queryText = messages.map(m => m.content.toString()).join(' ');
+      let validationResult: any;
 
-      // Validate response quality
-      const validationResult = await this.qualityValidator.validate(responseText, queryText);
-
-      console.log(`   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, method=${validationResult.method}`);
-      if (validationResult.details?.alignmentScore) {
-        console.log(`   🎯 Alignment: ${validationResult.details.alignmentScore.toFixed(2)}`);
+      if (this.qualityValidator) {
+        // Use full CascadeFlow quality validator
+        const queryText = messages.map(m => m.content.toString()).join(' ');
+        try {
+          validationResult = await this.qualityValidator.validate(responseText, queryText);
+          console.log(`   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, method=${validationResult.method}`);
+          if (validationResult.details?.alignmentScore) {
+            console.log(`   🎯 Alignment: ${validationResult.details.alignmentScore.toFixed(2)}`);
+          }
+        } catch (e) {
+          console.warn(`   ⚠️  Quality validator error, using simple check: ${e}`);
+          validationResult = this.simpleQualityCheck(responseText);
+        }
+      } else {
+        // Use simple quality check (fallback)
+        validationResult = this.simpleQualityCheck(responseText);
+        console.log(`   📊 Simple quality check: confidence=${validationResult.confidence.toFixed(2)}`);
       }
 
       // Step 3: If quality is sufficient, return drafter response
