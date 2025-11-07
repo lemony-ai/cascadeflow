@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/n8n-nodes-cascadeflow",
-  "version": "0.4.10-alpha.1",
+  "version": "0.4.13",
   "description": "n8n node for cascadeflow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
@@ -38,7 +38,6 @@
       "dist/credentials/CascadeFlowApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/CascadeFlow/CascadeFlow.node.js",
       "dist/nodes/LmChatCascadeFlow/LmChatCascadeFlow.node.js"
     ]
   },
@@ -56,12 +55,6 @@
     "n8n-workflow": "*"
   },
   "dependencies": {
-    "@cascadeflow/core": "^0.4.0",
-    "openai": "^4.73.1",
-    "@anthropic-ai/sdk": "^0.30.0",
-    "groq-sdk": "^0.5.0",
-    "@langchain/core": "^0.3.0",
-    "@langchain/openai": "^0.3.0",
-    "@langchain/anthropic": "^0.3.0"
+    "@langchain/core": "^0.3.0"
   }
 }
