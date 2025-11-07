@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/n8n-nodes-cascadeflow",
-  "version": "5.0.2",
+  "version": "0.5.1",
   "description": "n8n node for cascadeflow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
@@ -55,9 +55,7 @@
     "n8n-workflow": "*"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.0"
-  },
-  "optionalDependencies": {
-    "@cascadeflow/core": "^5.0.0"
+    "@langchain/core": "^0.3.0",
+    "@cascadeflow/core": "^5.0.3"
   }
 }

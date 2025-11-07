@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/core",
-  "version": "0.4.0",
+  "version": "5.0.3",
   "description": "cascadeflow TypeScript library - Smart AI model cascading for cost optimization",
   "author": {
     "name": "Lemony Inc.",
@@ -53,7 +53,7 @@
     "edge-functions"
   ],
   "dependencies": {
-    "@cascadeflow/ml": "^0.4.0"
+    "@cascadeflow/ml": "^5.0.3"
   },
   "peerDependencies": {
     "openai": "^4.0.0",

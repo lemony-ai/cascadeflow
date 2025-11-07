@@ -336,31 +336,26 @@ Use cascadeflow in n8n workflows for no-code AI automation with automatic cost o
 3. Search for: `@cascadeflow/n8n-nodes-cascadeflow`
 4. Click **Install**
 
-### Quick Example
+### Quick Start
 
-Create a workflow:
+CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nodes (drafter + verifier) and intelligently cascades between them:
 
-```
-Manual Trigger → cascadeflow Node → Set Node
-
-```
-
-Configure cascadeflow node:
-
-- **Draft Model**: `gpt-4o-mini` ($0.000375)
-- **Verifier Model**: `gpt-4o` ($0.00625)
-- **Message**: Your prompt
-- **Output**: Full Metrics
+**Setup:**
+1. Add two **AI Chat Model nodes** (cheap drafter + powerful verifier)
+2. Add **CascadeFlow node** and connect both models
+3. Connect CascadeFlow to **Basic LLM Chain** or **Chain** nodes
+4. Check **Logs tab** to see cascade decisions in real-time!
 
 **Result:** 40-85% cost savings in your n8n workflows!
 
 **Features:**
 
-- ✅ Visual workflow integration
-- ✅ Multi-provider support
-- ✅ Cost tracking in workflow
-- ✅ Tool calling support
-- ✅ Easy debugging with metrics
+- ✅ Works with any AI Chat Model node (OpenAI, Anthropic, Ollama, Azure, etc.)
+- ✅ Mix providers (e.g., Ollama drafter + GPT-4o verifier)
+- ✅ Real-time flow visualization in Logs tab
+- ✅ Detailed metrics: confidence scores, latency, cost savings
+
+
 
 🔌 **Learn more:** [n8n Integration Guide](./packages/integrations/n8n/) | [n8n Documentation](./docs/guides/n8n_integration.md)
 

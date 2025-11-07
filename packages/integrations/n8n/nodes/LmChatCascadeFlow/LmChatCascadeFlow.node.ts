@@ -124,6 +124,7 @@ class CascadeChatModel extends BaseChatModel {
   ): Promise<ChatResult> {
     try {
       // Step 1: Try the drafter model
+      await runManager?.handleText('🎯 CascadeFlow: Trying drafter model...\n');
       console.log('🎯 CascadeFlow: Trying drafter model...');
       const drafterStartTime = Date.now();
       const drafterMessage = await this.drafterModel.invoke(messages, options);
@@ -141,18 +142,27 @@ class CascadeChatModel extends BaseChatModel {
         const queryText = messages.map(m => m.content.toString()).join(' ');
         try {
           validationResult = await this.qualityValidator.validate(responseText, queryText);
-          console.log(`   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, method=${validationResult.method}`);
+          const qualityLog = `   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, method=${validationResult.method}\n`;
+          await runManager?.handleText(qualityLog);
+          console.log(qualityLog);
+
           if (validationResult.details?.alignmentScore) {
-            console.log(`   🎯 Alignment: ${validationResult.details.alignmentScore.toFixed(2)}`);
+            const alignmentLog = `   🎯 Alignment: ${validationResult.details.alignmentScore.toFixed(2)}\n`;
+            await runManager?.handleText(alignmentLog);
+            console.log(alignmentLog);
           }
         } catch (e) {
-          console.warn(`   ⚠️  Quality validator error, using simple check: ${e}`);
+          const errorLog = `   ⚠️  Quality validator error, using simple check: ${e}\n`;
+          await runManager?.handleText(errorLog);
+          console.warn(errorLog);
           validationResult = this.simpleQualityCheck(responseText);
         }
       } else {
         // Use simple quality check (fallback)
         validationResult = this.simpleQualityCheck(responseText);
-        console.log(`   📊 Simple quality check: confidence=${validationResult.confidence.toFixed(2)}`);
+        const simpleLog = `   📊 Simple quality check: confidence=${validationResult.confidence.toFixed(2)}\n`;
+        await runManager?.handleText(simpleLog);
+        console.log(simpleLog);
       }
 
       // Step 3: If quality is sufficient, return drafter response
@@ -162,12 +172,23 @@ class CascadeChatModel extends BaseChatModel {
         const estimatedVerifierCost = 0.0016; // $0.0016 per request (rough estimate)
         const savings = ((estimatedVerifierCost - estimatedDrafterCost) / estimatedVerifierCost * 100).toFixed(1);
 
-        console.log(`✅ CascadeFlow: Drafter accepted!`);
-        console.log(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})`);
-        console.log(`   Quality score: ${validationResult.score.toFixed(2)}`);
-        console.log(`   Latency: ${drafterLatency}ms`);
-        console.log(`   💰 Cost savings: ~${savings}% (used cheap model)`);
-        console.log(`   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier`);
+        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost savings: ~${savings}% (used cheap model)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+
+        await runManager?.handleText(flowLog);
+        console.log(flowLog);
+
+        // Add flow metadata to message for n8n UI visibility (logs only, not in response text)
+        if (!drafterMessage.response_metadata) {
+          (drafterMessage as any).response_metadata = {};
+        }
+        (drafterMessage as any).response_metadata.cascadeflow = {
+          flow: 'drafter_accepted',
+          confidence: validationResult.confidence,
+          quality_score: validationResult.score,
+          latency_ms: drafterLatency,
+          cost_savings_percent: parseFloat(savings),
+          model_used: 'drafter'
+        };
 
         return {
           generations: [{
@@ -178,10 +199,10 @@ class CascadeChatModel extends BaseChatModel {
       }
 
       // Step 4: Otherwise, escalate to verifier
-      console.log(`⚠️ CascadeFlow: Quality below threshold, escalating to verifier...`);
-      console.log(`   Confidence: ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold}`);
-      console.log(`   Reason: ${validationResult.reason}`);
-      console.log(`   Drafter latency: ${drafterLatency}ms`);
+      const escalateLog = `\n┌────────────────────────────────────────────────┐\n│  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │\n└────────────────────────────────────────────────┘\n   Query → Drafter → Quality Check ❌ → Verifier → Response\n   🔄 Escalating: Drafter quality too low, using verifier\n   Confidence: ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold} (threshold)\n   Reason: ${validationResult.reason}\n   Drafter latency: ${drafterLatency}ms\n   🔄 Loading verifier model...\n`;
+
+      await runManager?.handleText(escalateLog);
+      console.log(escalateLog);
 
       const verifierStartTime = Date.now();
       const verifierModel = await this.getVerifierModel();
@@ -193,10 +214,25 @@ class CascadeChatModel extends BaseChatModel {
       const totalLatency = drafterLatency + verifierLatency;
       const acceptanceRate = (this.drafterCount / (this.drafterCount + this.verifierCount) * 100).toFixed(1);
 
-      console.log(`✅ CascadeFlow: Verifier completed`);
-      console.log(`   Verifier latency: ${verifierLatency}ms`);
-      console.log(`   Total latency: ${totalLatency}ms`);
-      console.log(`   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier`);
+      const completionLog = `   ✅ Verifier completed successfully\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: Full verifier cost (0% savings this request)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
+
+      await runManager?.handleText(completionLog);
+      console.log(completionLog);
+
+      // Add flow metadata to message for n8n UI visibility (logs only, not in response text)
+      if (!verifierMessage.response_metadata) {
+        (verifierMessage as any).response_metadata = {};
+      }
+      (verifierMessage as any).response_metadata.cascadeflow = {
+        flow: 'escalated_to_verifier',
+        confidence: validationResult.confidence,
+        drafter_latency_ms: drafterLatency,
+        verifier_latency_ms: verifierLatency,
+        total_latency_ms: totalLatency,
+        cost_savings_percent: 0,
+        model_used: 'verifier',
+        reason: validationResult.reason
+      };
 
       return {
         generations: [{
@@ -206,14 +242,32 @@ class CascadeChatModel extends BaseChatModel {
       };
     } catch (error) {
       // Fallback to verifier on error
-      console.log(`❌ CascadeFlow: Drafter failed, falling back to verifier`);
-      console.log(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorLog = `\n┌─────────────────────────────────────────────┐\n│  ❌ FLOW: DRAFTER ERROR - FALLBACK PATH    │\n└─────────────────────────────────────────────┘\n   Query → Drafter ❌ ERROR → Verifier → Response\n   🔄 Fallback: Drafter failed, using verifier as backup\n   Error: ${errorMsg}\n   🔄 Loading verifier model...\n`;
+
+      await runManager?.handleText(errorLog);
+      console.log(errorLog);
 
       const verifierModel = await this.getVerifierModel();
       const verifierMessage = await verifierModel.invoke(messages, options);
       this.verifierCount++;
 
-      console.log('✅ CascadeFlow: Verifier fallback completed');
+      const fallbackCompleteLog = `   ✅ Verifier fallback completed successfully\n   💰 Cost: Full verifier cost (fallback due to error)\n`;
+
+      await runManager?.handleText(fallbackCompleteLog);
+      console.log(fallbackCompleteLog);
+
+      // Add flow metadata to message for n8n UI visibility (logs only, not in response text)
+      if (!verifierMessage.response_metadata) {
+        (verifierMessage as any).response_metadata = {};
+      }
+      (verifierMessage as any).response_metadata.cascadeflow = {
+        flow: 'error_fallback',
+        error: errorMsg,
+        cost_savings_percent: 0,
+        model_used: 'verifier'
+      };
+
       return {
         generations: [{
           text: verifierMessage.content.toString(),
@@ -252,13 +306,13 @@ export class LmChatCascadeFlow implements INodeType {
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: [
       {
-        displayName: 'Drafter',
+        displayName: 'Verifier',
         type: 'ai_languageModel' as any,
         maxConnections: 1,
         required: true,
       },
       {
-        displayName: 'Verifier',
+        displayName: 'Drafter',
         type: 'ai_languageModel' as any,
         maxConnections: 1,
         required: true,
@@ -288,8 +342,8 @@ export class LmChatCascadeFlow implements INodeType {
     // Get parameters
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.7) as number;
 
-    // Get the drafter model immediately
-    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 0);
+    // Get the drafter model immediately (at index 1 - second in inputs array, but fetched first)
+    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
     const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
 
     if (!drafterModel) {
@@ -299,9 +353,9 @@ export class LmChatCascadeFlow implements INodeType {
       );
     }
 
-    // Create a lazy loader for the verifier model (only fetched when needed)
+    // Create a lazy loader for the verifier model (only fetched when needed) (at index 0)
     const verifierModelGetter = async () => {
-      const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 1);
+      const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
       const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
 
       if (!verifierModel) {

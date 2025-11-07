@@ -177,8 +177,8 @@ async function main() {
     console.error('Setup Instructions:');
     console.error('1. Start both Ollama instances (see Docker Compose example)');
     console.error('2. Pull models:');
-    console.error(`   ollama --host ${config.draftInstance.url} pull ${config.draftInstance.model}`);
-    console.error(`   ollama --host ${config.verifierInstance.url} pull ${config.verifierInstance.model}`);
+    console.error(`   docker exec ollama-draft ollama pull ${config.draftInstance.model}`);
+    console.error(`   docker exec ollama-verifier ollama pull ${config.verifierInstance.model}`);
     process.exit(1);
   }
 

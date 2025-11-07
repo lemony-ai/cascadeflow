@@ -5,7 +5,8 @@
  */
 
 import { QueryResponseAlignmentScorer } from './alignment';
-import { SemanticQualityChecker } from './quality-semantic';
+// SemanticQualityChecker is imported dynamically to avoid loading @cascadeflow/ml dependencies
+// when they're not needed (fixes n8n crash issue)
 
 /**
  * Quality validation result
@@ -115,6 +116,7 @@ export const CASCADE_QUALITY_CONFIG: QualityConfig = {
   strictMode: false,
   useAlignmentScoring: true,
   minAlignmentScore: 0.15, // Alignment floor
+  useSemanticValidation: false, // Disable ML validation for cascade (not needed, saves deps)
 };
 
 /**
@@ -224,7 +226,8 @@ export function estimateConfidenceFromContent(
 export class QualityValidator {
   private config: QualityConfig;
   private alignmentScorer: QueryResponseAlignmentScorer | null = null;
-  private semanticChecker: SemanticQualityChecker | null = null;
+  private semanticChecker: any = null; // Lazy-loaded to avoid @cascadeflow/ml dependency
+  private semanticCheckerInitialized: boolean = false;
 
   constructor(config: Partial<QualityConfig> = {}) {
     this.config = { ...DEFAULT_QUALITY_CONFIG, ...config };
@@ -234,11 +237,38 @@ export class QualityValidator {
       this.alignmentScorer = new QueryResponseAlignmentScorer();
     }
 
-    // Initialize semantic checker if enabled (optional ML feature)
-    if (this.config.useSemanticValidation !== false) {
+    // Initialize semantic checker immediately if explicitly enabled
+    // This allows model pre-loading to avoid latency on first validation
+    // Note: Only loads if useSemanticValidation is true (not undefined)
+    if (this.config.useSemanticValidation === true) {
+      this.initSemanticChecker();
+    }
+  }
+
+  /**
+   * Initialize semantic quality checker (dynamic import to avoid static @cascadeflow/ml dependency)
+   * Called at construction time to allow model pre-loading
+   */
+  private async initSemanticChecker(): Promise<void> {
+    if (this.semanticCheckerInitialized) {
+      return;
+    }
+
+    this.semanticCheckerInitialized = true;
+
+    try {
+      const { SemanticQualityChecker } = await import('./quality-semantic');
       this.semanticChecker = new SemanticQualityChecker(
         this.config.semanticThreshold || 0.5
       );
+    } catch (e: any) {
+      // Semantic validation dependencies not available - gracefully degrade
+      if (e?.code !== 'ERR_MODULE_NOT_FOUND' && !e?.message?.includes('Cannot find module')) {
+        console.warn(
+          'SemanticQualityChecker not available (install @cascadeflow/ml for ML-based validation)'
+        );
+      }
+      this.semanticChecker = null;
     }
   }
 
@@ -327,13 +357,18 @@ export class QualityValidator {
     let semanticSimilarity: number | undefined;
     let semanticPassed = true;
 
-    if (this.config.useSemanticValidation && this.semanticChecker) {
-      const isAvailable = await this.semanticChecker.isAvailable();
+    if (this.config.useSemanticValidation) {
+      // Ensure semantic checker is initialized (should be done in constructor, but await completion)
+      await this.initSemanticChecker();
 
-      if (isAvailable) {
-        const semanticResult = await this.semanticChecker.checkSimilarity(query, content);
-        semanticSimilarity = semanticResult.similarity;
-        semanticPassed = semanticResult.passed;
+      if (this.semanticChecker) {
+        const isAvailable = await this.semanticChecker.isAvailable();
+
+        if (isAvailable) {
+          const semanticResult = await this.semanticChecker.checkSimilarity(query, content);
+          semanticSimilarity = semanticResult.similarity;
+          semanticPassed = semanticResult.passed;
+        }
       }
     }
 

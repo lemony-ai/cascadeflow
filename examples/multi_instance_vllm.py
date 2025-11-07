@@ -13,9 +13,9 @@ Use Cases:
 
 Setup Options:
 
-Option 1: Docker Compose (see examples/docker/multi-instance-vllm/)
+Option 1: Multiple local vLLM servers
 Option 2: Kubernetes StatefulSets
-Option 3: Multiple local vLLM servers
+Option 3: Docker containers (manual setup)
 
 Requirements:
     - Two vLLM instances running
@@ -72,8 +72,8 @@ class MultiInstanceConfig:
 
 # Example configurations for different scenarios
 CONFIGURATIONS = {
-    # Scenario 1: Docker Compose with GPU separation
-    "docker": MultiInstanceConfig(
+    # Scenario 1: Local servers with GPU separation
+    "local": MultiInstanceConfig(
         draft_instance=InstanceConfig(
             url="http://localhost:8000/v1",
             model="Qwen/Qwen2.5-7B-Instruct",
@@ -206,8 +206,6 @@ async def main():
         print("   python -m vllm.entrypoints.openai.api_server \\")
         print(f"     --model {config.verifier_instance.model} \\")
         print("     --port 8001")
-        print()
-        print("Or use Docker Compose (see examples/docker/multi-instance-vllm/)")
         return
 
     print(f"  ✅ Draft instance: {config.draft_instance.url}")
