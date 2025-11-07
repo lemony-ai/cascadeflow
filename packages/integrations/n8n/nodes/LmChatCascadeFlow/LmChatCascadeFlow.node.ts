@@ -18,7 +18,7 @@ import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
  */
 class CascadeChatModel extends BaseChatModel {
   drafterModel: BaseChatModel;
-  verifierModel: BaseChatModel;
+  verifierModelGetter: () => Promise<BaseChatModel>;
   qualityThreshold: number;
 
   // Cost tracking
@@ -27,15 +27,26 @@ class CascadeChatModel extends BaseChatModel {
   private drafterCount: number = 0;
   private verifierCount: number = 0;
 
+  // Lazy-loaded verifier
+  private verifierModel?: BaseChatModel;
+
   constructor(
     drafterModel: BaseChatModel,
-    verifierModel: BaseChatModel,
+    verifierModelGetter: () => Promise<BaseChatModel>,
     qualityThreshold: number = 0.7
   ) {
     super({});
     this.drafterModel = drafterModel;
-    this.verifierModel = verifierModel;
+    this.verifierModelGetter = verifierModelGetter;
     this.qualityThreshold = qualityThreshold;
+  }
+
+  private async getVerifierModel(): Promise<BaseChatModel> {
+    if (!this.verifierModel) {
+      console.log('   🔄 Loading verifier model...');
+      this.verifierModel = await this.verifierModelGetter();
+    }
+    return this.verifierModel;
   }
 
   _llmType(): string {
@@ -87,7 +98,8 @@ class CascadeChatModel extends BaseChatModel {
       console.log(`   Drafter latency: ${drafterLatency}ms`);
 
       const verifierStartTime = Date.now();
-      const verifierMessage = await this.verifierModel.invoke(messages, options);
+      const verifierModel = await this.getVerifierModel();
+      const verifierMessage = await verifierModel.invoke(messages, options);
       const verifierLatency = Date.now() - verifierStartTime;
 
       this.verifierCount++;
@@ -111,7 +123,8 @@ class CascadeChatModel extends BaseChatModel {
       console.log(`❌ CascadeFlow: Drafter failed, falling back to verifier`);
       console.log(`   Error: ${error instanceof Error ? error.message : String(error)}`);
 
-      const verifierMessage = await this.verifierModel.invoke(messages, options);
+      const verifierModel = await this.getVerifierModel();
+      const verifierMessage = await verifierModel.invoke(messages, options);
       this.verifierCount++;
 
       console.log('✅ CascadeFlow: Verifier fallback completed');
@@ -189,13 +202,9 @@ export class LmChatCascadeFlow implements INodeType {
     // Get parameters
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.7) as number;
 
-    // Get the connected chat models from inputs
+    // Get the drafter model immediately
     const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 0);
-    const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 1);
-
-    // Extract model from array if needed (n8n returns arrays for ai_languageModel connections)
     const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
-    const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
 
     if (!drafterModel) {
       throw new NodeOperationError(
@@ -204,22 +213,30 @@ export class LmChatCascadeFlow implements INodeType {
       );
     }
 
-    if (!verifierModel) {
-      throw new NodeOperationError(
-        this.getNode(),
-        'Verifier model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Verifier" input.'
-      );
-    }
+    // Create a lazy loader for the verifier model (only fetched when needed)
+    const verifierModelGetter = async () => {
+      const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 1);
+      const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
+
+      if (!verifierModel) {
+        throw new NodeOperationError(
+          this.getNode(),
+          'Verifier model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Verifier" input.'
+        );
+      }
+
+      return verifierModel;
+    };
 
     console.log('🚀 CascadeFlow initialized');
     console.log(`   Drafter: ${typeof drafterModel._llmType === 'function' ? drafterModel._llmType() : 'connected'}`);
-    console.log(`   Verifier: ${typeof verifierModel._llmType === 'function' ? verifierModel._llmType() : 'connected'}`);
+    console.log(`   Verifier: lazy-loaded (will fetch only if needed)`);
     console.log(`   Quality threshold: ${qualityThreshold}`);
 
-    // Create and return the cascade model
+    // Create and return the cascade model with lazy verifier
     const cascadeModel = new CascadeChatModel(
       drafterModel,
-      verifierModel,
+      verifierModelGetter,
       qualityThreshold
     );
 
