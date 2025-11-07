@@ -144,11 +144,17 @@ jobs:
           name: npm-cascadeflow-n8n-nodes-cascadeflow
           path: packages/integrations/n8n/
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
 
       - name: Publish @cascadeflow/core
         continue-on-error: true
@@ -170,7 +176,7 @@ jobs:
         continue-on-error: true
         run: |
           cd packages/integrations/n8n
-          npm publish --access public --provenance --ignore-scripts
+          pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
