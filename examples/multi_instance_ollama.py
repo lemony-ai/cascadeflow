@@ -52,6 +52,7 @@ from cascadeflow import CascadeAgent, ModelConfig
 @dataclass
 class InstanceConfig:
     """Configuration for an Ollama instance"""
+
     url: str
     model: str
     description: str
@@ -60,6 +61,7 @@ class InstanceConfig:
 @dataclass
 class MultiInstanceConfig:
     """Configuration for multi-instance Ollama setup"""
+
     draft_instance: InstanceConfig
     verifier_instance: InstanceConfig
 
@@ -142,9 +144,7 @@ async def check_instance_health(url: str, model_name: str) -> bool:
 
             data = response.json()
             models = data.get("models", [])
-            model_exists = any(
-                model_name.split(":")[0] in m.get("name", "") for m in models
-            )
+            model_exists = any(model_name.split(":")[0] in m.get("name", "") for m in models)
 
             if not model_exists:
                 model_names = [m.get("name", "") for m in models]
@@ -173,9 +173,7 @@ async def main():
     print(f"Draft:    {config.draft_instance.description}")
     print(f"          {config.draft_instance.url} → {config.draft_instance.model}")
     print(f"Verifier: {config.verifier_instance.description}")
-    print(
-        f"          {config.verifier_instance.url} → {config.verifier_instance.model}"
-    )
+    print(f"          {config.verifier_instance.url} → {config.verifier_instance.model}")
     print()
 
     # Health checks
@@ -192,12 +190,8 @@ async def main():
         print("Setup Instructions:")
         print("1. Start both Ollama instances (see Docker Compose example)")
         print("2. Pull models:")
-        print(
-            f"   docker exec ollama-draft ollama pull {config.draft_instance.model}"
-        )
-        print(
-            f"   docker exec ollama-verifier ollama pull {config.verifier_instance.model}"
-        )
+        print(f"   docker exec ollama-draft ollama pull {config.draft_instance.model}")
+        print(f"   docker exec ollama-verifier ollama pull {config.verifier_instance.model}")
         return
 
     print(f"  ✅ Draft instance: {config.draft_instance.url}")
@@ -267,19 +261,13 @@ async def main():
     print()
 
     draft_model_base = config.draft_instance.model.split(":")[0]
-    draft_count = sum(
-        1 for r in results if draft_model_base in r.model_used
-    )
+    draft_count = sum(1 for r in results if draft_model_base in r.model_used)
     verifier_count = len(results) - draft_count
     avg_latency = sum(r.latency_ms or 0 for r in results) / len(results)
 
     print(f"Total queries: {len(results)}")
-    print(
-        f"Draft instance ({config.draft_instance.model}): {draft_count} queries"
-    )
-    print(
-        f"Verifier instance ({config.verifier_instance.model}): {verifier_count} queries"
-    )
+    print(f"Draft instance ({config.draft_instance.model}): {draft_count} queries")
+    print(f"Verifier instance ({config.verifier_instance.model}): {verifier_count} queries")
     print(f"Average latency: {avg_latency:.0f}ms")
     print()
 
@@ -292,9 +280,7 @@ async def main():
     print()
 
     print("Performance Notes:")
-    print(
-        f"  • Draft handled {(draft_count / len(results) * 100):.0f}% of queries"
-    )
+    print(f"  • Draft handled {(draft_count / len(results) * 100):.0f}% of queries")
     print("  • No API costs (100% local)")
     print("  • Full privacy (no data leaves your infrastructure)")
     print()
