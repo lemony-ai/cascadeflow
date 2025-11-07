@@ -98,17 +98,20 @@ function createMultiInstanceAgent(config: MultiInstanceConfig): CascadeAgent {
         provider: 'ollama',
         cost: 0, // Local execution is free
         baseUrl: config.draftInstance.url,
+        maxTokens: 512, // Faster responses for local models
+        qualityThreshold: 0.7, // Accept if confidence >= 70%
+        supportsTools: false, // Use /api/generate for better performance
       },
       {
         name: config.verifierInstance.model,
         provider: 'ollama',
         cost: 0,
         baseUrl: config.verifierInstance.url,
+        maxTokens: 1024, // Reasonable limit for verifier
+        qualityThreshold: 0.95, // Very high quality
+        supportsTools: false, // Use /api/generate for better performance
       },
     ],
-    quality: {
-      threshold: 0.7, // Adjust based on your needs
-    },
   });
 }
 

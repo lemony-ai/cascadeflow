@@ -104,6 +104,7 @@ function createMultiInstanceAgent(config: MultiInstanceConfig): CascadeAgent {
         cost: 0, // Self-hosted is free (no API costs)
         baseUrl: config.draftInstance.url,
         apiKey: config.draftInstance.apiKey,
+        qualityThreshold: 0.7, // Accept if confidence >= 70%
       },
       {
         name: config.verifierInstance.model,
@@ -111,11 +112,9 @@ function createMultiInstanceAgent(config: MultiInstanceConfig): CascadeAgent {
         cost: 0,
         baseUrl: config.verifierInstance.url,
         apiKey: config.verifierInstance.apiKey,
+        qualityThreshold: 0.95, // Very high quality
       },
     ],
-    quality: {
-      threshold: 0.7,
-    },
   });
 }
 

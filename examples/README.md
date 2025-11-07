@@ -50,7 +50,7 @@ python examples/basic_usage.py
 - **Access DeepSeek/Gemini/Azure?** → `integrations/litellm_providers.py`
 - **Deploy to production?** → `production_patterns.py`, `fastapi_integration.py`
 - **Monitor in production?** → `integrations/opentelemetry_grafana.py`
-- **Run locally/edge?** → `edge_device.py`, `integrations/local_providers_setup.py`, `vllm_example.py`, `multi_instance_ollama.py`, `multi_instance_vllm.py`
+- **Run locally/edge?** → `edge_device.py`, `integrations/local_providers_setup.py`, `ollama_cascade.py`, `vllm_cascade.py`, `multi_instance_ollama.py`, `multi_instance_vllm.py`
 - **Use reasoning models?** → `reasoning_models.py`
 - **Manage user budgets?** → `user_budget_tracking.py`, `profile_database_integration.py`
 - **Integrate with Stripe?** → `enforcement/stripe_integration.py`
@@ -466,9 +466,9 @@ Self-hosted inference with vLLM.
 </details>
 
 <details>
-<summary><h3>🔌 Edge & Local Deployment (3 examples)</h3></summary>
+<summary><h3>🌐 Edge & Local Deployment (5 examples)</h3></summary>
 
-Run cascadeflow on edge devices with local inference and multi-instance configurations.
+Run cascadeflow on edge devices with local inference, cascade to cloud, and multi-instance configurations.
 
 #### 1. Edge Device Deployment
 **File:** [`edge_device.py`](edge_device.py)
@@ -493,14 +493,91 @@ Run cascadeflow on edge devices with local inference and multi-instance configur
 
 **Cost savings:** 70% + privacy + lower latency
 
-#### 2. Multi-Instance Ollama
+#### 2. Ollama Cascade
+**File:** [`ollama_cascade.py`](ollama_cascade.py)
+**Time:** 10 minutes
+
+**What you'll learn:**
+- Run Ollama model locally as draft (free inference)
+- Automatically escalate to OpenAI gpt-4o for complex queries
+- Test cascade logic with local + cloud providers
+- 100% local for simple queries, cloud only when needed
+
+**Prerequisites:**
+```bash
+# Start Ollama and pull model
+ollama pull mistral:7b-instruct
+
+# Set OpenAI API key
+export OPENAI_API_KEY="sk-..."
+
+# Run example
+python examples/ollama_cascade.py
+```
+
+**Configuration:**
+```python
+agent = CascadeAgent(models=[
+    ModelConfig(
+        name="mistral:7b-instruct",
+        provider="ollama",
+        base_url="http://localhost:11434",
+        quality_threshold=0.7,  # Accept if confidence >= 70%
+    ),
+    ModelConfig(
+        name="gpt-4o",
+        provider="openai",
+        quality_threshold=0.95,  # Very high quality
+    ),
+])
+```
+
+#### 3. vLLM Cascade
+**File:** [`vllm_cascade.py`](vllm_cascade.py)
+**Time:** 10 minutes
+
+**What you'll learn:**
+- Run vLLM model locally as draft (high-performance inference)
+- Automatically escalate to OpenAI gpt-4o for complex queries
+- PagedAttention and continuous batching benefits
+- Same cascade pattern as Ollama but 10-24x faster
+
+**Prerequisites:**
+```bash
+# Start vLLM server
+python -m vllm.entrypoints.openai.api_server \
+  --model Qwen/Qwen2.5-7B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000
+
+# Set OpenAI API key
+export OPENAI_API_KEY="sk-..."
+
+# Run example
+python examples/vllm_cascade.py
+```
+
+**Use cases:**
+- Local draft inference with cloud fallback
+- Testing cascade behavior with self-hosted models
+- Cost optimization (free local + paid cloud only when needed)
+
+#### 4. Multi-Instance Ollama
 **File:** [`multi_instance_ollama.py`](multi_instance_ollama.py)
 **Time:** 15 minutes
+
 **What you'll learn:**
-- Run draft and verifier models on separate Ollama instances
+- Run draft and verifier models on **separate Ollama instances** with different base URLs
 - Multi-GPU configuration with Docker Compose
 - Health checks and instance validation
 - GPU resource isolation for optimal performance
+- How the per-model provider architecture enables multi-instance setups
+
+**Key Architecture Concept:**
+cascadeflow's per-model provider instantiation allows each `ModelConfig` with a unique `base_url` to get its own dedicated provider instance. This enables:
+- Draft model → connects to `http://localhost:11434`
+- Verifier model → connects to `http://localhost:11435`
+- No resource contention or GPU competition
 
 **Use cases:**
 - Multi-GPU systems (draft on GPU 0, verifier on GPU 1)
@@ -510,14 +587,26 @@ Run cascadeflow on edge devices with local inference and multi-instance configur
 
 **Setup:** See [Docker Compose guide](docker/multi-instance-ollama/)
 
-#### 3. Multi-Instance vLLM
+#### 5. Multi-Instance vLLM
 **File:** [`multi_instance_vllm.py`](multi_instance_vllm.py)
 **Time:** 15 minutes
+
 **What you'll learn:**
-- Run draft and verifier models on separate vLLM instances
+- Run draft and verifier models on **separate vLLM instances** with different base URLs
 - High-performance inference with PagedAttention
 - Kubernetes pod configuration
 - Production-scale deployments
+- Multi-instance architecture implementation
+
+**Key Architecture Concept:**
+Each model's `base_url` parameter creates a dedicated provider instance:
+```python
+# Draft model gets provider instance pointing to :8000
+ModelConfig(name="drafter", provider="vllm", base_url="http://192.168.0.199:8000/v1")
+
+# Verifier model gets provider instance pointing to :8001
+ModelConfig(name="verifier", provider="vllm", base_url="http://192.168.0.199:8001/v1")
+```
 
 **Use cases:**
 - GPU 0: Fast 7B model (200+ tokens/sec)
@@ -526,6 +615,8 @@ Run cascadeflow on edge devices with local inference and multi-instance configur
 - Load-balanced inference clusters
 
 **Performance:** 10-24x faster than standard serving
+
+**See also:** [Local Providers Guide - Multi-Instance Architecture](../docs/guides/local-providers.md#multi-instance-architecture-advanced) for comprehensive setup details
 
 </details>
 
@@ -841,9 +932,9 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 **Enforcement (2):** Basic enforcement, Stripe integration
 
-**Advanced (6):** Custom cascade, custom validation, multi-step, semantic detection, forecasting, vLLM
+**Advanced (7):** Custom cascade, custom validation, multi-step, semantic detection, forecasting, Ollama cascade, vLLM cascade
 
-**Edge (1):** Edge device deployment
+**Edge (5):** Edge device deployment, Ollama cascade, vLLM cascade, multi-instance Ollama, multi-instance vLLM
 
 ### 📚 Documentation Coverage
 

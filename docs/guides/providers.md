@@ -675,12 +675,14 @@ agent = CascadeAgent(models=[
         name="deepseek-coder",
         provider="openai",  # Uses OpenAI-compatible API
         cost=deepseek_cost * 1000,  # Convert to per-1K token cost
-        base_url="https://api.deepseek.com/v1"  # ✅ base_url IS supported
+        base_url="https://api.deepseek.com/v1",  # ✅ Each model gets its own provider instance
+        api_key="sk-..."  # Optional: model-specific API key
     ),
     ModelConfig(
         name="gpt-4o",
         provider="openai",
         cost=0.00625
+        # No base_url → uses default OpenAI endpoint
     )
 ])
 
@@ -688,6 +690,12 @@ result = await agent.run("Write a Python function to merge two sorted lists")
 print(f"Cost: ${result.total_cost:.6f}")
 print(f"Model: {result.model_used}")
 ```
+
+**How base_url Works:**
+- ✅ **Per-model provider instances**: Each `ModelConfig` with a `base_url` or `api_key` gets its own dedicated provider instance
+- ✅ **Multi-instance support**: Run draft on one server, verifier on another (e.g., different GPUs, regions, or cloud providers)
+- ✅ **Backwards compatible**: Models without `base_url` share the default provider instance
+- ✅ **Flexible configuration**: Mix cloud APIs (OpenAI) with self-hosted (vLLM/Ollama) seamlessly
 
 **Cost Savings:**
 - DeepSeek-Coder: ~$0.00028/1K tokens

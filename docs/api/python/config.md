@@ -44,11 +44,12 @@ ModelConfig(
 - `max_tokens` (`int`): Maximum tokens for generation (default: 4096)
 - `system_prompt` (`str`): System prompt override
 - `temperature` (`float`): Temperature 0-2 (default: 0.7)
-- `api_key` (`str`): API key (defaults to environment variable)
-- `base_url` (`str`): Custom base URL for vLLM, Ollama, etc.
+- `api_key` (`str`): Model-specific API key (defaults to environment variable). Each model with a unique `api_key` gets its own provider instance.
+- `base_url` (`str`): Custom endpoint URL (e.g., for vLLM, Ollama, or OpenAI-compatible APIs). **Each model with a unique `base_url` gets its own dedicated provider instance**, enabling multi-instance deployments.
 - `extra` (`Dict`): Provider-specific options
 - `speed_ms` (`int`): Expected latency in milliseconds (default: 1000)
 - `quality_score` (`float`): Base quality score 0-1 (default: 0.7)
+- `quality_threshold` (`float`): Minimum confidence threshold 0-1 for accepting this model's outputs (e.g., 0.7 for draft, 0.95 for verifier)
 - `supports_tools` (`bool`): Whether model supports function calling (default: True)
 
 ### Examples
@@ -96,10 +97,40 @@ local_model = ModelConfig(
     name="llama-3.1-8b",
     provider="vllm",
     cost=0.0,  # Free (local)
-    base_url="http://localhost:8000",
+    base_url="http://localhost:8000/v1",
     max_tokens=2048
 )
 ```
+
+**Multi-Instance vLLM (Advanced):**
+```python
+# Each model with unique base_url gets its own provider instance
+# This enables running draft and verifier on separate servers/GPUs
+
+agent = CascadeAgent(models=[
+    # Drafter: DeepSeek-R1-7B on GPU 0 (port 8000)
+    ModelConfig(
+        name="drafter",
+        provider="vllm",
+        cost=0,
+        base_url="http://192.168.0.199:8000/v1",  # Dedicated instance
+        quality_threshold=0.7,
+    ),
+    # Verifier: DeepSeek-R1-32B on GPU 1 (port 8001)
+    ModelConfig(
+        name="verifier",
+        provider="vllm",
+        cost=0,
+        base_url="http://192.168.0.199:8001/v1",  # Different instance
+        quality_threshold=0.95,
+    ),
+])
+
+# Result: Each model connects to its own vLLM instance
+# No GPU contention, independent scaling, better fault isolation
+```
+
+See [Local Providers Guide](../../guides/local-providers.md#multi-instance-architecture-advanced) for complete multi-instance setup details.
 
 ---
 

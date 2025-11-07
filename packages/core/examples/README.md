@@ -48,6 +48,7 @@ npx tsx basic-usage.ts
 - **Deploy to production?** → `production-patterns.ts`
 - **Use reasoning models?** → `reasoning-models.ts`
 - **Validate quality with ML?** → `semantic-quality.ts`
+- **Run locally/edge?** → `ollama-cascade.ts`, `vllm-cascade.ts`, `multi-instance-ollama.ts`, `multi-instance-vllm.ts`
 - **Access DeepSeek/Gemini/Azure?** → Python examples (LiteLLM integration)
 
 ---
@@ -57,6 +58,7 @@ npx tsx basic-usage.ts
 - [🌟 Core Examples](#-core-examples-4-examples---start-here) - Basic usage, tools, multi-provider, reasoning
 - [💰 Cost Management](#-cost-management-1-example) - Budget tracking
 - [🤖 Quality & Validation](#-quality--validation-1-example) - Semantic quality with ML
+- [🌐 Local & Edge](#-local--edge-deployment-4-examples) - Ollama, vLLM, multi-instance setups
 - [🏭 Production](#-production-1-example) - Enterprise patterns
 
 ---
@@ -278,6 +280,95 @@ const agent = new CascadeAgent({
 export OPENAI_API_KEY="sk-..."
 npx tsx semantic-quality.ts
 ```
+
+</details>
+
+<details>
+<summary><h3>🌐 Local & Edge Deployment (4 examples)</h3></summary>
+
+Run cascadeflow with local inference providers, cascade to cloud, and multi-instance configurations.
+
+#### Ollama Cascade
+**File:** [`nodejs/ollama-cascade.ts`](nodejs/ollama-cascade.ts)
+**Time:** 10 minutes
+**What you'll learn:**
+- Run Ollama model locally as draft (free inference)
+- Automatically escalate to OpenAI gpt-4o for complex queries
+- Test cascade logic with local + cloud providers
+- Same quality thresholds as basic_usage.ts (0.7/0.95)
+
+**Prerequisites:**
+```bash
+# Start Ollama and pull model
+ollama pull mistral:7b-instruct
+
+# Set OpenAI API key
+export OPENAI_API_KEY="sk-..."
+
+# Run example
+npx tsx ollama-cascade.ts
+```
+
+---
+
+#### vLLM Cascade
+**File:** [`nodejs/vllm-cascade.ts`](nodejs/vllm-cascade.ts)
+**Time:** 10 minutes
+**What you'll learn:**
+- Run vLLM model locally as draft (high-performance inference)
+- Automatically escalate to OpenAI gpt-4o for complex queries
+- PagedAttention and continuous batching benefits
+- Same cascade pattern as Ollama but 10-24x faster
+
+**Prerequisites:**
+```bash
+# Start vLLM server
+python -m vllm.entrypoints.openai.api_server \
+  --model Qwen/Qwen2.5-7B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000
+
+# Set OpenAI API key
+export OPENAI_API_KEY="sk-..."
+
+# Run example
+npx tsx vllm-cascade.ts
+```
+
+---
+
+#### Multi-Instance Ollama
+**File:** [`nodejs/multi-instance-ollama.ts`](nodejs/multi-instance-ollama.ts)
+**Time:** 15 minutes
+**What you'll learn:**
+- Run draft and verifier models on separate Ollama instances
+- Multi-GPU configuration with Docker Compose
+- Health checks and instance validation
+- Per-model provider architecture enables multi-instance setups
+
+**Use cases:**
+- Multi-GPU systems (draft on GPU 0, verifier on GPU 1)
+- Distributed inference across network
+- Load balancing between instances
+
+**Setup:** See [Docker Compose guide](../../../examples/docker/multi-instance-ollama/)
+
+---
+
+#### Multi-Instance vLLM
+**File:** [`nodejs/multi-instance-vllm.ts`](nodejs/multi-instance-vllm.ts)
+**Time:** 15 minutes
+**What you'll learn:**
+- Run draft and verifier models on separate vLLM instances
+- High-performance inference with PagedAttention
+- Kubernetes pod configuration
+- Production-scale deployments
+
+**Use cases:**
+- GPU 0: Fast 7B model (200+ tokens/sec)
+- GPU 1: Powerful 70B model (50+ tokens/sec)
+- Kubernetes StatefulSets
+- Load-balanced inference clusters
 
 </details>
 
@@ -760,7 +851,7 @@ See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for guidelines.
 
 ## 📊 Summary
 
-### ✅ Available Examples (7 total)
+### ✅ Available Examples (11 total)
 
 **Core (4):** Basic usage, tool calling, multi-provider, reasoning models
 
@@ -768,11 +859,13 @@ See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for guidelines.
 
 **Quality & Validation (1):** Semantic quality with ML
 
+**Local & Edge (4):** Ollama cascade, vLLM cascade, multi-instance Ollama, multi-instance vLLM
+
 **Production (1):** Production patterns
 
 ### 📚 Documentation Coverage
 
-- ✅ **7 TypeScript examples** (~2,500+ lines of code)
+- ✅ **11 TypeScript examples** (~3,500+ lines of code)
 - ✅ **Comprehensive README** (this file)
 - ✅ **Individual example READMEs** (nodejs/README.md, browser/README.md)
 - ✅ **Full TypeScript definitions** with IDE autocomplete

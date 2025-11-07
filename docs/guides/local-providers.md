@@ -360,6 +360,182 @@ tail -f /var/log/vllm/server.log
 
 ---
 
+## Multi-Instance Architecture (Advanced)
+
+### How Multi-Instance Works
+
+cascadeflow supports running draft and verifier models on **separate provider instances** with different `base_url` values. This is enabled by a per-model provider instantiation architecture.
+
+**Key Concept:** Each `ModelConfig` with a unique `base_url` or `api_key` gets its own dedicated provider instance. This allows you to:
+
+- ✅ Run draft model on GPU 0, verifier on GPU 1 (no resource contention)
+- ✅ Distribute inference across multiple servers
+- ✅ Connect to different vLLM/Ollama instances with independent configurations
+- ✅ Maintain fault isolation (one instance failure doesn't affect others)
+
+**Architecture:**
+
+```python
+# OLD (pre-v1.0): One provider instance per provider type
+# All "vllm" models shared same base_url → ❌ couldn't support multi-instance
+
+# NEW (v1.0+): One provider instance per model
+# Each model can have different base_url → ✅ multi-instance support
+
+agent = CascadeAgent(models=[
+    ModelConfig(
+        name="drafter",
+        provider="vllm",
+        base_url="http://192.168.0.199:8000/v1",  # GPU 0
+        cost=0
+    ),
+    ModelConfig(
+        name="verifier",
+        provider="vllm",
+        base_url="http://192.168.0.199:8001/v1",  # GPU 1
+        cost=0
+    ),
+])
+
+# Result: Draft model → connects to :8000, Verifier model → connects to :8001
+```
+
+### Multi-Instance vLLM Example
+
+**Scenario:** DeepSeek-R1 models on separate GPUs
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+
+agent = CascadeAgent(models=[
+    # Drafter: DeepSeek-R1-7B on port 8000
+    ModelConfig(
+        name="drafter",
+        provider="vllm",
+        cost=0,
+        base_url="http://192.168.0.199:8000/v1",
+        quality_threshold=0.7,  # Accept if confidence >= 70%
+    ),
+    # Verifier: DeepSeek-R1-32B on port 8001
+    ModelConfig(
+        name="verifier",
+        provider="vllm",
+        cost=0,
+        base_url="http://192.168.0.199:8001/v1",
+        quality_threshold=0.95,  # Very high quality bar
+    ),
+])
+
+result = await agent.run("Explain quantum entanglement")
+print(f"Model used: {result.model_used}")
+print(f"Instance: {':8000' if 'drafter' in result.model_used else ':8001'}")
+```
+
+**Server Setup:**
+
+```bash
+# Terminal 1: Start drafter (7B model on GPU 0)
+CUDA_VISIBLE_DEVICES=0 python -m vllm.entrypoints.openai.api_server \
+  --model deepseek-ai/DeepSeek-R1-7B \
+  --port 8000 \
+  --gpu-memory-utilization 0.9
+
+# Terminal 2: Start verifier (32B model on GPU 1)
+CUDA_VISIBLE_DEVICES=1 python -m vllm.entrypoints.openai.api_server \
+  --model deepseek-ai/DeepSeek-R1-32B \
+  --port 8001 \
+  --gpu-memory-utilization 0.9
+```
+
+### Multi-Instance Ollama Example
+
+**Scenario:** Docker Compose with GPU separation
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+
+agent = CascadeAgent(models=[
+    # Draft: llama3.2:1b on port 11434 (GPU 0)
+    ModelConfig(
+        name="llama3.2:1b",
+        provider="ollama",
+        cost=0,
+        base_url="http://localhost:11434",
+        max_tokens=512,  # Faster responses for draft model
+        quality_threshold=0.7,
+        supports_tools=False,  # Use /api/generate for better performance
+    ),
+    # Verifier: llama3.1:70b on port 11435 (GPU 1)
+    ModelConfig(
+        name="llama3.1:70b",
+        provider="ollama",
+        cost=0,
+        base_url="http://localhost:11435",
+        max_tokens=1024,  # Reasonable limit for verifier
+        quality_threshold=0.95,
+        supports_tools=False,  # Use /api/generate for better performance
+    ),
+])
+```
+
+**Docker Compose Setup:**
+
+```yaml
+# docker-compose.yml
+services:
+  ollama-draft:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_GPU_DEVICE=0
+    volumes:
+      - ./ollama-draft:/root/.ollama
+
+  ollama-verifier:
+    image: ollama/ollama:latest
+    ports:
+      - "11435:11434"
+    environment:
+      - OLLAMA_GPU_DEVICE=1
+    volumes:
+      - ./ollama-verifier:/root/.ollama
+```
+
+### Benefits of Multi-Instance
+
+**Performance:**
+- ✅ No GPU contention (each model has dedicated resources)
+- ✅ Parallel inference possible
+- ✅ Independent memory management
+- ✅ Optimized batch sizes per model
+
+**Reliability:**
+- ✅ Fault isolation (one instance crash doesn't affect others)
+- ✅ Independent health monitoring
+- ✅ Easier rollback and updates
+- ✅ Better error tracking
+
+**Scalability:**
+- ✅ Easy horizontal scaling (add more instances)
+- ✅ Load balancing across instances
+- ✅ Kubernetes-ready architecture
+- ✅ Flexible resource allocation
+
+**Cost Optimization:**
+- ✅ Draft handles 50-70% of queries (saves GPU time on verifier)
+- ✅ Right-size each instance (7B on smaller GPU, 70B on larger)
+- ✅ Better GPU utilization overall
+
+### Complete Examples
+
+See working multi-instance examples:
+- [`examples/multi_instance_vllm.py`](../../examples/multi_instance_vllm.py) - vLLM multi-instance setup
+- [`examples/multi_instance_ollama.py`](../../examples/multi_instance_ollama.py) - Ollama multi-instance setup
+- [`examples/docker/multi-instance-ollama/`](../../examples/docker/multi-instance-ollama/) - Docker Compose configuration
+
+---
+
 ## Hybrid Setup (Recommended)
 
 Combine both providers for maximum flexibility:
@@ -398,6 +574,98 @@ response = await agent.run("What is machine learning?")
 - ✅ Always works (fallback to Ollama)
 - ✅ Zero API costs
 - ✅ Complete privacy
+
+---
+
+## Performance Tips
+
+### Ollama Performance Optimization
+
+**Issue:** Large Ollama models (especially 30B+) can be slow when generating long responses.
+
+**Root Cause:** By default, Ollama tries to generate up to `max_tokens` worth of content. With the default `max_tokens=4096`, large models can take 2-8 minutes per query.
+
+**Solution:** Optimize `max_tokens` and `supports_tools` for faster responses:
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+
+agent = CascadeAgent(models=[
+    ModelConfig(
+        name="deepseek-r1:7b",
+        provider="ollama",
+        cost=0,
+        base_url="http://localhost:11434",
+        max_tokens=512,  # Faster responses (vs default 4096)
+        quality_threshold=0.7,
+        supports_tools=False,  # Use /api/generate instead of /api/chat
+    ),
+    ModelConfig(
+        name="qwen2.5-coder:32b",
+        provider="ollama",
+        cost=0,
+        base_url="http://localhost:11434",
+        max_tokens=1024,  # Reasonable limit for verifier
+        quality_threshold=0.95,
+        supports_tools=False,  # Use /api/generate instead of /api/chat
+    ),
+])
+```
+
+**Performance Impact:**
+
+| Setting | Default | Optimized | Impact |
+|---------|---------|-----------|---------|
+| `max_tokens` | 4096 | 512-1024 | **5-10x faster** for large models |
+| `supports_tools` | True (/api/chat) | False (/api/generate) | **2-3x faster** (when not using tools) |
+
+**When to use these settings:**
+- ✅ **Always** for cascade drafters (need fast, concise responses)
+- ✅ **Usually** for verifiers (unless you need very long responses)
+- ❌ **Never** if you need tool calling / function calling support
+
+**Recommended `max_tokens` by model size:**
+
+| Model Size | Draft | Verifier |
+|------------|-------|----------|
+| 1B-7B | 256-512 | 512-1024 |
+| 8B-13B | 512-1024 | 1024-2048 |
+| 30B-70B | 1024-2048 | 2048-4096 |
+
+**Model Selection for Cascades:**
+
+- ✅ Use **general-purpose** models (e.g., `qwen2.5:32b`) for varied queries
+- ❌ Avoid **specialized** models (e.g., `qwen2.5-coder:32b`) for general queries
+- Specialized models are optimized for their domain but slow on other tasks
+
+### vLLM Performance Optimization
+
+vLLM is generally faster than Ollama out-of-the-box, but you can still optimize:
+
+```python
+agent = CascadeAgent(models=[
+    ModelConfig(
+        name="meta-llama/Llama-3-8B-Instruct",
+        provider="vllm",
+        cost=0,
+        max_tokens=512,  # Faster draft responses
+        temperature=0.7,
+    ),
+])
+```
+
+**vLLM Server Optimization:**
+
+```bash
+# Start vLLM with optimized settings
+python -m vllm.entrypoints.openai.api_server \
+  --model meta-llama/Llama-3-70B-Instruct \
+  --port 8000 \
+  --gpu-memory-utilization 0.9 \  # Use 90% of GPU memory
+  --max-model-len 4096 \           # Max context length
+  --max-num-seqs 256 \             # Batch size
+  --tensor-parallel-size 2         # Use 2 GPUs if available
+```
 
 ---
 
