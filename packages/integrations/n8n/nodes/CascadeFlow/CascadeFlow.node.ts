@@ -8,19 +8,21 @@ import {
 
 import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
 
-export class cascadeflow implements INodeType {
+export class CascadeFlow implements INodeType {
   description: INodeTypeDescription = {
-    displayName: 'cascadeflow',
+    displayName: 'CascadeFlow',
     name: 'cascadeFlow',
     icon: 'file:cascadeflow.svg',
     group: ['transform'],
-    version: 1,
-    subtitle: '={{$parameter["operation"]}}',
+    version: 2,
+    subtitle: 'AI Model Cascading',
     description: 'Smart AI model cascading with 40-85% cost savings',
     defaults: {
-      name: 'cascadeflow',
+      name: 'CascadeFlow',
     },
-    inputs: ['main'],
+    // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
+    inputs: ['main', 'main'],
+    inputNames: ['Drafter Model', 'Verifier Model'],
     outputs: ['main'],
     credentials: [
       {
@@ -29,239 +31,32 @@ export class cascadeflow implements INodeType {
       },
     ],
     properties: [
-      {
-        displayName: 'Operation',
-        name: 'operation',
-        type: 'options',
-        noDataExpression: true,
-        options: [
-          {
-            name: 'Generate Text',
-            value: 'generateText',
-            description: 'Generate AI response with cascading',
-            action: 'Generate text with cascading',
-          },
-          {
-            name: 'Generate with Tools',
-            value: 'generateWithTools',
-            description: 'Generate AI response with tool calling',
-            action: 'Generate with tool calling',
-          },
-        ],
-        default: 'generateText',
-      },
-
       // Input message
       {
-        displayName: 'Message',
-        name: 'message',
+        displayName: 'Prompt',
+        name: 'prompt',
         type: 'string',
         default: '',
         required: true,
         typeOptions: {
           rows: 4,
         },
-        description: 'The message or query to send to AI',
+        description: 'The message or query to send to AI models',
         placeholder: 'What is the capital of France?',
       },
 
-      // Model Configuration
+      // Quality Threshold
       {
-        displayName: 'Models Configuration',
-        name: 'modelsConfig',
-        type: 'fixedCollection',
+        displayName: 'Quality Threshold',
+        name: 'qualityThreshold',
+        type: 'number',
+        default: 0.7,
         typeOptions: {
-          multipleValues: false,
+          minValue: 0,
+          maxValue: 1,
+          numberPrecision: 2,
         },
-        default: {},
-        options: [
-          {
-            name: 'models',
-            displayName: 'Models',
-            values: [
-											{
-												displayName: 'Draft Model Cost',
-												name: 'draftCost',
-												type: 'number',
-												default: 0.000375,
-												description: 'Cost per 1K tokens (blended)',
-											},
-											{
-												displayName: 'Draft Model Name',
-												name: 'draftModel',
-												type: 'string',
-												default: 'gpt-4o-mini',
-												description: 'Model name for draft generation',
-												placeholder: 'gpt-4o-mini',
-											},
-											{
-												displayName: 'Draft Model Provider',
-												name: 'draftProvider',
-												type: 'options',
-												default: 'openai',
-												options: [
-													{
-														name: 'Anthropic',
-														value: 'anthropic',
-													},
-													{
-														name: 'Groq',
-														value: 'groq',
-													},
-													{
-														name: 'Ollama (Local)',
-														value: 'ollama',
-													},
-													{
-														name: 'OpenAI',
-														value: 'openai',
-													},
-													{
-														name: 'Together AI',
-														value: 'together',
-													},
-												],
-												description: 'Provider for the cheap draft model',
-											},
-											{
-												displayName: 'Verifier Model Cost',
-												name: 'verifierCost',
-												type: 'number',
-												default: 0.00625,
-												description: 'Cost per 1K tokens (blended)',
-											},
-											{
-												displayName: 'Verifier Model Name',
-												name: 'verifierModel',
-												type: 'string',
-												default: 'gpt-4o',
-												description: 'Model name for verification',
-												placeholder: 'gpt-4o',
-											},
-											{
-												displayName: 'Verifier Model Provider',
-												name: 'verifierProvider',
-												type: 'options',
-												default: 'openai',
-												options: [
-													{
-														name: 'OpenAI',
-														value: 'openai',
-													},
-													{
-														name: 'Anthropic',
-														value: 'anthropic',
-													},
-													{
-														name: 'Groq',
-														value: 'groq',
-													},
-													{
-														name: 'Together AI',
-														value: 'together',
-													},
-													],
-												description: 'Provider for the expensive verifier model',
-											},
-									],
-          },
-        ],
-      },
-
-      // Quality Configuration
-      {
-        displayName: 'Quality Settings',
-        name: 'qualitySettings',
-        type: 'fixedCollection',
-        typeOptions: {
-          multipleValues: false,
-        },
-        default: {},
-        options: [
-          {
-            name: 'quality',
-            displayName: 'Quality',
-            values: [
-              {
-                displayName: 'Quality Threshold',
-                name: 'threshold',
-                type: 'number',
-                default: 0.7,
-                typeOptions: {
-                  minValue: 0,
-                  maxValue: 1,
-                  numberPrecision: 2,
-                },
-                description: 'Minimum quality score to accept draft (0-1)',
-              },
-              {
-                displayName: 'Require Minimum Tokens',
-                name: 'requireMinimumTokens',
-                type: 'number',
-                default: 10,
-                typeOptions: {
-                  minValue: 0,
-                },
-                description: 'Minimum response length in tokens',
-              },
-            ],
-          },
-        ],
-      },
-
-      // Advanced Options
-      {
-        displayName: 'Advanced Options',
-        name: 'advancedOptions',
-        type: 'collection',
-        default: {},
-        placeholder: 'Add Option',
-        options: [
-          {
-            displayName: 'Max Tokens',
-            name: 'maxTokens',
-            type: 'number',
-            default: 1000,
-            description: 'Maximum tokens to generate',
-          },
-          {
-            displayName: 'Temperature',
-            name: 'temperature',
-            type: 'number',
-            default: 0.7,
-            typeOptions: {
-              minValue: 0,
-              maxValue: 2,
-              numberPrecision: 1,
-            },
-            description: 'Sampling temperature (0-2)',
-          },
-          {
-            displayName: 'System Prompt',
-            name: 'systemPrompt',
-            type: 'string',
-            default: '',
-            typeOptions: {
-              rows: 3,
-            },
-            description: 'Optional system prompt',
-          },
-        ],
-      },
-
-      // Tool Calling (for generateWithTools operation)
-      {
-        displayName: 'Tools',
-        name: 'tools',
-        type: 'json',
-        displayOptions: {
-          show: {
-            operation: ['generateWithTools'],
-          },
-        },
-        default: '[]',
-        description: 'Tools in OpenAI format (JSON array)',
-        placeholder: '[{"type": "function", "function": {"name": "get_weather", ...}}]',
+        description: 'Minimum quality score (0-1) to accept drafter response. Lower = more cost savings, higher = better quality.',
       },
 
       // Output Options
@@ -293,13 +88,16 @@ export class cascadeflow implements INodeType {
   };
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-    const items = this.getInputData();
     const returnData: INodeExecutionData[] = [];
+
+    // Get data from both inputs
+    const drafterInputData = this.getInputData(0); // Drafter model input
+    const verifierInputData = this.getInputData(1); // Verifier model input
 
     // Get credentials
     const credentials = await this.getCredentials('cascadeFlowApi');
 
-    // Helper to get API key for provider (moved inside execute for proper 'this' context)
+    // Helper to get API key for provider
     const getApiKeyForProvider = (creds: any, provider: string): string => {
       const keyMap: Record<string, string> = {
         openai: 'openaiApiKey',
@@ -317,71 +115,59 @@ export class cascadeflow implements INodeType {
       return (creds[keyName] as string) || '';
     };
 
-    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+    // Helper to extract model config from input data
+    const extractModelConfig = (inputData: INodeExecutionData[], inputName: string): ModelConfig => {
+      if (!inputData || inputData.length === 0) {
+        throw new NodeOperationError(
+          this.getNode(),
+          `No data received from ${inputName} input. Please connect an OpenAI or other provider node.`
+        );
+      }
+
+      const data = inputData[0].json;
+
+      // Try to extract model information from the input
+      // This works with OpenAI node output and similar provider nodes
+      const modelName = (data.model as string) || (data.modelName as string) || 'gpt-4o-mini';
+      const providerStr = (data.provider as string) || 'openai';
+      const cost = (data.cost as number) || (data.modelCost as number) || 0.001;
+
+      return {
+        name: modelName,
+        provider: providerStr as any,
+        cost,
+        apiKey: getApiKeyForProvider(credentials, providerStr),
+      };
+    };
+
+    // Extract model configurations from inputs
+    const drafterConfig = extractModelConfig(drafterInputData, 'Drafter');
+    const verifierConfig = extractModelConfig(verifierInputData, 'Verifier');
+
+    const modelConfigs: ModelConfig[] = [drafterConfig, verifierConfig];
+
+    for (let itemIndex = 0; itemIndex < drafterInputData.length; itemIndex++) {
       try {
         // Get parameters
-        const operation = this.getNodeParameter('operation', itemIndex) as string;
-        const message = this.getNodeParameter('message', itemIndex) as string;
-        const modelsConfig = this.getNodeParameter('modelsConfig', itemIndex, {}) as any;
-        const qualitySettings = this.getNodeParameter('qualitySettings', itemIndex, {}) as any;
-        const advancedOptions = this.getNodeParameter('advancedOptions', itemIndex, {}) as any;
+        const prompt = this.getNodeParameter('prompt', itemIndex) as string;
+        const qualityThreshold = this.getNodeParameter('qualityThreshold', itemIndex, 0.7) as number;
         const outputMode = this.getNodeParameter('output', itemIndex, 'fullMetrics') as string;
-
-        // Extract model configuration
-        const models = modelsConfig.models || {};
-        const quality = qualitySettings.quality || {};
-
-        // Build model configs
-        const modelConfigs: ModelConfig[] = [
-          // Draft model
-          {
-            name: models.draftModel || 'gpt-4o-mini',
-            provider: models.draftProvider || 'openai',
-            cost: models.draftCost || 0.000375,
-            apiKey: getApiKeyForProvider(credentials, models.draftProvider || 'openai'),
-          },
-          // Verifier model
-          {
-            name: models.verifierModel || 'gpt-4o',
-            provider: models.verifierProvider || 'openai',
-            cost: models.verifierCost || 0.00625,
-            apiKey: getApiKeyForProvider(credentials, models.verifierProvider || 'openai'),
-          },
-        ];
 
         // Create CascadeAgent
         const agent = new CascadeAgent({
           models: modelConfigs,
           quality: {
-            threshold: quality.threshold || 0.7,
-            requireMinimumTokens: quality.requireMinimumTokens || 10,
+            threshold: qualityThreshold,
+            requireMinimumTokens: 10,
           },
         });
 
         // Prepare run options
-        const runOptions: any = {
-          maxTokens: advancedOptions.maxTokens,
-          temperature: advancedOptions.temperature,
-          systemPrompt: advancedOptions.systemPrompt,
-        };
+        const runOptions: any = {};
 
-        // Add tools if generateWithTools operation
-        if (operation === 'generateWithTools') {
-          const toolsJson = this.getNodeParameter('tools', itemIndex, '[]') as string;
-          try {
-            runOptions.tools = JSON.parse(toolsJson);
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            throw new NodeOperationError(
-              this.getNode(),
-              `Invalid tools JSON: ${errorMessage}`,
-              { itemIndex }
-            );
-          }
-        }
 
         // Execute cascade
-        const result = await agent.run(message, runOptions);
+        const result = await agent.run(prompt, runOptions);
 
         // Format output based on outputMode
         let outputData: any;
