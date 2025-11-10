@@ -76,11 +76,19 @@ class CascadeChatModel extends BaseChatModel {
     if (!this.verifierModel) {
       console.log('   🔄 Loading verifier model from TOP port (labeled "Verifier")...');
       this.verifierModel = await this.verifierModelGetter();
-      const verifierType = typeof this.verifierModel._llmType === 'function' ? this.verifierModel._llmType() : 'unknown';
-      const verifierModelName = (this.verifierModel as any).modelName || (this.verifierModel as any).model || 'unknown';
-      console.log(`   ✓ Verifier model loaded: ${verifierType} (${verifierModelName})`);
+      const verifierInfo = this.getModelInfo(this.verifierModel);
+      console.log(`   ✓ Verifier model loaded: ${verifierInfo}`);
     }
     return this.verifierModel;
+  }
+
+  /**
+   * Helper to get model info string (type and name)
+   */
+  private getModelInfo(model: BaseChatModel): string {
+    const type = typeof model._llmType === 'function' ? model._llmType() : 'unknown';
+    const modelName = (model as any).modelName || (model as any).model || 'unknown';
+    return `${type} (${modelName})`;
   }
 
   /**
@@ -127,9 +135,7 @@ class CascadeChatModel extends BaseChatModel {
   ): Promise<ChatResult> {
     try {
       // Step 1: Try the drafter model
-      const drafterModelType = typeof this.drafterModel._llmType === 'function' ? this.drafterModel._llmType() : 'unknown';
-      const drafterModelName = (this.drafterModel as any).modelName || (this.drafterModel as any).model || 'unknown';
-      const drafterInfo = `${drafterModelType} (${drafterModelName})`;
+      const drafterInfo = this.getModelInfo(this.drafterModel);
       await runManager?.handleText(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}\n`);
       console.log(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}`);
       const drafterStartTime = Date.now();
@@ -178,7 +184,7 @@ class CascadeChatModel extends BaseChatModel {
         const estimatedVerifierCost = 0.0016; // $0.0016 per request (rough estimate)
         const savings = ((estimatedVerifierCost - estimatedDrafterCost) / estimatedVerifierCost * 100).toFixed(1);
 
-        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost savings: ~${savings}% (used cheap model)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Model used: ${drafterInfo}\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost savings: ~${savings}% (used cheap model)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
 
         await runManager?.handleText(flowLog);
         console.log(flowLog);
@@ -212,6 +218,7 @@ class CascadeChatModel extends BaseChatModel {
 
       const verifierStartTime = Date.now();
       const verifierModel = await this.getVerifierModel();
+      const verifierInfo = this.getModelInfo(verifierModel);
       const verifierMessage = await verifierModel.invoke(messages, options);
       const verifierLatency = Date.now() - verifierStartTime;
 
@@ -220,7 +227,7 @@ class CascadeChatModel extends BaseChatModel {
       const totalLatency = drafterLatency + verifierLatency;
       const acceptanceRate = (this.drafterCount / (this.drafterCount + this.verifierCount) * 100).toFixed(1);
 
-      const completionLog = `   ✅ Verifier completed successfully\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: Full verifier cost (0% savings this request)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
+      const completionLog = `   ✅ Verifier completed successfully\n   Model used: ${verifierInfo}\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: Full verifier cost (0% savings this request)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
 
       await runManager?.handleText(completionLog);
       console.log(completionLog);
@@ -255,10 +262,11 @@ class CascadeChatModel extends BaseChatModel {
       console.log(errorLog);
 
       const verifierModel = await this.getVerifierModel();
+      const verifierInfo = this.getModelInfo(verifierModel);
       const verifierMessage = await verifierModel.invoke(messages, options);
       this.verifierCount++;
 
-      const fallbackCompleteLog = `   ✅ Verifier fallback completed successfully\n   💰 Cost: Full verifier cost (fallback due to error)\n`;
+      const fallbackCompleteLog = `   ✅ Verifier fallback completed successfully\n   Model used: ${verifierInfo}\n   💰 Cost: Full verifier cost (fallback due to error)\n`;
 
       await runManager?.handleText(fallbackCompleteLog);
       console.log(fallbackCompleteLog);
