@@ -234,8 +234,28 @@ export class CascadeAgent {
    * @see {CascadeResult} for result structure
    * @see {RunOptions} for all available options
    */
+  private getDefaultMaxTokens(): number {
+    // Check first model's provider to determine hosting type
+    const firstProvider = this.models[0]?.provider.toLowerCase();
+
+    // Local/self-hosted providers - use conservative default (500 tokens)
+    // These are typically slower, especially reasoning models like DeepSeek R1
+    if (firstProvider === 'vllm' || firstProvider === 'ollama') {
+      return 500;
+    }
+
+    // Cloud providers - use standard default (1000 tokens)
+    // OpenAI, Anthropic, Groq, etc. are fast enough to handle more tokens
+    return 1000;
+  }
+
   async run(input: string | Message[], options: RunOptions = {}): Promise<CascadeResult> {
     const startTime = Date.now();
+
+    // Set default max_tokens based on hosting type if not specified
+    // Local providers (vllm, ollama): 500 tokens
+    // Cloud providers (openai, anthropic, etc.): 1000 tokens
+    const maxTokens = options.maxTokens ?? this.getDefaultMaxTokens();
 
     // Normalize input to messages
     const messages: Message[] =
@@ -285,7 +305,7 @@ export class CascadeAgent {
         const response = await provider.generate({
           messages,
           model: bestModelConfig.name,
-          maxTokens: options.maxTokens,
+          maxTokens: maxTokens,
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
@@ -344,7 +364,7 @@ export class CascadeAgent {
       draftResponse = await draftProvider.generate({
         messages,
         model: draftModelConfig.name,
-        maxTokens: options.maxTokens,
+        maxTokens: maxTokens,
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
@@ -392,7 +412,7 @@ export class CascadeAgent {
         const verifierResponse = await verifierProvider.generate({
           messages,
           model: verifierModelConfig.name,
-          maxTokens: options.maxTokens,
+          maxTokens: maxTokens,
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
@@ -497,6 +517,9 @@ export class CascadeAgent {
   ): AsyncIterable<StreamEvent> {
     const startTime = Date.now();
 
+    // Set default max_tokens based on hosting type if not specified
+    const maxTokens = options.maxTokens ?? this.getDefaultMaxTokens();
+
     // Normalize input to messages
     const messages: Message[] =
       typeof input === 'string' ? [{ role: 'user', content: input }] : input;
@@ -557,7 +580,7 @@ export class CascadeAgent {
         if (!directProvider.stream) {
           // Fallback to non-streaming path
           const result = await this.run(input, {
-            maxTokens: options.maxTokens,
+            maxTokens: maxTokens,
             temperature: options.temperature,
             systemPrompt: options.systemPrompt,
             tools: options.tools,
@@ -579,7 +602,7 @@ export class CascadeAgent {
         for await (const chunk of directProvider.stream({
           messages,
           model: bestModelConfig.name,
-          maxTokens: options.maxTokens,
+          maxTokens: maxTokens,
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
@@ -658,7 +681,7 @@ export class CascadeAgent {
       for await (const chunk of draftProvider.stream({
         messages,
         model: draftModelConfig.name,
-        maxTokens: options.maxTokens,
+        maxTokens: maxTokens,
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
@@ -751,7 +774,7 @@ export class CascadeAgent {
           for await (const chunk of verifierProvider.stream({
             messages,
             model: verifierModelConfig.name,
-            maxTokens: options.maxTokens,
+            maxTokens: maxTokens,
             temperature: options.temperature,
             systemPrompt: options.systemPrompt,
             tools: options.tools,
@@ -782,7 +805,7 @@ export class CascadeAgent {
           const verifierResponse = await verifierProvider.generate({
             messages,
             model: verifierModelConfig.name,
-            maxTokens: options.maxTokens,
+            maxTokens: maxTokens,
             temperature: options.temperature,
             systemPrompt: options.systemPrompt,
             tools: options.tools,

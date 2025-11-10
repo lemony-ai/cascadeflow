@@ -74,8 +74,9 @@ class CascadeChatModel extends BaseChatModel {
 
   private async getVerifierModel(): Promise<BaseChatModel> {
     if (!this.verifierModel) {
-      console.log('   🔄 Loading verifier model...');
+      console.log('   🔄 Loading verifier model from BOTTOM port (labeled "Verifier")...');
       this.verifierModel = await this.verifierModelGetter();
+      console.log(`   ✓ Verifier model loaded: ${typeof this.verifierModel._llmType === 'function' ? this.verifierModel._llmType() : 'connected'}`);
     }
     return this.verifierModel;
   }
@@ -124,8 +125,9 @@ class CascadeChatModel extends BaseChatModel {
   ): Promise<ChatResult> {
     try {
       // Step 1: Try the drafter model
-      await runManager?.handleText('🎯 CascadeFlow: Trying drafter model...\n');
-      console.log('🎯 CascadeFlow: Trying drafter model...');
+      const drafterModelType = typeof this.drafterModel._llmType === 'function' ? this.drafterModel._llmType() : 'unknown';
+      await runManager?.handleText(`🎯 CascadeFlow: Trying drafter model (from TOP port): ${drafterModelType}\n`);
+      console.log(`🎯 CascadeFlow: Trying drafter model (from TOP port): ${drafterModelType}`);
       const drafterStartTime = Date.now();
       const drafterMessage = await this.drafterModel.invoke(messages, options);
       const drafterLatency = Date.now() - drafterStartTime;
@@ -303,16 +305,19 @@ export class LmChatCascadeFlow implements INodeType {
       },
     },
     // Sub-node: accepts AI model connections
+    // Visual layout: Index 0 = "Drafter" label (top), Index 1 = "Verifier" label (bottom)
+    // Actual logic: Index 0 = DRAFTER model (tried first), Index 1 = VERIFIER model (only if needed)
+    // User connects: TOP port = drafter model, BOTTOM port = verifier model
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: [
       {
-        displayName: 'Verifier',
+        displayName: 'Drafter',
         type: 'ai_languageModel' as any,
         maxConnections: 1,
         required: true,
       },
       {
-        displayName: 'Drafter',
+        displayName: 'Verifier',
         type: 'ai_languageModel' as any,
         maxConnections: 1,
         required: true,
@@ -327,7 +332,7 @@ export class LmChatCascadeFlow implements INodeType {
         displayName: 'Quality Threshold',
         name: 'qualityThreshold',
         type: 'number',
-        default: 0.7,
+        default: 0.64,
         typeOptions: {
           minValue: 0,
           maxValue: 1,
@@ -340,28 +345,28 @@ export class LmChatCascadeFlow implements INodeType {
 
   async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
     // Get parameters
-    const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.7) as number;
+    const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.64) as number;
 
-    // Get the drafter model immediately (at index 1 - second in inputs array, but fetched first)
-    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
+    // Get the drafter model immediately (at index 0 - top port, labeled "Drafter")
+    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 0);
     const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
 
     if (!drafterModel) {
       throw new NodeOperationError(
         this.getNode(),
-        'Drafter model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Drafter" input.'
+        'Drafter model is required. Please connect your DRAFTER model to the TOP port (labeled "Drafter").'
       );
     }
 
-    // Create a lazy loader for the verifier model (only fetched when needed) (at index 0)
+    // Create a lazy loader for the verifier model (only fetched when needed) (at index 1 - bottom port, labeled "Verifier")
     const verifierModelGetter = async () => {
-      const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
+      const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 1);
       const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
 
       if (!verifierModel) {
         throw new NodeOperationError(
           this.getNode(),
-          'Verifier model is required. Please connect an AI chat model (OpenAI, Anthropic, Ollama, etc.) to the "Verifier" input.'
+          'Verifier model is required. Please connect your VERIFIER model to the BOTTOM port (labeled "Verifier").'
         );
       }
 
@@ -369,8 +374,9 @@ export class LmChatCascadeFlow implements INodeType {
     };
 
     console.log('🚀 CascadeFlow initialized');
-    console.log(`   Drafter: ${typeof drafterModel._llmType === 'function' ? drafterModel._llmType() : 'connected'}`);
-    console.log(`   Verifier: lazy-loaded (will fetch only if needed)`);
+    console.log(`   PORT MAPPING:`);
+    console.log(`   ├─ TOP port (labeled "Drafter") → DRAFTER model: ${typeof drafterModel._llmType === 'function' ? drafterModel._llmType() : 'connected'}`);
+    console.log(`   └─ BOTTOM port (labeled "Verifier") → VERIFIER model: lazy-loaded (will fetch only if needed)`);
     console.log(`   Quality threshold: ${qualityThreshold}`);
 
     // Create and return the cascade model with lazy verifier

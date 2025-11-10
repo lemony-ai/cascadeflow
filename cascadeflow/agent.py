@@ -503,7 +503,7 @@ class CascadeAgent:
     async def run(
         self,
         query: str,
-        max_tokens: int = 100,
+        max_tokens: int = 500,
         temperature: float = 0.7,
         complexity_hint: Optional[str] = None,
         force_direct: bool = False,
@@ -517,7 +517,7 @@ class CascadeAgent:
 
         Args:
             query: User query
-            max_tokens: Max tokens to generate
+            max_tokens: Max tokens to generate (default: 500)
             temperature: Sampling temperature
             complexity_hint: Override complexity detection
             force_direct: Force direct routing
