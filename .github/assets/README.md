@@ -21,9 +21,9 @@ This directory contains brand assets and logos for cascadeflow used across docum
 
 ```markdown
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_logo_dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_logo_bright.svg">
-  <img alt="cascadeflow Logo" src=".github/assets/CF_logo_bright.svg" width="400">
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/CF_logo_bright.svg">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/CF_logo_dark.svg">
+  <img alt="cascadeflow Logo" src=".github/assets/CF_logo_dark.svg" width="80%" style="margin: 20px auto;">
 </picture>
 ```
 
@@ -45,7 +45,8 @@ These assets are used in:
 
 ## Brand Guidelines
 
-- **Logo Usage**: The main logo should be displayed at a width of 300-400px in README headers
+- **Logo Usage**: The main logo should be displayed at 80% width with responsive scaling for README headers
+- **Logo Styling**: Use `margin: 20px auto;` for proper spacing and centering
 - **Icon Usage**: Platform icons should be used at 20-24px for inline navigation
 - **Colors**: All icons use official brand colors (Python blue/yellow, TypeScript blue, n8n pink/purple)
 - **File Format**: All assets are SVG for scalability and quality at any size

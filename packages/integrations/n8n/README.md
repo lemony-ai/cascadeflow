@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../../.github/assets/CF_logo_bright.svg">
   <source media="(prefers-color-scheme: light)" srcset="../../../.github/assets/CF_logo_dark.svg">
-  <img alt="cascadeflow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="533">
+  <img alt="cascadeflow Logo" src="../../../.github/assets/CF_logo_dark.svg" width="80%" style="margin: 20px auto;">
 </picture>
 
 # @cascadeflow/n8n-nodes-cascadeflow
