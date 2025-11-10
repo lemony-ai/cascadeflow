@@ -1,10 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_logo_bright.svg">
-  <source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_logo_dark.svg">
-  <img alt="cascadeflow Logo" src="./.github/assets/CF_logo_dark.svg" width="80%" style="margin: 20px auto;">
-</picture>
+<img alt="cascadeflow Logo" src="./.github/assets/CF_logo_dark.svg" style="width: 600px; max-width: 100%; height: auto; display: block; margin: 20px auto;">
 
 # Smart AI model cascading for cost optimization
 
