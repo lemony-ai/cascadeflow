@@ -1,9 +1,9 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lemony-ai/cascadeflow/main/.github/assets/CF_logo_bright.svg">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/lemony-ai/cascadeflow/main/.github/assets/CF_logo_dark.svg">
-  <img alt="cascadeflow Logo" src="https://raw.githubusercontent.com/lemony-ai/cascadeflow/main/.github/assets/CF_logo_dark.svg" width="533">
+  <source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_logo_bright.svg">
+  <source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_logo_dark.svg">
+  <img alt="cascadeflow Logo" src="./.github/assets/CF_logo_dark.svg" width="80%" style="margin: 20px auto;">
 </picture>
 
 # Smart AI model cascading for cost optimization
