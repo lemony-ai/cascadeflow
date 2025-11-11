@@ -12,7 +12,7 @@ import {
   type TierAwareRouterConfig,
   type TierRouterConfig,
 } from '../../routers/tier-router';
-import type { ModelConfig } from '../../types';
+import type { ModelConfig } from '../../config';
 
 describe('TierRouter', () => {
   // Test models

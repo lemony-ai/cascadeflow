@@ -11,7 +11,8 @@ import {
   createToolRouter,
   type ToolRouterConfig,
 } from '../../routers/tool-router';
-import type { ModelConfig, Tool } from '../../types';
+import type { ModelConfig } from '../../config';
+import type { Tool } from '../../types';
 import { ConfigurationError } from '../../errors';
 
 describe('ToolRouter', () => {

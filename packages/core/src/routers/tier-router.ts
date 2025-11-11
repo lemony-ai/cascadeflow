@@ -32,7 +32,7 @@
  * ```
  */
 
-import type { ModelConfig } from '../types';
+import type { ModelConfig } from '../config';
 
 /**
  * Enhanced tier configuration for routing
