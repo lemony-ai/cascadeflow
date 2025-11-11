@@ -292,12 +292,23 @@ export {
   tool,
   inferJsonType,
   buildParameterSchema,
-} from './tools/config';
+  ToolExecutor,
+  ToolCall,
+  ToolResult,
+  ToolCallFormat,
+  toOpenAIFormat,
+  toAnthropicFormat,
+  toOllamaFormat,
+  toProviderFormat,
+  getProviderFormatType,
+} from './tools';
 export type {
   ToolFunction,
   ToolParameters,
   ToolConfigOptions,
-} from './tools/config';
+  ToolCallOptions,
+  ToolResultOptions,
+} from './tools';
 
 // Version
 export const VERSION = '1.0.0';
