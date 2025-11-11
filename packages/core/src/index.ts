@@ -91,7 +91,6 @@ export type {
 // Types
 export type {
   Provider as ProviderType,
-  RoutingStrategy,
   QueryComplexity,
   MessageRole,
   Message,
@@ -113,6 +112,9 @@ export type {
   BatchConfig,
   BatchItemResult,
 } from './types';
+
+// Legacy routing type (kept for backward compatibility, prefer RoutingStrategy enum from routers/base)
+export type { RoutingStrategy as LegacyRoutingStrategy } from './types';
 
 // Providers
 export { providerRegistry } from './providers/base';
@@ -244,6 +246,17 @@ export type {
   CacheSetOptions,
   CacheGetOptions,
 } from './response-cache';
+
+// Routers (v1.0.1+)
+export {
+  Router,
+  RouterChain,
+  RoutingStrategy,
+  RoutingDecisionHelper,
+} from './routers/base';
+export type { RoutingDecision } from './routers/base';
+export { PreRouter, createPreRouter } from './routers/pre-router';
+export type { PreRouterConfig, PreRouterStats } from './routers/pre-router';
 
 // Version
 export const VERSION = '1.0.0';
