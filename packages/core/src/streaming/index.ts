@@ -59,3 +59,16 @@ export {
 export type {
   ParseResult,
 } from './utils';
+
+// Event Formatter
+export {
+  EventFormatter,
+  createEventFormatter,
+  getDefaultFormatter,
+  quickFormat,
+  VISUAL_ICONS,
+  COLORS,
+} from './event-formatter';
+export type {
+  EventFormatterConfig,
+} from './event-formatter';

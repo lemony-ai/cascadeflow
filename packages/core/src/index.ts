@@ -269,7 +269,7 @@ export type {
 export { TierRouter, createTierRouter } from './routers/tier-router';
 export type {
   TierAwareRouterConfig,
-  TierRouterConfig as TierConfig,
+  TierRouterConfig,
   TierRouterStats,
   TierConstraints,
   FilterModelsOptions,

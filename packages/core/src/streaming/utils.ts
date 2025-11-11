@@ -184,13 +184,6 @@ export class ProgressiveJSONParser {
 
     return true;
   }
-
-  /**
-   * Reset parser state
-   */
-  reset(): void {
-    this.buffer = '';
-  }
 }
 
 /**

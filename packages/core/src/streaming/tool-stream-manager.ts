@@ -138,20 +138,20 @@ export interface ToolStreamOptions {
  */
 export class ToolStreamManager {
   private cascade: any;
-  private toolExecutor?: (toolCall: Record<string, any>, tools: Tool[]) => Promise<any>;
+  private _toolExecutor?: (toolCall: Record<string, any>, tools: Tool[]) => Promise<any>;
   private verbose: boolean;
   private jsonParser: ProgressiveJSONParser;
-  private validator: ToolCallValidator;
+  private _validator: ToolCallValidator;
   private costCalculator: any;
   private hasCostCalculator: boolean;
 
   constructor(cascade: any, config: ToolStreamManagerConfig = {}) {
     this.cascade = cascade;
-    this.toolExecutor = config.toolExecutor;
+    this._toolExecutor = config.toolExecutor;
     this.verbose = config.verbose ?? false;
 
     this.jsonParser = new ProgressiveJSONParser();
-    this.validator = new ToolCallValidator();
+    this._validator = new ToolCallValidator();
 
     // Initialize CostCalculator
     if (config.costCalculator) {
@@ -186,7 +186,7 @@ export class ToolStreamManager {
   /**
    * Calculate costs using CostCalculator with input token counting
    */
-  private calculateCosts(
+  private _calculateCosts(
     draftContent: string,
     verifierContent: string | null,
     draftAccepted: boolean,
@@ -310,14 +310,14 @@ export class ToolStreamManager {
   async *stream(query: string, options: ToolStreamOptions): AsyncGenerator<ToolStreamEvent> {
     const {
       tools,
-      maxTokens = 1000,
-      temperature = 0.7,
-      toolChoice,
+      maxTokens: _maxTokens = 1000,
+      temperature: _temperature = 0.7,
+      toolChoice: _toolChoice,
       executeTools = false,
-      maxTurns = 1,
+      maxTurns: _maxTurns = 1,
       complexity,
       routingStrategy = 'cascade',
-      ...providerKwargs
+      ..._providerKwargs
     } = options;
 
     if (!tools || tools.length === 0) {
@@ -379,9 +379,9 @@ export class ToolStreamManager {
    *
    * Emits events as tool calls are detected and parsed.
    */
-  private async *processToolChunk(
+  private async *_processToolChunk(
     chunk: any,
-    tools: Tool[],
+    _tools: Tool[],
     currentToolCall: Record<string, any> | null,
     jsonBuffer: string
   ): AsyncGenerator<ToolStreamEvent> {
@@ -428,9 +428,9 @@ export class ToolStreamManager {
   /**
    * Default tool executor (returns mock result)
    */
-  private async defaultToolExecutor(
+  private async _defaultToolExecutor(
     toolCall: Record<string, any>,
-    tools: Tool[]
+    _tools: Tool[]
   ): Promise<any> {
     const toolName = toolCall.name || 'unknown';
     const args = toolCall.arguments || {};

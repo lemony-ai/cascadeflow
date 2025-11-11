@@ -145,7 +145,7 @@ export class StreamManager {
    * @param queryText - Original query text for input token counting
    * @returns Cost breakdown
    */
-  private calculateCosts(
+  private _calculateCosts(
     draftContent: string,
     verifierContent: string | null,
     draftAccepted: boolean,
@@ -239,7 +239,7 @@ export class StreamManager {
   /**
    * Calculate confidence from logprobs with provider-specific handling
    */
-  private calculateConfidenceFromLogprobs(
+  private _calculateConfidenceFromLogprobs(
     logprobs: number[],
     providerType?: string
   ): number | null {
