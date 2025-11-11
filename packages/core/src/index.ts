@@ -211,5 +211,14 @@ export type {
   CostCalculationOptions,
 } from './integrations/litellm';
 
+// Cost Calculator (Telemetry)
+export {
+  CostCalculator,
+  calculateCascadeCost,
+} from './telemetry/cost-calculator';
+export type {
+  CostCalculationFromTokensOptions,
+} from './telemetry/cost-calculator';
+
 // Version
 export const VERSION = '1.0.0';

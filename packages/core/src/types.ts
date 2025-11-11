@@ -154,13 +154,45 @@ export interface ProviderResponse {
 
 /**
  * Cost breakdown information
+ *
+ * Enhanced to match Python implementation with token tracking and metadata
  */
 export interface CostBreakdown {
+  /** Cost of draft model call (USD) */
   draftCost: number;
+
+  /** Cost of verifier model call (USD) */
   verifierCost: number;
+
+  /** Total cost (draft + verifier, USD) */
   totalCost: number;
+
+  /** Cost saved vs always using best model (USD) */
   costSaved: number;
+
+  /** Cost if only using the most expensive model (USD) */
+  bigonlyCost: number;
+
+  /** Savings percentage (0-100) */
   savingsPercentage: number;
+
+  /** Total tokens used by draft (input + output) */
+  draftTokens: number;
+
+  /** Total tokens used by verifier (input + output) */
+  verifierTokens: number;
+
+  /** Total tokens across all models */
+  totalTokens: number;
+
+  /** Whether cascade was used (vs direct routing) */
+  wasCascaded: boolean;
+
+  /** Whether draft was accepted (only relevant if cascaded) */
+  draftAccepted: boolean;
+
+  /** Additional metadata (model names, timestamps, etc.) */
+  metadata: Record<string, any>;
 }
 
 /**
