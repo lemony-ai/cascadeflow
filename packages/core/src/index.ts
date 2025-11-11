@@ -274,6 +274,12 @@ export type {
   TierConstraints,
   FilterModelsOptions,
 } from './routers/tier-router';
+export { DomainRouter, createDomainRouter, Domain } from './routers/domain-router';
+export type {
+  DomainKeywords,
+  DomainDetectionResult,
+  DomainRouterStats,
+} from './routers/domain-router';
 
 // Version
 export const VERSION = '1.0.0';
