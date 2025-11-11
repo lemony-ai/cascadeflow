@@ -10,6 +10,10 @@ import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { ChatResult } from '@langchain/core/outputs';
 import { CostTracker } from './CostTracker';
+import { ToolHandler } from './ToolHandler';
+import { MemoryManager } from './MemoryManager';
+import { ReasoningModelDetector } from './ReasoningModelDetector';
+import { ComplexityAnalyzer, ComplexityAnalysis } from './ComplexityAnalyzer';
 import { CascadeMetadata, NodeConfig, QualityMetrics, CostTrackingOutput } from './types';
 
 let QualityValidator: any;
@@ -103,7 +107,7 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 					{
 						name: 'Complexity-Based',
 						value: 'complexity_based',
-						description: 'Route based on query complexity (coming soon)',
+						description: 'Route based on query complexity',
 					},
 				],
 				default: 'always_cascade',
@@ -174,8 +178,8 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 			loggingLevel: this.getNodeParameter('loggingLevel', 0, 'detailed') as any,
 		};
 
-		const drafterModel = (await this.getInputConnectionData('ai_languageModel' as any, 0)) as BaseChatModel;
-		const verifierModel = (await this.getInputConnectionData('ai_languageModel' as any, 1)) as BaseChatModel;
+		let drafterModel = (await this.getInputConnectionData('ai_languageModel' as any, 0)) as BaseChatModel;
+		let verifierModel = (await this.getInputConnectionData('ai_languageModel' as any, 1)) as BaseChatModel;
 
 		if (!drafterModel) {
 			throw new NodeOperationError(
@@ -188,6 +192,52 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 			throw new NodeOperationError(
 				this.getNode(),
 				'Verifier model is required. Please connect a Language Model to the Verifier input.'
+			);
+		}
+
+		const toolHandler = new ToolHandler(config.enableTools);
+		const memoryManager = new MemoryManager(config.enableMemory);
+
+		if (config.enableTools) {
+			try {
+				const n8nTools = (await this.getInputConnectionData('ai_tool' as any, 2)) as any[];
+				if (n8nTools) {
+					await toolHandler.loadTools(Array.isArray(n8nTools) ? n8nTools : [n8nTools]);
+				}
+			} catch (error) {
+				console.warn('Failed to load tools:', error);
+			}
+		}
+
+		if (config.enableMemory) {
+			try {
+				const n8nMemory = await this.getInputConnectionData('ai_memory' as any, 3);
+				if (n8nMemory) {
+					await memoryManager.loadMemory(n8nMemory);
+				}
+			} catch (error) {
+				console.warn('Failed to load memory:', error);
+			}
+		}
+
+		if (config.enableReasoningModels) {
+			const drafterConfig = ReasoningModelDetector.detectReasoningModel(drafterModel);
+			const verifierConfig = ReasoningModelDetector.detectReasoningModel(verifierModel);
+
+			if (drafterConfig.isReasoningModel) {
+				console.warn('⚠️  Reasoning model detected as drafter - this is not recommended for cost optimization');
+			}
+
+			drafterModel = ReasoningModelDetector.applyReasoningConfig(
+				drafterModel,
+				drafterConfig,
+				config.reasoningEffort
+			);
+
+			verifierModel = ReasoningModelDetector.applyReasoningConfig(
+				verifierModel,
+				verifierConfig,
+				config.reasoningEffort
 			);
 		}
 
@@ -206,7 +256,17 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 					);
 				}
 
-				const messages: BaseMessage[] = [new HumanMessage(query)];
+				let messages: BaseMessage[];
+				if (config.enableMemory && memoryManager.hasMemory()) {
+					messages = memoryManager.getMessagesWithNewQuery(query);
+				} else {
+					messages = [new HumanMessage(query)];
+				}
+
+				let complexityAnalysis: ComplexityAnalysis | undefined;
+				if (config.routingStrategy === 'complexity_based') {
+					complexityAnalysis = ComplexityAnalyzer.analyzeComplexity(query);
+				}
 
 				const result = await executeCascade.call(
 					this,
@@ -214,14 +274,23 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 					verifierModel,
 					messages,
 					config,
-					costTracker
+					costTracker,
+					complexityAnalysis,
+					toolHandler,
+					memoryManager
 				);
+
+				if (config.enableMemory) {
+					await memoryManager.addUserMessage(query);
+					await memoryManager.addAIMessage(result.response);
+				}
 
 				returnData.push({
 					json: {
 						query,
 						response: result.response,
 						metadata: result.metadata as any,
+						...(complexityAnalysis && { complexity: complexityAnalysis }),
 					},
 					pairedItem: { item: i },
 				});
@@ -235,6 +304,7 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 						cost: result.metadata.cost as any,
 						quality: result.metadata.quality as any,
 						performance: result.metadata.performance as any,
+						...(complexityAnalysis && { complexity: complexityAnalysis }),
 						metadata: {
 							flow: result.metadata.flow,
 							modelUsed: result.metadata.cost.modelUsed,
@@ -277,8 +347,21 @@ async function executeCascade(
 		verifierModel: BaseChatModel,
 		messages: BaseMessage[],
 		config: NodeConfig,
-		costTracker: CostTracker
+		costTracker: CostTracker,
+		complexityAnalysis?: ComplexityAnalysis,
+		toolHandler?: ToolHandler,
+		memoryManager?: MemoryManager
 	): Promise<{ response: string; metadata: CascadeMetadata }> {
+
+		if (complexityAnalysis && config.routingStrategy === 'complexity_based') {
+			log.call(this, config, 'detailed', `📊 Complexity Analysis: ${complexityAnalysis.level} (score: ${complexityAnalysis.score})`);
+			log.call(this, config, 'detailed', `   ${complexityAnalysis.reasoning}`);
+
+			if (!complexityAnalysis.shouldCascade) {
+				log.call(this, config, 'detailed', `⚡ Skipping cascade - routing directly to verifier for ${complexityAnalysis.level} query`);
+				return executeDirectVerifier.call(this, verifierModel, messages, config, costTracker, complexityAnalysis);
+			}
+		}
 
 		const drafterStartTime = Date.now();
 
@@ -378,6 +461,68 @@ async function executeCascade(
 			performance: {
 				latencyMs: totalLatency,
 				drafterLatencyMs: drafterLatency,
+				verifierLatencyMs: verifierLatency,
+			},
+			requestCount: stats.totalRequests,
+			acceptanceRate: stats.acceptanceRate,
+		};
+
+		return {
+			response: verifierResult.generations[0].text,
+			metadata,
+		};
+}
+
+async function executeDirectVerifier(
+	this: IExecuteFunctions,
+		verifierModel: BaseChatModel,
+		messages: BaseMessage[],
+		config: NodeConfig,
+		costTracker: CostTracker,
+		complexityAnalysis: ComplexityAnalysis
+	): Promise<{ response: string; metadata: CascadeMetadata }> {
+
+		log.call(this, config, 'basic', `⚡ Direct routing to verifier (${complexityAnalysis.level} complexity)`);
+
+		const verifierStartTime = Date.now();
+		const verifierResponse = await verifierModel.invoke(messages);
+		const verifierLatency = Date.now() - verifierStartTime;
+
+		const verifierResult: ChatResult = {
+			generations: [{
+				text: verifierResponse.content.toString(),
+				message: verifierResponse,
+			}],
+			llmOutput: (verifierResponse as any).response_metadata,
+		};
+
+		const cost = costTracker.calculateCost(
+			{ modelName: 'skipped-drafter' },
+			verifierModel,
+			messages,
+			undefined,
+			verifierResult,
+			'escalated_to_verifier'
+		);
+
+		checkBudgetLimit.call(this, cost.totalCost, config);
+
+		const stats = costTracker.getStatistics();
+
+		log.call(this, config, 'basic', `✅ Direct verifier completed - Cost: $${cost.totalCost.toFixed(6)}, Latency: ${verifierLatency}ms`);
+
+		const metadata: CascadeMetadata = {
+			flow: 'direct_verifier',
+			cost,
+			quality: {
+				confidence: 1.0,
+				qualityScore: 1.0,
+				validationMethod: 'heuristic',
+				passed: true,
+				reason: `Direct routing based on ${complexityAnalysis.level} complexity`,
+			},
+			performance: {
+				latencyMs: verifierLatency,
 				verifierLatencyMs: verifierLatency,
 			},
 			requestCount: stats.totalRequests,
