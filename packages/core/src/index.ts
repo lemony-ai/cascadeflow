@@ -220,5 +220,18 @@ export type {
   CostCalculationFromTokensOptions,
 } from './telemetry/cost-calculator';
 
+// Retry Manager
+export {
+  RetryManager,
+  ErrorType,
+  DEFAULT_RETRY_CONFIG,
+  createRetryManager,
+} from './retry-manager';
+export type {
+  RetryConfig,
+  RetryMetrics,
+  RetryMetricsSummary,
+} from './retry-manager';
+
 // Version
 export const VERSION = '1.0.0';
