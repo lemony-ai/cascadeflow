@@ -266,6 +266,14 @@ export type {
   FilterToolCapableModelsOptions,
   SuggestModelsOptions,
 } from './routers/tool-router';
+export { TierRouter, createTierRouter } from './routers/tier-router';
+export type {
+  TierAwareRouterConfig,
+  TierRouterConfig as TierConfig,
+  TierRouterStats,
+  TierConstraints,
+  FilterModelsOptions,
+} from './routers/tier-router';
 
 // Version
 export const VERSION = '1.0.0';
