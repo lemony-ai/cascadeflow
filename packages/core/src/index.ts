@@ -257,6 +257,15 @@ export {
 export type { RoutingDecision } from './routers/base';
 export { PreRouter, createPreRouter } from './routers/pre-router';
 export type { PreRouterConfig, PreRouterStats } from './routers/pre-router';
+export { ToolRouter, createToolRouter } from './routers/tool-router';
+export type {
+  ToolRouterConfig,
+  ToolRouterStats,
+  ToolFilterResult,
+  ToolValidationResult,
+  FilterToolCapableModelsOptions,
+  SuggestModelsOptions,
+} from './routers/tool-router';
 
 // Version
 export const VERSION = '1.0.0';
