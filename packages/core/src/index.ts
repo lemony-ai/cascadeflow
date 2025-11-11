@@ -22,7 +22,11 @@
 
 // Main agent
 export { CascadeAgent } from './agent';
-export type { RunOptions } from './agent';
+export type {
+  RunOptions,
+  RunStreamingOptions,
+  StreamEventsOptions,
+} from './agent';
 
 // Configuration
 export type {

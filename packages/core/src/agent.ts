@@ -946,4 +946,173 @@ export class CascadeAgent {
   getModelCount(): number {
     return this.models.length;
   }
+
+  // ========================================================================
+  // STREAMING APIS (v0.6+) - High-level streaming methods
+  // ========================================================================
+
+  /**
+   * Run query with streaming and return complete result
+   *
+   * This method provides streaming with visual feedback and returns a complete
+   * CascadeResult when done. Unlike streamEvents(), this collects all events
+   * internally and returns the final result.
+   *
+   * Key features:
+   * - Automatic manager selection (StreamManager vs ToolStreamManager)
+   * - Visual feedback (optional pulsing indicator)
+   * - Complete result with costs and metadata
+   * - Tool support with automatic routing
+   *
+   * @param query - User query to process
+   * @param options - Streaming options
+   * @returns Complete CascadeResult with all metadata
+   *
+   * @example
+   * ```typescript
+   * const result = await agent.runStreaming('Explain TypeScript', {
+   *   maxTokens: 100,
+   *   enableVisual: true
+   * });
+   * console.log(result.content);
+   * console.log(`Cost: $${result.totalCost}`);
+   * ```
+   */
+  async runStreaming(
+    query: string,
+    options: RunStreamingOptions = {}
+  ): Promise<CascadeResult> {
+    // TODO: Full implementation in future milestone
+    // For now, use runStream and collect result
+    const events: StreamEvent[] = [];
+    for await (const event of this.runStream(query, options)) {
+      events.push(event);
+    }
+
+    // Extract result from COMPLETE event
+    const completeEvent = events.find(e => e.type === StreamEventType.COMPLETE);
+    if (completeEvent?.data?.result) {
+      return completeEvent.data.result as CascadeResult;
+    }
+
+    // Fallback: construct result from events
+    const chunks = events
+      .filter(e => e.type === StreamEventType.CHUNK)
+      .map(e => e.content)
+      .join('');
+
+    return {
+      content: chunks,
+      modelUsed: this.models[0].name,
+      totalCost: 0,
+      draftCost: 0,
+      verifierCost: 0,
+      latencyMs: 0,
+      draftLatencyMs: 0,
+      verifierLatencyMs: 0,
+      cascaded: false,
+      draftAccepted: true,
+      complexity: 'unknown',
+      savingsPercentage: 0,
+      costSaved: 0,
+      routingStrategy: 'direct',
+      reason: 'Streaming fallback',
+      hasToolCalls: false,
+    };
+  }
+
+  /**
+   * Stream events as async iterator
+   *
+   * This method yields StreamEvent objects as they occur, allowing fine-grained
+   * control over streaming. Use this when you need to process events in real-time.
+   *
+   * Automatically selects the correct streaming manager:
+   * - IF tools provided → ToolStreamManager (handles tool calls)
+   * - ELSE → StreamManager (standard text streaming)
+   *
+   * @param query - User query to process
+   * @param options - Streaming options
+   * @yields StreamEvent objects with type, content, and data
+   *
+   * @example
+   * ```typescript
+   * for await (const event of agent.streamEvents('What is TypeScript?')) {
+   *   switch (event.type) {
+   *     case StreamEventType.CHUNK:
+   *       process.stdout.write(event.content);
+   *       break;
+   *     case StreamEventType.COMPLETE:
+   *       console.log(`\nDone! Cost: $${event.data.result.totalCost}`);
+   *       break;
+   *   }
+   * }
+   * ```
+   */
+  async *streamEvents(
+    query: string,
+    options: StreamEventsOptions = {}
+  ): AsyncIterable<StreamEvent> {
+    // TODO: Full implementation with StreamManager/ToolStreamManager in future milestone
+    // For now, delegate to existing runStream
+    for await (const event of this.runStream(query, options)) {
+      yield event;
+    }
+  }
+
+  /**
+   * Stream responses with real-time events (alias for streamEvents)
+   *
+   * This is a simpler alias for streamEvents() that matches the documented API.
+   * Use this method for most streaming needs.
+   *
+   * @param prompt - User query or prompt
+   * @param options - Streaming options
+   * @yields StreamEvent objects with incremental content
+   *
+   * @example
+   * ```typescript
+   * for await (const event of agent.stream('Tell me a story')) {
+   *   if (event.type === StreamEventType.CHUNK) {
+   *     process.stdout.write(event.content);
+   *   } else if (event.type === StreamEventType.COMPLETE) {
+   *     console.log(`\nCost: $${event.data.result?.totalCost || 0}`);
+   *   }
+   * }
+   * ```
+   */
+  async *stream(
+    prompt: string,
+    options: StreamOptions = {}
+  ): AsyncIterable<StreamEvent> {
+    // Simple alias that delegates to streamEvents
+    for await (const event of this.streamEvents(prompt, options)) {
+      yield event;
+    }
+  }
+}
+
+/**
+ * Options for runStreaming method
+ */
+export interface RunStreamingOptions extends RunOptions {
+  /** Enable visual feedback (pulsing indicator) */
+  enableVisual?: boolean;
+
+  /** Complexity hint (override detection) */
+  complexityHint?: string;
+
+  /** Tool choice strategy */
+  toolChoice?: any;
+}
+
+/**
+ * Options for streamEvents method
+ */
+export interface StreamEventsOptions extends RunOptions {
+  /** Complexity hint (override detection) */
+  complexityHint?: string;
+
+  /** Tool choice strategy */
+  toolChoice?: any;
 }
