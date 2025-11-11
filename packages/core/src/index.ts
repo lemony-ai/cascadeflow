@@ -233,5 +233,17 @@ export type {
   RetryMetricsSummary,
 } from './retry-manager';
 
+// Response Cache
+export {
+  ResponseCache,
+  createResponseCache,
+} from './response-cache';
+export type {
+  CacheStats,
+  ResponseCacheConfig,
+  CacheSetOptions,
+  CacheGetOptions,
+} from './response-cache';
+
 // Version
 export const VERSION = '1.0.0';
