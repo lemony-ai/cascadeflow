@@ -14,6 +14,8 @@ import { ToolHandler } from './ToolHandler';
 import { MemoryManager } from './MemoryManager';
 import { ReasoningModelDetector } from './ReasoningModelDetector';
 import { ComplexityAnalyzer, ComplexityAnalysis } from './ComplexityAnalyzer';
+import { DomainRouter, DomainModels } from './DomainRouter';
+import { DomainDetectionResult } from './DomainDetector';
 import { CascadeMetadata, NodeConfig, QualityMetrics, CostTrackingOutput } from './types';
 
 let QualityValidator: any;
@@ -75,6 +77,36 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 				required: false,
 				maxConnections: 1,
 			},
+			{
+				displayName: 'Domain: Code',
+				type: 'ai_languageModel' as any,
+				required: false,
+				maxConnections: 1,
+			},
+			{
+				displayName: 'Domain: Math',
+				type: 'ai_languageModel' as any,
+				required: false,
+				maxConnections: 1,
+			},
+			{
+				displayName: 'Domain: Data',
+				type: 'ai_languageModel' as any,
+				required: false,
+				maxConnections: 1,
+			},
+			{
+				displayName: 'Domain: Medical',
+				type: 'ai_languageModel' as any,
+				required: false,
+				maxConnections: 1,
+			},
+			{
+				displayName: 'Domain: Legal',
+				type: 'ai_languageModel' as any,
+				required: false,
+				maxConnections: 1,
+			},
 		],
 		outputs: [
 			'main',
@@ -109,9 +141,21 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 						value: 'complexity_based',
 						description: 'Route based on query complexity',
 					},
+					{
+						name: 'Domain-Aware',
+						value: 'domain_aware',
+						description: 'Route based on domain detection',
+					},
 				],
 				default: 'always_cascade',
 				description: 'How to route queries to models',
+			},
+			{
+				displayName: 'Enable Domain Routing',
+				name: 'enableDomainRouting',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to enable domain-specific model routing',
 			},
 			{
 				displayName: 'Enable Tools',
@@ -165,7 +209,7 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 		const config: NodeConfig = {
 			qualityThreshold: this.getNodeParameter('qualityThreshold', 0, 0.70) as number,
 			routingStrategy: this.getNodeParameter('routingStrategy', 0, 'always_cascade') as any,
-			enableDomainRouting: false,
+			enableDomainRouting: this.getNodeParameter('enableDomainRouting', 0, false) as boolean,
 			domainDetectionMethod: 'rule_based',
 			enableTools: this.getNodeParameter('enableTools', 0, false) as boolean,
 			toolExecutionStrategy: 'always_cascade',
@@ -197,6 +241,30 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 
 		const toolHandler = new ToolHandler(config.enableTools);
 		const memoryManager = new MemoryManager(config.enableMemory);
+
+		const domainModels: DomainModels = {};
+		if (config.enableDomainRouting) {
+			try {
+				const codeModel = await this.getInputConnectionData('ai_languageModel' as any, 4);
+				if (codeModel) domainModels.code = codeModel as BaseChatModel;
+
+				const mathModel = await this.getInputConnectionData('ai_languageModel' as any, 5);
+				if (mathModel) domainModels.math = mathModel as BaseChatModel;
+
+				const dataModel = await this.getInputConnectionData('ai_languageModel' as any, 6);
+				if (dataModel) domainModels.data = dataModel as BaseChatModel;
+
+				const medicalModel = await this.getInputConnectionData('ai_languageModel' as any, 7);
+				if (medicalModel) domainModels.medical = medicalModel as BaseChatModel;
+
+				const legalModel = await this.getInputConnectionData('ai_languageModel' as any, 8);
+				if (legalModel) domainModels.legal = legalModel as BaseChatModel;
+			} catch (error) {
+				console.warn('Failed to load domain models:', error);
+			}
+		}
+
+		const domainRouter = new DomainRouter(domainModels);
 
 		if (config.enableTools) {
 			try {
@@ -268,6 +336,12 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 					complexityAnalysis = ComplexityAnalyzer.analyzeComplexity(query);
 				}
 
+				let domainDetection: DomainDetectionResult | undefined;
+				if (config.enableDomainRouting || config.routingStrategy === 'domain_aware') {
+					const routing = domainRouter.route(query);
+					domainDetection = routing.detection;
+				}
+
 				const result = await executeCascade.call(
 					this,
 					drafterModel,
@@ -277,7 +351,9 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 					costTracker,
 					complexityAnalysis,
 					toolHandler,
-					memoryManager
+					memoryManager,
+					domainRouter,
+					domainDetection
 				);
 
 				if (config.enableMemory) {
@@ -291,6 +367,7 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 						response: result.response,
 						metadata: result.metadata as any,
 						...(complexityAnalysis && { complexity: complexityAnalysis }),
+						...(domainDetection && { domain: domainDetection }),
 					},
 					pairedItem: { item: i },
 				});
@@ -305,6 +382,7 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 						quality: result.metadata.quality as any,
 						performance: result.metadata.performance as any,
 						...(complexityAnalysis && { complexity: complexityAnalysis }),
+						...(domainDetection && { domain: domainDetection }),
 						metadata: {
 							flow: result.metadata.flow,
 							modelUsed: result.metadata.cost.modelUsed,
@@ -350,8 +428,32 @@ async function executeCascade(
 		costTracker: CostTracker,
 		complexityAnalysis?: ComplexityAnalysis,
 		toolHandler?: ToolHandler,
-		memoryManager?: MemoryManager
+		memoryManager?: MemoryManager,
+		domainRouter?: DomainRouter,
+		domainDetection?: DomainDetectionResult
 	): Promise<{ response: string; metadata: CascadeMetadata }> {
+
+		if (domainRouter && domainDetection && (config.enableDomainRouting || config.routingStrategy === 'domain_aware')) {
+			const queryText = messages.map(m => m.content.toString()).join(' ');
+			const routing = domainRouter.route(queryText);
+
+			log.call(this, config, 'detailed', `🎯 Domain Detection: ${routing.domain} (${(routing.detection.confidence * 100).toFixed(0)}% confidence)`);
+			log.call(this, config, 'detailed', `   ${routing.reasoning}`);
+
+			if (routing.useDomainSpecialist && routing.domainModel) {
+				log.call(this, config, 'detailed', `⚡ Routing to ${routing.domain} specialist model`);
+				return executeDomainSpecialist.call(
+					this,
+					routing.domainModel,
+					verifierModel,
+					messages,
+					config,
+					costTracker,
+					routing.domain,
+					routing.detection
+				);
+			}
+		}
 
 		if (complexityAnalysis && config.routingStrategy === 'complexity_based') {
 			log.call(this, config, 'detailed', `📊 Complexity Analysis: ${complexityAnalysis.level} (score: ${complexityAnalysis.score})`);
@@ -527,6 +629,140 @@ async function executeDirectVerifier(
 			},
 			requestCount: stats.totalRequests,
 			acceptanceRate: stats.acceptanceRate,
+		};
+
+		return {
+			response: verifierResult.generations[0].text,
+			metadata,
+		};
+}
+
+async function executeDomainSpecialist(
+	this: IExecuteFunctions,
+		domainModel: BaseChatModel,
+		verifierModel: BaseChatModel,
+		messages: BaseMessage[],
+		config: NodeConfig,
+		costTracker: CostTracker,
+		domain: string,
+		detection: DomainDetectionResult
+	): Promise<{ response: string; metadata: CascadeMetadata }> {
+
+		log.call(this, config, 'basic', `🎯 Using ${domain} domain specialist model`);
+		log.call(this, config, 'detailed', `   Confidence: ${(detection.confidence * 100).toFixed(0)}%, Keywords: ${detection.keywords.slice(0, 3).join(', ')}`);
+
+		const domainStartTime = Date.now();
+		const domainResponse = await domainModel.invoke(messages);
+		const domainLatency = Date.now() - domainStartTime;
+
+		const domainResult: ChatResult = {
+			generations: [{
+				text: domainResponse.content.toString(),
+				message: domainResponse,
+			}],
+			llmOutput: (domainResponse as any).response_metadata,
+		};
+
+		const responseText = domainResult.generations[0].text;
+
+		const qualityResult = await validateQuality(responseText, messages, config);
+
+		log.call(this, config, 'detailed', `   📊 Quality: confidence=${qualityResult.confidence.toFixed(2)}, score=${qualityResult.qualityScore.toFixed(2)}`);
+
+		if (qualityResult.passed) {
+			const cost = costTracker.calculateCost(
+				domainModel,
+				verifierModel,
+				messages,
+				domainResult,
+				undefined,
+				'drafter_accepted'
+			);
+
+			checkBudgetLimit.call(this, cost.totalCost, config);
+
+			const stats = costTracker.getStatistics();
+
+			log.call(this, config, 'basic', `✅ DOMAIN SPECIALIST ACCEPTED - Cost: $${cost.totalCost.toFixed(6)}`);
+
+			const metadata: CascadeMetadata = {
+				flow: 'domain_specialist',
+				cost: {
+					...cost,
+					modelUsed: 'domain_specialist',
+				},
+				quality: qualityResult,
+				performance: {
+					latencyMs: domainLatency,
+					domainSpecialistLatencyMs: domainLatency,
+				},
+				requestCount: stats.totalRequests,
+				acceptanceRate: stats.acceptanceRate,
+				domainInfo: {
+					domain,
+					confidence: detection.confidence,
+					keywords: detection.keywords,
+					reasoning: detection.reasoning,
+				},
+			};
+
+			return {
+				response: responseText,
+				metadata,
+			};
+		}
+
+		log.call(this, config, 'detailed', `⚠️  Domain specialist quality below threshold. Escalating to verifier...`);
+		log.call(this, config, 'detailed', `   Reason: ${qualityResult.reason}`);
+
+		const verifierStartTime = Date.now();
+		const verifierResponse = await verifierModel.invoke(messages);
+		const verifierLatency = Date.now() - verifierStartTime;
+
+		const verifierResult: ChatResult = {
+			generations: [{
+				text: verifierResponse.content.toString(),
+				message: verifierResponse,
+			}],
+			llmOutput: (verifierResponse as any).response_metadata,
+		};
+
+		const cost = costTracker.calculateCost(
+			domainModel,
+			verifierModel,
+			messages,
+			domainResult,
+			verifierResult,
+			'escalated_to_verifier'
+		);
+
+		checkBudgetLimit.call(this, cost.totalCost, config);
+
+		const stats = costTracker.getStatistics();
+		const totalLatency = domainLatency + verifierLatency;
+
+		log.call(this, config, 'basic', `⚠️  ESCALATED TO VERIFIER - Total: $${cost.totalCost.toFixed(6)}, Latency: ${totalLatency}ms`);
+
+		const metadata: CascadeMetadata = {
+			flow: 'domain_specialist_escalated',
+			cost: {
+				...cost,
+				modelUsed: 'verifier',
+			},
+			quality: qualityResult,
+			performance: {
+				latencyMs: totalLatency,
+				domainSpecialistLatencyMs: domainLatency,
+				verifierLatencyMs: verifierLatency,
+			},
+			requestCount: stats.totalRequests,
+			acceptanceRate: stats.acceptanceRate,
+			domainInfo: {
+				domain,
+				confidence: detection.confidence,
+				keywords: detection.keywords,
+				reasoning: detection.reasoning,
+			},
 		};
 
 		return {

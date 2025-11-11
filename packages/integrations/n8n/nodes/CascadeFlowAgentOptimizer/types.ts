@@ -25,15 +25,22 @@ export interface PerformanceMetrics {
 	latencyMs: number;
 	drafterLatencyMs?: number;
 	verifierLatencyMs?: number;
+	domainSpecialistLatencyMs?: number;
 }
 
 export interface CascadeMetadata {
-	flow: 'drafter_accepted' | 'escalated_to_verifier' | 'error_fallback' | 'direct_verifier' | 'domain_specialist';
+	flow: 'drafter_accepted' | 'escalated_to_verifier' | 'error_fallback' | 'direct_verifier' | 'domain_specialist' | 'domain_specialist_escalated';
 	cost: CostMetrics;
 	quality: QualityMetrics;
 	performance: PerformanceMetrics;
 	requestCount: number;
 	acceptanceRate: number;
+	domainInfo?: {
+		domain: string;
+		confidence: number;
+		keywords: string[];
+		reasoning: string;
+	};
 }
 
 export interface CostTrackingOutput {
