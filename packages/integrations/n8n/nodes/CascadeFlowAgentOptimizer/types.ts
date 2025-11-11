@@ -80,6 +80,10 @@ export interface NodeConfig {
 	enableReasoningModels: boolean;
 	reasoningEffort: 'low' | 'medium' | 'high';
 	enableAdaptiveThreshold: boolean;
+	enableResponseCaching: boolean;
+	cacheTTLMinutes: number;
+	cacheMaxEntries: number;
+	enableSessionAnalytics: boolean;
 	loggingLevel: LoggingLevel;
 }
 

@@ -16,6 +16,9 @@ import { ReasoningModelDetector } from './ReasoningModelDetector';
 import { ComplexityAnalyzer, ComplexityAnalysis } from './ComplexityAnalyzer';
 import { DomainRouter, DomainModels } from './DomainRouter';
 import { DomainDetectionResult } from './DomainDetector';
+import { ResponseCache } from './ResponseCache';
+import { SessionAnalytics } from './SessionAnalytics';
+import { TokenCounter } from './TokenCounter';
 import { CascadeMetadata, NodeConfig, QualityMetrics, CostTrackingOutput } from './types';
 
 let QualityValidator: any;
@@ -29,6 +32,9 @@ try {
 }
 
 export class CascadeFlowAgentOptimizer implements INodeType {
+	private static responseCache: ResponseCache | null = null;
+	private static sessionAnalytics: SessionAnalytics | null = null;
+
 	description: INodeTypeDescription = {
 		displayName: 'CascadeFlow Agent Optimizer',
 		name: 'cascadeFlowAgentOptimizer',
@@ -186,6 +192,44 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 				description: 'Maximum cost per request in USD (0 = unlimited). Throws error if exceeded.',
 			},
 			{
+				displayName: 'Enable Response Caching',
+				name: 'enableResponseCaching',
+				type: 'boolean',
+				default: false,
+				description: 'Cache responses to reduce costs for repeated queries',
+			},
+			{
+				displayName: 'Cache TTL (Minutes)',
+				name: 'cacheTTLMinutes',
+				type: 'number',
+				default: 60,
+				displayOptions: {
+					show: {
+						enableResponseCaching: [true],
+					},
+				},
+				description: 'How long to cache responses before they expire',
+			},
+			{
+				displayName: 'Cache Max Entries',
+				name: 'cacheMaxEntries',
+				type: 'number',
+				default: 100,
+				displayOptions: {
+					show: {
+						enableResponseCaching: [true],
+					},
+				},
+				description: 'Maximum number of cached responses to store',
+			},
+			{
+				displayName: 'Enable Session Analytics',
+				name: 'enableSessionAnalytics',
+				type: 'boolean',
+				default: false,
+				description: 'Track performance trends and provide optimization recommendations',
+			},
+			{
 				displayName: 'Logging Level',
 				name: 'loggingLevel',
 				type: 'options',
@@ -219,8 +263,28 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 			enableReasoningModels: true,
 			reasoningEffort: 'medium',
 			enableAdaptiveThreshold: false,
+			enableResponseCaching: this.getNodeParameter('enableResponseCaching', 0, false) as boolean,
+			cacheTTLMinutes: this.getNodeParameter('cacheTTLMinutes', 0, 60) as number,
+			cacheMaxEntries: this.getNodeParameter('cacheMaxEntries', 0, 100) as number,
+			enableSessionAnalytics: this.getNodeParameter('enableSessionAnalytics', 0, false) as boolean,
 			loggingLevel: this.getNodeParameter('loggingLevel', 0, 'detailed') as any,
 		};
+
+		if (config.enableResponseCaching && !CascadeFlowAgentOptimizer.responseCache) {
+			CascadeFlowAgentOptimizer.responseCache = new ResponseCache({
+				enabled: true,
+				maxEntries: config.cacheMaxEntries,
+				ttlMs: config.cacheTTLMinutes * 60 * 1000,
+				similarityThreshold: 0.85,
+			});
+		}
+
+		if (config.enableSessionAnalytics && !CascadeFlowAgentOptimizer.sessionAnalytics) {
+			CascadeFlowAgentOptimizer.sessionAnalytics = new SessionAnalytics();
+		}
+
+		const responseCache = CascadeFlowAgentOptimizer.responseCache;
+		const sessionAnalytics = CascadeFlowAgentOptimizer.sessionAnalytics;
 
 		let drafterModel = (await this.getInputConnectionData('ai_languageModel' as any, 0)) as BaseChatModel;
 		let verifierModel = (await this.getInputConnectionData('ai_languageModel' as any, 1)) as BaseChatModel;
@@ -324,6 +388,52 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 					);
 				}
 
+				if (config.enableResponseCaching && responseCache) {
+					const cached = responseCache.get(query);
+					if (cached) {
+						log.call(this, config, 'basic', `💾 CACHE HIT - Returning cached response`);
+
+						returnData.push({
+							json: {
+								query,
+								response: cached.response,
+								metadata: { ...cached.metadata, fromCache: true } as any,
+							},
+							pairedItem: { item: i },
+						});
+
+						if (config.enableCostTracking) {
+							const cacheStats = responseCache.getStats();
+							const costOutput = {
+								timestamp: new Date().toISOString(),
+								requestId: `req_${Date.now()}_${i}`,
+								query,
+								response: cached.response,
+								cost: { ...cached.metadata.cost, fromCache: true } as any,
+								quality: cached.metadata.quality as any,
+								performance: cached.metadata.performance as any,
+								metadata: {
+									flow: 'cached',
+									modelUsed: 'cache',
+									cacheHits: cached.hits,
+									cacheStats: cacheStats as any,
+								},
+							};
+							costTrackingData.push({
+								json: costOutput as any,
+								pairedItem: { item: i },
+							});
+						}
+
+						continue;
+					}
+
+					const similar = responseCache.findSimilar(query);
+					if (similar && similar.query !== query) {
+						log.call(this, config, 'detailed', `💡 Found similar cached query (${(0.85 * 100).toFixed(0)}% match)`);
+					}
+				}
+
 				let messages: BaseMessage[];
 				if (config.enableMemory && memoryManager.hasMemory()) {
 					messages = memoryManager.getMessagesWithNewQuery(query);
@@ -361,6 +471,22 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 					await memoryManager.addAIMessage(result.response);
 				}
 
+				if (config.enableResponseCaching && responseCache) {
+					responseCache.set(query, result.response, result.metadata);
+					log.call(this, config, 'debug', `💾 Response cached for future queries`);
+				}
+
+				if (config.enableSessionAnalytics && sessionAnalytics) {
+					sessionAnalytics.addRequest(
+						result.metadata.flow,
+						result.metadata.cost,
+						result.metadata.quality,
+						result.metadata.performance,
+						domainDetection?.domain,
+						complexityAnalysis?.level
+					);
+				}
+
 				returnData.push({
 					json: {
 						query,
@@ -373,7 +499,7 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 				});
 
 				if (config.enableCostTracking) {
-					const costOutput = {
+					const costOutput: any = {
 						timestamp: new Date().toISOString(),
 						requestId: `req_${Date.now()}_${i}`,
 						query,
@@ -390,6 +516,36 @@ export class CascadeFlowAgentOptimizer implements INodeType {
 							totalRequests: result.metadata.requestCount,
 						},
 					};
+
+					if (config.enableResponseCaching && responseCache) {
+						const cacheStats = responseCache.getStats();
+						costOutput.cacheStats = {
+							hitRate: cacheStats.hitRate,
+							totalHits: cacheStats.totalHits,
+							totalMisses: cacheStats.totalMisses,
+							entriesCount: cacheStats.totalEntries,
+							costSaved: cacheStats.costSaved,
+						};
+					}
+
+					if (config.enableSessionAnalytics && sessionAnalytics) {
+						const sessionStats = sessionAnalytics.getStats();
+						const trends = sessionAnalytics.analyzeTrends();
+						costOutput.sessionStats = {
+							totalRequests: sessionStats.totalRequests,
+							totalCost: sessionStats.totalCost,
+							totalSavings: sessionStats.totalSavings,
+							averageQuality: sessionStats.averageQuality,
+							averageLatency: sessionStats.averageLatency,
+							acceptanceRate: sessionStats.acceptanceRate,
+							trends: {
+								cost: trends.costTrend,
+								quality: trends.qualityTrend,
+								acceptance: trends.acceptanceRateTrend,
+								recommendations: trends.recommendations,
+							},
+						};
+					}
 
 					costTrackingData.push({
 						json: costOutput as any,
