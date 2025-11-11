@@ -285,5 +285,19 @@ export type {
   DomainRouterStats,
 } from './routers/domain-router';
 
+// Tools (v1.1.0+)
+export {
+  ToolConfig,
+  createTool,
+  tool,
+  inferJsonType,
+  buildParameterSchema,
+} from './tools/config';
+export type {
+  ToolFunction,
+  ToolParameters,
+  ToolConfigOptions,
+} from './tools/config';
+
 // Version
 export const VERSION = '1.0.0';
