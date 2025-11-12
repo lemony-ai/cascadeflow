@@ -76,6 +76,7 @@ export type {
 // Quality validation
 export {
   QualityValidator,
+  QualityConfigFactory,
   calculateConfidenceFromLogprobs,
   estimateConfidenceFromContent,
   DEFAULT_QUALITY_CONFIG as DEFAULT_QUALITY_VALIDATOR_CONFIG,
