@@ -278,6 +278,21 @@ export type {
   CostCalculationFromTokensOptions,
 } from './telemetry/cost-calculator';
 
+// Metrics Collector (Telemetry)
+export { MetricsCollector } from './telemetry/metrics-collector';
+export type { MetricsSnapshot } from './telemetry/metrics-collector';
+
+// Callback Manager (Telemetry)
+export {
+  CallbackManager,
+  CallbackEvent,
+} from './telemetry/callbacks';
+export type {
+  CallbackData,
+  CallbackFunction,
+  CallbackStats,
+} from './telemetry/callbacks';
+
 // Retry Manager
 export {
   RetryManager,
