@@ -102,6 +102,17 @@ export type {
   ComplexityResult,
 } from './complexity';
 
+// Production Confidence Estimation (v1.0.1+)
+export {
+  ProductionConfidenceEstimator,
+  PROVIDER_CONFIDENCE_CALIBRATION,
+} from './confidence';
+export type {
+  ConfidenceAnalysis,
+  ConfidenceEstimationOptions,
+  ProviderCalibration,
+} from './confidence';
+
 // Types
 export type {
   Provider as ProviderType,
