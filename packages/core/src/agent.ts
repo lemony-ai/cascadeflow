@@ -79,6 +79,7 @@ export class CascadeAgent {
   private models: ModelConfig[];
   private qualityValidator: QualityValidator;
   private complexityDetector: ComplexityDetector;
+  private batchProcessor?: import('./batch').BatchProcessor;
 
   /**
    * Create a new cascadeflow agent
@@ -511,6 +512,77 @@ export class CascadeAgent {
    * }
    * ```
    */
+
+  /**
+   * Process multiple queries in batch
+   *
+   * Efficient batch processing with:
+   * - Concurrency control (max parallel requests)
+   * - Per-query timeout and retry logic
+   * - Cost tracking across all queries
+   * - Quality validation per query
+   * - Graceful error handling
+   *
+   * @param queries - Array of query strings to process
+   * @param batchConfig - Batch configuration (optional)
+   * @param runOptions - Options passed to each run() call (optional)
+   * @returns BatchResult with all results and statistics
+   *
+   * @example
+   * ```typescript
+   * const queries = [
+   *   'What is TypeScript?',
+   *   'What is JavaScript?',
+   *   'What is Rust?'
+   * ];
+   *
+   * const result = await agent.runBatch(queries);
+   *
+   * console.log(`Success: ${result.successCount}/${queries.length}`);
+   * console.log(`Total cost: $${result.totalCost.toFixed(4)}`);
+   * console.log(`Strategy: ${result.strategyUsed}`);
+   *
+   * result.results.forEach((r, i) => {
+   *   if (r) {
+   *     console.log(`Query ${i}: ${r.content.slice(0, 100)}...`);
+   *   }
+   * });
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // With custom configuration
+   * const config: BatchConfig = {
+   *   maxParallel: 5,
+   *   timeoutPerQuery: 60,
+   *   retryFailed: true,
+   *   stopOnError: false
+   * };
+   *
+   * const result = await agent.runBatch(queries, config);
+   * ```
+   */
+  async runBatch(
+    queries: string[],
+    batchConfig?: import('./batch').BatchConfig,
+    runOptions?: RunOptions
+  ): Promise<import('./batch').BatchResult> {
+    const { BatchProcessor } = await import('./batch');
+
+    // Create batch processor (lazy-loaded)
+    if (!this.batchProcessor) {
+      this.batchProcessor = new BatchProcessor();
+    }
+
+    // Process batch using the processor
+    return this.batchProcessor.processBatch(
+      queries,
+      (query, options) => this.run(query, options),
+      batchConfig,
+      runOptions
+    );
+  }
+
   async *runStream(
     input: string | Message[],
     options: StreamOptions = {}

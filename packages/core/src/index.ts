@@ -46,6 +46,16 @@ export {
 export type { CascadeResult } from './result';
 export { resultToObject } from './result';
 
+// Batch Processing (v0.2.1+)
+export {
+  BatchStrategy,
+  BatchProcessor,
+  BatchProcessingError,
+  normalizeBatchConfig,
+  DEFAULT_BATCH_CONFIG,
+} from './batch';
+export type { BatchConfig, BatchResult } from './batch';
+
 // Streaming
 export {
   StreamEventType,
