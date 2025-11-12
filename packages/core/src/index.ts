@@ -146,6 +146,10 @@ export type {
   BatchStrategy,
   BatchConfig,
   BatchItemResult,
+  // v1.0.1+ Latency & optimization types
+  CostSensitivity,
+  LatencyProfile,
+  OptimizationWeights,
 } from './types';
 
 // Legacy routing type (kept for backward compatibility, prefer RoutingStrategy enum from routers/base)
@@ -219,6 +223,17 @@ export {
   UserProfileManager,
   serializeProfile,
   deserializeProfile,
+  // v1.0.1+ Latency & optimization helpers
+  validateOptimizationWeights,
+  createOptimizationWeights,
+  createLatencyProfile,
+  OPTIMIZATION_PRESETS,
+  LATENCY_PRESETS,
+  getDailyBudget,
+  getRequestsPerHour,
+  getRequestsPerDay,
+  getOptimizationWeights,
+  getLatencyProfile,
 } from './profiles';
 
 // Rate Limiting (v0.2.1+)

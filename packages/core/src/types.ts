@@ -223,6 +223,44 @@ export interface QualityValidation {
 export type TierLevel = 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 
 /**
+ * Cost sensitivity modes for optimization (v1.0.1+)
+ */
+export type CostSensitivity = 'aggressive' | 'balanced' | 'quality_first';
+
+/**
+ * Latency profile for speed control (v1.0.1+)
+ */
+export interface LatencyProfile {
+  /** Maximum total query time in milliseconds */
+  maxTotalMs: number;
+
+  /** Maximum time per model call in milliseconds */
+  maxPerModelMs: number;
+
+  /** Whether to prefer parallel execution when beneficial */
+  preferParallel: boolean;
+
+  /** If latency < this threshold, consider skipping cascade */
+  skipCascadeThreshold: number;
+}
+
+/**
+ * Multi-factor optimization weights (v1.0.1+)
+ *
+ * Weights must sum to 1.0 and guide routing decisions
+ */
+export interface OptimizationWeights {
+  /** Weight for cost optimization (0-1) */
+  cost: number;
+
+  /** Weight for speed optimization (0-1) */
+  speed: number;
+
+  /** Weight for quality optimization (0-1) */
+  quality: number;
+}
+
+/**
  * Tier configuration (v0.2.1+)
  */
 export interface TierConfig {
@@ -239,18 +277,66 @@ export interface TierConfig {
 
 /**
  * User profile for multi-tenant applications (v0.2.1+)
+ *
+ * Enhanced in v1.0.1+ with:
+ * - Latency awareness for speed control
+ * - Optimization weights for multi-factor routing
+ * - Cost sensitivity modes
  */
 export interface UserProfile {
+  /** Unique user identifier */
   userId: string;
+
+  /** Timestamp when profile was created */
+  createdAt?: Date;
+
+  /** Subscription tier configuration */
   tier: TierConfig;
+
+  // ===== LIMITS (Overrides) =====
+
+  /** Custom daily budget override */
   customDailyBudget?: number;
+
+  /** Custom hourly request limit override */
   customRequestsPerHour?: number;
+
+  /** Custom daily request limit override */
   customRequestsPerDay?: number;
+
+  // ===== PREFERENCES =====
+
+  /** Preferred models to use */
   preferredModels?: string[];
+
+  /** Cost sensitivity mode (v1.0.1+) */
+  costSensitivity?: CostSensitivity;
+
+  /** Preferred domains (e.g., ['code', 'medical', 'legal']) */
   preferredDomains?: string[];
+
+  /** Domain-specific model overrides */
   domainModels?: Record<string, string[]>;
+
+  // ===== LATENCY & OPTIMIZATION (v1.0.1+) =====
+
+  /** Latency profile for speed control */
+  latency?: LatencyProfile;
+
+  /** Multi-factor optimization weights */
+  optimization?: OptimizationWeights;
+
+  // ===== GUARDRAILS =====
+
+  /** Enable content moderation */
   enableContentModeration?: boolean;
+
+  /** Enable PII detection */
   enablePiiDetection?: boolean;
+
+  // ===== TELEMETRY =====
+
+  /** Additional metadata */
   metadata?: Record<string, any>;
 }
 
