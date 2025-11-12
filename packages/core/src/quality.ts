@@ -6,6 +6,8 @@
 
 import type { QueryComplexity } from './types';
 import { QueryResponseAlignmentScorer } from './alignment';
+import { ProductionConfidenceEstimator, type ConfidenceAnalysis } from './confidence';
+import { ComplexityDetector } from './complexity';
 // SemanticQualityChecker is imported dynamically to avoid loading @cascadeflow/ml dependencies
 // when they're not needed (fixes n8n crash issue)
 
@@ -95,6 +97,12 @@ export interface QualityConfig {
 
   /** Minimum semantic similarity score (0-1, default: 0.5) */
   semanticThreshold?: number;
+
+  /** Enable production-grade confidence estimation (multi-signal approach) */
+  useProductionConfidence?: boolean;
+
+  /** Provider name for production confidence calibration (e.g., 'openai', 'anthropic') */
+  provider?: string;
 }
 
 /**
@@ -230,6 +238,7 @@ export class QualityConfigFactory {
       minAlignmentScore: 0.20, // Higher alignment floor for strict mode
       useSemanticValidation: true, // Enable ML validation for strictest quality
       semanticThreshold: 0.6, // Higher threshold for semantic similarity
+      useProductionConfidence: true, // Enable production-grade multi-signal confidence
     };
   }
 
@@ -425,6 +434,8 @@ export class QualityValidator {
   private alignmentScorer: QueryResponseAlignmentScorer | null = null;
   private semanticChecker: any = null; // Lazy-loaded to avoid @cascadeflow/ml dependency
   private semanticCheckerInitialized: boolean = false;
+  private productionConfidenceEstimator: ProductionConfidenceEstimator | null = null;
+  private complexityDetector: ComplexityDetector | null = null;
 
   constructor(config: Partial<QualityConfig> = {}) {
     this.config = { ...DEFAULT_QUALITY_CONFIG, ...config };
@@ -454,6 +465,13 @@ export class QualityValidator {
     // Note: Only loads if useSemanticValidation is true (not undefined)
     if (this.config.useSemanticValidation === true) {
       this.initSemanticChecker();
+    }
+
+    // Initialize production confidence estimator if enabled
+    if (this.config.useProductionConfidence === true) {
+      const provider = this.config.provider || 'openai';
+      this.productionConfidenceEstimator = new ProductionConfidenceEstimator(provider);
+      this.complexityDetector = new ComplexityDetector();
     }
   }
 
@@ -547,8 +565,37 @@ export class QualityValidator {
     let method: 'logprobs' | 'heuristic' | 'hybrid';
     let avgLogprob: number | undefined;
     let minLogprob: number | undefined;
+    let productionAnalysis: ConfidenceAnalysis | undefined;
 
-    if (this.config.useLogprobs && logprobs && logprobs.length > 0) {
+    // Use production confidence estimator if enabled (most sophisticated)
+    if (this.config.useProductionConfidence && this.productionConfidenceEstimator) {
+      // Get query difficulty from complexity if available
+      let queryDifficulty: number | undefined;
+      if (complexity && this.complexityDetector) {
+        const complexityMap: Record<QueryComplexity, number> = {
+          trivial: 0.1,
+          simple: 0.3,
+          moderate: 0.5,
+          hard: 0.7,
+          expert: 0.9,
+        };
+        queryDifficulty = complexityMap[complexity];
+      }
+
+      productionAnalysis = this.productionConfidenceEstimator.estimate(content, {
+        query,
+        logprobs,
+        queryDifficulty,
+      });
+
+      confidence = productionAnalysis.finalConfidence;
+      method = productionAnalysis.methodUsed as 'logprobs' | 'heuristic' | 'hybrid';
+
+      if (logprobs && logprobs.length > 0) {
+        avgLogprob = logprobs.reduce((sum, lp) => sum + lp, 0) / logprobs.length;
+        minLogprob = Math.min(...logprobs);
+      }
+    } else if (this.config.useLogprobs && logprobs && logprobs.length > 0) {
       // Use logprobs for confidence
       confidence = calculateConfidenceFromLogprobs(logprobs);
       method = 'logprobs';
@@ -699,6 +746,15 @@ export class QualityValidator {
         alignmentScore,
         alignmentReasoning,
         semanticSimilarity,
+        // Include production analysis if used
+        productionConfidence: productionAnalysis
+          ? {
+              methodUsed: productionAnalysis.methodUsed,
+              components: productionAnalysis.components,
+              alignmentFloorApplied: productionAnalysis.alignmentFloorApplied,
+              queryDifficulty: productionAnalysis.queryDifficulty,
+            }
+          : undefined,
       },
     };
   }
