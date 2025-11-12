@@ -157,7 +157,7 @@ export type {
 export type { RoutingStrategy as LegacyRoutingStrategy } from './types';
 
 // Providers
-export { providerRegistry } from './providers/base';
+export { providerRegistry, getAvailableProviders } from './providers/base';
 export type { Provider, ProviderRequest } from './providers/base';
 export { OpenAIProvider } from './providers/openai';
 export { AnthropicProvider } from './providers/anthropic';

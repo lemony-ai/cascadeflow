@@ -2,7 +2,7 @@
  * cascadeflow Agent - MVP Implementation
  */
 
-import { providerRegistry } from './providers/base';
+import { providerRegistry, getAvailableProviders } from './providers/base';
 import { OpenAIProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
 import { GroqProvider } from './providers/groq';
@@ -13,7 +13,7 @@ import { VLLMProvider } from './providers/vllm';
 import { OpenRouterProvider } from './providers/openrouter';
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
-import type { Message, Tool } from './types';
+import type { Message, Tool, UserProfile, TierLevel } from './types';
 import {
   type StreamEvent,
   StreamEventType,
@@ -27,6 +27,7 @@ import {
 import type { QualityConfig as QualityValidatorConfig } from './quality';
 import { ComplexityDetector } from './complexity';
 import type { QueryComplexity } from './types';
+import { TIER_PRESETS } from './profiles';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -163,6 +164,213 @@ export class CascadeAgent {
     // Initialize complexity detector
     this.complexityDetector = new ComplexityDetector();
   }
+
+  // ==================== FACTORY METHODS ====================
+
+  /**
+   * Create CascadeAgent from environment variables
+   *
+   * Auto-discovers available providers by checking environment for API keys
+   * and creates a sensible default configuration.
+   *
+   * @param options - Optional configuration overrides
+   * @param options.quality - Quality configuration
+   * @param options.enableCascade - Enable cascading (default: true)
+   * @returns CascadeAgent instance
+   *
+   * @throws {Error} When no providers are available in environment
+   *
+   * @example
+   * ```typescript
+   * // Requires OPENAI_API_KEY and/or ANTHROPIC_API_KEY in environment
+   * const agent = CascadeAgent.fromEnv();
+   * const result = await agent.run('What is TypeScript?');
+   * ```
+   */
+  static fromEnv(options?: {
+    quality?: Partial<QualityValidatorConfig>;
+    enableCascade?: boolean;
+  }): CascadeAgent {
+    const available = getAvailableProviders();
+
+    if (available.length === 0) {
+      throw new Error(
+        'No providers available. Set API keys in environment (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)'
+      );
+    }
+
+    const models: ModelConfig[] = [];
+
+    // Add OpenAI models if available
+    if (available.includes('openai')) {
+      models.push(
+        { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+        { name: 'gpt-3.5-turbo', provider: 'openai', cost: 0.002 },
+        { name: 'gpt-4o', provider: 'openai', cost: 0.00625 }
+      );
+    }
+
+    // Add Anthropic models if available
+    if (available.includes('anthropic')) {
+      models.push(
+        { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
+        { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 }
+      );
+    }
+
+    // Add Groq models if available
+    if (available.includes('groq')) {
+      models.push({ name: 'llama-3.3-70b-versatile', provider: 'groq', cost: 0.0 });
+    }
+
+    if (models.length === 0) {
+      throw new Error('No models configured for available providers');
+    }
+
+    return new CascadeAgent({
+      models,
+      quality: options?.quality,
+    });
+  }
+
+  /**
+   * Create CascadeAgent from UserProfile
+   *
+   * Configures the agent based on a user's profile including tier limits,
+   * preferred models, and quality settings.
+   *
+   * @param profile - UserProfile with tier and preferences
+   * @param options - Optional configuration overrides
+   * @param options.quality - Quality configuration override
+   * @returns CascadeAgent instance configured for the user's tier
+   *
+   * @throws {Error} When no providers are available in environment
+   *
+   * @example
+   * ```typescript
+   * import { createUserProfile, CascadeAgent } from '@cascadeflow/core';
+   *
+   * const profile = createUserProfile('PRO', 'user-123', {
+   *   preferredModels: ['gpt-4o', 'claude-3-5-sonnet-20241022']
+   * });
+   *
+   * const agent = CascadeAgent.fromProfile(profile);
+   * const result = await agent.run('What is Python?');
+   * ```
+   */
+  static fromProfile(
+    profile: UserProfile,
+    options?: {
+      quality?: Partial<QualityValidatorConfig>;
+    }
+  ): CascadeAgent {
+    const available = getAvailableProviders();
+
+    if (available.length === 0) {
+      throw new Error(
+        'No providers available. Set API keys in environment (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)'
+      );
+    }
+
+    const models: ModelConfig[] = [];
+    const preferredSet = profile.preferredModels
+      ? new Set(profile.preferredModels)
+      : null;
+
+    // Add OpenAI models if available
+    if (available.includes('openai')) {
+      const openaiModels: ModelConfig[] = [
+        { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+        { name: 'gpt-3.5-turbo', provider: 'openai', cost: 0.002 },
+        { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+      ];
+
+      for (const model of openaiModels) {
+        if (!preferredSet || preferredSet.has(model.name)) {
+          models.push(model);
+        }
+      }
+    }
+
+    // Add Anthropic models if available
+    if (available.includes('anthropic')) {
+      const anthropicModels: ModelConfig[] = [
+        { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
+        { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 },
+      ];
+
+      for (const model of anthropicModels) {
+        if (!preferredSet || preferredSet.has(model.name)) {
+          models.push(model);
+        }
+      }
+    }
+
+    // Add Groq models if available
+    if (available.includes('groq')) {
+      const groqModels: ModelConfig[] = [
+        { name: 'llama-3.3-70b-versatile', provider: 'groq', cost: 0.0 },
+      ];
+
+      for (const model of groqModels) {
+        if (!preferredSet || preferredSet.has(model.name)) {
+          models.push(model);
+        }
+      }
+    }
+
+    if (models.length === 0) {
+      throw new Error(
+        'No models available matching profile preferences. Check preferredModels configuration.'
+      );
+    }
+
+    // Apply tier quality settings if not overridden
+    const qualityConfig = options?.quality ?? {
+      minConfidence: profile.tier.minQuality,
+    };
+
+    return new CascadeAgent({
+      models,
+      quality: qualityConfig,
+    });
+  }
+
+  /**
+   * Create CascadeAgent for a specific tier
+   *
+   * Quick factory method to create an agent configured for a specific
+   * subscription tier without creating a full UserProfile.
+   *
+   * @param tier - Tier level (FREE, STARTER, PRO, BUSINESS, ENTERPRISE)
+   * @param options - Optional configuration overrides
+   * @param options.quality - Quality configuration override
+   * @returns CascadeAgent instance configured for the tier
+   *
+   * @throws {Error} When no providers are available in environment
+   *
+   * @example
+   * ```typescript
+   * const agent = CascadeAgent.forTier('PRO');
+   * const result = await agent.run('What is Rust?');
+   * ```
+   */
+  static forTier(
+    tier: TierLevel,
+    options?: {
+      quality?: Partial<QualityValidatorConfig>;
+    }
+  ): CascadeAgent {
+    const tierConfig = TIER_PRESETS[tier];
+
+    const qualityConfig = options?.quality ?? {
+      minConfidence: tierConfig.minQuality,
+    };
+
+    return CascadeAgent.fromEnv({ quality: qualityConfig });
+  }
+
+  // ==================== INSTANCE METHODS ====================
 
   /**
    * Execute a query through the AI model cascade
