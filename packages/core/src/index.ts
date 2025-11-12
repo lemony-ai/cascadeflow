@@ -113,6 +113,15 @@ export type {
   ProviderCalibration,
 } from './confidence';
 
+// Response Analysis (v1.0.1+)
+export { ResponseAnalyzer } from './response-analyzer';
+export type {
+  LengthAnalysis,
+  HedgingAnalysis,
+  SpecificityAnalysis,
+  HallucinationAnalysis,
+} from './response-analyzer';
+
 // Types
 export type {
   Provider as ProviderType,
