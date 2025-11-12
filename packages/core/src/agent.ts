@@ -28,6 +28,10 @@ import type { QualityConfig as QualityValidatorConfig } from './quality';
 import { ComplexityDetector } from './complexity';
 import type { QueryComplexity } from './types';
 import { TIER_PRESETS } from './profiles';
+import { PreRouter, type PreRouterConfig } from './routers/pre-router';
+import { ToolRouter, type ToolRouterConfig } from './routers/tool-router';
+import { TierRouter, type TierAwareRouterConfig, type TierRouterConfig } from './routers/tier-router';
+import { RoutingStrategy, RoutingDecisionHelper } from './routers/base';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -57,6 +61,9 @@ export interface RunOptions {
 
   /** Force direct execution (skip cascade) */
   forceDirect?: boolean;
+
+  /** User tier name for tier-based model filtering (optional) */
+  userTier?: string;
 }
 
 /**
@@ -81,6 +88,9 @@ export class CascadeAgent {
   private qualityValidator: QualityValidator;
   private complexityDetector: ComplexityDetector;
   private batchProcessor?: import('./batch').BatchProcessor;
+  private preRouter: PreRouter;
+  private toolRouter: ToolRouter;
+  private tierRouter?: TierRouter;
 
   /**
    * Create a new cascadeflow agent
@@ -163,6 +173,27 @@ export class CascadeAgent {
 
     // Initialize complexity detector
     this.complexityDetector = new ComplexityDetector();
+
+    // Initialize routers
+    const verbose = config.cascade?.verbose ?? false;
+
+    // PreRouter: Complexity-based routing decisions
+    this.preRouter = new PreRouter({
+      complexityDetector: this.complexityDetector,
+      enableCascade: true,
+      verbose,
+    });
+
+    // ToolRouter: Tool capability filtering
+    this.toolRouter = new ToolRouter({
+      models: this.models,
+      verbose,
+    });
+
+    // TierRouter: Optional tier-based filtering (initialized if tiers provided)
+    // Note: We don't initialize TierRouter here by default since tiers are optional
+    // It will be created on-demand if userTier is passed to run()
+    this.tierRouter = undefined;
   }
 
   // ==================== FACTORY METHODS ====================
@@ -475,20 +506,48 @@ export class CascadeAgent {
       ? input
       : input.map(m => m.content).join('\n');
 
-    // === STEP 1: COMPLEXITY DETECTION (PreRouter) ===
-    const complexityResult = this.complexityDetector.detect(queryText);
-    const { complexity } = complexityResult;
+    // === STEP 1: MODEL FILTERING ===
+    let availableModels = [...this.models]; // Start with all models
 
-    // Define which complexities should cascade vs. direct route
-    // TRIVIAL/SIMPLE/MODERATE → Cascade (cost optimization)
-    // HARD/EXPERT → Direct to best model (quality priority)
-    const cascadeComplexities: QueryComplexity[] = [
-      'trivial',
-      'simple',
-      'moderate',
-    ];
+    // Step 1a: Filter by tool capability if tools are present
+    if (options.tools && options.tools.length > 0) {
+      const toolFilterResult = this.toolRouter.filterToolCapableModels({
+        tools: options.tools,
+        availableModels,
+      });
 
-    const shouldCascade = !options.forceDirect && cascadeComplexities.includes(complexity);
+      if (!toolFilterResult.hasCapableModels) {
+        throw new Error(
+          `No models support tools. Requested tools: ${options.tools.map(t => t.function?.name || 'unknown').join(', ')}`
+        );
+      }
+
+      availableModels = toolFilterResult.models;
+    }
+
+    // Step 1b: Filter by user tier if specified
+    if (options.userTier) {
+      // For tier filtering, we would need tier configuration
+      // For now, we'll skip tier filtering unless tiers are configured
+      // This matches the Python implementation where tier filtering is optional
+    }
+
+    // === STEP 2: ROUTING DECISION (PreRouter) ===
+    const routingContext = {
+      tools: options.tools,
+      userTier: options.userTier,
+      forceDirect: options.forceDirect,
+      availableModels: availableModels.length,
+    };
+
+    const routingDecision = await this.preRouter.route(queryText, routingContext);
+    const { complexity } = this.complexityDetector.detect(queryText);
+
+    // Determine if we should cascade based on routing decision
+    const shouldCascade =
+      !options.forceDirect &&
+      routingDecision.strategy === RoutingStrategy.CASCADE &&
+      availableModels.length > 1;
 
     let draftCost = 0;
     let verifierCost = 0;
@@ -503,10 +562,10 @@ export class CascadeAgent {
     let modelUsed = '';
     let finalToolCalls: any[] | undefined;
 
-    // === STEP 2: ROUTING DECISION ===
-    if (!shouldCascade || this.models.length === 1) {
-      // Direct route to best model (most expensive)
-      const bestModelConfig = this.models[this.models.length - 1];
+    // === STEP 3: EXECUTE BASED ON ROUTING DECISION ===
+    if (!shouldCascade || availableModels.length === 1) {
+      // Direct route to best model (most expensive) from available models
+      const bestModelConfig = availableModels[availableModels.length - 1];
 
       try {
         const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
@@ -561,9 +620,9 @@ export class CascadeAgent {
       }
     }
 
-    // === STEP 3: CASCADE EXECUTION ===
-    // Try draft model (cheapest)
-    const draftModelConfig = this.models[0];
+    // === STEP 4: CASCADE EXECUTION ===
+    // Try draft model (cheapest from available models)
+    const draftModelConfig = availableModels[0];
     const draftStart = Date.now();
     let draftResponse: any; // Move to wider scope for savings calculation
 
@@ -605,12 +664,12 @@ export class CascadeAgent {
       );
       const qualityPassed = qualityResult.passed;
 
-      if (!qualityPassed && this.models.length > 1 && !options.forceDirect) {
-        // Escalate to verifier (next model)
+      if (!qualityPassed && availableModels.length > 1 && !options.forceDirect) {
+        // Escalate to verifier (next model from available models)
         cascaded = true;
         draftAccepted = false;
 
-        const verifierModelConfig = this.models[1];
+        const verifierModelConfig = availableModels[1];
         const verifierStart = Date.now();
 
         const verifierProvider = providerRegistry.get(
@@ -648,7 +707,7 @@ export class CascadeAgent {
       totalCost = draftCost + verifierCost;
 
       // Calculate savings (vs always using most expensive model) - matching Python's approach
-      const expensiveModel = this.models[this.models.length - 1];
+      const expensiveModel = availableModels[availableModels.length - 1];
       const expensiveProvider = providerRegistry.get(expensiveModel.provider, expensiveModel);
 
       let bigonlyCost = 0;
@@ -809,19 +868,42 @@ export class CascadeAgent {
       ? input
       : input.map(m => m.content).join('\n');
 
-    // Detect complexity
-    const complexityResult = this.complexityDetector.detect(queryText);
-    const { complexity } = complexityResult;
+    // === STEP 1: MODEL FILTERING ===
+    let availableModels = [...this.models]; // Start with all models
 
-    const cascadeComplexities: QueryComplexity[] = [
-      'trivial',
-      'simple',
-      'moderate',
-    ];
+    // Step 1a: Filter by tool capability if tools are present
+    if (options.tools && options.tools.length > 0) {
+      const toolFilterResult = this.toolRouter.filterToolCapableModels({
+        tools: options.tools,
+        availableModels,
+      });
+
+      if (!toolFilterResult.hasCapableModels) {
+        throw new Error(
+          `No models support tools. Requested tools: ${options.tools.map(t => t.function?.name || 'unknown').join(', ')}`
+        );
+      }
+
+      availableModels = toolFilterResult.models;
+    }
+
+    // Step 1b: Filter by user tier if specified (future enhancement)
+    // if (options.userTier) { ... }
+
+    // === STEP 2: ROUTING DECISION ===
+    const routingContext = {
+      tools: options.tools,
+      forceDirect: options.forceDirect,
+      availableModels: availableModels.length,
+    };
+
+    const routingDecision = await this.preRouter.route(queryText, routingContext);
+    const { complexity } = this.complexityDetector.detect(queryText);
+
     const shouldCascade =
       !options.forceDirect &&
-      this.models.length > 1 &&
-      cascadeComplexities.includes(complexity);
+      routingDecision.strategy === RoutingStrategy.CASCADE &&
+      availableModels.length > 1;
 
     // For MVP, use simple cascade logic similar to run()
     let draftCost = 0;
@@ -851,7 +933,7 @@ export class CascadeAgent {
 
     try {
       if (!shouldCascade) {
-        const bestModelConfig = this.models[this.models.length - 1];
+        const bestModelConfig = availableModels[availableModels.length - 1];
         const directProvider = providerRegistry.get(
           bestModelConfig.provider,
           bestModelConfig
@@ -935,8 +1017,8 @@ export class CascadeAgent {
         return;
       }
 
-      // Try draft model (cheapest)
-      const draftModelConfig = this.models[0];
+      // Try draft model (cheapest from available models)
+      const draftModelConfig = availableModels[0];
       const draftProvider = providerRegistry.get(draftModelConfig.provider, draftModelConfig);
 
       // Check if provider supports streaming
@@ -1008,7 +1090,7 @@ export class CascadeAgent {
       );
       const qualityPassed = qualityResult.passed;
 
-      draftAccepted = qualityPassed || this.models.length === 1 || options.forceDirect === true;
+      draftAccepted = qualityPassed || availableModels.length === 1 || options.forceDirect === true;
 
       // Emit DRAFT_DECISION event with real quality scores
       yield createStreamEvent(StreamEventType.DRAFT_DECISION, '', {
@@ -1016,16 +1098,16 @@ export class CascadeAgent {
         score: qualityResult.score,
         confidence: qualityResult.confidence,
         draft_model: draftModel,
-        verifier_model: this.models.length > 1 ? this.models[1].name : undefined,
+        verifier_model: availableModels.length > 1 ? availableModels[1].name : undefined,
         reason: draftAccepted ? 'quality_passed' : 'quality_failed',
         checks_passed: qualityPassed,
         quality_threshold: this.qualityValidator.getConfig().minConfidence,
       });
 
-      if (!draftAccepted && this.models.length > 1) {
-        // Cascade to verifier
+      if (!draftAccepted && availableModels.length > 1) {
+        // Cascade to verifier (next model from available models)
         cascaded = true;
-        const verifierModelConfig = this.models[1];
+        const verifierModelConfig = availableModels[1];
         verifierModel = verifierModelConfig.name;
 
         // Emit SWITCH event
@@ -1369,6 +1451,70 @@ export class CascadeAgent {
     for await (const event of this.streamEvents(prompt, options)) {
       yield event;
     }
+  }
+
+  // ==================== ROUTER STATISTICS ====================
+
+  /**
+   * Get routing statistics from all routers
+   *
+   * Returns statistics about routing decisions made by PreRouter, ToolRouter, and TierRouter.
+   * Useful for monitoring and debugging routing behavior.
+   *
+   * @returns Object containing statistics from each router
+   *
+   * @example
+   * ```typescript
+   * const agent = new CascadeAgent({ models: [...] });
+   *
+   * // Run some queries
+   * await agent.run('Simple query');
+   * await agent.run('Complex query');
+   * await agent.run('Query with tools', { tools: [...] });
+   *
+   * // Get routing statistics
+   * const stats = agent.getRouterStats();
+   * console.log('PreRouter stats:', stats.preRouter);
+   * console.log('ToolRouter stats:', stats.toolRouter);
+   * ```
+   */
+  getRouterStats(): {
+    preRouter: Record<string, any>;
+    toolRouter: Record<string, any>;
+    tierRouter?: Record<string, any>;
+  } {
+    return {
+      preRouter: this.preRouter.getStats(),
+      toolRouter: this.toolRouter.getStats(),
+      tierRouter: this.tierRouter?.getStats(),
+    };
+  }
+
+  /**
+   * Reset routing statistics for all routers
+   *
+   * Clears all accumulated statistics from PreRouter, ToolRouter, and TierRouter.
+   * Useful for starting fresh measurements or testing.
+   *
+   * @example
+   * ```typescript
+   * const agent = new CascadeAgent({ models: [...] });
+   *
+   * // Run some queries
+   * await agent.run('Query 1');
+   * await agent.run('Query 2');
+   *
+   * // Reset stats for new measurement period
+   * agent.resetRouterStats();
+   *
+   * // Run more queries with clean stats
+   * await agent.run('Query 3');
+   * ```
+   */
+  resetRouterStats(): void {
+    this.preRouter.resetStats();
+    this.toolRouter.resetStats();
+    this.tierRouter?.resetStats();
   }
 }
 
