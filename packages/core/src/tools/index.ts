@@ -41,3 +41,7 @@ export {
   toProviderFormat,
   getProviderFormatType,
 } from './formats';
+
+// Tool Validation
+export { ToolValidator, formatToolQualityScore } from './validator';
+export type { ToolQualityScore, ComplexityLevel } from './validator';

@@ -301,6 +301,8 @@ export {
   toOllamaFormat,
   toProviderFormat,
   getProviderFormatType,
+  ToolValidator,
+  formatToolQualityScore,
 } from './tools';
 export type {
   ToolFunction,
@@ -308,6 +310,8 @@ export type {
   ToolConfigOptions,
   ToolCallOptions,
   ToolResultOptions,
+  ToolQualityScore,
+  ComplexityLevel,
 } from './tools';
 
 // Version
