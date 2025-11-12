@@ -723,5 +723,99 @@ export class QualityValidator {
   getConfig(): QualityConfig {
     return { ...this.config };
   }
+
+  // ==========================================
+  // Static Factory Methods
+  // ==========================================
+
+  /**
+   * Create a production-grade quality validator
+   *
+   * Target: 98% quality, ~30-40% acceptance
+   * Use case: High-quality applications, research, quality-critical systems
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.forProduction();
+   * const result = await validator.validate(content, query, logprobs);
+   * ```
+   */
+  static forProduction(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.forProduction());
+  }
+
+  /**
+   * Create a development-friendly quality validator
+   *
+   * Target: 95% quality, ~40-50% acceptance
+   * Use case: Testing, debugging, iterative development
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.forDevelopment();
+   * const result = await validator.validate(content, query);
+   * ```
+   */
+  static forDevelopment(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.forDevelopment());
+  }
+
+  /**
+   * Create a strict quality validator with high quality bar
+   *
+   * Target: 99%+ quality, ~15-25% acceptance
+   * Use case: Mission-critical, customer-facing, zero-tolerance systems
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.strict();
+   * const result = await validator.validate(content, query, logprobs);
+   * ```
+   */
+  static strict(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.strict());
+  }
+
+  /**
+   * Create a CASCADE-optimized quality validator
+   *
+   * Research-backed thresholds for optimal cascade performance.
+   *
+   * Target Metrics:
+   * - Acceptance rate: 50-60% (optimal for cascade)
+   * - Quality: 94-96% (acceptable trade-off from 98%)
+   * - Cost savings: 50-60%
+   * - Speedup: 1.8-2.1x
+   *
+   * When to use:
+   * ✓ Speculative cascade systems (draft + verifier)
+   * ✓ Cost optimization priority (50%+ savings)
+   * ✓ Speed optimization priority (2x+ speedup)
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.forCascade();
+   * const result = await validator.validate(draftContent, query);
+   * ```
+   */
+  static forCascade(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.forCascade());
+  }
+
+  /**
+   * Create a permissive quality validator
+   *
+   * Target: 90% quality, ~60-70% acceptance
+   * Use case: Rapid prototyping, brainstorming, creative tasks
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.permissive();
+   * const result = await validator.validate(content, query);
+   * ```
+   */
+  static permissive(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.permissive());
+  }
 }
 
