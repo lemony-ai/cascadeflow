@@ -341,6 +341,75 @@ export interface UserProfile {
 }
 
 /**
+ * Workflow profile for specific use cases (v1.0.1+)
+ *
+ * Developer-defined profiles that override UserProfile settings
+ * for specific workflows like draft mode, production, critical queries, etc.
+ *
+ * @example
+ * ```typescript
+ * const draftMode: WorkflowProfile = {
+ *   name: 'draft_mode',
+ *   optimizationOverride: { cost: 0.8, speed: 0.15, quality: 0.05 },
+ *   maxBudgetOverride: 0.0001,
+ *   qualityThresholdOverride: 0.5,
+ *   description: 'Quick drafts, ultra cost optimized'
+ * };
+ * ```
+ */
+export interface WorkflowProfile {
+  /** Workflow name (e.g., 'draft_mode', 'production', 'critical') */
+  name: string;
+
+  // ===== OVERRIDES =====
+
+  /** Override tier latency settings */
+  latencyOverride?: LatencyProfile;
+
+  /** Override tier optimization weights */
+  optimizationOverride?: OptimizationWeights;
+
+  /** Override tier max budget */
+  maxBudgetOverride?: number;
+
+  /** Override tier quality threshold */
+  qualityThresholdOverride?: number;
+
+  // ===== MODEL CONTROL =====
+
+  /** Force use of specific models only (restricts to these models) */
+  forceModels?: string[];
+
+  /** Prefer these models when available */
+  preferredModels?: string[];
+
+  /** Exclude these models from selection */
+  excludeModels?: string[];
+
+  // ===== FEATURES =====
+
+  /** Override caching setting */
+  enableCaching?: boolean;
+
+  /** Override parallel execution setting */
+  enableParallel?: boolean;
+
+  /** Override speculative cascading setting */
+  enableSpeculative?: boolean;
+
+  /** Override streaming setting */
+  enableStreaming?: boolean;
+
+  // ===== METADATA =====
+
+  /** Workflow description */
+  description?: string;
+
+  /** Additional metadata */
+  metadata?: Record<string, any>;
+}
+
+/**
  * Rate limit state (v0.2.1+)
  */
 export interface RateLimitState {

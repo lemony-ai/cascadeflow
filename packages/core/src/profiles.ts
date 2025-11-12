@@ -16,6 +16,7 @@ import {
   LatencyProfile,
   OptimizationWeights,
   CostSensitivity,
+  WorkflowProfile,
 } from './types';
 
 // ==================== VALIDATION FUNCTIONS ====================
@@ -468,3 +469,142 @@ export function getOptimizationWeights(profile: UserProfile): OptimizationWeight
 export function getLatencyProfile(profile: UserProfile): LatencyProfile {
   return profile.latency ?? LATENCY_PRESETS.standard;
 }
+
+// ==================== WORKFLOW PROFILES ====================
+
+/**
+ * Create a workflow profile with validation
+ *
+ * @param options - Workflow profile options
+ * @returns Complete workflow profile
+ *
+ * @example
+ * ```typescript
+ * const draft = createWorkflowProfile({
+ *   name: 'draft_mode',
+ *   maxBudgetOverride: 0.0001,
+ *   optimizationOverride: { cost: 0.8, speed: 0.15, quality: 0.05 }
+ * });
+ * ```
+ */
+export function createWorkflowProfile(options: WorkflowProfile): WorkflowProfile {
+  // Validate optimization weights if provided
+  if (options.optimizationOverride) {
+    validateOptimizationWeights(options.optimizationOverride);
+  }
+
+  return options;
+}
+
+/**
+ * Apply workflow profile overrides to a user profile
+ *
+ * Creates a new profile with workflow overrides applied
+ *
+ * @param baseProfile - Base user profile
+ * @param workflow - Workflow profile to apply
+ * @returns New profile with workflow overrides
+ *
+ * @example
+ * ```typescript
+ * const profile = createUserProfile('PRO', 'user-123');
+ * const withWorkflow = applyWorkflowProfile(profile, WORKFLOW_PRESETS.draft_mode);
+ * ```
+ */
+export function applyWorkflowProfile(
+  baseProfile: UserProfile,
+  workflow: WorkflowProfile
+): UserProfile {
+  return {
+    ...baseProfile,
+    // Apply optimization overrides
+    optimization: workflow.optimizationOverride ?? baseProfile.optimization,
+    latency: workflow.latencyOverride ?? baseProfile.latency,
+    // Apply budget override
+    customDailyBudget: workflow.maxBudgetOverride ?? baseProfile.customDailyBudget,
+    // Apply model preferences
+    preferredModels: workflow.preferredModels ?? baseProfile.preferredModels,
+    // Store workflow metadata
+    metadata: {
+      ...baseProfile.metadata,
+      appliedWorkflow: workflow.name,
+      workflowDescription: workflow.description,
+    },
+  };
+}
+
+/**
+ * Check if a model is allowed by the workflow
+ *
+ * @param workflow - Workflow profile
+ * @param modelName - Model name to check
+ * @returns Whether model is allowed
+ */
+export function isModelAllowedByWorkflow(
+  workflow: WorkflowProfile,
+  modelName: string
+): boolean {
+  // If forceModels is set, only those models are allowed
+  if (workflow.forceModels && workflow.forceModels.length > 0) {
+    return workflow.forceModels.includes(modelName);
+  }
+
+  // If excludeModels is set, check if model is excluded
+  if (workflow.excludeModels && workflow.excludeModels.includes(modelName)) {
+    return false;
+  }
+
+  // Otherwise allow
+  return true;
+}
+
+/**
+ * Predefined workflow profile presets for common use cases
+ */
+export const WORKFLOW_PRESETS: Record<string, WorkflowProfile> = {
+  draft_mode: {
+    name: 'draft_mode',
+    optimizationOverride: createOptimizationWeights(0.8, 0.15, 0.05),
+    maxBudgetOverride: 0.0001,
+    qualityThresholdOverride: 0.5,
+    preferredModels: ['llama3:8b', 'gpt-3.5-turbo'],
+    description: 'Quick drafts, ultra cost optimized',
+  },
+  production: {
+    name: 'production',
+    qualityThresholdOverride: 0.85,
+    enableCaching: true,
+    description: 'Production queries, balanced',
+  },
+  critical: {
+    name: 'critical',
+    optimizationOverride: createOptimizationWeights(0.1, 0.3, 0.6),
+    qualityThresholdOverride: 0.9,
+    forceModels: ['gpt-4', 'claude-3-opus', 'claude-3-5-sonnet'],
+    description: 'Critical queries, quality priority',
+  },
+  realtime: {
+    name: 'realtime',
+    latencyOverride: createLatencyProfile({
+      maxTotalMs: 800,
+      maxPerModelMs: 600,
+      preferParallel: true,
+      skipCascadeThreshold: 700,
+    }),
+    optimizationOverride: createOptimizationWeights(0.15, 0.7, 0.15),
+    preferredModels: ['gpt-3.5-turbo', 'claude-3-haiku'],
+    description: 'Realtime responses, latency critical',
+  },
+  batch_processing: {
+    name: 'batch_processing',
+    latencyOverride: createLatencyProfile({
+      maxTotalMs: 30000,
+      maxPerModelMs: 20000,
+      preferParallel: false,
+      skipCascadeThreshold: 0,
+    }),
+    optimizationOverride: createOptimizationWeights(0.7, 0.1, 0.2),
+    enableCaching: true,
+    description: 'Batch processing, cost optimized',
+  },
+};

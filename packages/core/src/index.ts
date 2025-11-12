@@ -150,6 +150,7 @@ export type {
   CostSensitivity,
   LatencyProfile,
   OptimizationWeights,
+  WorkflowProfile,
 } from './types';
 
 // Legacy routing type (kept for backward compatibility, prefer RoutingStrategy enum from routers/base)
@@ -234,6 +235,11 @@ export {
   getRequestsPerDay,
   getOptimizationWeights,
   getLatencyProfile,
+  // v1.0.1+ Workflow profiles
+  createWorkflowProfile,
+  applyWorkflowProfile,
+  isModelAllowedByWorkflow,
+  WORKFLOW_PRESETS,
 } from './profiles';
 
 // Rate Limiting (v0.2.1+)
