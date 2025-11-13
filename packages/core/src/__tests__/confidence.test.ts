@@ -81,7 +81,7 @@ describe('ProductionConfidenceEstimator', () => {
       const highAnalysis = estimator.estimate(response, { logprobs: highLogprobs });
       const lowAnalysis = estimator.estimate(response, { logprobs: lowLogprobs });
 
-      expect(highAnalysis.logprobsConfidence).toBeGreaterThan(lowAnalysis.logprobsConfidence);
+      expect(highAnalysis.logprobsConfidence).toBeGreaterThan(lowAnalysis.logprobsConfidence ?? 0);
     });
 
     it('should handle empty logprobs array', () => {
@@ -291,7 +291,7 @@ describe('ProductionConfidenceEstimator', () => {
       const goodAnalysis = estimator.estimate(goodResponse, { query });
       const poorAnalysis = estimator.estimate(poorResponse, { query });
 
-      expect(goodAnalysis.alignmentScore).toBeGreaterThan(poorAnalysis.alignmentScore);
+      expect(goodAnalysis.alignmentScore ?? 0).toBeGreaterThan(poorAnalysis.alignmentScore ?? 0);
     });
   });
 
@@ -393,7 +393,7 @@ describe('ProductionConfidenceEstimator', () => {
       const simpleAnalysis = estimator.estimate(simpleResponse, { query: simpleQuery });
       const complexAnalysis = estimator.estimate(complexResponse, { query: complexQuery });
 
-      expect(simpleAnalysis.queryDifficulty).toBeLessThan(complexAnalysis.queryDifficulty);
+      expect(simpleAnalysis.queryDifficulty ?? 0).toBeLessThan(complexAnalysis.queryDifficulty ?? 1);
     });
 
     it('should detect technical queries as more difficult', () => {
@@ -409,7 +409,7 @@ describe('ProductionConfidenceEstimator', () => {
         query: technicalQuery,
       });
 
-      expect(technicalAnalysis.queryDifficulty).toBeGreaterThan(basicAnalysis.queryDifficulty);
+      expect(technicalAnalysis.queryDifficulty ?? 0).toBeGreaterThan(basicAnalysis.queryDifficulty ?? 0);
     });
 
     it('should use provided queryDifficulty when given', () => {

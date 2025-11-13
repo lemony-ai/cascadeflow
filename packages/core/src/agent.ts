@@ -26,12 +26,11 @@ import {
 } from './quality';
 import type { QualityConfig as QualityValidatorConfig } from './quality';
 import { ComplexityDetector } from './complexity';
-import type { QueryComplexity } from './types';
 import { TIER_PRESETS } from './profiles';
-import { PreRouter, type PreRouterConfig } from './routers/pre-router';
-import { ToolRouter, type ToolRouterConfig } from './routers/tool-router';
-import { TierRouter, type TierAwareRouterConfig, type TierRouterConfig } from './routers/tier-router';
-import { RoutingStrategy, RoutingDecisionHelper } from './routers/base';
+import { PreRouter } from './routers/pre-router';
+import { ToolRouter } from './routers/tool-router';
+import { TierRouter } from './routers/tier-router';
+import { RoutingStrategy } from './routers/base';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);

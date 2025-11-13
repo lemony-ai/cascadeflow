@@ -21,7 +21,6 @@
  */
 
 import { QueryResponseAlignmentScorer } from './alignment';
-import type { ComplexityResult } from './complexity';
 
 /**
  * Provider-specific calibration settings
@@ -149,8 +148,8 @@ export interface ConfidenceAnalysis {
   /** Confidence after calibration */
   calibratedConfidence: number;
 
-  /** Individual component scores */
-  components: Record<string, number>;
+  /** Individual component scores (numeric scores and string metadata) */
+  components: Record<string, number | string | boolean | undefined>;
 
   /** Method used for estimation */
   methodUsed:
@@ -224,12 +223,10 @@ export interface ConfidenceEstimationOptions {
  * ```
  */
 export class ProductionConfidenceEstimator {
-  private provider: string;
   private calibration: ProviderCalibration;
   private alignmentScorer: QueryResponseAlignmentScorer;
 
   constructor(provider: string = 'openai') {
-    this.provider = provider;
     this.calibration =
       PROVIDER_CONFIDENCE_CALIBRATION[provider.toLowerCase()] ??
       PROVIDER_CONFIDENCE_CALIBRATION.openai;
@@ -254,7 +251,7 @@ export class ProductionConfidenceEstimator {
       queryDifficulty: providedQueryDifficulty,
     } = options;
 
-    const components: Record<string, number> = {};
+    const components: Record<string, number | string | boolean | undefined> = {};
     let alignmentScore: number | undefined;
     let queryDifficulty: number | undefined = providedQueryDifficulty;
 
@@ -652,7 +649,9 @@ export class ProductionConfidenceEstimator {
 
       if (analysis.alignmentFloorApplied) {
         const severity = analysis.components.alignmentFloorSeverity ?? 'unknown';
-        const reduction = analysis.components.alignmentFloorReduction ?? 0;
+        const reduction = typeof analysis.components.alignmentFloorReduction === 'number'
+          ? analysis.components.alignmentFloorReduction
+          : 0;
         lines.push(`  ⚠️  SAFETY: Alignment floor applied (${severity} off-topic)`);
         lines.push(`      Confidence capped by ${reduction.toFixed(3)} to prevent garbage acceptance`);
       }

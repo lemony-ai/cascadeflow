@@ -98,6 +98,9 @@ export interface CascadeResult {
   /** Total latency in milliseconds */
   latencyMs: number;
 
+  /** @deprecated Use individual token counts instead */
+  tokensUsed?: number;
+
   /** Detected complexity level */
   complexity: string;
 
@@ -175,6 +178,12 @@ export interface CascadeResult {
   /** Savings percentage */
   savingsPercentage?: number;
 
+  /** @deprecated Detailed cost breakdown (legacy) */
+  costBreakdown?: any;
+
+  /** @deprecated Timing breakdown (legacy) */
+  timingBreakdown?: any;
+
   // Model information
   /** Draft model name */
   draftModel?: string;
@@ -193,6 +202,17 @@ export interface CascadeResult {
 
   /** Verifier confidence score */
   verifierConfidence?: number;
+
+  // Performance metrics
+  /** Speedup factor from cascading (e.g., 1.5 = 50% faster) */
+  speedup?: number;
+
+  // Legacy compatibility
+  /** @deprecated Use modelUsed instead */
+  model?: string;
+
+  /** @deprecated Provider is tracked internally */
+  provider?: string;
 
   // Additional metadata
   /** Custom metadata */

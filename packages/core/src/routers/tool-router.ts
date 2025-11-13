@@ -265,7 +265,7 @@ export class ToolRouter {
         console.error(errorMsg);
       }
 
-      throw new ConfigurationError(errorMsg);
+      throw new ConfigurationError(errorMsg, 'models', { tools: tools.length, models: availableModels.length });
     }
 
     const reason =
@@ -325,7 +325,7 @@ export class ToolRouter {
     }
 
     // Check for duplicate names
-    const names = tools.map((tool) => tool.name);
+    const names = tools.map((tool) => tool.function.name);
     const duplicates = new Set(
       names.filter((name, index) => names.indexOf(name) !== index)
     );
@@ -337,32 +337,32 @@ export class ToolRouter {
     // Validate each tool
     for (let i = 0; i < tools.length; i++) {
       const tool = tools[i];
-      const toolId = tool.name || `tool_${i}`;
+      const toolId = tool.function.name || `tool_${i}`;
 
       // Check required fields
-      if (!tool.name) {
+      if (!tool.function.name) {
         errors.push(`${toolId}: Missing 'name' field`);
       }
 
-      if (!tool.description) {
+      if (!tool.function.description) {
         warnings.push(`${toolId}: Missing 'description' (recommended)`);
       }
 
       // Check parameters field
-      if (!('parameters' in tool)) {
+      if (!('parameters' in tool.function)) {
         errors.push(`${toolId}: Missing 'parameters' field`);
-      } else if (tool.parameters === null) {
+      } else if (tool.function.parameters === null) {
         // Check null explicitly (typeof null === 'object' in JavaScript)
         errors.push(`${toolId}: 'parameters' must be an object`);
-      } else if (typeof tool.parameters !== 'object') {
+      } else if (typeof tool.function.parameters !== 'object') {
         // Check if it's an object type
         errors.push(`${toolId}: 'parameters' must be an object`);
       } else {
         // Check for JSON Schema structure
-        if (!('type' in tool.parameters)) {
+        if (!('type' in tool.function.parameters)) {
           warnings.push(`${toolId}: 'parameters' missing 'type' field`);
         }
-        if (!('properties' in tool.parameters)) {
+        if (!('properties' in tool.function.parameters)) {
           warnings.push(`${toolId}: 'parameters' missing 'properties' field`);
         }
       }

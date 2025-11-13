@@ -53,26 +53,32 @@ describe('ToolRouter', () => {
 
   // Test tools
   const weatherTool: Tool = {
-    name: 'get_weather',
-    description: 'Get current weather',
-    parameters: {
-      type: 'object',
-      properties: {
-        city: { type: 'string' },
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: 'Get current weather',
+      parameters: {
+        type: 'object',
+        properties: {
+          city: { type: 'string' },
+        },
+        required: ['city'],
       },
-      required: ['city'],
     },
   };
 
   const calculatorTool: Tool = {
-    name: 'calculator',
-    description: 'Perform calculations',
-    parameters: {
-      type: 'object',
-      properties: {
-        expression: { type: 'string' },
+    type: 'function',
+    function: {
+      name: 'calculator',
+      description: 'Perform calculations',
+      parameters: {
+        type: 'object',
+        properties: {
+          expression: { type: 'string' },
+        },
+        required: ['expression'],
       },
-      required: ['expression'],
     },
   };
 
@@ -217,9 +223,12 @@ describe('ToolRouter', () => {
 
     it('should detect missing name field', () => {
       const invalidTool = {
-        description: 'Test',
-        parameters: { type: 'object' },
-      } as Tool;
+        type: 'function',
+        function: {
+          description: 'Test',
+          parameters: { type: 'object' },
+        },
+      } as unknown as Tool;
 
       const validation = router.validateTools([invalidTool]);
 
@@ -230,9 +239,12 @@ describe('ToolRouter', () => {
 
     it('should warn about missing description', () => {
       const toolWithoutDesc: Tool = {
-        name: 'test',
-        parameters: { type: 'object', properties: {} },
-      } as Tool;
+        type: 'function',
+        function: {
+          name: 'test',
+          parameters: { type: 'object', properties: {} },
+        },
+      } as unknown as Tool;
 
       const validation = router.validateTools([toolWithoutDesc]);
 
@@ -245,9 +257,12 @@ describe('ToolRouter', () => {
 
     it('should detect missing parameters field', () => {
       const invalidTool = {
-        name: 'test',
-        description: 'Test tool',
-      } as Tool;
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test tool',
+        },
+      } as unknown as Tool;
 
       const validation = router.validateTools([invalidTool]);
 
@@ -259,10 +274,13 @@ describe('ToolRouter', () => {
 
     it('should detect invalid parameters type', () => {
       const invalidTool = {
-        name: 'test',
-        description: 'Test',
-        parameters: 'invalid' as any,
-      };
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: 'invalid' as any,
+        },
+      } as unknown as Tool;
 
       const validation = router.validateTools([invalidTool]);
 
@@ -272,12 +290,15 @@ describe('ToolRouter', () => {
 
     it('should warn about missing type in parameters', () => {
       const toolWithoutType: Tool = {
-        name: 'test',
-        description: 'Test',
-        parameters: {
-          properties: { foo: { type: 'string' } },
-        } as any,
-      };
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: {
+            properties: { foo: { type: 'string' } },
+          } as any,
+        },
+      } as unknown as Tool;
 
       const validation = router.validateTools([toolWithoutType]);
 
@@ -286,12 +307,15 @@ describe('ToolRouter', () => {
 
     it('should warn about missing properties in parameters', () => {
       const toolWithoutProps: Tool = {
-        name: 'test',
-        description: 'Test',
-        parameters: {
-          type: 'object',
-        } as any,
-      };
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: {
+            type: 'object',
+          } as any,
+        },
+      } as unknown as Tool;
 
       const validation = router.validateTools([toolWithoutProps]);
 
@@ -317,8 +341,8 @@ describe('ToolRouter', () => {
 
     it('should handle multiple validation errors', () => {
       const invalidTools: Tool[] = [
-        { name: 'test1' } as Tool, // Missing parameters
-        { name: 'test2' } as Tool, // Missing parameters
+        { type: 'function', function: { name: 'test1' } } as unknown as Tool, // Missing parameters
+        { type: 'function', function: { name: 'test2' } } as unknown as Tool, // Missing parameters
       ];
 
       const validation = router.validateTools(invalidTools);
@@ -352,7 +376,7 @@ describe('ToolRouter', () => {
     it('should sort by tool quality and cost', () => {
       const modelWithQuality: ModelConfig = {
         name: 'high-quality',
-        provider: 'test',
+        provider: 'openai' as const,
         cost: 0.05,
         supportsTools: true,
         toolQuality: 0.9,
@@ -527,7 +551,7 @@ describe('ToolRouter', () => {
     it('should handle models without supportsTools property', () => {
       const modelWithoutProp: ModelConfig = {
         name: 'test',
-        provider: 'test',
+        provider: 'openai' as const,
         cost: 0.01,
       };
 
@@ -544,10 +568,13 @@ describe('ToolRouter', () => {
 
     it('should handle null parameters in tool validation', () => {
       const invalidTool = {
-        name: 'test',
-        description: 'Test',
-        parameters: null as any,
-      };
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: null as any,
+        },
+      } as unknown as Tool;
 
       const validation = router.validateTools([invalidTool]);
 
@@ -558,7 +585,7 @@ describe('ToolRouter', () => {
     it('should handle very large model arrays', () => {
       const manyModels: ModelConfig[] = Array.from({ length: 1000 }, (_, i) => ({
         name: `model-${i}`,
-        provider: 'test',
+        provider: 'openai' as const,
         cost: 0.01,
         supportsTools: i % 2 === 0, // Half support tools
       }));

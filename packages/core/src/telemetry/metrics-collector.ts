@@ -684,9 +684,10 @@ export class MetricsCollector {
     console.log();
     console.log('BY COMPLEXITY:');
     for (const [complexity, count] of Object.entries(summary.byComplexity)) {
-      if (count > 0) {
-        const pct = (count / summary.totalQueries) * 100;
-        console.log(`  ${complexity.padEnd(12)}: ${String(count).padStart(4)} (${pct.toFixed(1)}%)`);
+      const numCount = Number(count);
+      if (numCount > 0) {
+        const pct = (numCount / summary.totalQueries) * 100;
+        console.log(`  ${complexity.padEnd(12)}: ${String(numCount).padStart(4)} (${pct.toFixed(1)}%)`);
       }
     }
 
@@ -695,11 +696,12 @@ export class MetricsCollector {
       console.log();
       console.log('ACCEPTANCE BY COMPLEXITY:');
       for (const [complexity, stats] of Object.entries(summary.acceptanceByComplexity)) {
-        const total = stats.accepted + stats.rejected;
+        const complexityStats = stats as { accepted: number; rejected: number };
+        const total = complexityStats.accepted + complexityStats.rejected;
         if (total > 0) {
-          const rate = (stats.accepted / total) * 100;
+          const rate = (complexityStats.accepted / total) * 100;
           console.log(
-            `  ${complexity.padEnd(12)}: ${stats.accepted}/${total} (${rate.toFixed(1)}%)`
+            `  ${complexity.padEnd(12)}: ${complexityStats.accepted}/${total} (${rate.toFixed(1)}%)`
           );
         }
       }
