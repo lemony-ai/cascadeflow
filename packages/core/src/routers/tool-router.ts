@@ -416,8 +416,8 @@ export class ToolRouter {
     // Sort by tool quality (if available) and cost
     candidates.sort((a, b) => {
       // Higher quality first, then lower cost
-      const qualityA = (a as any).toolQuality ?? 0.5;
-      const qualityB = (b as any).toolQuality ?? 0.5;
+      const qualityA = a.toolQuality ?? 0.5;
+      const qualityB = b.toolQuality ?? 0.5;
 
       if (qualityA !== qualityB) {
         return qualityB - qualityA; // Higher quality first

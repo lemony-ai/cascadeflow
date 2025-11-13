@@ -177,10 +177,11 @@ describe('ToolRouter', () => {
           availableModels: nonToolModels,
         });
         expect.fail('Should have thrown error');
-      } catch (error: any) {
-        expect(error.message).toContain('gpt-3.5');
-        expect(error.message).toContain('text-davinci-003');
-        expect(error.message).toContain('Tools provided: 1');
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        expect(message).toContain('gpt-3.5');
+        expect(message).toContain('text-davinci-003');
+        expect(message).toContain('Tools provided: 1');
       }
     });
 

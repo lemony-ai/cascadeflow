@@ -13,7 +13,7 @@ import { VLLMProvider } from './providers/vllm';
 import { OpenRouterProvider } from './providers/openrouter';
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
-import type { Message, Tool, UserProfile, TierLevel } from './types';
+import type { Message, Tool, ToolCall, UserProfile, TierLevel } from './types';
 import {
   type StreamEvent,
   StreamEventType,
@@ -559,7 +559,7 @@ export class CascadeAgent {
     let draftAccepted = false;
     let finalContent = '';
     let modelUsed = '';
-    let finalToolCalls: any[] | undefined;
+    let finalToolCalls: ToolCall[] | undefined;
 
     // === STEP 3: EXECUTE BASED ON ROUTING DECISION ===
     if (!shouldCascade || availableModels.length === 1) {
@@ -918,9 +918,9 @@ export class CascadeAgent {
     let verifierContent = '';
     let finalContent = '';
     let modelUsed = '';
-    let finalToolCalls: any[] | undefined;
-    let draftToolCalls: any[] | undefined;
-    let verifierToolCalls: any[] | undefined;
+    let finalToolCalls: ToolCall[] | undefined;
+    let draftToolCalls: ToolCall[] | undefined;
+    let verifierToolCalls: ToolCall[] | undefined;
 
     const routingStrategy = shouldCascade ? 'cascade' : 'direct';
 
@@ -958,7 +958,7 @@ export class CascadeAgent {
         }
 
         let directContent = '';
-        let directToolCalls: any[] | undefined;
+        let directToolCalls: ToolCall[] | undefined;
 
         for await (const chunk of directProvider.stream({
           messages,
