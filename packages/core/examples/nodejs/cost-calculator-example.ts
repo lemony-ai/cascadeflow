@@ -32,7 +32,7 @@ async function main() {
         cost: 0.005,
       },
     ],
-    qualityConfig: {
+    quality: {
       threshold: 0.64,
     },
   });
