@@ -239,6 +239,29 @@ export interface AgentConfig {
 
   /** Optional quality configuration (shorthand for cascade.quality) */
   quality?: QualityConfig;
+
+  /**
+   * Optional callback manager for lifecycle event monitoring
+   *
+   * Use this to track query execution, model calls, complexity detection,
+   * and other cascade lifecycle events.
+   *
+   * @example
+   * ```typescript
+   * import { CascadeAgent, CallbackManager, CallbackEvent } from '@cascadeflow/core';
+   *
+   * const callbacks = new CallbackManager();
+   * callbacks.register(CallbackEvent.QUERY_START, (data) => {
+   *   console.log(`Query started: ${data.query}`);
+   * });
+   *
+   * const agent = new CascadeAgent({
+   *   models: [...],
+   *   callbacks
+   * });
+   * ```
+   */
+  callbacks?: import('./telemetry/callbacks').CallbackManager;
 }
 
 /**
@@ -271,13 +294,13 @@ export function validateModelConfig(config: ModelConfig): void {
 export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   threshold: 0.7,
   confidenceThresholds: {
-    trivial: 0.5,
-    simple: 0.6,
-    moderate: 0.7,
-    hard: 0.8,
-    expert: 0.85,
+    trivial: 0.3,    // Lowered from 0.5 - accept most trivial answers
+    simple: 0.4,     // Lowered from 0.6 - accept most simple answers
+    moderate: 0.6,   // Lowered from 0.7 - slightly more permissive
+    hard: 0.75,      // Lowered from 0.8 - balance quality vs cost
+    expert: 0.8,     // Lowered from 0.85 - still maintain high bar
   },
-  requireMinimumTokens: 10,
+  requireMinimumTokens: 3,  // Lowered from 10 - allow short correct answers like "Paris" or "hola"
   requireValidation: true,
   enableAdaptive: true,
 };

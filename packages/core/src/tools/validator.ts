@@ -454,7 +454,7 @@ export class ToolValidator {
    */
   private _validateParameters(
     toolCalls: Record<string, any>[],
-    availableTools: Record<string, any>[]
+    _availableTools: Record<string, any>[]
   ): boolean {
     return toolCalls.every((tc) => this._parametersAreSensible(tc));
   }

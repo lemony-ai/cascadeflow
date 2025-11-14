@@ -26,12 +26,12 @@ import {
 } from './quality';
 import type { QualityConfig as QualityValidatorConfig } from './quality';
 import { ComplexityDetector } from './complexity';
-import type { QueryComplexity } from './types';
 import { TIER_PRESETS } from './profiles';
-import { PreRouter, type PreRouterConfig } from './routers/pre-router';
-import { ToolRouter, type ToolRouterConfig } from './routers/tool-router';
-import { TierRouter, type TierAwareRouterConfig, type TierRouterConfig } from './routers/tier-router';
-import { RoutingStrategy, RoutingDecisionHelper } from './routers/base';
+import { PreRouter } from './routers/pre-router';
+import { ToolRouter } from './routers/tool-router';
+import { TierRouter } from './routers/tier-router';
+import { RoutingStrategy } from './routers/base';
+import { CallbackEvent } from './telemetry/callbacks';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -91,6 +91,7 @@ export class CascadeAgent {
   private preRouter: PreRouter;
   private toolRouter: ToolRouter;
   private tierRouter?: TierRouter;
+  private callbackManager?: import('./telemetry/callbacks').CallbackManager;
 
   /**
    * Create a new cascadeflow agent
@@ -194,6 +195,28 @@ export class CascadeAgent {
     // Note: We don't initialize TierRouter here by default since tiers are optional
     // It will be created on-demand if userTier is passed to run()
     this.tierRouter = undefined;
+
+    // CallbackManager: Optional lifecycle event monitoring
+    this.callbackManager = config.callbacks;
+  }
+
+  // ==================== PRIVATE HELPERS ====================
+
+  /**
+   * Safely trigger a callback event if callbackManager is configured
+   */
+  private triggerCallback(event: CallbackEvent, query: string, data: Record<string, any>): void {
+    if (this.callbackManager) {
+      try {
+        this.callbackManager.trigger(event, query, data).catch((error) => {
+          // Silently ignore callback errors to prevent disrupting cascade execution
+          console.warn(`Callback error for ${event}:`, error);
+        });
+      } catch (error) {
+        // Silently ignore callback errors to prevent disrupting cascade execution
+        console.warn(`Callback error for ${event}:`, error);
+      }
+    }
   }
 
   // ==================== FACTORY METHODS ====================
@@ -505,6 +528,9 @@ export class CascadeAgent {
     const queryText = typeof input === 'string'
       ? input
       : input.map(m => m.content).join('\n');
+
+    // Trigger QUERY_START event
+    this.triggerCallback(CallbackEvent.QUERY_START, queryText, { options });
 
     // === STEP 1: MODEL FILTERING ===
     let availableModels = [...this.models]; // Start with all models

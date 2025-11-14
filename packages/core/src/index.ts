@@ -130,7 +130,6 @@ export type {
   MessageRole,
   Message,
   Tool,
-  ToolCall,
   ProviderResponse,
   CostBreakdown,
   TimingBreakdown,
@@ -143,8 +142,6 @@ export type {
   PiiMatch,
   ModerationResult,
   GuardrailsCheck,
-  BatchStrategy,
-  BatchConfig,
   BatchItemResult,
   // v1.0.1+ Latency & optimization types
   CostSensitivity,

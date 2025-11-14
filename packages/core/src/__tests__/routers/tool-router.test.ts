@@ -53,26 +53,32 @@ describe('ToolRouter', () => {
 
   // Test tools
   const weatherTool: Tool = {
-    name: 'get_weather',
-    description: 'Get current weather',
-    parameters: {
-      type: 'object',
-      properties: {
-        city: { type: 'string' },
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: 'Get current weather',
+      parameters: {
+        type: 'object',
+        properties: {
+          city: { type: 'string' },
+        },
+        required: ['city'],
       },
-      required: ['city'],
     },
   };
 
   const calculatorTool: Tool = {
-    name: 'calculator',
-    description: 'Perform calculations',
-    parameters: {
-      type: 'object',
-      properties: {
-        expression: { type: 'string' },
+    type: 'function',
+    function: {
+      name: 'calculator',
+      description: 'Perform calculations',
+      parameters: {
+        type: 'object',
+        properties: {
+          expression: { type: 'string' },
+        },
+        required: ['expression'],
       },
-      required: ['expression'],
     },
   };
 
@@ -217,8 +223,11 @@ describe('ToolRouter', () => {
 
     it('should detect missing name field', () => {
       const invalidTool = {
-        description: 'Test',
-        parameters: { type: 'object' },
+        type: 'function',
+        function: {
+          description: 'Test',
+          parameters: { type: 'object' },
+        },
       } as Tool;
 
       const validation = router.validateTools([invalidTool]);
@@ -230,8 +239,11 @@ describe('ToolRouter', () => {
 
     it('should warn about missing description', () => {
       const toolWithoutDesc: Tool = {
-        name: 'test',
-        parameters: { type: 'object', properties: {} },
+        type: 'function',
+        function: {
+          name: 'test',
+          parameters: { type: 'object', properties: {} },
+        },
       } as Tool;
 
       const validation = router.validateTools([toolWithoutDesc]);
@@ -245,8 +257,11 @@ describe('ToolRouter', () => {
 
     it('should detect missing parameters field', () => {
       const invalidTool = {
-        name: 'test',
-        description: 'Test tool',
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test tool',
+        },
       } as Tool;
 
       const validation = router.validateTools([invalidTool]);
@@ -259,9 +274,12 @@ describe('ToolRouter', () => {
 
     it('should detect invalid parameters type', () => {
       const invalidTool = {
-        name: 'test',
-        description: 'Test',
-        parameters: 'invalid' as any,
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: 'invalid' as any,
+        },
       };
 
       const validation = router.validateTools([invalidTool]);
@@ -272,11 +290,14 @@ describe('ToolRouter', () => {
 
     it('should warn about missing type in parameters', () => {
       const toolWithoutType: Tool = {
-        name: 'test',
-        description: 'Test',
-        parameters: {
-          properties: { foo: { type: 'string' } },
-        } as any,
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: {
+            properties: { foo: { type: 'string' } },
+          } as any,
+        },
       };
 
       const validation = router.validateTools([toolWithoutType]);
@@ -286,11 +307,14 @@ describe('ToolRouter', () => {
 
     it('should warn about missing properties in parameters', () => {
       const toolWithoutProps: Tool = {
-        name: 'test',
-        description: 'Test',
-        parameters: {
-          type: 'object',
-        } as any,
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: {
+            type: 'object',
+          } as any,
+        },
       };
 
       const validation = router.validateTools([toolWithoutProps]);
@@ -544,9 +568,12 @@ describe('ToolRouter', () => {
 
     it('should handle null parameters in tool validation', () => {
       const invalidTool = {
-        name: 'test',
-        description: 'Test',
-        parameters: null as any,
+        type: 'function',
+        function: {
+          name: 'test',
+          description: 'Test',
+          parameters: null as any,
+        },
       };
 
       const validation = router.validateTools([invalidTool]);

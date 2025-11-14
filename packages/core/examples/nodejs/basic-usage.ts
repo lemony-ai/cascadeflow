@@ -270,14 +270,14 @@ async function main() {
     // - cascaded=true with draftAccepted=false means both models were used (draft rejected, escalated)
     if (result.cascaded) {
       if (result.draftAccepted) {
-        console.log('   ✅ Draft Accepted: GPT-4o-mini response passed quality check');
-        console.log('   💡 Verifier Skipped: GPT-4o was not called (cost saved!)');
+        console.log('   ✅ Draft Accepted: Draft response passed quality check');
+        console.log('   💡 Verifier Skipped: Expensive model was not called (cost saved!)');
       } else {
-        console.log('   ❌ Draft Rejected: Quality check failed, escalated to GPT-4o');
-        console.log('   💸 Both Models Used: Paid for GPT-4o-mini + GPT-4o');
+        console.log(`   ❌ Draft Rejected: Quality check failed, escalated to ${result.modelUsed}`);
+        console.log(`   💸 Both Models Used: Paid for draft + ${result.modelUsed}`);
       }
     } else {
-      console.log('   🎯 Direct Route: Query sent directly to GPT-4o (no cascade)');
+      console.log(`   🎯 Direct Route: Query sent directly to ${result.modelUsed} (no cascade)` );
     }
 
     // Show first part of response

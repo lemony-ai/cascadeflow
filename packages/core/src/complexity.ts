@@ -232,6 +232,13 @@ export class ComplexityDetector {
     'cross-validation',
     'reinforcement learning',
     'q-learning',
+    // Quantum Computing (Added)
+    'quantum computing',
+    'quantum algorithm',
+    'quantum supremacy',
+    'qubit',
+    'quantum gate',
+    'quantum circuit',
   ]);
 
   private static readonly ENGINEERING_TERMS = new Set([
@@ -280,6 +287,7 @@ export class ComplexityDetector {
     'is', 'are', 'does', 'do',
     'simple', 'basic', 'introduction', 'overview', 'summary', 'briefly',
     'example', 'examples', 'difference', 'similar', 'list', 'name',
+    'translate', 'convert', 'change',
   ];
 
   private static readonly MODERATE_KEYWORDS = [
@@ -292,6 +300,8 @@ export class ComplexityDetector {
     'relationship', 'connection', 'correlation',
     'cause', 'effect', 'impact',
     'process', 'steps', 'procedure',
+    'write', 'code', 'function', 'program', 'script',
+    'reverse', 'sort', 'filter', 'map',
   ];
 
   private static readonly HARD_KEYWORDS = [
@@ -431,15 +441,15 @@ export class ComplexityDetector {
     let finalConfidence: number;
 
     // CRITICAL: Technical terms STRONGLY influence complexity
-    if (techBoost >= 3.0) {
-      // Multiple advanced terms
+    if (techBoost >= 2.0) {
+      // Multiple advanced terms or strong domain specialization
       finalComplexity = 'expert';
       finalConfidence = 0.90;
-    } else if (techBoost >= 2.0) {
+    } else if (techBoost >= 1.0) {
       // Some advanced terms
       finalComplexity = 'hard';
       finalConfidence = 0.85;
-    } else if (techBoost >= 1.0) {
+    } else if (techBoost >= 0.5) {
       // Basic technical terms
       finalComplexity = 'moderate';
       finalConfidence = 0.80;
@@ -495,14 +505,23 @@ export class ComplexityDetector {
       finalConfidence = Math.min(0.95, finalConfidence + 0.15);
     }
 
-    // 10. Apply code boost
+    // 10. Apply code boost (more nuanced)
     if (hasCode) {
-      if (finalComplexity === 'simple') {
-        finalComplexity = 'moderate';
-      } else if (finalComplexity === 'moderate') {
-        finalComplexity = 'hard';
+      // Only boost if query is complex enough (> 12 words) OR has expert keywords
+      // This prevents simple coding tasks like "reverse a string" from being over-classified
+      const isComplexCodeQuery = wordCount > 12 || expertMatches >= 1;
+
+      if (isComplexCodeQuery) {
+        if (finalComplexity === 'simple') {
+          finalComplexity = 'moderate';
+        } else if (finalComplexity === 'moderate') {
+          finalComplexity = 'hard';
+        }
+        finalConfidence = Math.min(0.95, finalConfidence + 0.1);
+      } else {
+        // Simple code query - small confidence boost only
+        finalConfidence = Math.min(0.95, finalConfidence + 0.05);
       }
-      finalConfidence = Math.min(0.95, finalConfidence + 0.1);
     }
 
     // 11. Apply structure boost
@@ -606,20 +625,20 @@ export class ComplexityDetector {
   ): number {
     let boost = 0;
 
-    // Technical terms boost
-    boost += numTechTerms * 0.5;
+    // Technical terms boost (increased from 0.5 to 0.7 per term)
+    boost += numTechTerms * 0.7;
 
     // Math notation boost
     boost += numMathNotation * 0.3;
 
-    // Domain specialization boost
+    // Domain specialization boost (increased weights)
     const maxDomainScore = Math.max(...Object.values(domainScores), 0);
-    if (maxDomainScore >= 3) {
-      boost += 1.5; // Strong specialization
-    } else if (maxDomainScore >= 2) {
-      boost += 1.0; // Moderate specialization
+    if (maxDomainScore >= 2) {
+      boost += 2.0; // Strong specialization (was 1.5)
     } else if (maxDomainScore >= 1) {
-      boost += 0.5; // Some specialization
+      boost += 1.0; // Moderate specialization (unchanged)
+    } else if (maxDomainScore >= 0.5) {
+      boost += 0.5; // Some specialization (was checking >= 1)
     }
 
     return boost;

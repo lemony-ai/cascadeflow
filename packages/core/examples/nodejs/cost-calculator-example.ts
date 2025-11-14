@@ -32,8 +32,8 @@ async function main() {
         cost: 0.005,
       },
     ],
-    qualityConfig: {
-      threshold: 0.64,
+    quality: {
+      minConfidence: 0.64,
     },
   });
 
@@ -165,7 +165,5 @@ async function main() {
   console.log('\n✅ Cost Calculator examples completed!');
 }
 
-// Run if called directly
-if (require.main === module) {
-  main().catch(console.error);
-}
+// Run the example
+main().catch(console.error);

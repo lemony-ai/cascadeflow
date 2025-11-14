@@ -55,6 +55,14 @@ export interface QualityResult {
 
     /** Semantic similarity score (0-1) from ML embeddings */
     semanticSimilarity?: number;
+
+    /** Production confidence analysis (when useProductionConfidence is true) */
+    productionConfidence?: {
+      methodUsed: string;
+      components: Record<string, number | string | boolean>;
+      alignmentFloorApplied: boolean;
+      queryDifficulty?: number;
+    };
   };
 }
 
