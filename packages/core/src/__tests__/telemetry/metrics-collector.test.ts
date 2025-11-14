@@ -104,7 +104,11 @@ describe('MetricsCollector', () => {
 
     it('should track tool usage', () => {
       const result = createMockResult({
-        toolCalls: [{ id: '1', name: 'test', args: {} }],
+        toolCalls: [{
+          id: '1',
+          type: 'function',
+          function: { name: 'test', arguments: '{}' }
+        }],
       });
 
       collector.record(result, 'direct', 'simple', undefined, false, true);
@@ -227,12 +231,16 @@ describe('MetricsCollector', () => {
 
     it('should calculate tool metrics', () => {
       const withTools1 = createMockResult({
-        toolCalls: [{ id: '1', name: 'test1', args: {} }],
+        toolCalls: [{
+          id: '1',
+          type: 'function',
+          function: { name: 'test1', arguments: '{}' }
+        }],
       });
       const withTools2 = createMockResult({
         toolCalls: [
-          { id: '2', name: 'test2', args: {} },
-          { id: '3', name: 'test3', args: {} },
+          { id: '2', type: 'function', function: { name: 'test2', arguments: '{}' } },
+          { id: '3', type: 'function', function: { name: 'test3', arguments: '{}' } },
         ],
       });
 
@@ -345,7 +353,13 @@ describe('MetricsCollector', () => {
 
     it('should include tool metrics', () => {
       collector.record(
-        createMockResult({ toolCalls: [{ id: '1', name: 'test', args: {} }] }),
+        createMockResult({
+          toolCalls: [{
+            id: '1',
+            type: 'function',
+            function: { name: 'test', arguments: '{}' }
+          }]
+        }),
         'direct',
         'simple',
         undefined,

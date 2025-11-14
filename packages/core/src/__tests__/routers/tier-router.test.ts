@@ -415,7 +415,7 @@ describe('TierRouter', () => {
     it('should handle very large model arrays', () => {
       const manyModels: ModelConfig[] = Array.from({ length: 1000 }, (_, i) => ({
         name: `model-${i}`,
-        provider: 'test',
+        provider: 'openai' as const,
         cost: 0.01 + i * 0.001,
       }));
 

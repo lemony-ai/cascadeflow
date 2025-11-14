@@ -121,13 +121,15 @@ export class SemanticQualityChecker {
       if (this._available) {
         console.log('✓ Semantic quality checking enabled (UnifiedEmbeddingService)');
       }
-    } catch (error: any) {
-      if (error?.code === 'ERR_MODULE_NOT_FOUND' || error?.message?.includes('Cannot find module')) {
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string };
+      if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.message?.includes('Cannot find module')) {
         console.warn(
           '@cascadeflow/ml not available. Install with: npm install @cascadeflow/ml @xenova/transformers'
         );
       } else {
-        console.error(`Failed to initialize semantic quality checker: ${error?.message}`);
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Failed to initialize semantic quality checker: ${message}`);
       }
       this._available = false;
     }
@@ -204,14 +206,15 @@ export class SemanticQualityChecker {
           cached: this.cache !== undefined
         }
       };
-    } catch (error: any) {
-      console.error(`Error in semantic similarity check: ${error?.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error in semantic similarity check: ${message}`);
       return {
         similarity: 0,
         passed: false,
-        reason: `Error: ${error?.message}`,
+        reason: `Error: ${message}`,
         metadata: {
-          error: error?.message,
+          error: message,
           threshold: this.similarityThreshold
         }
       };

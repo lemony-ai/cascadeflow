@@ -61,6 +61,9 @@ export interface ModelConfig {
   /** Whether model supports tool/function calling */
   supportsTools?: boolean;
 
+  /** Tool quality score (0-1) for ranking tool-capable models */
+  toolQuality?: number;
+
   /** Per-model quality threshold for cascade acceptance (0-1, overrides global threshold) */
   qualityThreshold?: number;
 }

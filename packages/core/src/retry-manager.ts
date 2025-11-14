@@ -202,8 +202,10 @@ export class RetryManager {
    * console.log(type); // ErrorType.RATE_LIMIT
    * ```
    */
-  classifyError(error: Error | any): ErrorType {
-    const errorMsg = error.message?.toLowerCase() || String(error).toLowerCase();
+  classifyError(error: unknown): ErrorType {
+    const errorMsg = error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error).toLowerCase();
 
     // Rate limit (429, rate limit messages)
     if (
@@ -403,8 +405,9 @@ export class RetryManager {
         }
 
         return result;
-      } catch (error: any) {
-        lastException = error;
+      } catch (error: unknown) {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        lastException = errorObj;
         const errorType = this.classifyError(error);
 
         // Update metrics
@@ -415,9 +418,10 @@ export class RetryManager {
 
         // Should we retry?
         if (!this.shouldRetry(errorType, attempt)) {
+          const message = error instanceof Error ? error.message : String(error);
           console.error(
             `${context}: ✗ Not retrying ${errorType} ` +
-              `on attempt ${attempt}/${this.config.maxAttempts}: ${error.message || error}`
+              `on attempt ${attempt}/${this.config.maxAttempts}: ${message}`
           );
           throw error;
         }
@@ -426,9 +430,10 @@ export class RetryManager {
         const delay = this.calculateDelay(attempt, errorType);
         this.metrics.totalRetryDelay += delay;
 
+        const retryMessage = error instanceof Error ? error.message : String(error);
         console.warn(
           `${context}: ⚠️  ${errorType} on attempt ${attempt}/${this.config.maxAttempts}, ` +
-            `retrying in ${delay.toFixed(1)}s: ${error.message || error}`
+            `retrying in ${delay.toFixed(1)}s: ${retryMessage}`
         );
 
         // Wait before retry

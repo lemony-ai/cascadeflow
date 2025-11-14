@@ -20,30 +20,24 @@ import type { RunOptions } from '../agent';
 function createMockResult(content: string, cost: number = 0.001): CascadeResult {
   return {
     content,
-    model: 'gpt-4o-mini',
-    provider: 'openai',
+    modelUsed: 'gpt-4o-mini',
+    model: 'gpt-4o-mini', // Legacy
+    provider: 'openai', // Legacy
     totalCost: cost,
     tokensUsed: 100,
     latencyMs: 500,
     cascaded: false,
+    draftAccepted: false,
+    routingStrategy: 'direct',
+    reason: 'test',
+    hasToolCalls: false,
+    complexity: 'simple',
     savingsPercentage: 0,
-    costBreakdown: {
-      draftCost: cost,
-      verifierCost: 0,
-      totalCost: cost,
-      savingsPercentage: 0,
-      accepted: true,
-    },
-    timingBreakdown: {
-      draftLatencyMs: 500,
-      verifierLatencyMs: 0,
-      totalLatencyMs: 500,
-    },
-    qualityValidation: {
-      passed: true,
-      overallScore: 0.95,
-      thresholdUsed: 0.80,
-    },
+    draftCost: cost,
+    verifierCost: 0,
+    qualityScore: 0.95,
+    qualityThreshold: 0.80,
+    qualityCheckPassed: true,
   };
 }
 
