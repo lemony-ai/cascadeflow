@@ -92,6 +92,57 @@ class CascadeChatModel extends BaseChatModel {
   }
 
   /**
+   * Check if message contains tool calls
+   * Tool calls can be in additional_kwargs.tool_calls or additional_kwargs.function_call
+   */
+  private hasToolCalls(message: BaseMessage): boolean {
+    const additionalKwargs = (message as any).additional_kwargs || {};
+
+    // Check for tool_calls array (OpenAI format)
+    if (additionalKwargs.tool_calls && Array.isArray(additionalKwargs.tool_calls) && additionalKwargs.tool_calls.length > 0) {
+      return true;
+    }
+
+    // Check for function_call object (legacy format)
+    if (additionalKwargs.function_call && typeof additionalKwargs.function_call === 'object') {
+      return true;
+    }
+
+    // Check for tool_calls in response_metadata (Anthropic format)
+    const responseMetadata = (message as any).response_metadata || {};
+    if (responseMetadata.tool_calls && Array.isArray(responseMetadata.tool_calls) && responseMetadata.tool_calls.length > 0) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get count of tool calls in message
+   */
+  private getToolCallsCount(message: BaseMessage): number {
+    const additionalKwargs = (message as any).additional_kwargs || {};
+    const responseMetadata = (message as any).response_metadata || {};
+
+    // Count tool_calls array
+    if (additionalKwargs.tool_calls && Array.isArray(additionalKwargs.tool_calls)) {
+      return additionalKwargs.tool_calls.length;
+    }
+
+    // Count function_call (legacy - counts as 1)
+    if (additionalKwargs.function_call) {
+      return 1;
+    }
+
+    // Count Anthropic format tool_calls
+    if (responseMetadata.tool_calls && Array.isArray(responseMetadata.tool_calls)) {
+      return responseMetadata.tool_calls.length;
+    }
+
+    return 0;
+  }
+
+  /**
    * Simple quality validation fallback (when @cascadeflow/core not available)
    */
   private simpleQualityCheck(responseText: string): { passed: boolean; confidence: number; score: number; reason: string } {
@@ -144,7 +195,42 @@ class CascadeChatModel extends BaseChatModel {
 
       this.drafterCount++;
 
-      // Step 2: Quality check using CascadeFlow validator (or simple fallback)
+      // Step 2: Check if response contains tool calls
+      // Tool calls skip quality validation and pass through directly
+      const hasToolCalls = this.hasToolCalls(drafterMessage);
+
+      if (hasToolCalls) {
+        const toolCallsCount = this.getToolCallsCount(drafterMessage);
+        const toolLog = `   🔧 Tool calls detected (${toolCallsCount}) - bypassing quality check\n`;
+        await runManager?.handleText(toolLog);
+        console.log(toolLog);
+
+        const flowLog = `\n┌──────────────────────────────────────────┐\n│  🔧 FLOW: TOOL CALLS (DIRECT PASS)      │\n└──────────────────────────────────────────┘\n   Query → Drafter → Tool Calls (${toolCallsCount}) → Response\n   ⚡ Tool calling: Drafter generated tool calls\n   Model used: ${drafterInfo}\n   Latency: ${drafterLatency}ms\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+
+        await runManager?.handleText(flowLog);
+        console.log(flowLog);
+
+        // Add tool call metadata
+        if (!drafterMessage.response_metadata) {
+          (drafterMessage as any).response_metadata = {};
+        }
+        (drafterMessage as any).response_metadata.cascadeflow = {
+          flow: 'tool_calls_direct',
+          has_tool_calls: true,
+          tool_calls_count: toolCallsCount,
+          latency_ms: drafterLatency,
+          model_used: 'drafter'
+        };
+
+        return {
+          generations: [{
+            text: drafterMessage.content.toString(),
+            message: drafterMessage,
+          }],
+        };
+      }
+
+      // Step 3: Quality check using CascadeFlow validator (or simple fallback)
       const responseText = drafterMessage.content.toString();
 
       let validationResult: any;
@@ -177,7 +263,7 @@ class CascadeChatModel extends BaseChatModel {
         console.log(simpleLog);
       }
 
-      // Step 3: If quality is sufficient, return drafter response
+      // Step 4: If quality is sufficient, return drafter response
       if (validationResult.passed) {
         // Estimate cost savings
         const estimatedDrafterCost = 0.0001; // $0.0001 per request (rough estimate)
@@ -210,7 +296,7 @@ class CascadeChatModel extends BaseChatModel {
         };
       }
 
-      // Step 4: Otherwise, escalate to verifier
+      // Step 5: Otherwise, escalate to verifier
       const escalateLog = `\n┌────────────────────────────────────────────────┐\n│  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │\n└────────────────────────────────────────────────┘\n   Query → Drafter → Quality Check ❌ → Verifier → Response\n   🔄 Escalating: Drafter quality too low, using verifier\n   Confidence: ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold} (threshold)\n   Reason: ${validationResult.reason}\n   Drafter latency: ${drafterLatency}ms\n   🔄 Loading verifier model...\n`;
 
       await runManager?.handleText(escalateLog);
