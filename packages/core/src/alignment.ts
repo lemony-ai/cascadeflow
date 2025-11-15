@@ -248,7 +248,7 @@ export class QueryResponseAlignmentScorer {
     const words = text.toLowerCase().split(/\s+/);
     const keywords = new Set<string>();
 
-    for (let w of words) {
+    for (const w of words) {
       // Strip common punctuation from edges only (keeps internal like 2+2, A.I.)
       const wClean = w.replace(/^[.,!?;:"'()[\]{}]+|[.,!?;:"'()[\]{}]+$/g, '');
 

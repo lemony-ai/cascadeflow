@@ -97,12 +97,14 @@ async function main() {
       provider: 'openai',
       cost: 0.00015,
       apiKey: process.env.OPENAI_API_KEY,
+      supportsTools: true,
     },
     {
       name: 'gpt-4o',
       provider: 'openai',
       cost: 0.00625,
       apiKey: process.env.OPENAI_API_KEY,
+      supportsTools: true,
     },
   ];
 

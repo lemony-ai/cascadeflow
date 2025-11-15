@@ -28,7 +28,7 @@
  * Zero configuration required - cascadeflow auto-detects capabilities!
  */
 
-import { CascadeAgent } from '../../src';
+import { CascadeAgent } from '../../src/index.js';
 
 async function reasoningModelsExample() {
   // Example 1: o4-mini (latest fast reasoning model)
