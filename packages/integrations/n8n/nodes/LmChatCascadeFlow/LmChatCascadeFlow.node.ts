@@ -10,7 +10,7 @@ import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
-import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
+import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 
 // Quality validation - optional import, fallback if unavailable
 let QualityValidator: any;
@@ -374,6 +374,110 @@ class CascadeChatModel extends BaseChatModel {
           message: verifierMessage,
         }],
       };
+    }
+  }
+
+  /**
+   * Streaming implementation for real-time cascade feedback
+   * Streams drafter response, then quality checks, then optionally streams verifier
+   */
+  async *_streamResponseChunks(
+    messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+    runManager?: CallbackManagerForLLMRun
+  ): AsyncGenerator<ChatGenerationChunk> {
+    try {
+      // Step 1: Stream drafter response
+      const drafterInfo = this.getModelInfo(this.drafterModel);
+      await runManager?.handleText(`🎯 CascadeFlow (Streaming): Trying drafter model: ${drafterInfo}\n`);
+      console.log(`🎯 CascadeFlow (Streaming): Trying drafter model: ${drafterInfo}`);
+
+      const drafterStartTime = Date.now();
+      let fullDrafterContent = '';
+      let lastChunk: ChatGenerationChunk | null = null;
+
+      // Stream all drafter chunks to user in real-time
+      const drafterStream = await this.drafterModel.stream(messages, options);
+
+      for await (const chunk of drafterStream) {
+        fullDrafterContent += chunk.content;
+        lastChunk = chunk;
+        yield chunk; // Stream to user immediately
+      }
+
+      const drafterLatency = Date.now() - drafterStartTime;
+      this.drafterCount++;
+
+      // Step 2: Check for tool calls (after streaming complete)
+      if (lastChunk && this.hasToolCalls(lastChunk.message)) {
+        const toolCallsCount = this.getToolCallsCount(lastChunk.message);
+        const toolLog = `\n🔧 Tool calls detected (${toolCallsCount}) - cascade complete\n`;
+        await runManager?.handleText(toolLog);
+        console.log(toolLog);
+        return; // Done streaming
+      }
+
+      // Step 3: Quality check (after streaming complete)
+      const queryText = messages.map(m => m.content.toString()).join(' ');
+
+      await runManager?.handleText(`\n📊 Running quality check...\n`);
+
+      let validationResult: any;
+      if (this.qualityValidator) {
+        try {
+          validationResult = await this.qualityValidator.validate(fullDrafterContent, queryText);
+          await runManager?.handleText(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n`);
+        } catch (e) {
+          validationResult = this.simpleQualityCheck(fullDrafterContent);
+        }
+      } else {
+        validationResult = this.simpleQualityCheck(fullDrafterContent);
+      }
+
+      // Step 4: If quality sufficient, we're done
+      if (validationResult.passed) {
+        await runManager?.handleText(`✅ Quality check passed - cascade complete (drafter accepted)\n`);
+        console.log(`✅ Streaming: Drafter accepted (${drafterLatency}ms)`);
+        return; // Done streaming
+      }
+
+      // Step 5: Quality insufficient - escalate to verifier and stream its response
+      await runManager?.handleText(`\n⚠️  Quality check failed - escalating to verifier...\n`);
+      console.log(`⚠️  Streaming: Escalating to verifier (confidence ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold})`);
+
+      const verifierModel = await this.getVerifierModel();
+      const verifierInfo = this.getModelInfo(verifierModel);
+
+      await runManager?.handleText(`🔄 Streaming verifier response from ${verifierInfo}...\n`);
+
+      const verifierStartTime = Date.now();
+      const verifierStream = await verifierModel.stream(messages, options);
+
+      this.verifierCount++;
+
+      // Stream verifier response
+      for await (const chunk of verifierStream) {
+        yield chunk;
+      }
+
+      const verifierLatency = Date.now() - verifierStartTime;
+      await runManager?.handleText(`\n✅ Verifier streaming complete (${verifierLatency}ms)\n`);
+      console.log(`✅ Streaming: Verifier complete (${verifierLatency}ms)`);
+
+    } catch (error) {
+      // Fallback to verifier on error
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await runManager?.handleText(`\n❌ Drafter error - falling back to verifier: ${errorMsg}\n`);
+      console.log(`❌ Streaming: Drafter error, using verifier fallback`);
+
+      const verifierModel = await this.getVerifierModel();
+      const verifierStream = await verifierModel.stream(messages, options);
+
+      this.verifierCount++;
+
+      for await (const chunk of verifierStream) {
+        yield chunk;
+      }
     }
   }
 }
