@@ -56,6 +56,6 @@
   },
   "dependencies": {
     "@langchain/core": "^0.3.0",
-    "@cascadeflow/core": "^5.0.3"
+    "@cascadeflow/core": "^0.5.0"
   }
 }

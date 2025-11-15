@@ -10,18 +10,24 @@ import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
-import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
+import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 
-// Quality validation - optional import, fallback if unavailable
+// Quality validation, cost tracking, and routing - optional import, fallback if unavailable
 let QualityValidator: any;
 let CASCADE_QUALITY_CONFIG: any;
+let CostCalculator: any;
+let ComplexityDetector: any;
+let PreRouter: any;
 try {
   const cascadeCore = require('@cascadeflow/core');
   QualityValidator = cascadeCore.QualityValidator;
   CASCADE_QUALITY_CONFIG = cascadeCore.CASCADE_QUALITY_CONFIG;
+  CostCalculator = cascadeCore.CostCalculator;
+  ComplexityDetector = cascadeCore.ComplexityDetector;
+  PreRouter = cascadeCore.PreRouter;
 } catch (e) {
-  // @cascadeflow/core not available - use simple validation
-  console.warn('⚠️  @cascadeflow/core not available, using simple quality check');
+  // @cascadeflow/core not available - use simple validation and estimates
+  console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
 }
 
 /**
@@ -45,30 +51,82 @@ class CascadeChatModel extends BaseChatModel {
   // Quality validator with CASCADE config (optional)
   private qualityValidator: any;
 
+  // Cost calculator for accurate token-based cost tracking
+  private costCalculator: any;
+
+  // Complexity detector for intelligent routing
+  private complexityDetector: any;
+
+  // PreRouter for complexity-based direct routing
+  private preRouter: any;
+
   constructor(
     drafterModel: BaseChatModel,
     verifierModelGetter: () => Promise<BaseChatModel>,
-    qualityThreshold: number = 0.7
+    qualityThreshold: number = 0.7,
+    useSemanticValidation: boolean = true,
+    useAlignmentScoring: boolean = true,
+    useComplexityRouting: boolean = true
   ) {
     super({});
     this.drafterModel = drafterModel;
     this.verifierModelGetter = verifierModelGetter;
     this.qualityThreshold = qualityThreshold;
 
-    // Initialize quality validator with CASCADE-optimized config (if available)
+    // Initialize quality validator with CASCADE-optimized config + semantic validation
     if (QualityValidator && CASCADE_QUALITY_CONFIG) {
       try {
         this.qualityValidator = new QualityValidator({
           ...CASCADE_QUALITY_CONFIG,
           minConfidence: qualityThreshold,
+          useSemanticValidation,    // Enable semantic ML-based validation
+          useAlignmentScoring,       // Enable query-response alignment scoring
+          semanticThreshold: 0.5,    // Semantic similarity threshold
         });
         console.log('✅ CascadeFlow quality validator initialized');
+        if (useSemanticValidation) {
+          console.log('   📊 Semantic validation enabled (requires @cascadeflow/ml)');
+        }
+        if (useAlignmentScoring) {
+          console.log('   🎯 Alignment scoring enabled');
+        }
       } catch (e) {
         console.warn('⚠️  Quality validator initialization failed, using simple check');
         this.qualityValidator = null;
       }
     } else {
       this.qualityValidator = null;
+    }
+
+    // Initialize cost calculator if available
+    if (CostCalculator) {
+      try {
+        this.costCalculator = new CostCalculator();
+        console.log('💰 CascadeFlow cost calculator initialized');
+      } catch (e) {
+        console.warn('⚠️  Cost calculator initialization failed, using estimates');
+        this.costCalculator = null;
+      }
+    } else {
+      this.costCalculator = null;
+    }
+
+    // Initialize complexity detector and PreRouter if enabled
+    if (useComplexityRouting && ComplexityDetector && PreRouter) {
+      try {
+        this.complexityDetector = new ComplexityDetector();
+        // Note: PreRouter needs model configs, but we only have 2 models in n8n (drafter/verifier)
+        // We'll use complexity detection to decide: trivial/simple → drafter, hard/expert → direct verifier
+        this.preRouter = null; // Not using full PreRouter since we only have 2 models
+        console.log('🧠 CascadeFlow complexity-based routing enabled');
+      } catch (e) {
+        console.warn('⚠️  Complexity detector initialization failed');
+        this.complexityDetector = null;
+        this.preRouter = null;
+      }
+    } else {
+      this.complexityDetector = null;
+      this.preRouter = null;
     }
   }
 
@@ -89,6 +147,117 @@ class CascadeChatModel extends BaseChatModel {
     const type = typeof model._llmType === 'function' ? model._llmType() : 'unknown';
     const modelName = (model as any).modelName || (model as any).model || 'unknown';
     return `${type} (${modelName})`;
+  }
+
+  /**
+   * Check if message contains tool calls
+   * Tool calls can be in additional_kwargs.tool_calls or additional_kwargs.function_call
+   */
+  private hasToolCalls(message: BaseMessage): boolean {
+    const additionalKwargs = (message as any).additional_kwargs || {};
+
+    // Check for tool_calls array (OpenAI format)
+    if (additionalKwargs.tool_calls && Array.isArray(additionalKwargs.tool_calls) && additionalKwargs.tool_calls.length > 0) {
+      return true;
+    }
+
+    // Check for function_call object (legacy format)
+    if (additionalKwargs.function_call && typeof additionalKwargs.function_call === 'object') {
+      return true;
+    }
+
+    // Check for tool_calls in response_metadata (Anthropic format)
+    const responseMetadata = (message as any).response_metadata || {};
+    if (responseMetadata.tool_calls && Array.isArray(responseMetadata.tool_calls) && responseMetadata.tool_calls.length > 0) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get count of tool calls in message
+   */
+  private getToolCallsCount(message: BaseMessage): number {
+    const additionalKwargs = (message as any).additional_kwargs || {};
+    const responseMetadata = (message as any).response_metadata || {};
+
+    // Count tool_calls array
+    if (additionalKwargs.tool_calls && Array.isArray(additionalKwargs.tool_calls)) {
+      return additionalKwargs.tool_calls.length;
+    }
+
+    // Count function_call (legacy - counts as 1)
+    if (additionalKwargs.function_call) {
+      return 1;
+    }
+
+    // Count Anthropic format tool_calls
+    if (responseMetadata.tool_calls && Array.isArray(responseMetadata.tool_calls)) {
+      return responseMetadata.tool_calls.length;
+    }
+
+    return 0;
+  }
+
+  /**
+   * Calculate accurate cost from message token usage
+   * Falls back to rough estimates if cost calculator unavailable
+   */
+  private async calculateMessageCost(
+    message: BaseMessage,
+    model: BaseChatModel
+  ): Promise<number> {
+    // Extract token usage from response metadata
+    const responseMetadata = (message as any).response_metadata || {};
+    const tokenUsage = responseMetadata.tokenUsage || responseMetadata.usage || {};
+
+    const inputTokens = tokenUsage.promptTokens || tokenUsage.prompt_tokens || 0;
+    const outputTokens = tokenUsage.completionTokens || tokenUsage.completion_tokens || 0;
+
+    // Get model name
+    const modelName = (model as any).modelName || (model as any).model || 'unknown';
+
+    // Use cost calculator if available
+    if (this.costCalculator && inputTokens > 0) {
+      try {
+        const cost = await this.costCalculator.calculateCost({
+          model: modelName,
+          inputTokens,
+          outputTokens,
+        });
+        return cost;
+      } catch (e) {
+        console.warn(`Cost calculation failed for ${modelName}, using estimate`);
+      }
+    }
+
+    // Fallback to rough estimates based on model name
+    const estimatesPerMillion: Record<string, { input: number; output: number }> = {
+      'gpt-4o-mini': { input: 0.15, output: 0.6 },
+      'gpt-4o': { input: 5.0, output: 15.0 },
+      'gpt-4-turbo': { input: 10.0, output: 30.0 },
+      'gpt-4': { input: 30.0, output: 60.0 },
+      'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
+      'claude-3-5-sonnet': { input: 3.0, output: 15.0 },
+      'claude-3-haiku': { input: 0.25, output: 1.25 },
+      default: { input: 1.0, output: 2.0 },
+    };
+
+    // Find matching estimate
+    let estimate = estimatesPerMillion.default;
+    for (const [key, value] of Object.entries(estimatesPerMillion)) {
+      if (modelName.includes(key)) {
+        estimate = value;
+        break;
+      }
+    }
+
+    const cost =
+      (inputTokens / 1_000_000) * estimate.input +
+      (outputTokens / 1_000_000) * estimate.output;
+
+    return cost;
   }
 
   /**
@@ -134,7 +303,71 @@ class CascadeChatModel extends BaseChatModel {
     runManager?: CallbackManagerForLLMRun
   ): Promise<ChatResult> {
     try {
-      // Step 1: Try the drafter model
+      // Step 1: Detect query complexity (if enabled)
+      const queryText = messages.map(m => m.content.toString()).join(' ');
+      let complexity: string | undefined;
+      let shouldSkipDrafter = false;
+
+      if (this.complexityDetector) {
+        try {
+          const complexityResult = await this.complexityDetector.detectComplexity(queryText);
+          complexity = complexityResult.level;
+
+          // Skip drafter for hard/expert queries - go directly to verifier
+          if (complexity === 'hard' || complexity === 'expert') {
+            shouldSkipDrafter = true;
+            await runManager?.handleText(`🧠 Complexity: ${complexity} → Routing directly to verifier (skip drafter)\n`);
+            console.log(`🧠 Complexity: ${complexity} → Direct verifier route`);
+          } else {
+            await runManager?.handleText(`🧠 Complexity: ${complexity} → Trying drafter first\n`);
+            console.log(`🧠 Complexity: ${complexity} → Drafter route`);
+          }
+        } catch (e) {
+          console.warn('Complexity detection failed, using normal flow');
+        }
+      }
+
+      // Step 1a: If complexity routing says skip drafter, go directly to verifier
+      if (shouldSkipDrafter) {
+        const verifierModel = await this.getVerifierModel();
+        const verifierInfo = this.getModelInfo(verifierModel);
+
+        await runManager?.handleText(`⚡ Direct route: Using verifier for ${complexity} query\n`);
+
+        const verifierStartTime = Date.now();
+        const verifierMessage = await verifierModel.invoke(messages, options);
+        const verifierLatency = Date.now() - verifierStartTime;
+
+        this.verifierCount++;
+
+        const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+
+        const flowLog = `\n┌────────────────────────────────────────────┐\n│  ⚡ FLOW: DIRECT VERIFIER (SMART ROUTE)  │\n└────────────────────────────────────────────┘\n   Query → Complexity Check (${complexity}) → Verifier → Response\n   🧠 Smart routing: Skipped drafter for complex query\n   Model used: ${verifierInfo}\n   Latency: ${verifierLatency}ms\n   💰 Cost: $${verifierCost.toFixed(6)}\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+
+        await runManager?.handleText(flowLog);
+        console.log(flowLog);
+
+        if (!verifierMessage.response_metadata) {
+          (verifierMessage as any).response_metadata = {};
+        }
+        (verifierMessage as any).response_metadata.cascadeflow = {
+          flow: 'direct_verifier',
+          complexity,
+          latency_ms: verifierLatency,
+          cost_usd: verifierCost,
+          model_used: 'verifier',
+          reason: `Query complexity (${complexity}) warranted direct verifier routing`
+        };
+
+        return {
+          generations: [{
+            text: verifierMessage.content.toString(),
+            message: verifierMessage,
+          }],
+        };
+      }
+
+      // Step 2: Try the drafter model (normal flow)
       const drafterInfo = this.getModelInfo(this.drafterModel);
       await runManager?.handleText(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}\n`);
       console.log(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}`);
@@ -144,7 +377,42 @@ class CascadeChatModel extends BaseChatModel {
 
       this.drafterCount++;
 
-      // Step 2: Quality check using CascadeFlow validator (or simple fallback)
+      // Step 2: Check if response contains tool calls
+      // Tool calls skip quality validation and pass through directly
+      const hasToolCalls = this.hasToolCalls(drafterMessage);
+
+      if (hasToolCalls) {
+        const toolCallsCount = this.getToolCallsCount(drafterMessage);
+        const toolLog = `   🔧 Tool calls detected (${toolCallsCount}) - bypassing quality check\n`;
+        await runManager?.handleText(toolLog);
+        console.log(toolLog);
+
+        const flowLog = `\n┌──────────────────────────────────────────┐\n│  🔧 FLOW: TOOL CALLS (DIRECT PASS)      │\n└──────────────────────────────────────────┘\n   Query → Drafter → Tool Calls (${toolCallsCount}) → Response\n   ⚡ Tool calling: Drafter generated tool calls\n   Model used: ${drafterInfo}\n   Latency: ${drafterLatency}ms\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+
+        await runManager?.handleText(flowLog);
+        console.log(flowLog);
+
+        // Add tool call metadata
+        if (!drafterMessage.response_metadata) {
+          (drafterMessage as any).response_metadata = {};
+        }
+        (drafterMessage as any).response_metadata.cascadeflow = {
+          flow: 'tool_calls_direct',
+          has_tool_calls: true,
+          tool_calls_count: toolCallsCount,
+          latency_ms: drafterLatency,
+          model_used: 'drafter'
+        };
+
+        return {
+          generations: [{
+            text: drafterMessage.content.toString(),
+            message: drafterMessage,
+          }],
+        };
+      }
+
+      // Step 3: Quality check using CascadeFlow validator (or simple fallback)
       const responseText = drafterMessage.content.toString();
 
       let validationResult: any;
@@ -177,14 +445,12 @@ class CascadeChatModel extends BaseChatModel {
         console.log(simpleLog);
       }
 
-      // Step 3: If quality is sufficient, return drafter response
+      // Step 4: If quality is sufficient, return drafter response
       if (validationResult.passed) {
-        // Estimate cost savings
-        const estimatedDrafterCost = 0.0001; // $0.0001 per request (rough estimate)
-        const estimatedVerifierCost = 0.0016; // $0.0016 per request (rough estimate)
-        const savings = ((estimatedVerifierCost - estimatedDrafterCost) / estimatedVerifierCost * 100).toFixed(1);
+        // Calculate actual cost
+        const drafterCost = await this.calculateMessageCost(drafterMessage, this.drafterModel);
 
-        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Model used: ${drafterInfo}\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost savings: ~${savings}% (used cheap model)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Model used: ${drafterInfo}\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost: $${drafterCost.toFixed(6)} (drafter only)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
 
         await runManager?.handleText(flowLog);
         console.log(flowLog);
@@ -198,7 +464,7 @@ class CascadeChatModel extends BaseChatModel {
           confidence: validationResult.confidence,
           quality_score: validationResult.score,
           latency_ms: drafterLatency,
-          cost_savings_percent: parseFloat(savings),
+          cost_usd: drafterCost,
           model_used: 'drafter'
         };
 
@@ -210,7 +476,7 @@ class CascadeChatModel extends BaseChatModel {
         };
       }
 
-      // Step 4: Otherwise, escalate to verifier
+      // Step 5: Otherwise, escalate to verifier
       const escalateLog = `\n┌────────────────────────────────────────────────┐\n│  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │\n└────────────────────────────────────────────────┘\n   Query → Drafter → Quality Check ❌ → Verifier → Response\n   🔄 Escalating: Drafter quality too low, using verifier\n   Confidence: ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold} (threshold)\n   Reason: ${validationResult.reason}\n   Drafter latency: ${drafterLatency}ms\n   🔄 Loading verifier model...\n`;
 
       await runManager?.handleText(escalateLog);
@@ -224,10 +490,14 @@ class CascadeChatModel extends BaseChatModel {
 
       this.verifierCount++;
 
+      // Calculate costs
+      const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+      const totalCost = verifierCost; // Drafter cost is wasted in this path
+
       const totalLatency = drafterLatency + verifierLatency;
       const acceptanceRate = (this.drafterCount / (this.drafterCount + this.verifierCount) * 100).toFixed(1);
 
-      const completionLog = `   ✅ Verifier completed successfully\n   Model used: ${verifierInfo}\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: Full verifier cost (0% savings this request)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
+      const completionLog = `   ✅ Verifier completed successfully\n   Model used: ${verifierInfo}\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: $${totalCost.toFixed(6)} (verifier only, drafter attempt wasted)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
 
       await runManager?.handleText(completionLog);
       console.log(completionLog);
@@ -242,7 +512,7 @@ class CascadeChatModel extends BaseChatModel {
         drafter_latency_ms: drafterLatency,
         verifier_latency_ms: verifierLatency,
         total_latency_ms: totalLatency,
-        cost_savings_percent: 0,
+        cost_usd: totalCost,
         model_used: 'verifier',
         reason: validationResult.reason
       };
@@ -288,6 +558,123 @@ class CascadeChatModel extends BaseChatModel {
           message: verifierMessage,
         }],
       };
+    }
+  }
+
+  /**
+   * Streaming implementation for real-time cascade feedback
+   * Streams drafter response, then quality checks, then optionally streams verifier
+   */
+  async *_streamResponseChunks(
+    messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+    runManager?: CallbackManagerForLLMRun
+  ): AsyncGenerator<ChatGenerationChunk> {
+    try {
+      // Step 1: Stream drafter response
+      const drafterInfo = this.getModelInfo(this.drafterModel);
+      await runManager?.handleText(`🎯 CascadeFlow (Streaming): Trying drafter model: ${drafterInfo}\n`);
+      console.log(`🎯 CascadeFlow (Streaming): Trying drafter model: ${drafterInfo}`);
+
+      const drafterStartTime = Date.now();
+      let fullDrafterContent = '';
+      let lastChunk: ChatGenerationChunk | null = null;
+
+      // Stream all drafter chunks to user in real-time
+      const drafterStream = await this.drafterModel.stream(messages, options);
+
+      for await (const chunk of drafterStream) {
+        fullDrafterContent += chunk.content;
+        // Convert AIMessageChunk to ChatGenerationChunk
+        const generationChunk = new ChatGenerationChunk({
+          text: chunk.content.toString(),
+          message: chunk,
+        });
+        lastChunk = generationChunk;
+        yield generationChunk; // Stream to user immediately
+      }
+
+      const drafterLatency = Date.now() - drafterStartTime;
+      this.drafterCount++;
+
+      // Step 2: Check for tool calls (after streaming complete)
+      if (lastChunk && this.hasToolCalls(lastChunk.message)) {
+        const toolCallsCount = this.getToolCallsCount(lastChunk.message);
+        const toolLog = `\n🔧 Tool calls detected (${toolCallsCount}) - cascade complete\n`;
+        await runManager?.handleText(toolLog);
+        console.log(toolLog);
+        return; // Done streaming
+      }
+
+      // Step 3: Quality check (after streaming complete)
+      const queryText = messages.map(m => m.content.toString()).join(' ');
+
+      await runManager?.handleText(`\n📊 Running quality check...\n`);
+
+      let validationResult: any;
+      if (this.qualityValidator) {
+        try {
+          validationResult = await this.qualityValidator.validate(fullDrafterContent, queryText);
+          await runManager?.handleText(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n`);
+        } catch (e) {
+          validationResult = this.simpleQualityCheck(fullDrafterContent);
+        }
+      } else {
+        validationResult = this.simpleQualityCheck(fullDrafterContent);
+      }
+
+      // Step 4: If quality sufficient, we're done
+      if (validationResult.passed) {
+        await runManager?.handleText(`✅ Quality check passed - cascade complete (drafter accepted)\n`);
+        console.log(`✅ Streaming: Drafter accepted (${drafterLatency}ms)`);
+        return; // Done streaming
+      }
+
+      // Step 5: Quality insufficient - escalate to verifier and stream its response
+      await runManager?.handleText(`\n⚠️  Quality check failed - escalating to verifier...\n`);
+      console.log(`⚠️  Streaming: Escalating to verifier (confidence ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold})`);
+
+      const verifierModel = await this.getVerifierModel();
+      const verifierInfo = this.getModelInfo(verifierModel);
+
+      await runManager?.handleText(`🔄 Streaming verifier response from ${verifierInfo}...\n`);
+
+      const verifierStartTime = Date.now();
+      const verifierStream = await verifierModel.stream(messages, options);
+
+      this.verifierCount++;
+
+      // Stream verifier response
+      for await (const chunk of verifierStream) {
+        // Convert AIMessageChunk to ChatGenerationChunk
+        yield new ChatGenerationChunk({
+          text: chunk.content.toString(),
+          message: chunk,
+        });
+      }
+
+      const verifierLatency = Date.now() - verifierStartTime;
+      await runManager?.handleText(`\n✅ Verifier streaming complete (${verifierLatency}ms)\n`);
+      console.log(`✅ Streaming: Verifier complete (${verifierLatency}ms)`);
+
+    } catch (error) {
+      // Fallback to verifier on error
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await runManager?.handleText(`\n❌ Drafter error - falling back to verifier: ${errorMsg}\n`);
+      console.log(`❌ Streaming: Drafter error, using verifier fallback`);
+
+      const verifierModel = await this.getVerifierModel();
+      const verifierStream = await verifierModel.stream(messages, options);
+
+      this.verifierCount++;
+
+      for await (const chunk of verifierStream) {
+        // Convert AIMessageChunk to ChatGenerationChunk
+        yield new ChatGenerationChunk({
+          text: chunk.content.toString(),
+          message: chunk,
+        });
+      }
     }
   }
 }
@@ -352,12 +739,36 @@ export class LmChatCascadeFlow implements INodeType {
         },
         description: 'Minimum quality score (0-1) to accept drafter response. Lower = more cost savings, higher = better quality.',
       },
+      {
+        displayName: 'Enable Semantic Validation',
+        name: 'useSemanticValidation',
+        type: 'boolean',
+        default: true,
+        description: 'Use ML-based semantic similarity checking for better quality validation. Requires @cascadeflow/ml package. Gracefully degrades if not available.',
+      },
+      {
+        displayName: 'Enable Alignment Scoring',
+        name: 'useAlignmentScoring',
+        type: 'boolean',
+        default: true,
+        description: 'Use query-response alignment scoring to validate that the response actually answers the question. Improves quality detection accuracy.',
+      },
+      {
+        displayName: 'Enable Complexity Routing',
+        name: 'useComplexityRouting',
+        type: 'boolean',
+        default: true,
+        description: 'Use AI-powered complexity detection to intelligently route queries. Hard/expert queries skip the drafter and go directly to the verifier for better quality and lower latency.',
+      },
     ],
   };
 
   async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
     // Get parameters
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.64) as number;
+    const useSemanticValidation = this.getNodeParameter('useSemanticValidation', 0, true) as boolean;
+    const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
+    const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
 
     // Get the drafter model immediately (at index 1 - bottom port, labeled "Drafter")
     const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
@@ -397,12 +808,18 @@ export class LmChatCascadeFlow implements INodeType {
     console.log(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: lazy-loaded (will fetch only if needed)`);
     console.log(`   └─ BOTTOM port (labeled "Drafter") → DRAFTER model: ${getDrafterInfo()}`);
     console.log(`   Quality threshold: ${qualityThreshold}`);
+    console.log(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
+    console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
+    console.log(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
 
-    // Create and return the cascade model with lazy verifier
+    // Create and return the cascade model with lazy verifier and advanced features
     const cascadeModel = new CascadeChatModel(
       drafterModel,
       verifierModelGetter,
-      qualityThreshold
+      qualityThreshold,
+      useSemanticValidation,
+      useAlignmentScoring,
+      useComplexityRouting
     );
 
     return {
