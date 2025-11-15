@@ -12,15 +12,19 @@ import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 
-// Quality validation and cost tracking - optional import, fallback if unavailable
+// Quality validation, cost tracking, and routing - optional import, fallback if unavailable
 let QualityValidator: any;
 let CASCADE_QUALITY_CONFIG: any;
 let CostCalculator: any;
+let ComplexityDetector: any;
+let PreRouter: any;
 try {
   const cascadeCore = require('@cascadeflow/core');
   QualityValidator = cascadeCore.QualityValidator;
   CASCADE_QUALITY_CONFIG = cascadeCore.CASCADE_QUALITY_CONFIG;
   CostCalculator = cascadeCore.CostCalculator;
+  ComplexityDetector = cascadeCore.ComplexityDetector;
+  PreRouter = cascadeCore.PreRouter;
 } catch (e) {
   // @cascadeflow/core not available - use simple validation and estimates
   console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
@@ -50,12 +54,19 @@ class CascadeChatModel extends BaseChatModel {
   // Cost calculator for accurate token-based cost tracking
   private costCalculator: any;
 
+  // Complexity detector for intelligent routing
+  private complexityDetector: any;
+
+  // PreRouter for complexity-based direct routing
+  private preRouter: any;
+
   constructor(
     drafterModel: BaseChatModel,
     verifierModelGetter: () => Promise<BaseChatModel>,
     qualityThreshold: number = 0.7,
     useSemanticValidation: boolean = true,
-    useAlignmentScoring: boolean = true
+    useAlignmentScoring: boolean = true,
+    useComplexityRouting: boolean = true
   ) {
     super({});
     this.drafterModel = drafterModel;
@@ -98,6 +109,24 @@ class CascadeChatModel extends BaseChatModel {
       }
     } else {
       this.costCalculator = null;
+    }
+
+    // Initialize complexity detector and PreRouter if enabled
+    if (useComplexityRouting && ComplexityDetector && PreRouter) {
+      try {
+        this.complexityDetector = new ComplexityDetector();
+        // Note: PreRouter needs model configs, but we only have 2 models in n8n (drafter/verifier)
+        // We'll use complexity detection to decide: trivial/simple → drafter, hard/expert → direct verifier
+        this.preRouter = null; // Not using full PreRouter since we only have 2 models
+        console.log('🧠 CascadeFlow complexity-based routing enabled');
+      } catch (e) {
+        console.warn('⚠️  Complexity detector initialization failed');
+        this.complexityDetector = null;
+        this.preRouter = null;
+      }
+    } else {
+      this.complexityDetector = null;
+      this.preRouter = null;
     }
   }
 
@@ -274,7 +303,71 @@ class CascadeChatModel extends BaseChatModel {
     runManager?: CallbackManagerForLLMRun
   ): Promise<ChatResult> {
     try {
-      // Step 1: Try the drafter model
+      // Step 1: Detect query complexity (if enabled)
+      const queryText = messages.map(m => m.content.toString()).join(' ');
+      let complexity: string | undefined;
+      let shouldSkipDrafter = false;
+
+      if (this.complexityDetector) {
+        try {
+          const complexityResult = await this.complexityDetector.detectComplexity(queryText);
+          complexity = complexityResult.level;
+
+          // Skip drafter for hard/expert queries - go directly to verifier
+          if (complexity === 'hard' || complexity === 'expert') {
+            shouldSkipDrafter = true;
+            await runManager?.handleText(`🧠 Complexity: ${complexity} → Routing directly to verifier (skip drafter)\n`);
+            console.log(`🧠 Complexity: ${complexity} → Direct verifier route`);
+          } else {
+            await runManager?.handleText(`🧠 Complexity: ${complexity} → Trying drafter first\n`);
+            console.log(`🧠 Complexity: ${complexity} → Drafter route`);
+          }
+        } catch (e) {
+          console.warn('Complexity detection failed, using normal flow');
+        }
+      }
+
+      // Step 1a: If complexity routing says skip drafter, go directly to verifier
+      if (shouldSkipDrafter) {
+        const verifierModel = await this.getVerifierModel();
+        const verifierInfo = this.getModelInfo(verifierModel);
+
+        await runManager?.handleText(`⚡ Direct route: Using verifier for ${complexity} query\n`);
+
+        const verifierStartTime = Date.now();
+        const verifierMessage = await verifierModel.invoke(messages, options);
+        const verifierLatency = Date.now() - verifierStartTime;
+
+        this.verifierCount++;
+
+        const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+
+        const flowLog = `\n┌────────────────────────────────────────────┐\n│  ⚡ FLOW: DIRECT VERIFIER (SMART ROUTE)  │\n└────────────────────────────────────────────┘\n   Query → Complexity Check (${complexity}) → Verifier → Response\n   🧠 Smart routing: Skipped drafter for complex query\n   Model used: ${verifierInfo}\n   Latency: ${verifierLatency}ms\n   💰 Cost: $${verifierCost.toFixed(6)}\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+
+        await runManager?.handleText(flowLog);
+        console.log(flowLog);
+
+        if (!verifierMessage.response_metadata) {
+          (verifierMessage as any).response_metadata = {};
+        }
+        (verifierMessage as any).response_metadata.cascadeflow = {
+          flow: 'direct_verifier',
+          complexity,
+          latency_ms: verifierLatency,
+          cost_usd: verifierCost,
+          model_used: 'verifier',
+          reason: `Query complexity (${complexity}) warranted direct verifier routing`
+        };
+
+        return {
+          generations: [{
+            text: verifierMessage.content.toString(),
+            message: verifierMessage,
+          }],
+        };
+      }
+
+      // Step 2: Try the drafter model (normal flow)
       const drafterInfo = this.getModelInfo(this.drafterModel);
       await runManager?.handleText(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}\n`);
       console.log(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}`);
@@ -647,6 +740,13 @@ export class LmChatCascadeFlow implements INodeType {
         default: true,
         description: 'Use query-response alignment scoring to validate that the response actually answers the question. Improves quality detection accuracy.',
       },
+      {
+        displayName: 'Enable Complexity Routing',
+        name: 'useComplexityRouting',
+        type: 'boolean',
+        default: true,
+        description: 'Use AI-powered complexity detection to intelligently route queries. Hard/expert queries skip the drafter and go directly to the verifier for better quality and lower latency.',
+      },
     ],
   };
 
@@ -655,6 +755,7 @@ export class LmChatCascadeFlow implements INodeType {
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.64) as number;
     const useSemanticValidation = this.getNodeParameter('useSemanticValidation', 0, true) as boolean;
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
+    const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
 
     // Get the drafter model immediately (at index 1 - bottom port, labeled "Drafter")
     const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
@@ -696,14 +797,16 @@ export class LmChatCascadeFlow implements INodeType {
     console.log(`   Quality threshold: ${qualityThreshold}`);
     console.log(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
     console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
+    console.log(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
 
-    // Create and return the cascade model with lazy verifier and advanced quality features
+    // Create and return the cascade model with lazy verifier and advanced features
     const cascadeModel = new CascadeChatModel(
       drafterModel,
       verifierModelGetter,
       qualityThreshold,
       useSemanticValidation,
-      useAlignmentScoring
+      useAlignmentScoring,
+      useComplexityRouting
     );
 
     return {
