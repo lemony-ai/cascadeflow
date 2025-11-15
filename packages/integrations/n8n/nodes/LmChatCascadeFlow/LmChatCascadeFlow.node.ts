@@ -48,21 +48,32 @@ class CascadeChatModel extends BaseChatModel {
   constructor(
     drafterModel: BaseChatModel,
     verifierModelGetter: () => Promise<BaseChatModel>,
-    qualityThreshold: number = 0.7
+    qualityThreshold: number = 0.7,
+    useSemanticValidation: boolean = true,
+    useAlignmentScoring: boolean = true
   ) {
     super({});
     this.drafterModel = drafterModel;
     this.verifierModelGetter = verifierModelGetter;
     this.qualityThreshold = qualityThreshold;
 
-    // Initialize quality validator with CASCADE-optimized config (if available)
+    // Initialize quality validator with CASCADE-optimized config + semantic validation
     if (QualityValidator && CASCADE_QUALITY_CONFIG) {
       try {
         this.qualityValidator = new QualityValidator({
           ...CASCADE_QUALITY_CONFIG,
           minConfidence: qualityThreshold,
+          useSemanticValidation,    // Enable semantic ML-based validation
+          useAlignmentScoring,       // Enable query-response alignment scoring
+          semanticThreshold: 0.5,    // Semantic similarity threshold
         });
         console.log('✅ CascadeFlow quality validator initialized');
+        if (useSemanticValidation) {
+          console.log('   📊 Semantic validation enabled (requires @cascadeflow/ml)');
+        }
+        if (useAlignmentScoring) {
+          console.log('   🎯 Alignment scoring enabled');
+        }
       } catch (e) {
         console.warn('⚠️  Quality validator initialization failed, using simple check');
         this.qualityValidator = null;
@@ -542,12 +553,28 @@ export class LmChatCascadeFlow implements INodeType {
         },
         description: 'Minimum quality score (0-1) to accept drafter response. Lower = more cost savings, higher = better quality.',
       },
+      {
+        displayName: 'Enable Semantic Validation',
+        name: 'useSemanticValidation',
+        type: 'boolean',
+        default: true,
+        description: 'Use ML-based semantic similarity checking for better quality validation. Requires @cascadeflow/ml package. Gracefully degrades if not available.',
+      },
+      {
+        displayName: 'Enable Alignment Scoring',
+        name: 'useAlignmentScoring',
+        type: 'boolean',
+        default: true,
+        description: 'Use query-response alignment scoring to validate that the response actually answers the question. Improves quality detection accuracy.',
+      },
     ],
   };
 
   async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
     // Get parameters
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.64) as number;
+    const useSemanticValidation = this.getNodeParameter('useSemanticValidation', 0, true) as boolean;
+    const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
 
     // Get the drafter model immediately (at index 1 - bottom port, labeled "Drafter")
     const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
@@ -587,12 +614,16 @@ export class LmChatCascadeFlow implements INodeType {
     console.log(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: lazy-loaded (will fetch only if needed)`);
     console.log(`   └─ BOTTOM port (labeled "Drafter") → DRAFTER model: ${getDrafterInfo()}`);
     console.log(`   Quality threshold: ${qualityThreshold}`);
+    console.log(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
+    console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
 
-    // Create and return the cascade model with lazy verifier
+    // Create and return the cascade model with lazy verifier and advanced quality features
     const cascadeModel = new CascadeChatModel(
       drafterModel,
       verifierModelGetter,
-      qualityThreshold
+      qualityThreshold,
+      useSemanticValidation,
+      useAlignmentScoring
     );
 
     return {
