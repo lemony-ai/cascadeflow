@@ -219,7 +219,6 @@ async function main() {
     ],
     quality: {
       threshold: 0.7,
-      enabled: true,
     },
   });
 
@@ -252,9 +251,9 @@ async function main() {
     )) {
       if (event.type === StreamEventType.CHUNK) {
         process.stdout.write(event.content);
-      } else if (event.type === StreamEventType.TOOL_CALL) {
+      } else if (event.data.tool_calls && event.data.tool_calls.length > 0) {
         toolCallsDetected++;
-        const toolData = event.data;
+        const toolData = event.data.tool_calls[0];
         console.log(`\n\n🔧 Tool Call #${toolCallsDetected}: ${toolData.name}`);
         console.log(`   Arguments: ${JSON.stringify(toolData.arguments, null, 2)}`);
 
@@ -264,9 +263,9 @@ async function main() {
         console.log(`   Result: ${JSON.stringify(result, null, 2)}\n`);
       } else if (event.type === StreamEventType.DRAFT_DECISION) {
         if (event.data.accepted) {
-          console.log(`\n✓ Draft accepted (confidence: ${(event.data.confidence * 100).toFixed(0)}%)`);
+          console.log(`\n✓ Draft accepted (confidence: ${((event.data.confidence ?? 0) * 100).toFixed(0)}%)`);
         } else {
-          console.log(`\n⤴️  Cascading to better model (confidence: ${(event.data.confidence * 100).toFixed(0)}%)`);
+          console.log(`\n⤴️  Cascading to better model (confidence: ${((event.data.confidence ?? 0) * 100).toFixed(0)}%)`);
         }
       } else if (event.type === StreamEventType.COMPLETE) {
         console.log(`\n\n💰 Cost: $${event.data.result.totalCost.toFixed(6)}`);
@@ -300,9 +299,9 @@ async function main() {
     )) {
       if (event.type === StreamEventType.CHUNK) {
         process.stdout.write(event.content);
-      } else if (event.type === StreamEventType.TOOL_CALL) {
+      } else if (event.data.tool_calls && event.data.tool_calls.length > 0) {
         toolCount++;
-        const toolData = event.data;
+        const toolData = event.data.tool_calls[0];
         const result = executeToolCall(toolData.name, toolData.arguments);
 
         console.log(`\n\n📈 Stock Data Retrieved:`);
@@ -339,8 +338,8 @@ async function main() {
     )) {
       if (event.type === StreamEventType.CHUNK) {
         process.stdout.write(event.content);
-      } else if (event.type === StreamEventType.TOOL_CALL) {
-        const toolData = event.data;
+      } else if (event.data.tool_calls && event.data.tool_calls.length > 0) {
+        const toolData = event.data.tool_calls[0];
         const result = executeToolCall(toolData.name, toolData.arguments);
         toolExecutions.push({ tool: toolData.name, result });
 
@@ -388,13 +387,13 @@ async function main() {
         tools: [calculatorTool],
       }
     )) {
-      if (event.type === StreamEventType.START) {
+      if (event.type === StreamEventType.ROUTING) {
         console.log('⏱️  Stream started...\n');
       } else if (event.type === StreamEventType.CHUNK) {
         chunkCount++;
         process.stdout.write(event.content);
-      } else if (event.type === StreamEventType.TOOL_CALL) {
-        const toolData = event.data;
+      } else if (event.data.tool_calls && event.data.tool_calls.length > 0) {
+        const toolData = event.data.tool_calls[0];
         const result = executeToolCall(toolData.name, toolData.arguments);
 
         console.log(`\n\n🧮 Calculation:`);
@@ -431,15 +430,15 @@ async function main() {
   console.log('   • Stream progress tracking');
   console.log('');
   console.log('🎯 Event Types Used:');
-  console.log('   • StreamEventType.START - Stream initialization');
+  console.log('   • StreamEventType.ROUTING - Stream initialization');
   console.log('   • StreamEventType.CHUNK - Token chunks');
-  console.log('   • StreamEventType.TOOL_CALL - Tool invocations');
+  console.log('   • event.data.tool_calls - Tool invocations');
   console.log('   • StreamEventType.DRAFT_DECISION - Quality checks');
   console.log('   • StreamEventType.SWITCH - Model cascades');
   console.log('   • StreamEventType.COMPLETE - Final results');
   console.log('');
   console.log('💡 Best Practices:');
-  console.log('   • Execute tools immediately on TOOL_CALL events');
+  console.log('   • Execute tools immediately when event.data.tool_calls is present');
   console.log('   • Display tool results progressively');
   console.log('   • Track stream metrics for UX');
   console.log('   • Handle errors gracefully');

@@ -279,7 +279,7 @@ app.post('/api/query', async (req: Request, res: Response<QueryResponse>) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: 'Validation error',
-        details: error.errors,
+        details: error.issues,
       } as any);
     }
 
@@ -363,7 +363,7 @@ app.get('/api/query/stream', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: 'Validation error',
-        details: error.errors,
+        details: error.issues,
       });
     }
 

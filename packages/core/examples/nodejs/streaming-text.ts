@@ -103,7 +103,7 @@ async function main() {
     else if (event.type === StreamEventType.DRAFT_DECISION) {
       if (event.data.accepted) {
         // Draft passed quality check - we're done!
-        const confidence = event.data.confidence;
+        const confidence = event.data.confidence ?? 0;
         console.log(`\n✓ Draft accepted (${(confidence * 100).toFixed(0)}% confidence)`);
         console.log('  → Verifier skipped (saved money!)');
       } else {
@@ -157,11 +157,11 @@ async function main() {
 
     else if (event.type === StreamEventType.DRAFT_DECISION) {
       if (event.data.accepted) {
-        const confidence = event.data.confidence;
+        const confidence = event.data.confidence ?? 0;
         console.log(`\n✓ Draft accepted (${(confidence * 100).toFixed(0)}%)`);
       } else {
         // Draft rejected - now we'll see the SWITCH event next
-        const confidence = event.data.confidence;
+        const confidence = event.data.confidence ?? 0;
         const reason = event.data.reason || 'quality_insufficient';
         console.log(`\n✗ Draft rejected (${(confidence * 100).toFixed(0)}%): ${reason}`);
       }

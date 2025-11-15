@@ -278,7 +278,6 @@ async function main() {
     ],
     quality: {
       threshold: 0.7,
-      enabled: true,
     },
   });
 

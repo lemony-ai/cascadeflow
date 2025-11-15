@@ -91,11 +91,11 @@ async function main() {
   }
 
   // Check usage stats
-  const stats = await limiter.getUsageStats(freeProfile.userId);
+  const stats = limiter.getUsageStats(freeProfile.userId, freeProfile);
   console.log('\nUsage stats:');
-  console.log(`  Hourly: ${stats.hourlyRequests}/${freeProfile.tier.requestsPerHour}`);
-  console.log(`  Daily: ${stats.dailyRequests}/${freeProfile.tier.requestsPerDay}`);
-  console.log(`  Cost: $${stats.dailyCost.toFixed(6)}/$${freeProfile.tier.dailyBudget}`);
+  console.log(`  Hourly: ${stats.hourly.used}/${freeProfile.tier.requestsPerHour}`);
+  console.log(`  Daily: ${stats.daily.used}/${freeProfile.tier.requestsPerDay}`);
+  console.log(`  Cost: $${stats.cost.used.toFixed(6)}/$${freeProfile.tier.dailyBudget}`);
 
   // ========================================================================
   // Example 2: Rate limit enforcement
@@ -196,8 +196,8 @@ async function main() {
     }
   }
 
-  const budgetStats = await limiter.getUsageStats(budgetProfile.userId);
-  console.log(`\nFinal stats: $${budgetStats.dailyCost.toFixed(6)}/$${budgetProfile.customDailyBudget}`);
+  const budgetStats = limiter.getUsageStats(budgetProfile.userId, budgetProfile);
+  console.log(`\nFinal stats: $${budgetStats.cost.used.toFixed(6)}/$${budgetProfile.customDailyBudget}`);
 
   // ========================================================================
   // Example 5: Reset and cleanup
@@ -206,15 +206,15 @@ async function main() {
   console.log('-'.repeat(60));
 
   // Get stats before reset
-  const beforeReset = await limiter.getUsageStats(freeProfile.userId);
-  console.log(`Before reset: ${beforeReset.hourlyRequests} hourly requests`);
+  const beforeReset = limiter.getUsageStats(freeProfile.userId, freeProfile);
+  console.log(`Before reset: ${beforeReset.hourly.used} hourly requests`);
 
   // Reset user's limits
   limiter.resetUser(freeProfile.userId);
 
   // Check stats after reset
-  const afterReset = await limiter.getUsageStats(freeProfile.userId);
-  console.log(`After reset:  ${afterReset.hourlyRequests} hourly requests`);
+  const afterReset = limiter.getUsageStats(freeProfile.userId, freeProfile);
+  console.log(`After reset:  ${afterReset.hourly.used} hourly requests`);
 
   // Cleanup
   limiter.destroy();
