@@ -228,7 +228,7 @@ describe('ToolRouter', () => {
           description: 'Test',
           parameters: { type: 'object' },
         },
-      } as Tool;
+      } as unknown as Tool;
 
       const validation = router.validateTools([invalidTool]);
 
@@ -242,9 +242,10 @@ describe('ToolRouter', () => {
         type: 'function',
         function: {
           name: 'test',
+          description: '', // Empty description to trigger warning
           parameters: { type: 'object', properties: {} },
         },
-      } as Tool;
+      };
 
       const validation = router.validateTools([toolWithoutDesc]);
 
@@ -273,7 +274,7 @@ describe('ToolRouter', () => {
     });
 
     it('should detect invalid parameters type', () => {
-      const invalidTool = {
+      const invalidTool: Tool = {
         type: 'function',
         function: {
           name: 'test',
@@ -341,8 +342,8 @@ describe('ToolRouter', () => {
 
     it('should handle multiple validation errors', () => {
       const invalidTools: Tool[] = [
-        { name: 'test1' } as Tool, // Missing parameters
-        { name: 'test2' } as Tool, // Missing parameters
+        { name: 'test1' } as unknown as Tool, // Missing parameters
+        { name: 'test2' } as unknown as Tool, // Missing parameters
       ];
 
       const validation = router.validateTools(invalidTools);
@@ -376,7 +377,7 @@ describe('ToolRouter', () => {
     it('should sort by tool quality and cost', () => {
       const modelWithQuality: ModelConfig = {
         name: 'high-quality',
-        provider: 'test',
+        provider: 'custom',
         cost: 0.05,
         supportsTools: true,
         toolQuality: 0.9,
@@ -551,7 +552,7 @@ describe('ToolRouter', () => {
     it('should handle models without supportsTools property', () => {
       const modelWithoutProp: ModelConfig = {
         name: 'test',
-        provider: 'test',
+        provider: 'custom',
         cost: 0.01,
       };
 
@@ -567,7 +568,7 @@ describe('ToolRouter', () => {
     });
 
     it('should handle null parameters in tool validation', () => {
-      const invalidTool = {
+      const invalidTool: Tool = {
         type: 'function',
         function: {
           name: 'test',
@@ -585,7 +586,7 @@ describe('ToolRouter', () => {
     it('should handle very large model arrays', () => {
       const manyModels: ModelConfig[] = Array.from({ length: 1000 }, (_, i) => ({
         name: `model-${i}`,
-        provider: 'test',
+        provider: 'custom',
         cost: 0.01,
         supportsTools: i % 2 === 0, // Half support tools
       }));

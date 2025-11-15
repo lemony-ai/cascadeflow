@@ -172,14 +172,9 @@ describe('CascadeAgent Integration Tests', () => {
         },
       ];
 
-      const profile = createUserProfile({
-        tier: TIER_PRESETS.free,
-      });
+      const profile = createUserProfile('FREE', 'test-user-1');
 
-      const agent = new CascadeAgent({
-        models,
-        profile,
-      });
+      const agent = CascadeAgent.fromProfile(profile);
 
       expect(agent).toBeInstanceOf(CascadeAgent);
     });
@@ -193,19 +188,10 @@ describe('CascadeAgent Integration Tests', () => {
         },
       ];
 
-      const profile = createUserProfile({
-        tier: {
-          name: 'free',
-          maxBudget: 0.001,
-          qualityThreshold: 0.5,
-        },
-      });
+      const profile = createUserProfile('FREE', 'test-user-2');
 
       // Create agent with profile
-      const agent = new CascadeAgent({
-        models,
-        profile,
-      });
+      const agent = CascadeAgent.fromProfile(profile);
 
       expect(agent).toBeInstanceOf(CascadeAgent);
     });
@@ -223,12 +209,9 @@ describe('CascadeAgent Integration Tests', () => {
 
       const agent = new CascadeAgent({
         models,
-        cascade: {
-          enabled: true,
-          qualityConfig: {
-            useProductionConfidence: true,
-            provider: 'openai',
-          },
+        quality: {
+          useProductionConfidence: true,
+          provider: 'openai',
         },
       });
 
@@ -286,12 +269,9 @@ describe('CascadeAgent Integration Tests', () => {
 
       const agent = new CascadeAgent({
         models,
-        cascade: {
-          enabled: true,
-          qualityConfig: {
-            minConfidence: 0.7,
-            minWordCount: 10,
-          },
+        quality: {
+          minConfidence: 0.7,
+          minWordCount: 10,
         },
       });
 
@@ -310,11 +290,8 @@ describe('CascadeAgent Integration Tests', () => {
       // Should not throw even with invalid config
       const agent = new CascadeAgent({
         models,
-        cascade: {
-          enabled: true,
-          qualityConfig: {
-            minConfidence: 1.5, // Invalid: > 1
-          },
+        quality: {
+          minConfidence: 1.5, // Invalid: > 1
         },
       });
 
