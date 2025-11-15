@@ -12,16 +12,18 @@ import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 
-// Quality validation - optional import, fallback if unavailable
+// Quality validation and cost tracking - optional import, fallback if unavailable
 let QualityValidator: any;
 let CASCADE_QUALITY_CONFIG: any;
+let CostCalculator: any;
 try {
   const cascadeCore = require('@cascadeflow/core');
   QualityValidator = cascadeCore.QualityValidator;
   CASCADE_QUALITY_CONFIG = cascadeCore.CASCADE_QUALITY_CONFIG;
+  CostCalculator = cascadeCore.CostCalculator;
 } catch (e) {
-  // @cascadeflow/core not available - use simple validation
-  console.warn('⚠️  @cascadeflow/core not available, using simple quality check');
+  // @cascadeflow/core not available - use simple validation and estimates
+  console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
 }
 
 /**
@@ -44,6 +46,9 @@ class CascadeChatModel extends BaseChatModel {
 
   // Quality validator with CASCADE config (optional)
   private qualityValidator: any;
+
+  // Cost calculator for accurate token-based cost tracking
+  private costCalculator: any;
 
   constructor(
     drafterModel: BaseChatModel,
@@ -80,6 +85,19 @@ class CascadeChatModel extends BaseChatModel {
       }
     } else {
       this.qualityValidator = null;
+    }
+
+    // Initialize cost calculator if available
+    if (CostCalculator) {
+      try {
+        this.costCalculator = new CostCalculator();
+        console.log('💰 CascadeFlow cost calculator initialized');
+      } catch (e) {
+        console.warn('⚠️  Cost calculator initialization failed, using estimates');
+        this.costCalculator = null;
+      }
+    } else {
+      this.costCalculator = null;
     }
   }
 
@@ -151,6 +169,66 @@ class CascadeChatModel extends BaseChatModel {
     }
 
     return 0;
+  }
+
+  /**
+   * Calculate accurate cost from message token usage
+   * Falls back to rough estimates if cost calculator unavailable
+   */
+  private async calculateMessageCost(
+    message: BaseMessage,
+    model: BaseChatModel
+  ): Promise<number> {
+    // Extract token usage from response metadata
+    const responseMetadata = (message as any).response_metadata || {};
+    const tokenUsage = responseMetadata.tokenUsage || responseMetadata.usage || {};
+
+    const inputTokens = tokenUsage.promptTokens || tokenUsage.prompt_tokens || 0;
+    const outputTokens = tokenUsage.completionTokens || tokenUsage.completion_tokens || 0;
+
+    // Get model name
+    const modelName = (model as any).modelName || (model as any).model || 'unknown';
+
+    // Use cost calculator if available
+    if (this.costCalculator && inputTokens > 0) {
+      try {
+        const cost = await this.costCalculator.calculateCost({
+          model: modelName,
+          inputTokens,
+          outputTokens,
+        });
+        return cost;
+      } catch (e) {
+        console.warn(`Cost calculation failed for ${modelName}, using estimate`);
+      }
+    }
+
+    // Fallback to rough estimates based on model name
+    const estimatesPerMillion: Record<string, { input: number; output: number }> = {
+      'gpt-4o-mini': { input: 0.15, output: 0.6 },
+      'gpt-4o': { input: 5.0, output: 15.0 },
+      'gpt-4-turbo': { input: 10.0, output: 30.0 },
+      'gpt-4': { input: 30.0, output: 60.0 },
+      'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
+      'claude-3-5-sonnet': { input: 3.0, output: 15.0 },
+      'claude-3-haiku': { input: 0.25, output: 1.25 },
+      default: { input: 1.0, output: 2.0 },
+    };
+
+    // Find matching estimate
+    let estimate = estimatesPerMillion.default;
+    for (const [key, value] of Object.entries(estimatesPerMillion)) {
+      if (modelName.includes(key)) {
+        estimate = value;
+        break;
+      }
+    }
+
+    const cost =
+      (inputTokens / 1_000_000) * estimate.input +
+      (outputTokens / 1_000_000) * estimate.output;
+
+    return cost;
   }
 
   /**
@@ -276,12 +354,10 @@ class CascadeChatModel extends BaseChatModel {
 
       // Step 4: If quality is sufficient, return drafter response
       if (validationResult.passed) {
-        // Estimate cost savings
-        const estimatedDrafterCost = 0.0001; // $0.0001 per request (rough estimate)
-        const estimatedVerifierCost = 0.0016; // $0.0016 per request (rough estimate)
-        const savings = ((estimatedVerifierCost - estimatedDrafterCost) / estimatedVerifierCost * 100).toFixed(1);
+        // Calculate actual cost
+        const drafterCost = await this.calculateMessageCost(drafterMessage, this.drafterModel);
 
-        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Model used: ${drafterInfo}\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost savings: ~${savings}% (used cheap model)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Model used: ${drafterInfo}\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost: $${drafterCost.toFixed(6)} (drafter only)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
 
         await runManager?.handleText(flowLog);
         console.log(flowLog);
@@ -295,7 +371,7 @@ class CascadeChatModel extends BaseChatModel {
           confidence: validationResult.confidence,
           quality_score: validationResult.score,
           latency_ms: drafterLatency,
-          cost_savings_percent: parseFloat(savings),
+          cost_usd: drafterCost,
           model_used: 'drafter'
         };
 
@@ -321,10 +397,14 @@ class CascadeChatModel extends BaseChatModel {
 
       this.verifierCount++;
 
+      // Calculate costs
+      const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+      const totalCost = verifierCost; // Drafter cost is wasted in this path
+
       const totalLatency = drafterLatency + verifierLatency;
       const acceptanceRate = (this.drafterCount / (this.drafterCount + this.verifierCount) * 100).toFixed(1);
 
-      const completionLog = `   ✅ Verifier completed successfully\n   Model used: ${verifierInfo}\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: Full verifier cost (0% savings this request)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
+      const completionLog = `   ✅ Verifier completed successfully\n   Model used: ${verifierInfo}\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: $${totalCost.toFixed(6)} (verifier only, drafter attempt wasted)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
 
       await runManager?.handleText(completionLog);
       console.log(completionLog);
@@ -339,7 +419,7 @@ class CascadeChatModel extends BaseChatModel {
         drafter_latency_ms: drafterLatency,
         verifier_latency_ms: verifierLatency,
         total_latency_ms: totalLatency,
-        cost_savings_percent: 0,
+        cost_usd: totalCost,
         model_used: 'verifier',
         reason: validationResult.reason
       };
