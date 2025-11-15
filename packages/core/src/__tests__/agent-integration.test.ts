@@ -19,6 +19,7 @@ import type { ModelConfig } from '../config';
 import { CallbackManager, CallbackEvent } from '../telemetry/callbacks';
 import { createUserProfile, TIER_PRESETS } from '../profiles';
 import { QualityValidator } from '../quality';
+import { getAvailableProviders } from '../providers/base';
 
 describe('CascadeAgent Integration Tests', () => {
   describe('Configuration and Initialization', () => {
@@ -158,43 +159,28 @@ describe('CascadeAgent Integration Tests', () => {
   });
 
   describe('Profile Integration', () => {
-    it('should create agent with user profile', () => {
-      const models: ModelConfig[] = [
-        {
-          name: 'gpt-4o-mini',
-          provider: 'openai',
-          cost: 0.00015,
-        },
-        {
-          name: 'gpt-4o',
-          provider: 'openai',
-          cost: 0.00625,
-        },
-      ];
+    it.skipIf(getAvailableProviders().length === 0)(
+      'should create agent with user profile',
+      () => {
+        const profile = createUserProfile('FREE', 'test-user-1');
 
-      const profile = createUserProfile('FREE', 'test-user-1');
+        const agent = CascadeAgent.fromProfile(profile);
 
-      const agent = CascadeAgent.fromProfile(profile);
+        expect(agent).toBeInstanceOf(CascadeAgent);
+      }
+    );
 
-      expect(agent).toBeInstanceOf(CascadeAgent);
-    });
+    it.skipIf(getAvailableProviders().length === 0)(
+      'should use profile tier restrictions',
+      () => {
+        const profile = createUserProfile('FREE', 'test-user-2');
 
-    it('should use profile tier restrictions', () => {
-      const models: ModelConfig[] = [
-        {
-          name: 'gpt-4o-mini',
-          provider: 'openai',
-          cost: 0.00015,
-        },
-      ];
+        // Create agent with profile
+        const agent = CascadeAgent.fromProfile(profile);
 
-      const profile = createUserProfile('FREE', 'test-user-2');
-
-      // Create agent with profile
-      const agent = CascadeAgent.fromProfile(profile);
-
-      expect(agent).toBeInstanceOf(CascadeAgent);
-    });
+        expect(agent).toBeInstanceOf(CascadeAgent);
+      }
+    );
   });
 
   describe('Quality Validation Integration', () => {
@@ -278,7 +264,7 @@ describe('CascadeAgent Integration Tests', () => {
       expect(agent).toBeInstanceOf(CascadeAgent);
     });
 
-    it('should handle invalid quality thresholds gracefully', () => {
+    it('should validate quality thresholds and reject invalid values', () => {
       const models: ModelConfig[] = [
         {
           name: 'gpt-4o-mini',
@@ -287,15 +273,15 @@ describe('CascadeAgent Integration Tests', () => {
         },
       ];
 
-      // Should not throw even with invalid config
-      const agent = new CascadeAgent({
-        models,
-        quality: {
-          minConfidence: 1.5, // Invalid: > 1
-        },
-      });
-
-      expect(agent).toBeInstanceOf(CascadeAgent);
+      // Should throw with invalid config (validation is working correctly)
+      expect(() => {
+        new CascadeAgent({
+          models,
+          quality: {
+            minConfidence: 1.5, // Invalid: > 1
+          },
+        });
+      }).toThrow('minConfidence must be between 0 and 1');
     });
   });
 
