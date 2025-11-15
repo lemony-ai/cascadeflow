@@ -33,6 +33,8 @@
 export { CascadeWrapper } from './wrapper.js';
 export type { CascadeConfig, CascadeResult, CostMetadata } from './types.js';
 export * from './utils.js';
+export { analyzeCascadePair, suggestCascadePairs } from './helpers.js';
+export type { CascadeAnalysis } from './helpers.js';
 
 import { CascadeWrapper } from './wrapper.js';
 import type { CascadeConfig } from './types.js';

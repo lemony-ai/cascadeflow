@@ -363,11 +363,15 @@ describe('CascadeWrapper', () => {
       const messages = [new HumanMessage('Test')];
       const result = await cascade._generate(messages, {});
 
-      // Metadata is injected even without runManager
+      // Metadata is injected even without runManager (changed in improvement)
       expect(result.llmOutput).toBeDefined();
-      expect(result.llmOutput?.cascade).toBeUndefined(); // Only injected with runManager
+      expect(result.llmOutput?.cascade).toBeDefined(); // Now always injected when tracking enabled
 
-      // But we can still get stats
+      // Verify cascade metadata structure
+      expect(result.llmOutput?.cascade.modelUsed).toBe('drafter');
+      expect(result.llmOutput?.cascade.drafterCost).toBeGreaterThan(0);
+
+      // We can still get stats via getLastCascadeResult()
       const stats = cascade.getLastCascadeResult();
       expect(stats).toBeDefined();
       expect(stats!.drafterCost).toBeGreaterThan(0);

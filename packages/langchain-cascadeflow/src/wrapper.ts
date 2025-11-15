@@ -152,11 +152,10 @@ export class CascadeWrapper extends BaseChatModel {
       latencyMs,
     };
 
-    // STEP 4: Inject cost metadata into LangSmith (if enabled and run_manager exists)
-    if (this.config.enableCostTracking && runManager) {
+    // STEP 4: Inject cost metadata into llmOutput (if enabled)
+    // LangSmith will automatically capture this metadata in traces
+    if (this.config.enableCostTracking) {
       try {
-        // Inject metadata via callback metadata
-        // LangSmith will automatically capture this in traces
         finalResult.llmOutput = {
           ...finalResult.llmOutput,
           cascade: costMetadata,
