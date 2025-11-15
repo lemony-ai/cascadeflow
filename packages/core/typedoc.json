@@ -1,0 +1,62 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs/api",
+  "plugin": [],
+  "exclude": [
+    "**/*.test.ts",
+    "**/__tests__/**",
+    "**/node_modules/**"
+  ],
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeInternal": false,
+  "includeVersion": true,
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Class",
+    "Interface",
+    "Function",
+    "Variable",
+    "TypeAlias",
+    "Enum"
+  ],
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Core",
+    "Models",
+    "Quality",
+    "Streaming",
+    "Tools",
+    "Providers",
+    "Utilities",
+    "*"
+  ],
+  "readme": "README.md",
+  "name": "@cascadeflow/core",
+  "navigationLinks": {
+    "GitHub": "https://github.com/lemony-ai/cascadeflow",
+    "Examples": "https://github.com/lemony-ai/cascadeflow/tree/main/packages/core/examples",
+    "Python Docs": "https://github.com/lemony-ai/cascadeflow/tree/main/docs"
+  },
+  "searchInComments": true,
+  "validation": {
+    "notExported": false,
+    "invalidLink": false,
+    "notDocumented": false
+  },
+  "skipErrorChecking": true,
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": true,
+    "external": false
+  },
+  "githubPages": true,
+  "gitRevision": "main",
+  "sourceLinkTemplate": "https://github.com/lemony-ai/cascadeflow/blob/{gitRevision}/packages/core/{path}#L{line}",
+  "theme": "default",
+  "hideGenerator": false,
+  "basePath": ".",
+  "treatWarningsAsErrors": false
+}

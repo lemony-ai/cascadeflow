@@ -166,3 +166,32 @@ export class ProviderRegistry {
  * Global provider registry
  */
 export const providerRegistry = new ProviderRegistry();
+
+/**
+ * Get available providers based on environment variables
+ *
+ * Checks which providers have API keys set in the environment
+ * and can be initialized.
+ *
+ * @returns Array of available provider names
+ *
+ * @example
+ * ```typescript
+ * const available = getAvailableProviders();
+ * // ['openai', 'anthropic'] if those API keys are set
+ * ```
+ */
+export function getAvailableProviders(): string[] {
+  const available: string[] = [];
+  const providerList = providerRegistry.list();
+
+  for (const providerName of providerList) {
+    // Check if API key is available in environment
+    const envKey = `${providerName.toUpperCase()}_API_KEY`;
+    if (process.env[envKey]) {
+      available.push(providerName);
+    }
+  }
+
+  return available;
+}

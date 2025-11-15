@@ -138,7 +138,7 @@ async function main() {
 
     console.log('✅ Result:');
     console.log(`   🤖 Model: ${result.modelUsed}`);
-    console.log(`   🏢 Provider: ${models.find((m) => m.name === result.modelUsed)?.provider || 'unknown'}`);
+    console.log(`   🏢 Provider: ${models.find((m) => result.modelUsed.includes(m.name) || m.name.includes(result.modelUsed))?.provider || 'unknown'}`);
     console.log(`   💰 Cost: $${result.totalCost.toFixed(6)}`);
     console.log(`   ⚡ Latency: ${result.latencyMs}ms`);
     console.log(`   📝 Response: ${result.content.substring(0, 100)}...`);

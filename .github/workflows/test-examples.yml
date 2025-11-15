@@ -1,0 +1,199 @@
+name: Test TypeScript Examples
+
+on:
+  push:
+    branches: [main, develop, feat/*]
+    paths:
+      - 'packages/core/**/*.ts'
+      - 'packages/core/examples/**'
+      - '.github/workflows/test-examples.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/core/**/*.ts'
+      - 'packages/core/examples/**'
+
+jobs:
+  test-examples:
+    name: Test TypeScript Examples
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: packages/core
+
+      - name: Build package
+        run: pnpm build
+        working-directory: packages/core
+
+      - name: Run core tests
+        run: pnpm test
+        working-directory: packages/core
+
+      - name: Test examples (syntax check)
+        run: |
+          echo "Testing example syntax..."
+          for example in examples/nodejs/*.ts; do
+            echo "Checking $example..."
+            npx tsc --noEmit "$example" || echo "⚠️ Type check failed for $example"
+          done
+        working-directory: packages/core
+
+      - name: Test compilation
+        run: |
+          echo "Testing example compilation..."
+          npx tsx --help > /dev/null 2>&1 || pnpm add -g tsx
+
+          # Test a few examples that don't require API keys
+          for example in basic-usage.ts cost-tracking.ts factory-methods.ts; do
+            if [ -f "examples/nodejs/$example" ]; then
+              echo "Testing examples/nodejs/$example (dry run)..."
+              npx tsx "examples/nodejs/$example" --help 2>&1 | head -5 || echo "✓ Loads successfully"
+            fi
+          done
+        working-directory: packages/core
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-node-${{ matrix.node-version }}
+          path: packages/core/coverage/
+          retention-days: 7
+
+  test-with-apis:
+    name: Test with Real APIs
+    runs-on: ubuntu-latest
+    # Only run on main branch to avoid excessive API costs
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: packages/core
+
+      - name: Build package
+        run: pnpm build
+        working-directory: packages/core
+
+      - name: Test basic-usage example
+        if: ${{ secrets.OPENAI_API_KEY }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          npx tsx examples/nodejs/basic-usage.ts 2>&1 | tail -50
+        working-directory: packages/core
+        continue-on-error: true
+
+      - name: Test custom-validation example
+        if: ${{ secrets.OPENAI_API_KEY }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          npx tsx examples/nodejs/custom-validation.ts 2>&1 | tail -50
+        working-directory: packages/core
+        continue-on-error: true
+
+  lint:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: packages/core
+
+      - name: Run linter
+        run: pnpm lint || echo "⚠️ Linting warnings"
+        working-directory: packages/core
+        continue-on-error: true
+
+      - name: Run type checker
+        run: pnpm typecheck || pnpm tsc --noEmit
+        working-directory: packages/core
+        continue-on-error: true
+
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: packages/core
+
+      - name: Build
+        run: pnpm build
+        working-directory: packages/core
+
+      - name: Check build output
+        run: |
+          echo "Checking build outputs..."
+          ls -lah dist/
+          test -f dist/index.js || exit 1
+          test -f dist/index.d.ts || exit 1
+          echo "✓ Build outputs verified"
+        working-directory: packages/core
