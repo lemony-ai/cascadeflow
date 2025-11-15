@@ -267,12 +267,12 @@ export class ComplexityDetector {
   // =====================================================================
 
   private static readonly TRIVIAL_PATTERNS = [
-    /what\s+is\s+\d+\s*[+*/\-]\s*\d+/i,
-    /what's\s+\d+\s*[+*/\-]\s*\d+/i,
-    /whats\s+\d+\s*[+*/\-]\s*\d+/i,
-    /(calculate|compute|solve)\s+\d+\s*[+*/\-]\s*\d+/i,
+    /what\s+is\s+\d+\s*[+*/-]\s*\d+/i,
+    /what's\s+\d+\s*[+*/-]\s*\d+/i,
+    /whats\s+\d+\s*[+*/-]\s*\d+/i,
+    /(calculate|compute|solve)\s+\d+\s*[+*/-]\s*\d+/i,
     /(capital|population|currency|language)\s+of\s+\w+/i,
-    /^(hi|hello|hey|thanks|thank\s+you)[\.\!\?]*$/i,
+    /^(hi|hello|hey|thanks|thank\s+you)[.!?]*$/i,
   ];
 
   private static readonly TRIVIAL_CONCEPTS = new Set([

@@ -150,8 +150,10 @@ export class CascadeAgent {
       const {
         threshold,
         requireMinimumTokens,
-        requireValidation: _requireValidation,
-        enableAdaptive: _enableAdaptive,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        requireValidation,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        enableAdaptive,
         ...validatorParams
       } = qualityOptions;
 
@@ -179,6 +181,7 @@ export class CascadeAgent {
     const verbose = config.cascade?.verbose ?? false;
 
     // PreRouter: Complexity-based routing decisions
+    // Default behavior: cascade for trivial/simple/moderate, direct for hard/expert
     this.preRouter = new PreRouter({
       complexityDetector: this.complexityDetector,
       enableCascade: true,
@@ -778,9 +781,13 @@ export class CascadeAgent {
         draftModel,
         draftCost,
         draftLatencyMs: draftLatency,
+        draftConfidence: qualityResult.confidence, // Confidence score from quality validator
         verifierModel,
         verifierCost,
         verifierLatencyMs: verifierLatency,
+        qualityScore: qualityResult.score, // Quality score from validator
+        qualityCheckPassed: qualityResult.passed, // Whether quality check passed
+        rejectionReason: !qualityResult.passed ? qualityResult.reason : undefined,
         costSaved,
         savingsPercentage,
       };

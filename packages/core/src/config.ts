@@ -297,11 +297,11 @@ export function validateModelConfig(config: ModelConfig): void {
 export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   threshold: 0.7,
   confidenceThresholds: {
-    trivial: 0.3,    // Lowered from 0.5 - accept most trivial answers
-    simple: 0.4,     // Lowered from 0.6 - accept most simple answers
-    moderate: 0.6,   // Lowered from 0.7 - slightly more permissive
-    hard: 0.75,      // Lowered from 0.8 - balance quality vs cost
-    expert: 0.8,     // Lowered from 0.85 - still maintain high bar
+    trivial: 0.55,   // Aligned with Python (was 0.3) - strict for trivial queries
+    simple: 0.50,    // Aligned with Python (was 0.4) - standard for simple queries
+    moderate: 0.45,  // Aligned with Python (was 0.6) - permissive for moderate queries
+    hard: 0.42,      // Aligned with Python (was 0.75) - permissive for hard queries
+    expert: 0.40,    // Aligned with Python (was 0.8) - permissive for expert queries
   },
   requireMinimumTokens: 3,  // Lowered from 10 - allow short correct answers like "Paris" or "hola"
   requireValidation: true,
