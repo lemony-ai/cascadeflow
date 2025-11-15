@@ -79,6 +79,16 @@ export interface CascadeResult {
    * Latency in milliseconds
    */
   latencyMs: number;
+
+  /**
+   * Whether this was a streaming response
+   */
+  streaming?: boolean;
+
+  /**
+   * Whether pre-routing was used (for streaming)
+   */
+  preRouted?: boolean;
 }
 
 /**

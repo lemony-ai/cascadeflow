@@ -1,6 +1,6 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { BaseMessage, AIMessage } from '@langchain/core/messages';
-import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
+import { BaseMessage, AIMessage, AIMessageChunk } from '@langchain/core/messages';
+import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { CascadeConfig, CascadeResult } from './types.js';
 import { calculateQuality, createCostMetadata } from './utils.js';
@@ -166,6 +166,114 @@ export class CascadeWrapper extends BaseChatModel {
     }
 
     return finalResult;
+  }
+
+  /**
+   * Pre-routing complexity detection for streaming
+   * Analyzes message complexity to determine which model to use upfront
+   *
+   * @param messages - Input messages to analyze
+   * @returns 'drafter' for simple queries, 'verifier' for complex queries
+   */
+  private _selectModelPreRoute(messages: BaseMessage[]): 'drafter' | 'verifier' {
+    // Analyze the last user message for complexity indicators
+    const lastMessage = messages[messages.length - 1];
+    const content = typeof lastMessage.content === 'string'
+      ? lastMessage.content
+      : JSON.stringify(lastMessage.content);
+
+    // Complexity heuristics
+    const wordCount = content.split(/\s+/).length;
+    const hasCodeBlock = /```/.test(content);
+    const hasMultipleQuestions = (content.match(/\?/g) || []).length > 1;
+    const hasComplexKeywords = /\b(analyze|compare|explain in detail|comprehensive|complex|advanced|technical)\b/i.test(content);
+    const hasMultiStep = /\b(first|then|next|finally|step|steps)\b/i.test(content);
+    const isLongContext = messages.length > 5;
+
+    // Calculate complexity score (0-1)
+    let complexityScore = 0;
+
+    if (wordCount > 50) complexityScore += 0.25;
+    if (wordCount > 100) complexityScore += 0.25;
+    if (hasCodeBlock) complexityScore += 0.4; // Code blocks are complex
+    if (hasMultipleQuestions) complexityScore += 0.3; // Multiple questions need more thought
+    if (hasComplexKeywords) complexityScore += 0.4; // Strong indicator of complexity
+    if (hasMultiStep) complexityScore += 0.3; // Multi-step requires planning
+    if (isLongContext) complexityScore += 0.4; // Long context needs verifier
+
+    // Route to verifier if complexity exceeds threshold
+    // Use a lower threshold (0.35) for pre-routing to catch borderline cases
+    const COMPLEXITY_THRESHOLD = 0.35;
+    return complexityScore >= COMPLEXITY_THRESHOLD ? 'verifier' : 'drafter';
+  }
+
+  /**
+   * Streaming support with pre-routing
+   * Analyzes query complexity upfront and streams from the appropriate model
+   */
+  async *_streamResponseChunks(
+    messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+    runManager?: CallbackManagerForLLMRun
+  ): AsyncGenerator<ChatGenerationChunk> {
+    const startTime = Date.now();
+
+    // Merge bind kwargs with options
+    const mergedOptions = { ...this.bindKwargs, ...options };
+
+    // STEP 1: Pre-route based on complexity
+    const selectedModel = this._selectModelPreRoute(messages);
+    const model = selectedModel === 'drafter' ? this.drafter : this.verifier;
+
+    // STEP 2: Stream from selected model
+    const chunks: ChatGenerationChunk[] = [];
+
+    try {
+      // Call the underlying model's _streamResponseChunks directly
+      for await (const chunk of model._streamResponseChunks(messages, mergedOptions, runManager)) {
+        // Collect chunks for metadata
+        chunks.push(chunk);
+
+        // Yield chunk to caller
+        yield chunk;
+      }
+    } catch (error) {
+      // If streaming fails, fall back to non-streaming
+      console.warn(`Streaming failed for ${selectedModel}, falling back to non-streaming:`, error);
+
+      const result = await model._generate(messages, mergedOptions, runManager);
+
+      // Convert result to single chunk and yield
+      if (result.generations[0]) {
+        const chunk = new ChatGenerationChunk({
+          text: result.generations[0].text,
+          message: new AIMessageChunk(result.generations[0].text),
+        });
+        chunks.push(chunk);
+        yield chunk;
+      }
+    }
+
+    // STEP 3: Store metadata after streaming completes
+    const latencyMs = Date.now() - startTime;
+    const drafterModelName = (this.drafter as any).model || (this.drafter as any).modelName || this.drafter._llmType();
+    const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName || this.verifier._llmType();
+
+    // Create minimal metadata for streaming
+    // We don't have quality scores or cost data during streaming
+    this.lastCascadeResult = {
+      content: chunks.map(c => c.text).join(''),
+      modelUsed: selectedModel,
+      drafterQuality: selectedModel === 'drafter' ? 1.0 : 0.0, // Assumed based on pre-routing
+      accepted: selectedModel === 'drafter',
+      drafterCost: 0, // Not available during streaming
+      verifierCost: 0,
+      totalCost: 0,
+      savingsPercentage: 0,
+      latencyMs,
+      streaming: true,
+      preRouted: true,
+    };
   }
 
   /**
