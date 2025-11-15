@@ -33,11 +33,15 @@ export class CascadeWrapper extends BaseChatModel {
   // Store last cascade result for metadata
   private lastCascadeResult?: CascadeResult;
 
-  constructor(config: CascadeConfig) {
+  // Store bind kwargs to merge during _generate
+  private bindKwargs: any = {};
+
+  constructor(config: CascadeConfig, bindKwargs: any = {}) {
     super({});
 
     this.drafter = config.drafter;
     this.verifier = config.verifier;
+    this.bindKwargs = bindKwargs;
 
     // Set defaults
     this.config = {
@@ -98,8 +102,11 @@ export class CascadeWrapper extends BaseChatModel {
   ): Promise<ChatResult> {
     const startTime = Date.now();
 
+    // Merge bind kwargs with options
+    const mergedOptions = { ...this.bindKwargs, ...options };
+
     // STEP 1: Execute drafter (cheap, fast model)
-    const drafterResult = await this.drafter._generate(messages, options, runManager);
+    const drafterResult = await this.drafter._generate(messages, mergedOptions, runManager);
     const drafterQuality = this.config.qualityValidator
       ? await this.config.qualityValidator(drafterResult)
       : calculateQuality(drafterResult);
@@ -115,7 +122,7 @@ export class CascadeWrapper extends BaseChatModel {
       finalResult = drafterResult;
     } else {
       // Quality insufficient - execute verifier (expensive, accurate model)
-      verifierResult = await this.verifier._generate(messages, options, runManager);
+      verifierResult = await this.verifier._generate(messages, mergedOptions, runManager);
       finalResult = verifierResult;
     }
 
@@ -174,16 +181,19 @@ export class CascadeWrapper extends BaseChatModel {
    * Creates a new CascadeWrapper with bound parameters
    */
   override bind(kwargs: any): CascadeWrapper {
-    const boundDrafter = this.drafter.bind(kwargs);
-    const boundVerifier = this.verifier.bind(kwargs);
+    // Merge new kwargs with existing ones
+    const mergedKwargs = { ...this.bindKwargs, ...kwargs };
 
-    return new CascadeWrapper({
-      drafter: boundDrafter,
-      verifier: boundVerifier,
-      qualityThreshold: this.config.qualityThreshold,
-      enableCostTracking: this.config.enableCostTracking,
-      qualityValidator: this.config.qualityValidator,
-    });
+    return new CascadeWrapper(
+      {
+        drafter: this.drafter,
+        verifier: this.verifier,
+        qualityThreshold: this.config.qualityThreshold,
+        enableCostTracking: this.config.enableCostTracking,
+        qualityValidator: this.config.qualityValidator,
+      },
+      mergedKwargs
+    );
   }
 
   /**

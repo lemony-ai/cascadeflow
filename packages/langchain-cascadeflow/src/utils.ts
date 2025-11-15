@@ -44,13 +44,36 @@ export function calculateCost(
  * Extract token usage from LangChain response
  */
 export function extractTokenUsage(response: any): { input: number; output: number } {
-  // LangChain response structure varies by provider
-  const usage = response?.llmOutput?.tokenUsage || response?.usage_metadata || {};
+  // LangChain ChatResult structure
+  const llmOutput = response?.llmOutput || {};
+  const usage = llmOutput?.tokenUsage || llmOutput?.usage || {};
 
-  return {
-    input: usage.prompt_tokens || usage.input_tokens || 0,
-    output: usage.completion_tokens || usage.output_tokens || 0,
-  };
+  // OpenAI format (snake_case)
+  if (usage.prompt_tokens || usage.completion_tokens) {
+    return {
+      input: usage.prompt_tokens || 0,
+      output: usage.completion_tokens || 0,
+    };
+  }
+
+  // OpenAI format (camelCase - LangChain uses this)
+  if (usage.promptTokens || usage.completionTokens) {
+    return {
+      input: usage.promptTokens || 0,
+      output: usage.completionTokens || 0,
+    };
+  }
+
+  // Anthropic format
+  if (usage.input_tokens || usage.output_tokens) {
+    return {
+      input: usage.input_tokens || 0,
+      output: usage.output_tokens || 0,
+    };
+  }
+
+  // Default
+  return { input: 0, output: 0 };
 }
 
 /**
@@ -58,41 +81,53 @@ export function extractTokenUsage(response: any): { input: number; output: numbe
  * Uses logprobs if available, otherwise heuristics
  */
 export function calculateQuality(response: any): number {
-  // 1. Try logprobs-based confidence
-  const logprobs = response?.generations?.[0]?.[0]?.generationInfo?.logprobs;
-  if (logprobs && Array.isArray(logprobs.token_logprobs)) {
-    const avgLogprob = logprobs.token_logprobs.reduce((a: number, b: number) => a + b, 0) / logprobs.token_logprobs.length;
-    const confidence = Math.exp(avgLogprob); // Convert log probability to probability
-    return Math.max(0, Math.min(1, confidence));
+  // 1. Try logprobs-based confidence (OpenAI)
+  const generationInfo = response?.generations?.[0]?.generationInfo;
+  if (generationInfo?.logprobs?.content) {
+    // OpenAI format: content is array of {token, logprob}
+    const logprobs = generationInfo.logprobs.content
+      .map((item: any) => item.logprob)
+      .filter((lp: any) => lp !== null && lp !== undefined);
+
+    if (logprobs.length > 0) {
+      const avgLogprob = logprobs.reduce((a: number, b: number) => a + b, 0) / logprobs.length;
+      const confidence = Math.exp(avgLogprob); // Convert log probability to probability
+      return Math.max(0.1, Math.min(1, confidence * 1.5)); // Boost slightly
+    }
   }
 
   // 2. Heuristic-based quality scoring
-  const text = response?.generations?.[0]?.[0]?.text || response?.text || '';
+  // LangChain ChatResult has generations as a flat array, not nested
+  const generation = response?.generations?.[0];
+  const text = generation?.text || generation?.message?.content || '';
 
-  if (!text || text.length < 10) {
-    return 0.1; // Very low quality for empty/short responses
+  if (!text || text.length < 5) {
+    return 0.2; // Low quality for empty/very short responses
   }
 
   // Check for common quality indicators
-  let score = 0.5; // Base score
+  let score = 0.6; // Base score (increased from 0.5)
 
-  // Length bonus (but not too verbose)
-  if (text.length > 50 && text.length < 2000) score += 0.2;
+  // Length bonus (reasonable response)
+  if (text.length > 20) score += 0.1;
+  if (text.length > 100) score += 0.1;
 
   // Structure bonus (has punctuation, capitalization)
-  if (/[.!?]/.test(text)) score += 0.1;
-  if (/^[A-Z]/.test(text)) score += 0.1;
+  if (/[.!?]/.test(text)) score += 0.05;
+  if (/^[A-Z]/.test(text)) score += 0.05;
 
-  // Penalize hedging phrases
+  // Completeness bonus (ends with punctuation)
+  if (/[.!?]$/.test(text.trim())) score += 0.1;
+
+  // Penalize hedging phrases (but less harshly)
   const hedgingPhrases = [
-    'i think', 'maybe', 'possibly', 'perhaps',
-    'i\'m not sure', 'it seems', 'it appears'
+    'i don\'t know', 'i\'m not sure', 'i cannot', 'i can\'t'
   ];
   const lowerText = text.toLowerCase();
   const hedgeCount = hedgingPhrases.filter(phrase => lowerText.includes(phrase)).length;
-  score -= hedgeCount * 0.05;
+  score -= hedgeCount * 0.1;
 
-  return Math.max(0, Math.min(1, score));
+  return Math.max(0.1, Math.min(1, score));
 }
 
 /**
