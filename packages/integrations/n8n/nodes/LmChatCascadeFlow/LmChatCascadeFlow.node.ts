@@ -585,8 +585,13 @@ class CascadeChatModel extends BaseChatModel {
 
       for await (const chunk of drafterStream) {
         fullDrafterContent += chunk.content;
-        lastChunk = chunk;
-        yield chunk; // Stream to user immediately
+        // Convert AIMessageChunk to ChatGenerationChunk
+        const generationChunk = new ChatGenerationChunk({
+          text: chunk.content.toString(),
+          message: chunk,
+        });
+        lastChunk = generationChunk;
+        yield generationChunk; // Stream to user immediately
       }
 
       const drafterLatency = Date.now() - drafterStartTime;
@@ -641,7 +646,11 @@ class CascadeChatModel extends BaseChatModel {
 
       // Stream verifier response
       for await (const chunk of verifierStream) {
-        yield chunk;
+        // Convert AIMessageChunk to ChatGenerationChunk
+        yield new ChatGenerationChunk({
+          text: chunk.content.toString(),
+          message: chunk,
+        });
       }
 
       const verifierLatency = Date.now() - verifierStartTime;
@@ -660,7 +669,11 @@ class CascadeChatModel extends BaseChatModel {
       this.verifierCount++;
 
       for await (const chunk of verifierStream) {
-        yield chunk;
+        // Convert AIMessageChunk to ChatGenerationChunk
+        yield new ChatGenerationChunk({
+          text: chunk.content.toString(),
+          message: chunk,
+        });
       }
     }
   }
