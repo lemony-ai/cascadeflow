@@ -36,6 +36,16 @@ export * from './utils.js';
 export { analyzeCascadePair, suggestCascadePairs } from './helpers.js';
 export type { CascadeAnalysis } from './helpers.js';
 
+// Model discovery (works with YOUR models!)
+export {
+  MODEL_PRICING_REFERENCE,
+  discoverCascadePairs,
+  analyzeModel,
+  compareModels,
+  findBestCascadePair,
+  validateCascadePair,
+} from './models.js';
+
 import { CascadeWrapper } from './wrapper.js';
 import type { CascadeConfig } from './types.js';
 

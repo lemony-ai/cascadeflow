@@ -106,7 +106,24 @@ export class CascadeWrapper extends BaseChatModel {
     const mergedOptions = { ...this.bindKwargs, ...options };
 
     // STEP 1: Execute drafter (cheap, fast model)
-    const drafterResult = await this.drafter._generate(messages, mergedOptions, runManager);
+    // Handle both ChatModel (has _generate) and Runnable (use invoke)
+    let drafterResult: ChatResult;
+    if (typeof (this.drafter as any)._generate === 'function') {
+      drafterResult = await (this.drafter as any)._generate(messages, mergedOptions, runManager);
+    } else {
+      // For RunnableBinding (from bindTools/withStructuredOutput)
+      const invokeResult = await this.drafter.invoke(messages, mergedOptions);
+      drafterResult = {
+        generations: [
+          {
+            text: typeof invokeResult.content === 'string' ? invokeResult.content : JSON.stringify(invokeResult.content),
+            message: invokeResult,
+          },
+        ],
+        llmOutput: (invokeResult as any).response_metadata || {},
+      };
+    }
+
     const drafterQuality = this.config.qualityValidator
       ? await this.config.qualityValidator(drafterResult)
       : calculateQuality(drafterResult);
@@ -122,14 +139,32 @@ export class CascadeWrapper extends BaseChatModel {
       finalResult = drafterResult;
     } else {
       // Quality insufficient - execute verifier (expensive, accurate model)
-      verifierResult = await this.verifier._generate(messages, mergedOptions, runManager);
-      finalResult = verifierResult;
+      let vResult: ChatResult;
+      if (typeof (this.verifier as any)._generate === 'function') {
+        vResult = await (this.verifier as any)._generate(messages, mergedOptions, runManager);
+      } else {
+        // For RunnableBinding (from bindTools/withStructuredOutput)
+        const invokeResult = await this.verifier.invoke(messages, mergedOptions);
+        vResult = {
+          generations: [
+            {
+              text: typeof invokeResult.content === 'string' ? invokeResult.content : JSON.stringify(invokeResult.content),
+              message: invokeResult,
+            },
+          ],
+          llmOutput: (invokeResult as any).response_metadata || {},
+        };
+      }
+      verifierResult = vResult;
+      finalResult = vResult;
     }
 
     // STEP 3: Calculate costs and metadata
     const latencyMs = Date.now() - startTime;
-    const drafterModelName = (this.drafter as any).model || (this.drafter as any).modelName || this.drafter._llmType();
-    const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName || this.verifier._llmType();
+    const drafterModelName = (this.drafter as any).model || (this.drafter as any).modelName ||
+      (typeof this.drafter._llmType === 'function' ? this.drafter._llmType() : 'unknown');
+    const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName ||
+      (typeof this.verifier._llmType === 'function' ? this.verifier._llmType() : 'unknown');
     const costMetadata = createCostMetadata(
       drafterResult,
       verifierResult,
@@ -156,10 +191,27 @@ export class CascadeWrapper extends BaseChatModel {
     // LangSmith will automatically capture this metadata in traces
     if (this.config.enableCostTracking) {
       try {
+        // Inject into llmOutput
         finalResult.llmOutput = {
           ...finalResult.llmOutput,
           cascade: costMetadata,
         };
+
+        // Also inject into message's response_metadata for invoke() results
+        if (finalResult.generations[0]?.message) {
+          const message = finalResult.generations[0].message;
+          if ('response_metadata' in message) {
+            (message as any).response_metadata = {
+              ...(message as any).response_metadata,
+              cascade: costMetadata,
+            };
+          }
+          // Also set as llmOutput property for backward compatibility
+          (message as any).llmOutput = {
+            ...(message as any).llmOutput,
+            cascade: costMetadata,
+          };
+        }
       } catch (error) {
         console.warn('Failed to inject cascade metadata:', error);
       }
