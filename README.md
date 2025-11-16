@@ -10,6 +10,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/cascadeflow?color=blue&label=Python)](https://pypi.org/project/cascadeflow/)
 [![npm version](https://img.shields.io/npm/v/@cascadeflow/core?color=red&label=TypeScript)](https://www.npmjs.com/package/@cascadeflow/core)
+[![LangChain version](https://img.shields.io/npm/v/@cascadeflow/langchain?color=purple&label=LangChain)](https://www.npmjs.com/package/@cascadeflow/langchain)
 [![n8n version](https://img.shields.io/npm/v/@cascadeflow/n8n-nodes-cascadeflow?color=orange&label=n8n)](https://www.npmjs.com/package/@cascadeflow/n8n-nodes-cascadeflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Downloads](https://static.pepy.tech/badge/cascadeflow)](https://pepy.tech/project/cascadeflow)
@@ -361,6 +362,49 @@ CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nod
 
 ---
 
+## 🦜 LangChain Integration
+
+Use cascadeflow with LangChain for intelligent model cascading with full LCEL, streaming, and tools support!
+
+### Installation
+
+```bash
+npm install @cascadeflow/langchain @langchain/core @langchain/openai
+```
+
+### Quick Start
+
+Drop-in replacement for any LangChain chat model:
+
+```typescript
+import { ChatOpenAI } from '@langchain/openai';
+import { CascadeWrapper } from '@cascadeflow/langchain';
+
+const cascade = new CascadeWrapper({
+  drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
+  verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
+  qualityThreshold: 0.8, // 80% queries use drafter
+});
+
+// Use like any LangChain chat model
+const result = await cascade.invoke('Explain quantum computing');
+
+// Or with LCEL chains
+const chain = prompt.pipe(cascade).pipe(new StringOutputParser());
+```
+
+**Features:**
+
+- ✅ Full LCEL support (pipes, sequences, batch)
+- ✅ Streaming with pre-routing
+- ✅ Tool calling and structured output
+- ✅ LangSmith cost tracking metadata
+- ✅ Works with all LangChain features
+
+🦜 **Learn more:** [LangChain Integration Guide](./docs/guides/langchain_integration.md) | [Package README](./packages/langchain-cascadeflow/)
+
+---
+
 ## Resources
 
 ### Examples
@@ -467,6 +511,7 @@ CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nod
 | **Edge Device** | Deploy cascades on edge devices | [Read](./docs/guides/edge_device.md) |
 | **Browser Cascading** | Run cascades in the browser/edge | [Read](./docs/guides/browser_cascading.md) |
 | **FastAPI Integration** | Integrate with FastAPI applications | [Read](./docs/guides/fastapi.md) |
+| **LangChain Integration** | Use cascadeflow with LangChain | [Read](./docs/guides/langchain_integration.md) |
 | **n8n Integration** | Use cascadeflow in n8n workflows | [Read](./docs/guides/n8n_integration.md) |
 
 </details>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage } from '@langchain/core/messages';
 import { ChatResult } from '@langchain/core/outputs';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { analyzeCascadePair, suggestCascadePairs } from './helpers.js';
@@ -24,7 +24,12 @@ class MockChatModel extends BaseChatModel {
     runManager?: CallbackManagerForLLMRun
   ): Promise<ChatResult> {
     return {
-      generations: [{ text: 'test' }],
+      generations: [
+        {
+          text: 'test',
+          message: new AIMessage('test'),
+        },
+      ],
       llmOutput: {},
     };
   }
