@@ -132,6 +132,9 @@ importers:
       '@cascadeflow/core':
         specifier: workspace:^
         version: link:../core
+      '@langchain/anthropic':
+        specifier: ^1.0.1
+        version: 1.0.1(@langchain/core@0.3.79)(zod@3.25.67)
     devDependencies:
       '@langchain/core':
         specifier: ^0.3.24
@@ -153,7 +156,7 @@ importers:
         version: 8.57.1
       langchain:
         specifier: ^0.3.13
-        version: 0.3.36(@langchain/core@0.3.79)(openai@4.104.0)
+        version: 0.3.36(@langchain/anthropic@1.0.1)(@langchain/core@0.3.79)(openai@4.104.0)
       openai:
         specifier: ^4.73.1
         version: 4.104.0(zod@3.25.67)
@@ -209,6 +212,22 @@ packages:
       node-fetch: 2.7.0
     transitivePeerDependencies:
       - encoding
+
+  /@anthropic-ai/sdk@0.65.0(zod@3.25.67):
+    resolution: {integrity: sha512-zIdPOcrCVEI8t3Di40nH4z9EoeyGZfXbYSvWdDLsB/KkaSYMnEgC7gmcgWu83g2NTn1ZTpbMvpdttWDGGIk6zw==}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+    dependencies:
+      json-schema-to-ts: 3.1.1
+      zod: 3.25.67
+
+  /@babel/runtime@7.28.4:
+    resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
+    engines: {node: '>=6.9.0'}
 
   /@cfworker/json-schema@4.1.1:
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -754,6 +773,17 @@ packages:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
     dev: true
+
+  /@langchain/anthropic@1.0.1(@langchain/core@0.3.79)(zod@3.25.67):
+    resolution: {integrity: sha512-yVKePAT+nNHtybyyPlWqiq6lqcoDlIuMgL9B4WMEU5gbmzL170iodiqcgcZNFQLOC1V2wCOzywq6Zr0kB24AFg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@langchain/core': ^1.0.0
+    dependencies:
+      '@anthropic-ai/sdk': 0.65.0(zod@3.25.67)
+      '@langchain/core': 0.3.79(openai@4.104.0)
+    transitivePeerDependencies:
+      - zod
 
   /@langchain/core@0.3.79(openai@4.104.0):
     resolution: {integrity: sha512-ZLAs5YMM5N2UXN3kExMglltJrKKoW7hs3KMZFlXUnD7a5DFKBYxPFMeXA4rT+uvTxuJRZPCYX0JKI5BhyAWx4A==}
@@ -3887,6 +3917,13 @@ packages:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
     dev: true
 
+  /json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
+    dependencies:
+      '@babel/runtime': 7.28.4
+      ts-algebra: 2.0.0
+
   /json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
     dev: true
@@ -3938,7 +3975,7 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
-  /langchain@0.3.36(@langchain/core@0.3.79)(openai@4.104.0):
+  /langchain@0.3.36(@langchain/anthropic@1.0.1)(@langchain/core@0.3.79)(openai@4.104.0):
     resolution: {integrity: sha512-PqC19KChFF0QlTtYDFgfEbIg+SCnCXox29G8tY62QWfj9bOW7ew2kgWmPw5qoHLOTKOdQPvXET20/1Pdq8vAtQ==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -3996,6 +4033,7 @@ packages:
       typeorm:
         optional: true
     dependencies:
+      '@langchain/anthropic': 1.0.1(@langchain/core@0.3.79)(zod@3.25.67)
       '@langchain/core': 0.3.79(openai@4.104.0)
       '@langchain/openai': 0.3.17(@langchain/core@0.3.79)
       '@langchain/textsplitters': 0.1.0(@langchain/core@0.3.79)
@@ -6112,6 +6150,9 @@ packages:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
     dev: true
+
+  /ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
 
   /ts-api-utils@1.4.3(typescript@5.9.3):
     resolution: {integrity: sha512-i3eMG77UTMD0hZhgRS562pv83RC6ukSAC2GMNWc+9dieh/+jDM5u5YG+NHX6VNDRHQcHwmsTHctP9LhbC3WxVw==}
