@@ -6,10 +6,10 @@ models work best for cascading, without requiring any specific API keys.
 Users bring their own models - we just help them find the best pairs!
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
-from typing_extensions import NotRequired
+from typing import Any, Optional, TypedDict
 
 from langchain_core.language_models.chat_models import BaseChatModel
+from typing_extensions import NotRequired
 
 
 class ModelPricing(TypedDict):
@@ -28,7 +28,7 @@ class CascadeAnalysis(TypedDict):
     drafter_cost: ModelPricing
     verifier_cost: ModelPricing
     valid: bool
-    warnings: List[str]
+    warnings: list[str]
     estimated_savings: float
     recommendation: str
 
@@ -39,7 +39,7 @@ class ModelAnalysis(TypedDict):
     model_name: str
     provider: str
     tier: str
-    estimated_cost: Optional[Dict[str, float]]
+    estimated_cost: Optional[dict[str, float]]
     recommendation: str
 
 
@@ -54,7 +54,7 @@ class CascadePairSuggestion(TypedDict):
 
 # Model pricing reference (per 1M tokens)
 # This is read-only reference data to help users understand costs
-MODEL_PRICING_REFERENCE: Dict[str, ModelPricing] = {
+MODEL_PRICING_REFERENCE: dict[str, ModelPricing] = {
     # OpenAI Models
     "gpt-4o-mini": {"input": 0.15, "output": 0.60, "tier": "fast"},
     "gpt-4o": {"input": 2.50, "output": 10.00, "tier": "powerful"},
@@ -127,7 +127,7 @@ def get_provider(model: BaseChatModel) -> str:
     return "unknown"
 
 
-def get_model_pricing(model_name: str) -> Optional[Dict[str, float]]:
+def get_model_pricing(model_name: str) -> Optional[dict[str, float]]:
     """Get pricing information for a model.
 
     Args:
@@ -154,8 +154,8 @@ def get_model_pricing(model_name: str) -> Optional[Dict[str, float]]:
 
 
 def calculate_estimated_savings(
-    drafter_pricing: Dict[str, float],
-    verifier_pricing: Dict[str, float],
+    drafter_pricing: dict[str, float],
+    verifier_pricing: dict[str, float],
     acceptance_rate: float = 0.7,
 ) -> float:
     """Calculate estimated savings percentage.
@@ -221,7 +221,7 @@ def analyze_cascade_pair(drafter: BaseChatModel, verifier: BaseChatModel) -> Cas
     drafter_pricing = get_model_pricing(drafter_model)
     verifier_pricing = get_model_pricing(verifier_model)
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     valid = True
 
     # Check if we have pricing info
@@ -290,7 +290,7 @@ def analyze_cascade_pair(drafter: BaseChatModel, verifier: BaseChatModel) -> Cas
     }
 
 
-def suggest_cascade_pairs(models: List[BaseChatModel]) -> List[CascadePairSuggestion]:
+def suggest_cascade_pairs(models: list[BaseChatModel]) -> list[CascadePairSuggestion]:
     """Suggest optimal cascade pairs from a list of available models.
 
     Args:
@@ -309,7 +309,7 @@ def suggest_cascade_pairs(models: List[BaseChatModel]) -> List[CascadePairSugges
         >>> best = suggestions[0]
         >>> print(best['analysis']['estimated_savings'])  # => ~60%
     """
-    suggestions: List[CascadePairSuggestion] = []
+    suggestions: list[CascadePairSuggestion] = []
 
     # Try all pairs
     for i, drafter in enumerate(models):
@@ -336,8 +336,8 @@ def suggest_cascade_pairs(models: List[BaseChatModel]) -> List[CascadePairSugges
 
 
 def discover_cascade_pairs(
-    models: List[BaseChatModel], min_savings: float = 20.0, require_same_provider: bool = False
-) -> List[CascadePairSuggestion]:
+    models: list[BaseChatModel], min_savings: float = 20.0, require_same_provider: bool = False
+) -> list[CascadePairSuggestion]:
     """Discover and analyze cascade pairs from user's models.
 
     This is the main helper - give it YOUR models and it will suggest
@@ -455,7 +455,7 @@ def analyze_model(model: BaseChatModel) -> ModelAnalysis:
     }
 
 
-def compare_models(models: List[BaseChatModel]) -> Dict[str, List[Dict[str, Any]]]:
+def compare_models(models: list[BaseChatModel]) -> dict[str, list[dict[str, Any]]]:
     """Compare multiple models and rank them for cascade use.
 
     Args:
@@ -477,7 +477,7 @@ def compare_models(models: List[BaseChatModel]) -> Dict[str, List[Dict[str, Any]
     analyzed = [{"model": model, "analysis": analyze_model(model)} for model in models]
 
     # Sort by cost (input + output average)
-    def get_cost(item: Dict[str, Any]) -> float:
+    def get_cost(item: dict[str, Any]) -> float:
         cost = item["analysis"]["estimated_cost"]
         if cost:
             return (cost["input"] + cost["output"]) / 2
@@ -499,7 +499,7 @@ def compare_models(models: List[BaseChatModel]) -> Dict[str, List[Dict[str, Any]
     }
 
 
-def find_best_cascade_pair(models: List[BaseChatModel]) -> Optional[Dict[str, Any]]:
+def find_best_cascade_pair(models: list[BaseChatModel]) -> Optional[dict[str, Any]]:
     """Quick helper to find the best cascade pair from user's models.
 
     Args:
@@ -535,7 +535,7 @@ def find_best_cascade_pair(models: List[BaseChatModel]) -> Optional[Dict[str, An
     }
 
 
-def validate_cascade_pair(drafter: BaseChatModel, verifier: BaseChatModel) -> Dict[str, Any]:
+def validate_cascade_pair(drafter: BaseChatModel, verifier: BaseChatModel) -> dict[str, Any]:
     """Validate that a model pair makes sense for cascading.
 
     Args:

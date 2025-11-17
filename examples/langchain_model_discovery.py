@@ -8,18 +8,19 @@ Run:
 
 import os
 import sys
+
 from langchain_openai import ChatOpenAI
 
 # Add parent directory to path for local import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cascadeflow.integrations.langchain import (
-    discover_cascade_pairs,
+    CascadeFlow,
     analyze_cascade_pair,
-    find_best_cascade_pair,
     analyze_model,
     compare_models,
-    CascadeFlow,
+    discover_cascade_pairs,
+    find_best_cascade_pair,
 )
 
 
@@ -85,7 +86,7 @@ def main():
 
         # Use the best pair
         print("Creating CascadeFlow with best pair...")
-        cascade = CascadeFlow(
+        CascadeFlow(
             drafter=best["drafter"], verifier=best["verifier"], quality_threshold=0.7
         )
         print("✓ CascadeFlow created successfully!")

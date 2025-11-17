@@ -20,14 +20,14 @@ Example:
 """
 
 import time
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
+from typing import Any, AsyncIterator, Iterator, Optional
 
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, AIMessageChunk
-from langchain_core.outputs import ChatResult, ChatGeneration, ChatGenerationChunk, LLMResult
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
-from .types import CascadeConfig, CascadeResult
+from .types import CascadeResult
 from .utils import calculate_quality, create_cost_metadata
 
 
@@ -57,11 +57,11 @@ class CascadeFlow(BaseChatModel):
     quality_validator: Optional[Any] = None
     enable_pre_router: bool = False
     pre_router: Optional[Any] = None
-    cascade_complexities: List[str] = ["trivial", "simple", "moderate"]
+    cascade_complexities: list[str] = ["trivial", "simple", "moderate"]
 
     # Private state
     _last_cascade_result: Optional[CascadeResult] = None
-    _bind_kwargs: Dict[str, Any] = {}
+    _bind_kwargs: dict[str, Any] = {}
 
     class Config:
         """Pydantic configuration."""
@@ -78,7 +78,7 @@ class CascadeFlow(BaseChatModel):
         quality_validator: Optional[Any] = None,
         enable_pre_router: bool = False,
         pre_router: Optional[Any] = None,
-        cascade_complexities: Optional[List[str]] = None,
+        cascade_complexities: Optional[list[str]] = None,
         **kwargs: Any,
     ):
         """Initialize CascadeFlow wrapper.
@@ -125,8 +125,8 @@ class CascadeFlow(BaseChatModel):
 
     def _generate(
         self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
@@ -300,8 +300,8 @@ class CascadeFlow(BaseChatModel):
 
     async def _agenerate(
         self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
@@ -467,8 +467,8 @@ class CascadeFlow(BaseChatModel):
 
     def _stream(
         self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
@@ -521,7 +521,7 @@ class CascadeFlow(BaseChatModel):
                 return
 
         # STEP 1: Stream drafter optimistically
-        drafter_chunks: List[ChatGenerationChunk] = []
+        drafter_chunks: list[ChatGenerationChunk] = []
         drafter_content = ""
 
         # Stream from drafter in real-time
@@ -588,8 +588,8 @@ class CascadeFlow(BaseChatModel):
 
     async def _astream(
         self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> AsyncIterator[ChatGenerationChunk]:
@@ -642,7 +642,7 @@ class CascadeFlow(BaseChatModel):
                 return
 
         # STEP 1: Stream drafter optimistically
-        drafter_chunks: List[ChatGenerationChunk] = []
+        drafter_chunks: list[ChatGenerationChunk] = []
         drafter_content = ""
 
         # Stream from drafter in real-time

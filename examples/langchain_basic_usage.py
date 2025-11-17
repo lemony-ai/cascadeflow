@@ -47,7 +47,7 @@ async def main():
     response = await cascade.ainvoke("What is 2+2?")
     result = cascade.get_last_cascade_result()
 
-    print(f"\nQuestion: What is 2+2?")
+    print("\nQuestion: What is 2+2?")
     print(f"Response: {response.content}")
     print(f"\nModel used: {result['model_used']}")
     print(f"Drafter quality: {result.get('drafter_quality', 0):.2f}")
@@ -67,7 +67,7 @@ async def main():
     )
     result = cascade.get_last_cascade_result()
 
-    print(f"\nQuestion: Explain sync vs async in Python...")
+    print("\nQuestion: Explain sync vs async in Python...")
     print(f"Response: {response.content[:200]}...")
     print(f"\nModel used: {result['model_used']}")
     print(f"Drafter quality: {result.get('drafter_quality', 0):.2f}")
@@ -87,7 +87,7 @@ async def main():
     response = await bound_cascade.ainvoke("Tell me a creative story in one sentence.")
     result = bound_cascade.get_last_cascade_result()
 
-    print(f"\nQuestion: Tell me a creative story...")
+    print("\nQuestion: Tell me a creative story...")
     print(f"Response: {response.content}")
     print(f"\nModel used: {result['model_used']}")
     print(f"Accepted: {result['accepted']}")

@@ -1,13 +1,12 @@
 """Utility functions for CascadeFlow LangChain integration."""
 
 import re
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from .types import CostMetadata, TokenUsage
 
-
 # Model pricing per 1M tokens (input/output)
-MODEL_PRICING: Dict[str, Dict[str, float]] = {
+MODEL_PRICING: dict[str, dict[str, float]] = {
     # OpenAI
     "gpt-4o-mini": {"input": 0.150, "output": 0.600},
     "gpt-4o": {"input": 2.50, "output": 10.00},

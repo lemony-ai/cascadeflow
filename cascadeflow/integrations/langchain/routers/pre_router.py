@@ -11,15 +11,16 @@ Routing Logic:
 Port from @cascadeflow/core
 """
 
-from typing import Any, Dict, Optional, TypedDict, List
+from typing import Any, Optional, TypedDict
+
 from typing_extensions import NotRequired
 
 from ..complexity import ComplexityDetector, QueryComplexity
 from .base import (
     Router,
-    RoutingStrategy,
     RoutingDecision,
     RoutingDecisionHelper,
+    RoutingStrategy,
 )
 
 
@@ -28,7 +29,7 @@ class PreRouterConfig(TypedDict):
 
     enable_cascade: NotRequired[bool]  # Enable cascade routing (default: True)
     complexity_detector: NotRequired[ComplexityDetector]  # Custom detector
-    cascade_complexities: NotRequired[List[QueryComplexity]]  # Which to cascade
+    cascade_complexities: NotRequired[list[QueryComplexity]]  # Which to cascade
     verbose: NotRequired[bool]  # Enable verbose logging
 
 
@@ -36,8 +37,8 @@ class PreRouterStats(TypedDict):
     """Statistics tracked by PreRouter."""
 
     total_queries: int  # Total queries routed
-    by_complexity: Dict[str, int]  # Distribution by complexity
-    by_strategy: Dict[str, int]  # Distribution by strategy
+    by_complexity: dict[str, int]  # Distribution by complexity
+    by_strategy: dict[str, int]  # Distribution by strategy
     cascade_rate: str  # Cascade rate percentage
     direct_rate: str  # Direct rate percentage
     forced_direct: int  # Number of forced direct routes
@@ -86,7 +87,7 @@ class PreRouter(Router):
         self.verbose = config.get("verbose", False)
 
         # Default: cascade for simple queries, direct for complex
-        default_cascade_complexities: List[QueryComplexity] = [
+        default_cascade_complexities: list[QueryComplexity] = [
             "trivial",
             "simple",
             "moderate",
@@ -116,7 +117,7 @@ class PreRouter(Router):
             ]
             print(f'  Direct complexities: {", ".join(direct_complexities)}')
 
-    async def route(self, query: str, context: Optional[Dict[str, Any]] = None) -> RoutingDecision:
+    async def route(self, query: str, context: Optional[dict[str, Any]] = None) -> RoutingDecision:
         """Route query based on complexity.
 
         Context keys (optional):
@@ -182,7 +183,7 @@ class PreRouter(Router):
         self.stats["by_complexity"][complexity] = complexity_count + 1
 
         # === STEP 2: Make Routing Decision ===
-        force_direct = context.get("force_direct") == True
+        force_direct = context.get("force_direct")
 
         strategy: RoutingStrategy
         reason: str

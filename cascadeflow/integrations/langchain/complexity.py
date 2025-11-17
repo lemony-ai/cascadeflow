@@ -16,7 +16,8 @@ Based on research:
 """
 
 import re
-from typing import Literal, TypedDict, Optional, Set, Dict, List
+from typing import Literal, TypedDict
+
 from typing_extensions import NotRequired
 
 # Type definitions
@@ -28,15 +29,15 @@ class ComplexityResult(TypedDict):
 
     complexity: QueryComplexity
     confidence: float
-    metadata: NotRequired[Dict[str, any]]
+    metadata: NotRequired[dict[str, any]]
 
 
 class ComplexityMetadata(TypedDict):
     """Optional metadata for complexity detection."""
 
-    technical_terms: NotRequired[List[str]]
-    domains: NotRequired[Set[str]]
-    math_notation: NotRequired[List[str]]
+    technical_terms: NotRequired[list[str]]
+    domains: NotRequired[set[str]]
+    math_notation: NotRequired[list[str]]
     domain_score: NotRequired[float]
 
 
@@ -489,7 +490,7 @@ class ComplexityDetector:
         # 3. Detect technical terms
         tech_terms, domain_scores = self._detect_technical_terms(query_lower)
         metadata["technical_terms"] = tech_terms
-        metadata["domains"] = set(d for d, score in domain_scores.items() if score > 0)
+        metadata["domains"] = {d for d, score in domain_scores.items() if score > 0}
         metadata["domain_score"] = max(domain_scores.values()) if domain_scores else 0.0
 
         # 4. Calculate technical complexity boost
@@ -625,9 +626,9 @@ class ComplexityDetector:
             result["metadata"] = metadata
         return result
 
-    def _detect_technical_terms(self, query_lower: str) -> tuple[List[str], Dict[str, float]]:
+    def _detect_technical_terms(self, query_lower: str) -> tuple[list[str], dict[str, float]]:
         """Detect technical terms in query."""
-        found_terms: List[str] = []
+        found_terms: list[str] = []
         domain_scores = {
             "physics": 0.0,
             "mathematics": 0.0,
@@ -671,7 +672,7 @@ class ComplexityDetector:
         return found_terms, domain_scores
 
     def _calculate_technical_boost(
-        self, num_tech_terms: int, num_math_notation: int, domain_scores: Dict[str, float]
+        self, num_tech_terms: int, num_math_notation: int, domain_scores: dict[str, float]
     ) -> float:
         """Calculate complexity boost from technical content."""
         boost = 0.0

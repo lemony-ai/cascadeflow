@@ -8,7 +8,8 @@ Port from @cascadeflow/core
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Optional, TypedDict
+from typing import Any, Optional, TypedDict
+
 from typing_extensions import NotRequired
 
 
@@ -33,7 +34,7 @@ class RoutingDecision(TypedDict):
     strategy: RoutingStrategy  # How to execute (DIRECT_BEST, CASCADE, etc)
     reason: str  # Human-readable explanation
     confidence: float  # Confidence in this decision (0-1)
-    metadata: Dict[str, Any]  # Additional routing metadata
+    metadata: dict[str, Any]  # Additional routing metadata
     model_name: NotRequired[str]  # Specific model to use (optional)
     max_cost: NotRequired[float]  # Budget constraint (optional)
     min_quality: NotRequired[float]  # Quality requirement (optional)
@@ -63,7 +64,7 @@ class RoutingDecisionHelper:
         strategy: RoutingStrategy,
         reason: str,
         confidence: float,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> RoutingDecision:
         """Create a routing decision."""
         decision: RoutingDecision = {
@@ -91,7 +92,7 @@ class Router(ABC):
     """
 
     @abstractmethod
-    async def route(self, query: str, context: Optional[Dict[str, Any]] = None) -> RoutingDecision:
+    async def route(self, query: str, context: Optional[dict[str, Any]] = None) -> RoutingDecision:
         """Decide how to handle this query.
 
         Args:
@@ -103,7 +104,7 @@ class Router(ABC):
         """
         pass
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get router statistics (optional override).
 
         Returns:
@@ -139,7 +140,7 @@ class RouterChain:
         """
         self.routers = routers
 
-    async def route(self, query: str, context: Optional[Dict[str, Any]] = None) -> RoutingDecision:
+    async def route(self, query: str, context: Optional[dict[str, Any]] = None) -> RoutingDecision:
         """Route through chain of routers.
 
         Args:

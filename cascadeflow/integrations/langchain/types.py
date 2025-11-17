@@ -1,6 +1,7 @@
 """Type definitions for CascadeFlow LangChain integration."""
 
-from typing import Any, Callable, Literal, Optional, TypedDict, Union
+from typing import Any, Callable, Literal, TypedDict, Union
+
 from typing_extensions import NotRequired
 
 
