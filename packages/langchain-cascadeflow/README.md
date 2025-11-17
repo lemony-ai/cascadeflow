@@ -25,16 +25,17 @@ yarn add @cascadeflow/langchain @langchain/core
 
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
 import { withCascade } from '@cascadeflow/langchain';
 
 // Step 1: Configure your existing models (no changes needed!)
 const drafter = new ChatOpenAI({
-  model: 'gpt-4o-mini',  // Fast, cheap model
+  model: 'gpt-5-mini',  // Fast, cheap model ($0.25/$2 per 1M tokens)
   temperature: 0.7
 });
 
-const verifier = new ChatOpenAI({
-  model: 'gpt-4o',  // Accurate, expensive model
+const verifier = new ChatAnthropic({
+  model: 'claude-sonnet-4-5',  // Accurate, expensive model ($3/$15 per 1M tokens)
   temperature: 0.7
 });
 
@@ -54,6 +55,10 @@ const stats = cascadeModel.getLastCascadeResult();
 console.log(`Model used: ${stats.modelUsed}`);
 console.log(`Cost: $${stats.totalCost.toFixed(6)}`);
 console.log(`Savings: ${stats.savingsPercentage.toFixed(1)}%`);
+
+// Optional: Enable LangSmith tracing (see traces at https://smith.langchain.com)
+// Set LANGSMITH_API_KEY, LANGSMITH_PROJECT, LANGSMITH_TRACING=true
+// Your ChatOpenAI/ChatAnthropic models will appear in LangSmith with cascade metadata
 ```
 
 ## How It Works
@@ -76,8 +81,8 @@ This approach provides:
 
 ```typescript
 const cascadeModel = withCascade({
-  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
-  verifier: new ChatOpenAI({ model: 'gpt-4o' }),
+  drafter: new ChatOpenAI({ model: 'gpt-5-mini' }),
+  verifier: new ChatAnthropic({ model: 'claude-sonnet-4-5' }),
   qualityThreshold: 0.7,  // Default: 0.7 (70%)
 });
 ```
@@ -113,6 +118,31 @@ const cascadeModel = withCascade({
 ```
 
 ## Advanced Usage
+
+### Streaming Responses
+
+CascadeFlow supports real-time streaming with optimistic drafter execution:
+
+```typescript
+const cascade = withCascade({
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatOpenAI({ model: 'gpt-4o' }),
+});
+
+// Stream responses in real-time
+const stream = await cascade.stream('Explain TypeScript');
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.content);
+}
+```
+
+**How Streaming Works:**
+1. **Optimistic Streaming** - Drafter response streams immediately (user sees output in real-time)
+2. **Quality Check** - After drafter completes, quality is validated
+3. **Optional Cascade** - If quality insufficient, shows "⤴ Cascading to [model]" message and streams verifier
+
+This provides the best user experience with no perceived latency for queries the drafter can handle.
 
 ### Chaining with bind()
 
@@ -186,6 +216,65 @@ console.log({
 });
 ```
 
+## LangSmith Integration
+
+CascadeFlow works seamlessly with LangSmith for observability and cost tracking.
+
+### What You'll See in LangSmith
+
+When you enable LangSmith tracing, you'll see:
+
+1. **Your Actual Chat Models** - ChatOpenAI, ChatAnthropic, etc. appear as separate traces
+2. **Cascade Metadata** - Decision info attached to each response
+3. **Token Usage & Costs** - Server-side calculation by LangSmith
+4. **Nested Traces** - Parent CascadeFlow trace with child model traces
+
+### Enabling LangSmith
+
+```typescript
+// Set environment variables
+process.env.LANGSMITH_API_KEY = 'lsv2_pt_...';
+process.env.LANGSMITH_PROJECT = 'your-project';
+process.env.LANGSMITH_TRACING = 'true';
+
+// Use CascadeFlow normally - tracing happens automatically
+const cascade = withCascade({
+  drafter: new ChatOpenAI({ model: 'gpt-5-mini' }),
+  verifier: new ChatAnthropic({ model: 'claude-sonnet-4-5' }),
+  costTrackingProvider: 'langsmith', // Default
+});
+
+const result = await cascade.invoke("Your query");
+```
+
+### Viewing Traces
+
+In your LangSmith dashboard (https://smith.langchain.com):
+
+- **For cascaded queries** - You'll see only the drafter model trace (e.g., ChatOpenAI with gpt-5-mini)
+- **For escalated queries** - You'll see BOTH drafter AND verifier traces (e.g., ChatOpenAI gpt-5-mini + ChatAnthropic claude-sonnet-4-5)
+- **Metadata location** - Click any trace → Outputs → response_metadata → cascade
+
+### Example Metadata
+
+```json
+{
+  "cascade": {
+    "cascade_decision": "cascaded",
+    "model_used": "drafter",
+    "drafter_quality": 0.85,
+    "savings_percentage": 66.7,
+    "drafter_cost": 0,      // Calculated by LangSmith
+    "verifier_cost": 0,     // Calculated by LangSmith
+    "total_cost": 0         // Calculated by LangSmith
+  }
+}
+```
+
+**Note**: When using `costTrackingProvider: 'langsmith'` (default), costs are calculated server-side and shown in the LangSmith UI. Local cost values are $0.
+
+See [docs/COST_TRACKING.md](./docs/COST_TRACKING.md) for more details on cost tracking options.
+
 ## Supported Models
 
 Works with any LangChain-compatible chat model:
@@ -194,8 +283,8 @@ Works with any LangChain-compatible chat model:
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
 
-const drafter = new ChatOpenAI({ model: 'gpt-4o-mini' });
-const verifier = new ChatOpenAI({ model: 'gpt-4o' });
+const drafter = new ChatOpenAI({ model: 'gpt-5-mini' });
+const verifier = new ChatOpenAI({ model: 'gpt-5' });
 ```
 
 ### Anthropic
@@ -203,19 +292,20 @@ const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 import { ChatAnthropic } from '@langchain/anthropic';
 
 const drafter = new ChatAnthropic({ model: 'claude-3-5-haiku-20241022' });
-const verifier = new ChatAnthropic({ model: 'claude-3-5-sonnet-20241022' });
+const verifier = new ChatAnthropic({ model: 'claude-sonnet-4-5' });
 ```
 
-### Mix and Match
+### Mix and Match (Recommended)
 ```typescript
-// Use different providers!
-const drafter = new ChatOpenAI({ model: 'gpt-4o-mini' });
-const verifier = new ChatAnthropic({ model: 'claude-3-5-sonnet-20241022' });
+// Use different providers for optimal cost/quality balance!
+const drafter = new ChatOpenAI({ model: 'gpt-5-mini' });
+const verifier = new ChatAnthropic({ model: 'claude-sonnet-4-5' });
 ```
 
 ## Cost Optimization Tips
 
 1. **Choose Your Drafter Wisely** - Use the cheapest model that can handle most queries
+   - GPT-5-mini: $0.25/$2.00 per 1M tokens (input/output)
    - GPT-4o-mini: $0.15/$0.60 per 1M tokens (input/output)
    - Claude 3.5 Haiku: $0.80/$4.00 per 1M tokens
 
@@ -265,11 +355,11 @@ const stats: CascadeResult | undefined = cascadeModel.getLastCascadeResult();
 See the [examples](./examples/) directory for complete working examples:
 
 - **[basic-usage.ts](./examples/basic-usage.ts)** - Getting started guide
-- More examples coming soon!
+- **[streaming-cascade.ts](./examples/streaming-cascade.ts)** - Real-time streaming with optimistic drafter execution
 
 ## API Reference
 
-### `withCascade(config: CascadeConfig): CascadeWrapper`
+### `withCascade(config: CascadeConfig): CascadeFlow`
 
 Creates a cascade-wrapped LangChain model.
 
@@ -280,9 +370,9 @@ Creates a cascade-wrapped LangChain model.
 - `config.qualityValidator?` - Custom function to calculate quality
 - `config.enableCostTracking?` - Enable LangSmith metadata injection (default: true)
 
-**Returns:** `CascadeWrapper` - A LangChain-compatible model with cascade logic
+**Returns:** `CascadeFlow` - A LangChain-compatible model with cascade logic
 
-### `CascadeWrapper.getLastCascadeResult(): CascadeResult | undefined`
+### `CascadeFlow.getLastCascadeResult(): CascadeResult | undefined`
 
 Returns statistics from the last cascade execution.
 

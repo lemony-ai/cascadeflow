@@ -13,7 +13,7 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { CascadeWrapper, discoverCascadePairs, analyzeModel } from './src/index.js';
+import { CascadeFlow, discoverCascadePairs, analyzeModel } from './src/index.js';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { PromptTemplate } from '@langchain/core/prompts';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
@@ -207,7 +207,7 @@ async function benchmarkBasicCascade(
   const verifierName = analyzeModel(verifier).modelName;
 
   try {
-    const cascade = new CascadeWrapper({
+    const cascade = new CascadeFlow({
       drafter,
       verifier,
       qualityThreshold: withQuality ? 0.7 : 0.0,
@@ -266,7 +266,7 @@ async function benchmarkStreaming(
   const verifierName = analyzeModel(verifier).modelName;
 
   try {
-    const cascade = new CascadeWrapper({
+    const cascade = new CascadeFlow({
       drafter,
       verifier,
       qualityThreshold: 0.7,
@@ -331,7 +331,7 @@ async function benchmarkToolCalling(
   const verifierName = analyzeModel(verifier).modelName;
 
   try {
-    const cascade = new CascadeWrapper({
+    const cascade = new CascadeFlow({
       drafter,
       verifier,
       qualityThreshold: 0.7,
@@ -401,7 +401,7 @@ async function benchmarkStructuredOutput(
       required: ['name', 'age'],
     };
 
-    const cascade = new CascadeWrapper({
+    const cascade = new CascadeFlow({
       drafter,
       verifier,
       qualityThreshold: 0.7,
@@ -460,7 +460,7 @@ async function benchmarkBatchProcessing(
   const verifierName = analyzeModel(verifier).modelName;
 
   try {
-    const cascade = new CascadeWrapper({
+    const cascade = new CascadeFlow({
       drafter,
       verifier,
       qualityThreshold: 0.7,
@@ -523,7 +523,7 @@ async function benchmarkLCELChain(
   const verifierName = analyzeModel(verifier).modelName;
 
   try {
-    const cascade = new CascadeWrapper({
+    const cascade = new CascadeFlow({
       drafter,
       verifier,
       qualityThreshold: 0.7,

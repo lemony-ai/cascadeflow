@@ -48,7 +48,9 @@
   ],
   "dependencies": {
     "@cascadeflow/core": "workspace:^",
-    "@langchain/anthropic": "^1.0.1"
+    "@cascadeflow/ml": "workspace:^",
+    "@langchain/anthropic": "^1.0.1",
+    "@langchain/google-genai": "^1.0.1"
   },
   "peerDependencies": {
     "@langchain/core": "^0.3.0",
