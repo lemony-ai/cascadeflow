@@ -86,9 +86,7 @@ def main():
 
         # Use the best pair
         print("Creating CascadeFlow with best pair...")
-        CascadeFlow(
-            drafter=best["drafter"], verifier=best["verifier"], quality_threshold=0.7
-        )
+        CascadeFlow(drafter=best["drafter"], verifier=best["verifier"], quality_threshold=0.7)
         print("✓ CascadeFlow created successfully!")
 
     print("\n4. COMPARE MODELS")
