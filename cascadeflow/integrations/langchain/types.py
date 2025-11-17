@@ -24,8 +24,10 @@ class CascadeConfig(TypedDict):
     verifier: Any  # BaseChatModel from langchain
     quality_threshold: NotRequired[float]
     enable_cost_tracking: NotRequired[bool]
-    cost_tracking_provider: NotRequired[Literal['langsmith', 'cascadeflow']]
-    quality_validator: NotRequired[Callable[[Any], Union[float, Any]]]  # Can return Promise or number
+    cost_tracking_provider: NotRequired[Literal["langsmith", "cascadeflow"]]
+    quality_validator: NotRequired[
+        Callable[[Any], Union[float, Any]]
+    ]  # Can return Promise or number
     enable_pre_router: NotRequired[bool]
     pre_router: NotRequired[Any]  # PreRouter type
     cascade_complexities: NotRequired[list[str]]  # QueryComplexity list
@@ -54,7 +56,7 @@ class CascadeResult(TypedDict):
     """
 
     content: str
-    model_used: Literal['drafter', 'verifier']
+    model_used: Literal["drafter", "verifier"]
     drafter_quality: NotRequired[float]
     accepted: bool
     drafter_cost: float
@@ -85,6 +87,6 @@ class CostMetadata(TypedDict):
     verifier_cost: float
     total_cost: float
     savings_percentage: float
-    model_used: Literal['drafter', 'verifier']
+    model_used: Literal["drafter", "verifier"]
     accepted: bool
     drafter_quality: NotRequired[float]

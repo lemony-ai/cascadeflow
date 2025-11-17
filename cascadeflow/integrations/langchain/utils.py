@@ -9,25 +9,20 @@ from .types import CostMetadata, TokenUsage
 # Model pricing per 1M tokens (input/output)
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
     # OpenAI
-    'gpt-4o-mini': {'input': 0.150, 'output': 0.600},
-    'gpt-4o': {'input': 2.50, 'output': 10.00},
-    'gpt-4-turbo': {'input': 10.00, 'output': 30.00},
-    'gpt-3.5-turbo': {'input': 0.50, 'output': 1.50},
-
+    "gpt-4o-mini": {"input": 0.150, "output": 0.600},
+    "gpt-4o": {"input": 2.50, "output": 10.00},
+    "gpt-4-turbo": {"input": 10.00, "output": 30.00},
+    "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
     # Anthropic
-    'claude-3-5-sonnet-20241022': {'input': 3.00, 'output': 15.00},
-    'claude-3-5-haiku-20241022': {'input': 0.80, 'output': 4.00},
-    'claude-3-opus-20240229': {'input': 15.00, 'output': 75.00},
-    'claude-3-sonnet-20240229': {'input': 3.00, 'output': 15.00},
-    'claude-3-haiku-20240307': {'input': 0.25, 'output': 1.25},
+    "claude-3-5-sonnet-20241022": {"input": 3.00, "output": 15.00},
+    "claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
+    "claude-3-opus-20240229": {"input": 15.00, "output": 75.00},
+    "claude-3-sonnet-20240229": {"input": 3.00, "output": 15.00},
+    "claude-3-haiku-20240307": {"input": 0.25, "output": 1.25},
 }
 
 
-def calculate_cost(
-    model_name: str,
-    input_tokens: int,
-    output_tokens: int
-) -> float:
+def calculate_cost(model_name: str, input_tokens: int, output_tokens: int) -> float:
     """Calculate cost based on token usage and model.
 
     Args:
@@ -44,8 +39,8 @@ def calculate_cost(
         print(f"Warning: Unknown model for pricing: {model_name}, using default")
         return 0.0
 
-    input_cost = (input_tokens / 1_000_000) * pricing['input']
-    output_cost = (output_tokens / 1_000_000) * pricing['output']
+    input_cost = (input_tokens / 1_000_000) * pricing["input"]
+    output_cost = (output_tokens / 1_000_000) * pricing["output"]
 
     return input_cost + output_cost
 
@@ -60,37 +55,35 @@ def extract_token_usage(response: Any) -> TokenUsage:
         TokenUsage dictionary with input and output token counts
     """
     # LangChain ChatResult structure
-    llm_output = getattr(response, 'llm_output', None) or {}
+    llm_output = getattr(response, "llm_output", None) or {}
 
     # Try to get usage from various possible locations
-    usage = llm_output.get('token_usage') or llm_output.get('usage') or {}
+    usage = llm_output.get("token_usage") or llm_output.get("usage") or {}
 
     # Also check response_metadata if available
-    if hasattr(response, 'response_metadata'):
-        metadata_usage = response.response_metadata.get('token_usage') or \
-                        response.response_metadata.get('usage') or {}
+    if hasattr(response, "response_metadata"):
+        metadata_usage = (
+            response.response_metadata.get("token_usage")
+            or response.response_metadata.get("usage")
+            or {}
+        )
         usage = usage or metadata_usage
 
     # OpenAI format (snake_case)
-    if 'prompt_tokens' in usage or 'completion_tokens' in usage:
+    if "prompt_tokens" in usage or "completion_tokens" in usage:
         return TokenUsage(
-            input=usage.get('prompt_tokens', 0),
-            output=usage.get('completion_tokens', 0)
+            input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)
         )
 
     # OpenAI format (camelCase - LangChain uses this)
-    if 'promptTokens' in usage or 'completionTokens' in usage:
+    if "promptTokens" in usage or "completionTokens" in usage:
         return TokenUsage(
-            input=usage.get('promptTokens', 0),
-            output=usage.get('completionTokens', 0)
+            input=usage.get("promptTokens", 0), output=usage.get("completionTokens", 0)
         )
 
     # Anthropic format
-    if 'input_tokens' in usage or 'output_tokens' in usage:
-        return TokenUsage(
-            input=usage.get('input_tokens', 0),
-            output=usage.get('output_tokens', 0)
-        )
+    if "input_tokens" in usage or "output_tokens" in usage:
+        return TokenUsage(input=usage.get("input_tokens", 0), output=usage.get("output_tokens", 0))
 
     # Default
     return TokenUsage(input=0, output=0)
@@ -108,37 +101,38 @@ def calculate_quality(response: Any) -> float:
         Quality score between 0 and 1
     """
     # 1. Try logprobs-based confidence (OpenAI)
-    if hasattr(response, 'generations') and response.generations:
+    if hasattr(response, "generations") and response.generations:
         generation = response.generations[0]
 
         # Check for logprobs in generation_info
-        if hasattr(generation, 'generation_info'):
+        if hasattr(generation, "generation_info"):
             generation_info = generation.generation_info
-            if generation_info and 'logprobs' in generation_info:
-                logprobs_data = generation_info['logprobs']
-                if logprobs_data and 'content' in logprobs_data:
+            if generation_info and "logprobs" in generation_info:
+                logprobs_data = generation_info["logprobs"]
+                if logprobs_data and "content" in logprobs_data:
                     # OpenAI format: content is array of {token, logprob}
                     logprobs = [
-                        item['logprob']
-                        for item in logprobs_data['content']
-                        if item.get('logprob') is not None
+                        item["logprob"]
+                        for item in logprobs_data["content"]
+                        if item.get("logprob") is not None
                     ]
 
                     if logprobs:
                         import math
+
                         avg_logprob = sum(logprobs) / len(logprobs)
                         confidence = math.exp(avg_logprob)  # Convert log probability to probability
                         return max(0.1, min(1.0, confidence * 1.5))  # Boost slightly
 
     # 2. Heuristic-based quality scoring
     # Extract text from response
-    text = ''
-    if hasattr(response, 'generations') and response.generations:
+    text = ""
+    if hasattr(response, "generations") and response.generations:
         generation = response.generations[0]
-        text = getattr(generation, 'text', '')
-        if not text and hasattr(generation, 'message'):
-            text = getattr(generation.message, 'content', '')
-    elif hasattr(response, 'content'):
+        text = getattr(generation, "text", "")
+        if not text and hasattr(generation, "message"):
+            text = getattr(generation.message, "content", "")
+    elif hasattr(response, "content"):
         text = response.content
 
     if not text or len(text) < 5:
@@ -154,19 +148,17 @@ def calculate_quality(response: Any) -> float:
         score += 0.1
 
     # Structure bonus (has punctuation, capitalization)
-    if re.search(r'[.!?]', text):
+    if re.search(r"[.!?]", text):
         score += 0.05
-    if re.match(r'^[A-Z]', text):
+    if re.match(r"^[A-Z]", text):
         score += 0.05
 
     # Completeness bonus (ends with punctuation)
-    if re.search(r'[.!?]$', text.strip()):
+    if re.search(r"[.!?]$", text.strip()):
         score += 0.1
 
     # Penalize hedging phrases (but less harshly)
-    hedging_phrases = [
-        "i don't know", "i'm not sure", "i cannot", "i can't"
-    ]
+    hedging_phrases = ["i don't know", "i'm not sure", "i cannot", "i can't"]
     lower_text = text.lower()
     hedge_count = sum(1 for phrase in hedging_phrases if phrase in lower_text)
     score -= hedge_count * 0.1
@@ -200,7 +192,7 @@ def create_cost_metadata(
     verifier_model: str,
     accepted: bool,
     drafter_quality: float,
-    cost_provider: str = 'langsmith'
+    cost_provider: str = "langsmith",
 ) -> CostMetadata:
     """Create cost metadata with configurable provider.
 
@@ -218,13 +210,17 @@ def create_cost_metadata(
     """
     drafter_tokens = extract_token_usage(drafter_response)
 
-    if cost_provider == 'cascadeflow':
+    if cost_provider == "cascadeflow":
         # Use CascadeFlow's built-in pricing calculation
-        drafter_cost = calculate_cost(drafter_model, drafter_tokens['input'], drafter_tokens['output'])
+        drafter_cost = calculate_cost(
+            drafter_model, drafter_tokens["input"], drafter_tokens["output"]
+        )
 
         if verifier_response:
             verifier_tokens = extract_token_usage(verifier_response)
-            verifier_cost = calculate_cost(verifier_model, verifier_tokens['input'], verifier_tokens['output'])
+            verifier_cost = calculate_cost(
+                verifier_model, verifier_tokens["input"], verifier_tokens["output"]
+            )
         else:
             verifier_tokens = None
             verifier_cost = 0.0
@@ -244,17 +240,17 @@ def create_cost_metadata(
     savings_percentage = calculate_savings(drafter_cost, verifier_cost)
 
     metadata: CostMetadata = {
-        'drafter_tokens': drafter_tokens,
-        'drafter_cost': drafter_cost,
-        'verifier_cost': verifier_cost,
-        'total_cost': total_cost,
-        'savings_percentage': savings_percentage,
-        'model_used': 'drafter' if accepted else 'verifier',
-        'accepted': accepted,
-        'drafter_quality': drafter_quality,
+        "drafter_tokens": drafter_tokens,
+        "drafter_cost": drafter_cost,
+        "verifier_cost": verifier_cost,
+        "total_cost": total_cost,
+        "savings_percentage": savings_percentage,
+        "model_used": "drafter" if accepted else "verifier",
+        "accepted": accepted,
+        "drafter_quality": drafter_quality,
     }
 
     if verifier_tokens:
-        metadata['verifier_tokens'] = verifier_tokens
+        metadata["verifier_tokens"] = verifier_tokens
 
     return metadata

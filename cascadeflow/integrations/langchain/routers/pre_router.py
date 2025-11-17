@@ -25,21 +25,23 @@ from .base import (
 
 class PreRouterConfig(TypedDict):
     """Configuration for PreRouter."""
-    enable_cascade: NotRequired[bool]           # Enable cascade routing (default: True)
+
+    enable_cascade: NotRequired[bool]  # Enable cascade routing (default: True)
     complexity_detector: NotRequired[ComplexityDetector]  # Custom detector
     cascade_complexities: NotRequired[List[QueryComplexity]]  # Which to cascade
-    verbose: NotRequired[bool]                  # Enable verbose logging
+    verbose: NotRequired[bool]  # Enable verbose logging
 
 
 class PreRouterStats(TypedDict):
     """Statistics tracked by PreRouter."""
-    total_queries: int                          # Total queries routed
-    by_complexity: Dict[str, int]                # Distribution by complexity
-    by_strategy: Dict[str, int]                  # Distribution by strategy
-    cascade_rate: str                            # Cascade rate percentage
-    direct_rate: str                             # Direct rate percentage
-    forced_direct: int                           # Number of forced direct routes
-    cascade_disabled_count: int                  # Queries when cascade was disabled
+
+    total_queries: int  # Total queries routed
+    by_complexity: Dict[str, int]  # Distribution by complexity
+    by_strategy: Dict[str, int]  # Distribution by strategy
+    cascade_rate: str  # Cascade rate percentage
+    direct_rate: str  # Direct rate percentage
+    forced_direct: int  # Number of forced direct routes
+    cascade_disabled_count: int  # Queries when cascade was disabled
 
 
 class PreRouter(Router):
@@ -79,45 +81,42 @@ class PreRouter(Router):
         """
         config = config or {}
 
-        self.enable_cascade = config.get('enable_cascade', True)
-        self.detector = config.get('complexity_detector') or ComplexityDetector()
-        self.verbose = config.get('verbose', False)
+        self.enable_cascade = config.get("enable_cascade", True)
+        self.detector = config.get("complexity_detector") or ComplexityDetector()
+        self.verbose = config.get("verbose", False)
 
         # Default: cascade for simple queries, direct for complex
         default_cascade_complexities: List[QueryComplexity] = [
-            'trivial',
-            'simple',
-            'moderate',
+            "trivial",
+            "simple",
+            "moderate",
         ]
 
         self.cascade_complexities = set(
-            config.get('cascade_complexities') or default_cascade_complexities
+            config.get("cascade_complexities") or default_cascade_complexities
         )
 
         # Initialize statistics
         self.stats = {
-            'total_queries': 0,
-            'by_complexity': {},
-            'by_strategy': {},
-            'forced_direct': 0,
-            'cascade_disabled': 0,
+            "total_queries": 0,
+            "by_complexity": {},
+            "by_strategy": {},
+            "forced_direct": 0,
+            "cascade_disabled": 0,
         }
 
         if self.verbose:
-            print('PreRouter initialized:')
-            print(f'  Cascade enabled: {self.enable_cascade}')
+            print("PreRouter initialized:")
+            print(f"  Cascade enabled: {self.enable_cascade}")
             print(f'  Cascade complexities: {", ".join(self.cascade_complexities)}')
             direct_complexities = [
-                c for c in ['trivial', 'simple', 'moderate', 'hard', 'expert']
+                c
+                for c in ["trivial", "simple", "moderate", "hard", "expert"]
                 if c not in self.cascade_complexities
             ]
             print(f'  Direct complexities: {", ".join(direct_complexities)}')
 
-    async def route(
-        self,
-        query: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> RoutingDecision:
+    async def route(self, query: str, context: Optional[Dict[str, Any]] = None) -> RoutingDecision:
         """Route query based on complexity.
 
         Context keys (optional):
@@ -151,39 +150,39 @@ class PreRouter(Router):
         context = context or {}
 
         # Update stats
-        self.stats['total_queries'] += 1
+        self.stats["total_queries"] += 1
 
         # === STEP 1: Detect Complexity ===
         complexity: QueryComplexity
         complexity_confidence: float
 
-        if 'complexity' in context:
+        if "complexity" in context:
             # Pre-detected complexity passed in
-            complexity = context['complexity']
-            complexity_confidence = context.get('complexity_confidence', 1.0)
-        elif 'complexity_hint' in context:
+            complexity = context["complexity"]
+            complexity_confidence = context.get("complexity_confidence", 1.0)
+        elif "complexity_hint" in context:
             # String hint provided
-            hint = context['complexity_hint'].lower()
+            hint = context["complexity_hint"].lower()
             if self._is_valid_complexity(hint):
                 complexity = hint  # type: ignore
                 complexity_confidence = 1.0
             else:
                 # Invalid hint, auto-detect
                 result = self.detector.detect(query)
-                complexity = result['complexity']
-                complexity_confidence = result['confidence']
+                complexity = result["complexity"]
+                complexity_confidence = result["confidence"]
         else:
             # Auto-detect complexity
             result = self.detector.detect(query)
-            complexity = result['complexity']
-            complexity_confidence = result['confidence']
+            complexity = result["complexity"]
+            complexity_confidence = result["confidence"]
 
         # Track complexity
-        complexity_count = self.stats['by_complexity'].get(complexity, 0)
-        self.stats['by_complexity'][complexity] = complexity_count + 1
+        complexity_count = self.stats["by_complexity"].get(complexity, 0)
+        self.stats["by_complexity"][complexity] = complexity_count + 1
 
         # === STEP 2: Make Routing Decision ===
-        force_direct = context.get('force_direct') == True
+        force_direct = context.get("force_direct") == True
 
         strategy: RoutingStrategy
         reason: str
@@ -192,29 +191,29 @@ class PreRouter(Router):
         if force_direct:
             # Forced direct routing
             strategy = RoutingStrategy.DIRECT_BEST
-            reason = 'Forced direct routing (bypass cascade)'
+            reason = "Forced direct routing (bypass cascade)"
             confidence = 1.0
-            self.stats['forced_direct'] += 1
+            self.stats["forced_direct"] += 1
         elif not self.enable_cascade:
             # Cascade system disabled
             strategy = RoutingStrategy.DIRECT_BEST
-            reason = 'Cascade disabled, routing to best model'
+            reason = "Cascade disabled, routing to best model"
             confidence = 1.0
-            self.stats['cascade_disabled'] += 1
+            self.stats["cascade_disabled"] += 1
         elif complexity in self.cascade_complexities:
             # Simple query → cascade for cost optimization
             strategy = RoutingStrategy.CASCADE
-            reason = f'{complexity} query suitable for cascade optimization'
+            reason = f"{complexity} query suitable for cascade optimization"
             confidence = complexity_confidence
         else:
             # Complex query → direct for quality
             strategy = RoutingStrategy.DIRECT_BEST
-            reason = f'{complexity} query requires best model for quality'
+            reason = f"{complexity} query requires best model for quality"
             confidence = complexity_confidence
 
         # Track strategy
-        strategy_count = self.stats['by_strategy'].get(strategy.value, 0)
-        self.stats['by_strategy'][strategy.value] = strategy_count + 1
+        strategy_count = self.stats["by_strategy"].get(strategy.value, 0)
+        self.stats["by_strategy"][strategy.value] = strategy_count + 1
 
         # === STEP 3: Build Decision ===
         decision = RoutingDecisionHelper.create(
@@ -222,21 +221,21 @@ class PreRouter(Router):
             reason,
             confidence,
             {
-                'complexity': complexity,
-                'complexity_confidence': complexity_confidence,
-                'router': 'pre',
-                'router_type': 'complexity_based',
-                'force_direct': force_direct,
-                'cascade_enabled': self.enable_cascade,
-            }
+                "complexity": complexity,
+                "complexity_confidence": complexity_confidence,
+                "router": "pre",
+                "router_type": "complexity_based",
+                "force_direct": force_direct,
+                "cascade_enabled": self.enable_cascade,
+            },
         )
 
         if self.verbose:
-            query_preview = query[:50] + '...' if len(query) > 50 else query
+            query_preview = query[:50] + "..." if len(query) > 50 else query
             print(
-                f'[PreRouter] {query_preview} → {strategy.value}\n'
-                f'           Complexity: {complexity} (conf: {complexity_confidence:.2f})\n'
-                f'           Reason: {reason}'
+                f"[PreRouter] {query_preview} → {strategy.value}\n"
+                f"           Complexity: {complexity} (conf: {complexity_confidence:.2f})\n"
+                f"           Reason: {reason}"
             )
 
         return decision
@@ -257,74 +256,75 @@ class PreRouter(Router):
             >>> print(f"Cascade rate: {stats['cascade_rate']}")
             >>> print(f"Complexity distribution: {stats['by_complexity']}")
         """
-        total = self.stats['total_queries']
+        total = self.stats["total_queries"]
         if total == 0:
             return {
-                'total_queries': 0,
-                'by_complexity': {},
-                'by_strategy': {},
-                'cascade_rate': '0.0%',
-                'direct_rate': '0.0%',
-                'forced_direct': 0,
-                'cascade_disabled_count': 0,
+                "total_queries": 0,
+                "by_complexity": {},
+                "by_strategy": {},
+                "cascade_rate": "0.0%",
+                "direct_rate": "0.0%",
+                "forced_direct": 0,
+                "cascade_disabled_count": 0,
             }
 
-        cascade_count = self.stats['by_strategy'].get(RoutingStrategy.CASCADE.value, 0)
+        cascade_count = self.stats["by_strategy"].get(RoutingStrategy.CASCADE.value, 0)
         direct_count = sum(
-            count for strategy, count in self.stats['by_strategy'].items()
-            if strategy.startswith('direct')
+            count
+            for strategy, count in self.stats["by_strategy"].items()
+            if strategy.startswith("direct")
         )
 
         return {
-            'total_queries': total,
-            'by_complexity': self.stats['by_complexity'].copy(),
-            'by_strategy': self.stats['by_strategy'].copy(),
-            'cascade_rate': f'{(cascade_count / total * 100):.1f}%',
-            'direct_rate': f'{(direct_count / total * 100):.1f}%',
-            'forced_direct': self.stats['forced_direct'],
-            'cascade_disabled_count': self.stats['cascade_disabled'],
+            "total_queries": total,
+            "by_complexity": self.stats["by_complexity"].copy(),
+            "by_strategy": self.stats["by_strategy"].copy(),
+            "cascade_rate": f"{(cascade_count / total * 100):.1f}%",
+            "direct_rate": f"{(direct_count / total * 100):.1f}%",
+            "forced_direct": self.stats["forced_direct"],
+            "cascade_disabled_count": self.stats["cascade_disabled"],
         }
 
     def reset_stats(self) -> None:
         """Reset all routing statistics."""
         self.stats = {
-            'total_queries': 0,
-            'by_complexity': {},
-            'by_strategy': {},
-            'forced_direct': 0,
-            'cascade_disabled': 0,
+            "total_queries": 0,
+            "by_complexity": {},
+            "by_strategy": {},
+            "forced_direct": 0,
+            "cascade_disabled": 0,
         }
 
     def print_stats(self) -> None:
         """Print formatted routing statistics."""
         stats = self.get_stats()
 
-        if stats['total_queries'] == 0:
-            print('No routing statistics available')
+        if stats["total_queries"] == 0:
+            print("No routing statistics available")
             return
 
-        print('\n' + '=' * 60)
-        print('PRE-ROUTER STATISTICS')
-        print('=' * 60)
+        print("\n" + "=" * 60)
+        print("PRE-ROUTER STATISTICS")
+        print("=" * 60)
         print(f"Total Queries Routed: {stats['total_queries']}")
         print(f"Cascade Rate:         {stats['cascade_rate']}")
         print(f"Direct Rate:          {stats['direct_rate']}")
         print(f"Forced Direct:        {stats['forced_direct']}")
         print()
-        print('BY COMPLEXITY:')
-        for complexity, count in stats['by_complexity'].items():
-            pct = (count / stats['total_queries'] * 100)
+        print("BY COMPLEXITY:")
+        for complexity, count in stats["by_complexity"].items():
+            pct = count / stats["total_queries"] * 100
             print(f"  {complexity.ljust(12)}: {str(count).rjust(4)} ({f'{pct:.1f}'.rjust(5)}%)")
         print()
-        print('BY STRATEGY:')
-        for strategy, count in stats['by_strategy'].items():
-            pct = (count / stats['total_queries'] * 100)
+        print("BY STRATEGY:")
+        for strategy, count in stats["by_strategy"].items():
+            pct = count / stats["total_queries"] * 100
             print(f"  {strategy.ljust(15)}: {str(count).rjust(4)} ({f'{pct:.1f}'.rjust(5)}%)")
-        print('=' * 60 + '\n')
+        print("=" * 60 + "\n")
 
     def _is_valid_complexity(self, s: str) -> bool:
         """Check if string is valid complexity."""
-        return s in ['trivial', 'simple', 'moderate', 'hard', 'expert']
+        return s in ["trivial", "simple", "moderate", "hard", "expert"]
 
 
 def create_pre_router(config: Optional[PreRouterConfig] = None) -> PreRouter:

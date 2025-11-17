@@ -29,20 +29,18 @@ async def demo_streaming_simple():
     print("=" * 80)
     print("\nQuery: What is Python?\n")
 
-    drafter = ChatOpenAI(model='gpt-4o-mini', temperature=0)
-    verifier = ChatOpenAI(model='gpt-4o', temperature=0)
+    drafter = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    verifier = ChatOpenAI(model="gpt-4o", temperature=0)
 
     cascade = CascadeFlow(
-        drafter=drafter,
-        verifier=verifier,
-        quality_threshold=0.7  # Most queries will pass
+        drafter=drafter, verifier=verifier, quality_threshold=0.7  # Most queries will pass
     )
 
     # Stream the response
     print("Streaming response:")
     print("-" * 80)
     async for chunk in cascade.astream("What is Python?"):
-        print(chunk.content, end='', flush=True)
+        print(chunk.content, end="", flush=True)
     print("\n" + "-" * 80)
 
     # Show cascade result
@@ -65,20 +63,20 @@ Bose-Einstein condensation and how it relates to superfluidity."""
 
     print(f"\nQuery: {complex_query}\n")
 
-    drafter = ChatOpenAI(model='gpt-4o-mini', temperature=0)
-    verifier = ChatOpenAI(model='gpt-4o', temperature=0)
+    drafter = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    verifier = ChatOpenAI(model="gpt-4o", temperature=0)
 
     cascade = CascadeFlow(
         drafter=drafter,
         verifier=verifier,
-        quality_threshold=0.9  # High threshold - drafter likely fails
+        quality_threshold=0.9,  # High threshold - drafter likely fails
     )
 
     # Stream the response
     print("Streaming response:")
     print("-" * 80)
     async for chunk in cascade.astream(complex_query):
-        print(chunk.content, end='', flush=True)
+        print(chunk.content, end="", flush=True)
     print("\n" + "-" * 80)
 
     # Show cascade result
@@ -98,22 +96,24 @@ async def demo_streaming_with_prerouter():
 
     from cascadeflow.integrations.langchain.routers import create_pre_router
 
-    drafter = ChatOpenAI(model='gpt-4o-mini', temperature=0)
-    verifier = ChatOpenAI(model='gpt-4o', temperature=0)
+    drafter = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    verifier = ChatOpenAI(model="gpt-4o", temperature=0)
 
     # Create PreRouter with verbose mode
-    pre_router = create_pre_router({
-        'enable_cascade': True,
-        'cascade_complexities': ['trivial', 'simple', 'moderate'],
-        'verbose': True,
-    })
+    pre_router = create_pre_router(
+        {
+            "enable_cascade": True,
+            "cascade_complexities": ["trivial", "simple", "moderate"],
+            "verbose": True,
+        }
+    )
 
     cascade = CascadeFlow(
         drafter=drafter,
         verifier=verifier,
         quality_threshold=0.7,
         enable_pre_router=True,
-        pre_router=pre_router
+        pre_router=pre_router,
     )
 
     # Test with simple query (should cascade)
@@ -122,7 +122,7 @@ async def demo_streaming_with_prerouter():
     print("Streaming response:")
     print("-" * 80)
     async for chunk in cascade.astream(simple_query):
-        print(chunk.content, end='', flush=True)
+        print(chunk.content, end="", flush=True)
     print("\n" + "-" * 80)
 
     result1 = cascade.get_last_cascade_result()
@@ -138,7 +138,7 @@ using tensor calculus and explain the Reynolds number."""
     print("Streaming response:")
     print("-" * 80)
     async for chunk in cascade.astream(complex_query):
-        print(chunk.content, end='', flush=True)
+        print(chunk.content, end="", flush=True)
     print("\n" + "-" * 80)
 
     result2 = cascade.get_last_cascade_result()
@@ -154,7 +154,7 @@ using tensor calculus and explain the Reynolds number."""
 async def main():
     """Run all streaming examples."""
     # Check for API key
-    if not os.getenv('OPENAI_API_KEY'):
+    if not os.getenv("OPENAI_API_KEY"):
         print("Error: OPENAI_API_KEY environment variable not set")
         print("Usage: OPENAI_API_KEY=sk-... python examples/langchain_streaming.py")
         return
@@ -174,5 +174,5 @@ async def main():
     print("=" * 80 + "\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

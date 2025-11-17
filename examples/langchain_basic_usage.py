@@ -20,7 +20,7 @@ from cascadeflow.integrations.langchain import CascadeFlow
 
 async def main():
     # Verify API key is set
-    if not os.getenv('OPENAI_API_KEY'):
+    if not os.getenv("OPENAI_API_KEY"):
         print("Error: OPENAI_API_KEY environment variable not set")
         return
 
@@ -29,8 +29,8 @@ async def main():
     print("=" * 60)
 
     # Setup drafter (cheap, fast) and verifier (expensive, accurate)
-    drafter = ChatOpenAI(model='gpt-4o-mini', temperature=0)
-    verifier = ChatOpenAI(model='gpt-4o', temperature=0)
+    drafter = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    verifier = ChatOpenAI(model="gpt-4o", temperature=0)
 
     # Create cascade with quality threshold
     cascade = CascadeFlow(
@@ -38,7 +38,7 @@ async def main():
         verifier=verifier,
         quality_threshold=0.7,
         enable_cost_tracking=True,
-        cost_tracking_provider='cascadeflow'  # Use built-in pricing
+        cost_tracking_provider="cascadeflow",  # Use built-in pricing
     )
 
     print("\n1. Testing with simple question (should use drafter):")
@@ -97,5 +97,5 @@ async def main():
     print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

@@ -26,7 +26,7 @@ from cascadeflow.integrations.langchain import (
 def main():
     """Run model discovery examples."""
     # Check for API key
-    if not os.getenv('OPENAI_API_KEY'):
+    if not os.getenv("OPENAI_API_KEY"):
         print("Error: OPENAI_API_KEY environment variable not set")
         print("Usage: OPENAI_API_KEY=sk-... python examples/langchain_model_discovery.py")
         return
@@ -37,9 +37,9 @@ def main():
 
     # YOUR models (configured with YOUR API keys)
     my_models = [
-        ChatOpenAI(model='gpt-4o-mini'),
-        ChatOpenAI(model='gpt-4o'),
-        ChatOpenAI(model='gpt-3.5-turbo'),
+        ChatOpenAI(model="gpt-4o-mini"),
+        ChatOpenAI(model="gpt-4o"),
+        ChatOpenAI(model="gpt-3.5-turbo"),
     ]
 
     print("\n1. ANALYZE INDIVIDUAL MODELS")
@@ -49,8 +49,10 @@ def main():
         print(f"\nModel: {analysis['model_name']}")
         print(f"  Provider: {analysis['provider']}")
         print(f"  Tier: {analysis['tier']}")
-        if analysis['estimated_cost']:
-            print(f"  Cost (per 1M tokens): Input ${analysis['estimated_cost']['input']}, Output ${analysis['estimated_cost']['output']}")
+        if analysis["estimated_cost"]:
+            print(
+                f"  Cost (per 1M tokens): Input ${analysis['estimated_cost']['input']}, Output ${analysis['estimated_cost']['output']}"
+            )
         print(f"  Recommendation: {analysis['recommendation']}")
 
     print("\n\n2. DISCOVER OPTIMAL CASCADE PAIRS")
@@ -60,11 +62,13 @@ def main():
     if suggestions:
         print(f"\nFound {len(suggestions)} cascade pair suggestions:\n")
         for suggestion in suggestions:
-            analysis = suggestion['analysis']
-            print(f"Rank {suggestion['rank']}: {analysis['drafter_model']} → {analysis['verifier_model']}")
+            analysis = suggestion["analysis"]
+            print(
+                f"Rank {suggestion['rank']}: {analysis['drafter_model']} → {analysis['verifier_model']}"
+            )
             print(f"  Estimated Savings: {analysis['estimated_savings']:.1f}%")
             print(f"  Recommendation: {analysis['recommendation']}")
-            if analysis['warnings']:
+            if analysis["warnings"]:
                 print(f"  Warnings: {', '.join(analysis['warnings'])}")
             print()
 
@@ -73,16 +77,16 @@ def main():
     best = find_best_cascade_pair(my_models)
 
     if best:
-        print(f"\nBest cascade pair: {best['analysis']['drafter_model']} → {best['analysis']['verifier_model']}")
+        print(
+            f"\nBest cascade pair: {best['analysis']['drafter_model']} → {best['analysis']['verifier_model']}"
+        )
         print(f"Estimated Savings: {best['estimated_savings']:.1f}%")
         print(f"Recommendation: {best['analysis']['recommendation']}\n")
 
         # Use the best pair
         print("Creating CascadeFlow with best pair...")
         cascade = CascadeFlow(
-            drafter=best['drafter'],
-            verifier=best['verifier'],
-            quality_threshold=0.7
+            drafter=best["drafter"], verifier=best["verifier"], quality_threshold=0.7
         )
         print("✓ CascadeFlow created successfully!")
 
@@ -91,30 +95,38 @@ def main():
     comparison = compare_models(my_models)
 
     print("\nBest Drafter Candidates:")
-    for item in comparison['drafter_candidates']:
-        analysis = item['analysis']
-        cost_str = f"${(analysis['estimated_cost']['input'] + analysis['estimated_cost']['output'])/2:.2f}" if analysis['estimated_cost'] else "Unknown"
+    for item in comparison["drafter_candidates"]:
+        analysis = item["analysis"]
+        cost_str = (
+            f"${(analysis['estimated_cost']['input'] + analysis['estimated_cost']['output'])/2:.2f}"
+            if analysis["estimated_cost"]
+            else "Unknown"
+        )
         print(f"  - {analysis['model_name']} (Avg cost per 1M: {cost_str})")
 
     print("\nBest Verifier Candidates:")
-    for item in comparison['verifier_candidates']:
-        analysis = item['analysis']
-        cost_str = f"${(analysis['estimated_cost']['input'] + analysis['estimated_cost']['output'])/2:.2f}" if analysis['estimated_cost'] else "Unknown"
+    for item in comparison["verifier_candidates"]:
+        analysis = item["analysis"]
+        cost_str = (
+            f"${(analysis['estimated_cost']['input'] + analysis['estimated_cost']['output'])/2:.2f}"
+            if analysis["estimated_cost"]
+            else "Unknown"
+        )
         print(f"  - {analysis['model_name']} (Avg cost per 1M: {cost_str})")
 
     print("\n5. ANALYZE SPECIFIC PAIR")
     print("-" * 80)
-    drafter = ChatOpenAI(model='gpt-4o-mini')
-    verifier = ChatOpenAI(model='gpt-4o')
+    drafter = ChatOpenAI(model="gpt-4o-mini")
+    verifier = ChatOpenAI(model="gpt-4o")
 
     analysis = analyze_cascade_pair(drafter, verifier)
     print(f"\nPair: {analysis['drafter_model']} → {analysis['verifier_model']}")
     print(f"Valid Configuration: {analysis['valid']}")
     print(f"Estimated Savings: {analysis['estimated_savings']:.1f}%")
     print(f"Recommendation: {analysis['recommendation']}")
-    if analysis['warnings']:
+    if analysis["warnings"]:
         print(f"Warnings: {len(analysis['warnings'])} warning(s)")
-        for warning in analysis['warnings']:
+        for warning in analysis["warnings"]:
             print(f"  - {warning}")
 
     print("\n" + "=" * 80)
@@ -122,5 +134,5 @@ def main():
     print("=" * 80 + "\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -14,6 +14,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 class ModelPricing(TypedDict):
     """Model pricing information (per 1M tokens)."""
+
     input: float
     output: float
     tier: str
@@ -21,6 +22,7 @@ class ModelPricing(TypedDict):
 
 class CascadeAnalysis(TypedDict):
     """Result of analyzing a cascade pair."""
+
     drafter_model: str
     verifier_model: str
     drafter_cost: ModelPricing
@@ -33,6 +35,7 @@ class CascadeAnalysis(TypedDict):
 
 class ModelAnalysis(TypedDict):
     """Analysis of a single model."""
+
     model_name: str
     provider: str
     tier: str
@@ -42,6 +45,7 @@ class ModelAnalysis(TypedDict):
 
 class CascadePairSuggestion(TypedDict):
     """Suggested cascade pair with analysis."""
+
     drafter: BaseChatModel
     verifier: BaseChatModel
     analysis: CascadeAnalysis
@@ -52,35 +56,30 @@ class CascadePairSuggestion(TypedDict):
 # This is read-only reference data to help users understand costs
 MODEL_PRICING_REFERENCE: Dict[str, ModelPricing] = {
     # OpenAI Models
-    'gpt-4o-mini': {'input': 0.15, 'output': 0.60, 'tier': 'fast'},
-    'gpt-4o': {'input': 2.50, 'output': 10.00, 'tier': 'powerful'},
-    'gpt-4-turbo': {'input': 10.00, 'output': 30.00, 'tier': 'powerful'},
-    'gpt-3.5-turbo': {'input': 0.50, 'output': 1.50, 'tier': 'fast'},
-
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60, "tier": "fast"},
+    "gpt-4o": {"input": 2.50, "output": 10.00, "tier": "powerful"},
+    "gpt-4-turbo": {"input": 10.00, "output": 30.00, "tier": "powerful"},
+    "gpt-3.5-turbo": {"input": 0.50, "output": 1.50, "tier": "fast"},
     # GPT-5 Models (estimated pricing - subject to change)
-    'gpt-5': {'input': 1.25, 'output': 10.00, 'tier': 'powerful'},
-    'gpt-5-mini': {'input': 0.25, 'output': 2.00, 'tier': 'fast'},
-    'gpt-5-nano': {'input': 0.05, 'output': 0.40, 'tier': 'fast'},
-    'gpt-5.1': {'input': 2.00, 'output': 15.00, 'tier': 'powerful'},
-
+    "gpt-5": {"input": 1.25, "output": 10.00, "tier": "powerful"},
+    "gpt-5-mini": {"input": 0.25, "output": 2.00, "tier": "fast"},
+    "gpt-5-nano": {"input": 0.05, "output": 0.40, "tier": "fast"},
+    "gpt-5.1": {"input": 2.00, "output": 15.00, "tier": "powerful"},
     # Anthropic Models
-    'claude-3-haiku-20240307': {'input': 0.25, 'output': 1.25, 'tier': 'fast'},
-    'claude-3-5-haiku-20241022': {'input': 0.80, 'output': 4.00, 'tier': 'balanced'},
-    'claude-3-5-sonnet-20241022': {'input': 3.00, 'output': 15.00, 'tier': 'powerful'},
-    'claude-3-sonnet-20240229': {'input': 3.00, 'output': 15.00, 'tier': 'balanced'},
-    'claude-3-opus-20240229': {'input': 15.00, 'output': 75.00, 'tier': 'powerful'},
-
+    "claude-3-haiku-20240307": {"input": 0.25, "output": 1.25, "tier": "fast"},
+    "claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00, "tier": "balanced"},
+    "claude-3-5-sonnet-20241022": {"input": 3.00, "output": 15.00, "tier": "powerful"},
+    "claude-3-sonnet-20240229": {"input": 3.00, "output": 15.00, "tier": "balanced"},
+    "claude-3-opus-20240229": {"input": 15.00, "output": 75.00, "tier": "powerful"},
     # Claude 4 Models (estimated pricing - subject to change)
-    'claude-sonnet-4': {'input': 3.00, 'output': 15.00, 'tier': 'powerful'},
-    'claude-haiku-4.5': {'input': 1.00, 'output': 5.00, 'tier': 'balanced'},
-
+    "claude-sonnet-4": {"input": 3.00, "output": 15.00, "tier": "powerful"},
+    "claude-haiku-4.5": {"input": 1.00, "output": 5.00, "tier": "balanced"},
     # Google Models
-    'gemini-1.5-flash': {'input': 0.075, 'output': 0.30, 'tier': 'fast'},
-    'gemini-1.5-pro': {'input': 1.25, 'output': 5.00, 'tier': 'powerful'},
-
+    "gemini-1.5-flash": {"input": 0.075, "output": 0.30, "tier": "fast"},
+    "gemini-1.5-pro": {"input": 1.25, "output": 5.00, "tier": "powerful"},
     # Gemini 2.5 Models (estimated pricing - subject to change)
-    'gemini-2.5-flash': {'input': 0.30, 'output': 2.50, 'tier': 'fast'},
-    'gemini-2.5-pro': {'input': 1.25, 'output': 10.00, 'tier': 'powerful'},
+    "gemini-2.5-flash": {"input": 0.30, "output": 2.50, "tier": "fast"},
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.00, "tier": "powerful"},
 }
 
 
@@ -94,11 +93,11 @@ def extract_model_name(model: BaseChatModel) -> str:
         Model name string
     """
     # Try different property names that LangChain models use
-    if hasattr(model, 'model') and model.model:
+    if hasattr(model, "model") and model.model:
         return model.model
-    if hasattr(model, 'model_name') and model.model_name:
+    if hasattr(model, "model_name") and model.model_name:
         return model.model_name
-    if hasattr(model, 'modelName') and model.modelName:
+    if hasattr(model, "modelName") and model.modelName:
         return model.modelName
 
     # Fallback to _llm_type if no model name found
@@ -116,16 +115,16 @@ def get_provider(model: BaseChatModel) -> str:
     """
     model_name = extract_model_name(model).lower()
 
-    if 'gpt' in model_name or 'openai' in model_name:
-        return 'openai'
-    if 'claude' in model_name or 'anthropic' in model_name:
-        return 'anthropic'
-    if 'gemini' in model_name or 'google' in model_name:
-        return 'google'
-    if 'ollama' in model_name:
-        return 'ollama'
+    if "gpt" in model_name or "openai" in model_name:
+        return "openai"
+    if "claude" in model_name or "anthropic" in model_name:
+        return "anthropic"
+    if "gemini" in model_name or "google" in model_name:
+        return "google"
+    if "ollama" in model_name:
+        return "ollama"
 
-    return 'unknown'
+    return "unknown"
 
 
 def get_model_pricing(model_name: str) -> Optional[Dict[str, float]]:
@@ -142,18 +141,14 @@ def get_model_pricing(model_name: str) -> Optional[Dict[str, float]]:
     # Try exact match first
     for key, pricing in MODEL_PRICING_REFERENCE.items():
         if normalized_name == key.lower():
-            return {'input': pricing['input'], 'output': pricing['output']}
+            return {"input": pricing["input"], "output": pricing["output"]}
 
     # If no exact match, try contains (prefer longer keys first to avoid partial matches)
-    sorted_items = sorted(
-        MODEL_PRICING_REFERENCE.items(),
-        key=lambda x: len(x[0]),
-        reverse=True
-    )
+    sorted_items = sorted(MODEL_PRICING_REFERENCE.items(), key=lambda x: len(x[0]), reverse=True)
 
     for key, pricing in sorted_items:
         if key.lower() in normalized_name:
-            return {'input': pricing['input'], 'output': pricing['output']}
+            return {"input": pricing["input"], "output": pricing["output"]}
 
     return None
 
@@ -161,7 +156,7 @@ def get_model_pricing(model_name: str) -> Optional[Dict[str, float]]:
 def calculate_estimated_savings(
     drafter_pricing: Dict[str, float],
     verifier_pricing: Dict[str, float],
-    acceptance_rate: float = 0.7
+    acceptance_rate: float = 0.7,
 ) -> float:
     """Calculate estimated savings percentage.
 
@@ -180,20 +175,18 @@ def calculate_estimated_savings(
     avg_output_tokens = 300
 
     # Cost if always using verifier
-    verifier_only_cost = (
-        (avg_input_tokens / 1_000_000) * verifier_pricing['input'] +
-        (avg_output_tokens / 1_000_000) * verifier_pricing['output']
-    )
+    verifier_only_cost = (avg_input_tokens / 1_000_000) * verifier_pricing["input"] + (
+        avg_output_tokens / 1_000_000
+    ) * verifier_pricing["output"]
 
     # Cost with cascade (drafter tries all, verifier only on failures)
-    drafter_cost = (
-        (avg_input_tokens / 1_000_000) * drafter_pricing['input'] +
-        (avg_output_tokens / 1_000_000) * drafter_pricing['output']
-    )
+    drafter_cost = (avg_input_tokens / 1_000_000) * drafter_pricing["input"] + (
+        avg_output_tokens / 1_000_000
+    ) * drafter_pricing["output"]
 
     cascade_cost = (
-        drafter_cost +  # Always try drafter
-        (1 - acceptance_rate) * verifier_only_cost  # Verifier only when drafter fails
+        drafter_cost  # Always try drafter
+        + (1 - acceptance_rate) * verifier_only_cost  # Verifier only when drafter fails
     )
 
     # Calculate savings
@@ -204,10 +197,7 @@ def calculate_estimated_savings(
     return max(0.0, min(100.0, savings))
 
 
-def analyze_cascade_pair(
-    drafter: BaseChatModel,
-    verifier: BaseChatModel
-) -> CascadeAnalysis:
+def analyze_cascade_pair(drafter: BaseChatModel, verifier: BaseChatModel) -> CascadeAnalysis:
     """Analyze a cascade configuration and provide insights.
 
     Args:
@@ -245,8 +235,8 @@ def analyze_cascade_pair(
     # Validate configuration
     if drafter_pricing and verifier_pricing:
         # Check if drafter is more expensive than verifier (misconfiguration)
-        drafter_avg_cost = (drafter_pricing['input'] + drafter_pricing['output']) / 2
-        verifier_avg_cost = (verifier_pricing['input'] + verifier_pricing['output']) / 2
+        drafter_avg_cost = (drafter_pricing["input"] + drafter_pricing["output"]) / 2
+        verifier_avg_cost = (verifier_pricing["input"] + verifier_pricing["output"]) / 2
 
         if drafter_avg_cost > verifier_avg_cost:
             valid = False
@@ -278,25 +268,25 @@ def analyze_cascade_pair(
 
     # Generate recommendation
     if not valid:
-        recommendation = 'Configuration needs attention. See warnings above.'
+        recommendation = "Configuration needs attention. See warnings above."
     elif estimated_savings > 50:
-        recommendation = 'Excellent cascade configuration! Expected savings > 50%.'
+        recommendation = "Excellent cascade configuration! Expected savings > 50%."
     elif estimated_savings > 30:
-        recommendation = 'Good cascade configuration. Expected savings 30-50%.'
+        recommendation = "Good cascade configuration. Expected savings 30-50%."
     elif estimated_savings > 0:
-        recommendation = 'Marginal cascade configuration. Consider a cheaper drafter.'
+        recommendation = "Marginal cascade configuration. Consider a cheaper drafter."
     else:
-        recommendation = 'Unable to estimate savings (unknown model pricing).'
+        recommendation = "Unable to estimate savings (unknown model pricing)."
 
     return {
-        'drafter_model': drafter_model,
-        'verifier_model': verifier_model,
-        'drafter_cost': drafter_pricing or {'input': 0, 'output': 0, 'tier': 'unknown'},
-        'verifier_cost': verifier_pricing or {'input': 0, 'output': 0, 'tier': 'unknown'},
-        'valid': valid,
-        'warnings': warnings,
-        'estimated_savings': estimated_savings,
-        'recommendation': recommendation,
+        "drafter_model": drafter_model,
+        "verifier_model": verifier_model,
+        "drafter_cost": drafter_pricing or {"input": 0, "output": 0, "tier": "unknown"},
+        "verifier_cost": verifier_pricing or {"input": 0, "output": 0, "tier": "unknown"},
+        "valid": valid,
+        "warnings": warnings,
+        "estimated_savings": estimated_savings,
+        "recommendation": recommendation,
     }
 
 
@@ -330,23 +320,23 @@ def suggest_cascade_pairs(models: List[BaseChatModel]) -> List[CascadePairSugges
             analysis = analyze_cascade_pair(drafter, verifier)
 
             # Only include valid pairs
-            if analysis['valid']:
-                suggestions.append({
-                    'drafter': drafter,
-                    'verifier': verifier,
-                    'analysis': analysis,
-                })
+            if analysis["valid"]:
+                suggestions.append(
+                    {
+                        "drafter": drafter,
+                        "verifier": verifier,
+                        "analysis": analysis,
+                    }
+                )
 
     # Sort by estimated savings (highest first)
-    suggestions.sort(key=lambda x: x['analysis']['estimated_savings'], reverse=True)
+    suggestions.sort(key=lambda x: x["analysis"]["estimated_savings"], reverse=True)
 
     return suggestions
 
 
 def discover_cascade_pairs(
-    models: List[BaseChatModel],
-    min_savings: float = 20.0,
-    require_same_provider: bool = False
+    models: List[BaseChatModel], min_savings: float = 20.0, require_same_provider: bool = False
 ) -> List[CascadePairSuggestion]:
     """Discover and analyze cascade pairs from user's models.
 
@@ -387,19 +377,15 @@ def discover_cascade_pairs(
     # Filter by provider if requested
     if require_same_provider:
         suggestions = [
-            s for s in suggestions
-            if get_provider(s['drafter']) == get_provider(s['verifier'])
+            s for s in suggestions if get_provider(s["drafter"]) == get_provider(s["verifier"])
         ]
 
     # Filter by minimum savings
-    suggestions = [
-        s for s in suggestions
-        if s['analysis']['estimated_savings'] >= min_savings
-    ]
+    suggestions = [s for s in suggestions if s["analysis"]["estimated_savings"] >= min_savings]
 
     # Add ranking
     for i, suggestion in enumerate(suggestions):
-        suggestion['rank'] = i + 1
+        suggestion["rank"] = i + 1
 
     return suggestions
 
@@ -436,9 +422,7 @@ def analyze_model(model: BaseChatModel) -> ModelAnalysis:
     # If no exact match, try contains (prefer longer keys first)
     if not pricing_entry:
         sorted_items = sorted(
-            MODEL_PRICING_REFERENCE.items(),
-            key=lambda x: len(x[0]),
-            reverse=True
+            MODEL_PRICING_REFERENCE.items(), key=lambda x: len(x[0]), reverse=True
         )
         for key, value in sorted_items:
             if key.lower() in normalized_name:
@@ -446,31 +430,28 @@ def analyze_model(model: BaseChatModel) -> ModelAnalysis:
                 break
 
     estimated_cost = None
-    tier = 'unknown'
+    tier = "unknown"
 
     if pricing_entry:
-        estimated_cost = {
-            'input': pricing_entry[1]['input'],
-            'output': pricing_entry[1]['output']
-        }
-        tier = pricing_entry[1]['tier']
+        estimated_cost = {"input": pricing_entry[1]["input"], "output": pricing_entry[1]["output"]}
+        tier = pricing_entry[1]["tier"]
 
     # Generate recommendation
-    if tier == 'fast':
-        recommendation = 'Good choice for drafter (cheap, fast model)'
-    elif tier == 'powerful':
-        recommendation = 'Good choice for verifier (expensive, accurate model)'
-    elif tier == 'balanced':
-        recommendation = 'Can work as either drafter or verifier'
+    if tier == "fast":
+        recommendation = "Good choice for drafter (cheap, fast model)"
+    elif tier == "powerful":
+        recommendation = "Good choice for verifier (expensive, accurate model)"
+    elif tier == "balanced":
+        recommendation = "Can work as either drafter or verifier"
     else:
-        recommendation = 'Unknown model - consider testing cascade performance'
+        recommendation = "Unknown model - consider testing cascade performance"
 
     return {
-        'model_name': model_name,
-        'provider': provider,
-        'tier': tier,
-        'estimated_cost': estimated_cost,
-        'recommendation': recommendation,
+        "model_name": model_name,
+        "provider": provider,
+        "tier": tier,
+        "estimated_cost": estimated_cost,
+        "recommendation": recommendation,
     }
 
 
@@ -493,17 +474,14 @@ def compare_models(models: List[BaseChatModel]) -> Dict[str, List[Dict[str, Any]
         >>> print(comparison['drafter_candidates'])  # Best for drafter
         >>> print(comparison['verifier_candidates'])  # Best for verifier
     """
-    analyzed = [
-        {'model': model, 'analysis': analyze_model(model)}
-        for model in models
-    ]
+    analyzed = [{"model": model, "analysis": analyze_model(model)} for model in models]
 
     # Sort by cost (input + output average)
     def get_cost(item: Dict[str, Any]) -> float:
-        cost = item['analysis']['estimated_cost']
+        cost = item["analysis"]["estimated_cost"]
         if cost:
-            return (cost['input'] + cost['output']) / 2
-        return float('inf')
+            return (cost["input"] + cost["output"]) / 2
+        return float("inf")
 
     sorted_models = sorted(analyzed, key=get_cost)
 
@@ -515,9 +493,9 @@ def compare_models(models: List[BaseChatModel]) -> Dict[str, List[Dict[str, Any]
     verifier_candidates = sorted_models[mid_point:]
 
     return {
-        'drafter_candidates': drafter_candidates,
-        'verifier_candidates': verifier_candidates,
-        'all': analyzed,
+        "drafter_candidates": drafter_candidates,
+        "verifier_candidates": verifier_candidates,
+        "all": analyzed,
     }
 
 
@@ -550,17 +528,14 @@ def find_best_cascade_pair(models: List[BaseChatModel]) -> Optional[Dict[str, An
 
     best = suggestions[0]
     return {
-        'drafter': best['drafter'],
-        'verifier': best['verifier'],
-        'estimated_savings': best['analysis']['estimated_savings'],
-        'analysis': best['analysis'],
+        "drafter": best["drafter"],
+        "verifier": best["verifier"],
+        "estimated_savings": best["analysis"]["estimated_savings"],
+        "analysis": best["analysis"],
     }
 
 
-def validate_cascade_pair(
-    drafter: BaseChatModel,
-    verifier: BaseChatModel
-) -> Dict[str, Any]:
+def validate_cascade_pair(drafter: BaseChatModel, verifier: BaseChatModel) -> Dict[str, Any]:
     """Validate that a model pair makes sense for cascading.
 
     Args:
@@ -582,8 +557,8 @@ def validate_cascade_pair(
     analysis = analyze_cascade_pair(drafter, verifier)
 
     return {
-        'valid': analysis['valid'],
-        'warnings': analysis['warnings'],
-        'estimated_savings': analysis['estimated_savings'],
-        'recommendation': analysis['recommendation'],
+        "valid": analysis["valid"],
+        "warnings": analysis["warnings"],
+        "estimated_savings": analysis["estimated_savings"],
+        "recommendation": analysis["recommendation"],
     }

@@ -17,10 +17,11 @@ class RoutingStrategy(str, Enum):
 
     This tells the agent what execution path to take.
     """
-    DIRECT_CHEAP = 'direct_cheap'  # Route to cheapest model
-    DIRECT_BEST = 'direct_best'    # Route to best model
-    CASCADE = 'cascade'              # Use cascade system
-    PARALLEL = 'parallel'            # Call multiple models in parallel (future)
+
+    DIRECT_CHEAP = "direct_cheap"  # Route to cheapest model
+    DIRECT_BEST = "direct_best"  # Route to best model
+    CASCADE = "cascade"  # Use cascade system
+    PARALLEL = "parallel"  # Call multiple models in parallel (future)
 
 
 class RoutingDecision(TypedDict):
@@ -28,12 +29,13 @@ class RoutingDecision(TypedDict):
 
     This is what routers return to the agent.
     """
-    strategy: RoutingStrategy      # How to execute (DIRECT_BEST, CASCADE, etc)
-    reason: str                      # Human-readable explanation
-    confidence: float                # Confidence in this decision (0-1)
-    metadata: Dict[str, Any]         # Additional routing metadata
-    model_name: NotRequired[str]     # Specific model to use (optional)
-    max_cost: NotRequired[float]     # Budget constraint (optional)
+
+    strategy: RoutingStrategy  # How to execute (DIRECT_BEST, CASCADE, etc)
+    reason: str  # Human-readable explanation
+    confidence: float  # Confidence in this decision (0-1)
+    metadata: Dict[str, Any]  # Additional routing metadata
+    model_name: NotRequired[str]  # Specific model to use (optional)
+    max_cost: NotRequired[float]  # Budget constraint (optional)
     min_quality: NotRequired[float]  # Quality requirement (optional)
 
 
@@ -43,37 +45,32 @@ class RoutingDecisionHelper:
     @staticmethod
     def is_direct(decision: RoutingDecision) -> bool:
         """Check if decision is direct routing."""
-        return decision['strategy'] in (
-            RoutingStrategy.DIRECT_BEST,
-            RoutingStrategy.DIRECT_CHEAP
-        )
+        return decision["strategy"] in (RoutingStrategy.DIRECT_BEST, RoutingStrategy.DIRECT_CHEAP)
 
     @staticmethod
     def is_cascade(decision: RoutingDecision) -> bool:
         """Check if decision is cascade routing."""
-        return decision['strategy'] == RoutingStrategy.CASCADE
+        return decision["strategy"] == RoutingStrategy.CASCADE
 
     @staticmethod
     def validate(decision: RoutingDecision) -> None:
         """Validate routing decision."""
-        if not (0 <= decision['confidence'] <= 1):
-            raise ValueError(
-                f"Confidence must be 0-1, got {decision['confidence']}"
-            )
+        if not (0 <= decision["confidence"] <= 1):
+            raise ValueError(f"Confidence must be 0-1, got {decision['confidence']}")
 
     @staticmethod
     def create(
         strategy: RoutingStrategy,
         reason: str,
         confidence: float,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> RoutingDecision:
         """Create a routing decision."""
         decision: RoutingDecision = {
-            'strategy': strategy,
-            'reason': reason,
-            'confidence': confidence,
-            'metadata': metadata or {},
+            "strategy": strategy,
+            "reason": reason,
+            "confidence": confidence,
+            "metadata": metadata or {},
         }
 
         RoutingDecisionHelper.validate(decision)
@@ -94,11 +91,7 @@ class Router(ABC):
     """
 
     @abstractmethod
-    async def route(
-        self,
-        query: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> RoutingDecision:
+    async def route(self, query: str, context: Optional[Dict[str, Any]] = None) -> RoutingDecision:
         """Decide how to handle this query.
 
         Args:
@@ -146,11 +139,7 @@ class RouterChain:
         """
         self.routers = routers
 
-    async def route(
-        self,
-        query: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> RoutingDecision:
+    async def route(self, query: str, context: Optional[Dict[str, Any]] = None) -> RoutingDecision:
         """Route through chain of routers.
 
         Args:
@@ -168,7 +157,7 @@ class RouterChain:
         # Fallback: direct to best
         return RoutingDecisionHelper.create(
             RoutingStrategy.DIRECT_BEST,
-            'No router made a decision, using fallback',
+            "No router made a decision, using fallback",
             0.5,
-            {'fallback': True}
+            {"fallback": True},
         )

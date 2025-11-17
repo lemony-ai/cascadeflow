@@ -53,11 +53,11 @@ class CascadeFlow(BaseChatModel):
     verifier: BaseChatModel
     quality_threshold: float = 0.7
     enable_cost_tracking: bool = True
-    cost_tracking_provider: str = 'langsmith'
+    cost_tracking_provider: str = "langsmith"
     quality_validator: Optional[Any] = None
     enable_pre_router: bool = False
     pre_router: Optional[Any] = None
-    cascade_complexities: List[str] = ['trivial', 'simple', 'moderate']
+    cascade_complexities: List[str] = ["trivial", "simple", "moderate"]
 
     # Private state
     _last_cascade_result: Optional[CascadeResult] = None
@@ -65,6 +65,7 @@ class CascadeFlow(BaseChatModel):
 
     class Config:
         """Pydantic configuration."""
+
         arbitrary_types_allowed = True
 
     def __init__(
@@ -73,12 +74,12 @@ class CascadeFlow(BaseChatModel):
         verifier: BaseChatModel,
         quality_threshold: float = 0.7,
         enable_cost_tracking: bool = True,
-        cost_tracking_provider: str = 'langsmith',
+        cost_tracking_provider: str = "langsmith",
         quality_validator: Optional[Any] = None,
         enable_pre_router: bool = False,
         pre_router: Optional[Any] = None,
         cascade_complexities: Optional[List[str]] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ):
         """Initialize CascadeFlow wrapper.
 
@@ -104,8 +105,8 @@ class CascadeFlow(BaseChatModel):
             quality_validator=quality_validator,
             enable_pre_router=enable_pre_router,
             pre_router=pre_router,
-            cascade_complexities=cascade_complexities or ['trivial', 'simple', 'moderate'],
-            **kwargs
+            cascade_complexities=cascade_complexities or ["trivial", "simple", "moderate"],
+            **kwargs,
         )
 
         self._last_cascade_result = None
@@ -114,21 +115,20 @@ class CascadeFlow(BaseChatModel):
         # Initialize PreRouter if enabled
         if self.enable_pre_router and not self.pre_router:
             from .routers.pre_router import PreRouter
-            self.pre_router = PreRouter(
-                cascade_complexities=self.cascade_complexities
-            )
+
+            self.pre_router = PreRouter(cascade_complexities=self.cascade_complexities)
 
     @property
     def _llm_type(self) -> str:
         """Return LLM type identifier."""
-        return 'cascadeflow'
+        return "cascadeflow"
 
     def _generate(
         self,
         messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> ChatResult:
         """Core cascade generation logic.
 
@@ -153,7 +153,7 @@ class CascadeFlow(BaseChatModel):
         # Merge bind kwargs with call kwargs
         merged_kwargs = {**self._bind_kwargs, **kwargs}
         if stop:
-            merged_kwargs['stop'] = stop
+            merged_kwargs["stop"] = stop
 
         # STEP 0: PreRouter - Check if we should bypass cascade
         use_cascade = True
@@ -161,73 +161,69 @@ class CascadeFlow(BaseChatModel):
 
         if self.enable_pre_router and self.pre_router:
             # Extract query text from messages
-            query_text = '\n'.join([
-                msg.content if isinstance(msg.content, str) else ''
-                for msg in messages
-            ])
+            query_text = "\n".join(
+                [msg.content if isinstance(msg.content, str) else "" for msg in messages]
+            )
 
             # Route based on complexity
             routing_decision = self.pre_router.route(query_text)
             from .routers.base import RoutingStrategy
+
             use_cascade = routing_decision.strategy == RoutingStrategy.CASCADE
 
             # If direct routing, skip drafter and go straight to verifier
             if not use_cascade:
                 verifier_result = self.verifier.generate(
-                    [messages],
-                    run_manager=run_manager,
-                    **merged_kwargs
+                    [messages], run_manager=run_manager, **merged_kwargs
                 )
 
                 latency_ms = (time.time() - start_time) * 1000
-                verifier_model_name = getattr(self.verifier, 'model_name', None) or \
-                                     getattr(self.verifier, 'model', None) or \
-                                     self.verifier._llm_type
+                verifier_model_name = (
+                    getattr(self.verifier, "model_name", None)
+                    or getattr(self.verifier, "model", None)
+                    or self.verifier._llm_type
+                )
 
                 # Store cascade result (direct to verifier)
                 self._last_cascade_result = CascadeResult(
                     content=verifier_result.generations[0][0].text,
-                    model_used='verifier',
+                    model_used="verifier",
                     accepted=False,
                     drafter_cost=0.0,
                     verifier_cost=0.0,
                     total_cost=0.0,
                     savings_percentage=0.0,
-                    latency_ms=latency_ms
+                    latency_ms=latency_ms,
                 )
 
                 # Inject metadata if cost tracking enabled
                 if self.enable_cost_tracking:
                     try:
                         metadata = {
-                            'cascade_decision': 'direct',
-                            'model_used': 'verifier',
-                            'routing_reason': routing_decision.reason,
-                            'complexity': routing_decision.metadata.get('complexity'),
+                            "cascade_decision": "direct",
+                            "model_used": "verifier",
+                            "routing_reason": routing_decision.reason,
+                            "complexity": routing_decision.metadata.get("complexity"),
                         }
 
                         if not verifier_result.llm_output:
                             verifier_result.llm_output = {}
-                        verifier_result.llm_output['cascade'] = metadata
+                        verifier_result.llm_output["cascade"] = metadata
 
                         # Also inject into generation metadata
                         if verifier_result.generations[0]:
                             gen = verifier_result.generations[0][0]
-                            if hasattr(gen, 'message') and gen.message:
-                                if not hasattr(gen.message, 'response_metadata'):
+                            if hasattr(gen, "message") and gen.message:
+                                if not hasattr(gen.message, "response_metadata"):
                                     gen.message.response_metadata = {}
-                                gen.message.response_metadata['cascade'] = metadata
+                                gen.message.response_metadata["cascade"] = metadata
                     except Exception as e:
                         print(f"Warning: Failed to inject cascade metadata: {e}")
 
                 return verifier_result.generations[0]
 
         # STEP 1: Execute drafter (cheap, fast model)
-        drafter_result = self.drafter.generate(
-            [messages],
-            run_manager=run_manager,
-            **merged_kwargs
-        )
+        drafter_result = self.drafter.generate([messages], run_manager=run_manager, **merged_kwargs)
 
         # Calculate drafter quality
         quality_func = self.quality_validator or calculate_quality
@@ -243,20 +239,22 @@ class CascadeFlow(BaseChatModel):
         else:
             # Quality insufficient - execute verifier (expensive, accurate model)
             verifier_result = self.verifier.generate(
-                [messages],
-                run_manager=run_manager,
-                **merged_kwargs
+                [messages], run_manager=run_manager, **merged_kwargs
             )
             final_result = verifier_result.generations[0]
 
         # STEP 3: Calculate costs and metadata
         latency_ms = (time.time() - start_time) * 1000
-        drafter_model_name = getattr(self.drafter, 'model_name', None) or \
-                            getattr(self.drafter, 'model', None) or \
-                            self.drafter._llm_type
-        verifier_model_name = getattr(self.verifier, 'model_name', None) or \
-                             getattr(self.verifier, 'model', None) or \
-                             self.verifier._llm_type
+        drafter_model_name = (
+            getattr(self.drafter, "model_name", None)
+            or getattr(self.drafter, "model", None)
+            or self.drafter._llm_type
+        )
+        verifier_model_name = (
+            getattr(self.verifier, "model_name", None)
+            or getattr(self.verifier, "model", None)
+            or self.verifier._llm_type
+        )
 
         cost_metadata = create_cost_metadata(
             drafter_result.generations[0],
@@ -265,20 +263,20 @@ class CascadeFlow(BaseChatModel):
             verifier_model_name,
             accepted,
             drafter_quality,
-            self.cost_tracking_provider
+            self.cost_tracking_provider,
         )
 
         # Store cascade result
         self._last_cascade_result = CascadeResult(
             content=final_result[0].text,
-            model_used='drafter' if accepted else 'verifier',
+            model_used="drafter" if accepted else "verifier",
             drafter_quality=drafter_quality,
             accepted=accepted,
-            drafter_cost=cost_metadata['drafter_cost'],
-            verifier_cost=cost_metadata['verifier_cost'],
-            total_cost=cost_metadata['total_cost'],
-            savings_percentage=cost_metadata['savings_percentage'],
-            latency_ms=latency_ms
+            drafter_cost=cost_metadata["drafter_cost"],
+            verifier_cost=cost_metadata["verifier_cost"],
+            total_cost=cost_metadata["total_cost"],
+            savings_percentage=cost_metadata["savings_percentage"],
+            latency_ms=latency_ms,
         )
 
         # STEP 4: Inject cost metadata into llmOutput (if enabled)
@@ -288,13 +286,13 @@ class CascadeFlow(BaseChatModel):
                 # Inject into llmOutput
                 if not final_result.llm_output:
                     final_result.llm_output = {}
-                final_result.llm_output['cascade'] = cost_metadata
+                final_result.llm_output["cascade"] = cost_metadata
 
                 # Also inject into message's response_metadata
                 if final_result[0].message:
-                    if not hasattr(final_result[0].message, 'response_metadata'):
+                    if not hasattr(final_result[0].message, "response_metadata"):
                         final_result[0].message.response_metadata = {}
-                    final_result[0].message.response_metadata['cascade'] = cost_metadata
+                    final_result[0].message.response_metadata["cascade"] = cost_metadata
             except Exception as e:
                 print(f"Warning: Failed to inject cascade metadata: {e}")
 
@@ -305,7 +303,7 @@ class CascadeFlow(BaseChatModel):
         messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> ChatResult:
         """Async version of cascade generation logic.
 
@@ -323,7 +321,7 @@ class CascadeFlow(BaseChatModel):
         # Merge bind kwargs with call kwargs
         merged_kwargs = {**self._bind_kwargs, **kwargs}
         if stop:
-            merged_kwargs['stop'] = stop
+            merged_kwargs["stop"] = stop
 
         # STEP 0: PreRouter - Check if we should bypass cascade
         use_cascade = True
@@ -331,54 +329,54 @@ class CascadeFlow(BaseChatModel):
 
         if self.enable_pre_router and self.pre_router:
             # Extract query text from messages
-            query_text = '\n'.join([
-                msg.content if isinstance(msg.content, str) else ''
-                for msg in messages
-            ])
+            query_text = "\n".join(
+                [msg.content if isinstance(msg.content, str) else "" for msg in messages]
+            )
 
             # Route based on complexity
             routing_decision = await self.pre_router.aroute(query_text)
             from .routers.base import RoutingStrategy
+
             use_cascade = routing_decision.strategy == RoutingStrategy.CASCADE
 
             # If direct routing, skip drafter and go straight to verifier
             if not use_cascade:
                 verifier_result = await self.verifier.agenerate(
-                    [messages],
-                    run_manager=run_manager,
-                    **merged_kwargs
+                    [messages], run_manager=run_manager, **merged_kwargs
                 )
 
                 latency_ms = (time.time() - start_time) * 1000
-                verifier_model_name = getattr(self.verifier, 'model_name', None) or \
-                                     getattr(self.verifier, 'model', None) or \
-                                     self.verifier._llm_type
+                verifier_model_name = (
+                    getattr(self.verifier, "model_name", None)
+                    or getattr(self.verifier, "model", None)
+                    or self.verifier._llm_type
+                )
 
                 # Store cascade result (direct to verifier)
                 self._last_cascade_result = CascadeResult(
                     content=verifier_result.generations[0][0].text,
-                    model_used='verifier',
+                    model_used="verifier",
                     accepted=False,
                     drafter_cost=0.0,
                     verifier_cost=0.0,
                     total_cost=0.0,
                     savings_percentage=0.0,
-                    latency_ms=latency_ms
+                    latency_ms=latency_ms,
                 )
 
                 # Inject metadata if cost tracking enabled
                 if self.enable_cost_tracking:
                     try:
                         metadata = {
-                            'cascade_decision': 'direct',
-                            'model_used': 'verifier',
-                            'routing_reason': routing_decision.reason,
-                            'complexity': routing_decision.metadata.get('complexity'),
+                            "cascade_decision": "direct",
+                            "model_used": "verifier",
+                            "routing_reason": routing_decision.reason,
+                            "complexity": routing_decision.metadata.get("complexity"),
                         }
 
                         if not verifier_result.llm_output:
                             verifier_result.llm_output = {}
-                        verifier_result.llm_output['cascade'] = metadata
+                        verifier_result.llm_output["cascade"] = metadata
                     except Exception as e:
                         print(f"Warning: Failed to inject cascade metadata: {e}")
 
@@ -386,9 +384,7 @@ class CascadeFlow(BaseChatModel):
 
         # STEP 1: Execute drafter (cheap, fast model)
         drafter_result = await self.drafter.agenerate(
-            [messages],
-            run_manager=run_manager,
-            **merged_kwargs
+            [messages], run_manager=run_manager, **merged_kwargs
         )
 
         # Calculate drafter quality
@@ -405,20 +401,22 @@ class CascadeFlow(BaseChatModel):
         else:
             # Quality insufficient - execute verifier (expensive, accurate model)
             verifier_result = await self.verifier.agenerate(
-                [messages],
-                run_manager=run_manager,
-                **merged_kwargs
+                [messages], run_manager=run_manager, **merged_kwargs
             )
             final_result = verifier_result.generations[0]
 
         # STEP 3: Calculate costs and metadata
         latency_ms = (time.time() - start_time) * 1000
-        drafter_model_name = getattr(self.drafter, 'model_name', None) or \
-                            getattr(self.drafter, 'model', None) or \
-                            self.drafter._llm_type
-        verifier_model_name = getattr(self.verifier, 'model_name', None) or \
-                             getattr(self.verifier, 'model', None) or \
-                             self.verifier._llm_type
+        drafter_model_name = (
+            getattr(self.drafter, "model_name", None)
+            or getattr(self.drafter, "model", None)
+            or self.drafter._llm_type
+        )
+        verifier_model_name = (
+            getattr(self.verifier, "model_name", None)
+            or getattr(self.verifier, "model", None)
+            or self.verifier._llm_type
+        )
 
         cost_metadata = create_cost_metadata(
             drafter_result.generations[0],
@@ -427,20 +425,20 @@ class CascadeFlow(BaseChatModel):
             verifier_model_name,
             accepted,
             drafter_quality,
-            self.cost_tracking_provider
+            self.cost_tracking_provider,
         )
 
         # Store cascade result
         self._last_cascade_result = CascadeResult(
             content=final_result[0].text,
-            model_used='drafter' if accepted else 'verifier',
+            model_used="drafter" if accepted else "verifier",
             drafter_quality=drafter_quality,
             accepted=accepted,
-            drafter_cost=cost_metadata['drafter_cost'],
-            verifier_cost=cost_metadata['verifier_cost'],
-            total_cost=cost_metadata['total_cost'],
-            savings_percentage=cost_metadata['savings_percentage'],
-            latency_ms=latency_ms
+            drafter_cost=cost_metadata["drafter_cost"],
+            verifier_cost=cost_metadata["verifier_cost"],
+            total_cost=cost_metadata["total_cost"],
+            savings_percentage=cost_metadata["savings_percentage"],
+            latency_ms=latency_ms,
         )
 
         # STEP 4: Inject cost metadata
@@ -448,12 +446,12 @@ class CascadeFlow(BaseChatModel):
             try:
                 if not final_result.llm_output:
                     final_result.llm_output = {}
-                final_result.llm_output['cascade'] = cost_metadata
+                final_result.llm_output["cascade"] = cost_metadata
 
                 if final_result[0].message:
-                    if not hasattr(final_result[0].message, 'response_metadata'):
+                    if not hasattr(final_result[0].message, "response_metadata"):
                         final_result[0].message.response_metadata = {}
-                    final_result[0].message.response_metadata['cascade'] = cost_metadata
+                    final_result[0].message.response_metadata["cascade"] = cost_metadata
             except Exception as e:
                 print(f"Warning: Failed to inject cascade metadata: {e}")
 
@@ -472,7 +470,7 @@ class CascadeFlow(BaseChatModel):
         messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
         """Stream responses with optimistic drafter execution.
 
@@ -495,7 +493,7 @@ class CascadeFlow(BaseChatModel):
         # Merge bind kwargs with call kwargs
         merged_kwargs = {**self._bind_kwargs, **kwargs}
         if stop:
-            merged_kwargs['stop'] = stop
+            merged_kwargs["stop"] = stop
 
         # STEP 0: PreRouter - Check if we should bypass cascade
         use_cascade = True
@@ -503,39 +501,38 @@ class CascadeFlow(BaseChatModel):
 
         if self.enable_pre_router and self.pre_router:
             # Extract query text from messages
-            query_text = '\n'.join([
-                msg.content if isinstance(msg.content, str) else ''
-                for msg in messages
-            ])
+            query_text = "\n".join(
+                [msg.content if isinstance(msg.content, str) else "" for msg in messages]
+            )
 
             # Route based on complexity (sync call for sync streaming)
             routing_decision = self.pre_router.route(query_text)
             from .routers.base import RoutingStrategy
-            use_cascade = routing_decision['strategy'] == RoutingStrategy.CASCADE
+
+            use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
 
             # If direct routing, stream verifier only
             if not use_cascade:
                 for chunk in self.verifier.stream(messages, **merged_kwargs):
                     yield ChatGenerationChunk(
                         message=AIMessageChunk(content=chunk.content),
-                        text=chunk.content if isinstance(chunk.content, str) else ''
+                        text=chunk.content if isinstance(chunk.content, str) else "",
                     )
                 return
 
         # STEP 1: Stream drafter optimistically
         drafter_chunks: List[ChatGenerationChunk] = []
-        drafter_content = ''
+        drafter_content = ""
 
         # Stream from drafter in real-time
         for chunk in self.drafter.stream(messages, **merged_kwargs):
             # Extract text content from chunk
-            chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+            chunk_text = chunk.content if isinstance(chunk.content, str) else ""
             drafter_content += chunk_text
 
             # Create ChatGenerationChunk
             gen_chunk = ChatGenerationChunk(
-                message=AIMessageChunk(content=chunk_text),
-                text=chunk_text
+                message=AIMessageChunk(content=chunk_text), text=chunk_text
             )
             drafter_chunks.append(gen_chunk)
 
@@ -545,12 +542,9 @@ class CascadeFlow(BaseChatModel):
         # STEP 2: Quality check after drafter completes
         drafter_result = ChatResult(
             generations=[
-                ChatGeneration(
-                    text=drafter_content,
-                    message=AIMessage(content=drafter_content)
-                )
+                ChatGeneration(text=drafter_content, message=AIMessage(content=drafter_content))
             ],
-            llm_output={}
+            llm_output={},
         )
 
         quality_func = self.quality_validator or calculate_quality
@@ -560,36 +554,36 @@ class CascadeFlow(BaseChatModel):
         # STEP 3: If quality insufficient, cascade to verifier
         if not accepted:
             # Emit switch notification
-            verifier_model_name = getattr(self.verifier, 'model_name', None) or \
-                                 getattr(self.verifier, 'model', None) or \
-                                 'verifier'
+            verifier_model_name = (
+                getattr(self.verifier, "model_name", None)
+                or getattr(self.verifier, "model", None)
+                or "verifier"
+            )
             switch_message = f"\n\n⤴ Cascading to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
 
             yield ChatGenerationChunk(
-                message=AIMessageChunk(content=switch_message),
-                text=switch_message
+                message=AIMessageChunk(content=switch_message), text=switch_message
             )
 
             # Stream from verifier
             for chunk in self.verifier.stream(messages, **merged_kwargs):
-                chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+                chunk_text = chunk.content if isinstance(chunk.content, str) else ""
                 yield ChatGenerationChunk(
-                    message=AIMessageChunk(content=chunk_text),
-                    text=chunk_text
+                    message=AIMessageChunk(content=chunk_text), text=chunk_text
                 )
 
         # Store cascade result (simplified for streaming)
         latency_ms = (time.time() - start_time) * 1000
         self._last_cascade_result = CascadeResult(
             content=drafter_content,
-            model_used='drafter' if accepted else 'verifier',
+            model_used="drafter" if accepted else "verifier",
             drafter_quality=drafter_quality,
             accepted=accepted,
             drafter_cost=0.0,
             verifier_cost=0.0,
             total_cost=0.0,
             savings_percentage=50.0 if accepted else 0.0,
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
         )
 
     async def _astream(
@@ -597,7 +591,7 @@ class CascadeFlow(BaseChatModel):
         messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> AsyncIterator[ChatGenerationChunk]:
         """Async stream responses with optimistic drafter execution.
 
@@ -620,7 +614,7 @@ class CascadeFlow(BaseChatModel):
         # Merge bind kwargs with call kwargs
         merged_kwargs = {**self._bind_kwargs, **kwargs}
         if stop:
-            merged_kwargs['stop'] = stop
+            merged_kwargs["stop"] = stop
 
         # STEP 0: PreRouter - Check if we should bypass cascade
         use_cascade = True
@@ -628,39 +622,38 @@ class CascadeFlow(BaseChatModel):
 
         if self.enable_pre_router and self.pre_router:
             # Extract query text from messages
-            query_text = '\n'.join([
-                msg.content if isinstance(msg.content, str) else ''
-                for msg in messages
-            ])
+            query_text = "\n".join(
+                [msg.content if isinstance(msg.content, str) else "" for msg in messages]
+            )
 
             # Route based on complexity
             routing_decision = await self.pre_router.route(query_text)
             from .routers.base import RoutingStrategy
-            use_cascade = routing_decision['strategy'] == RoutingStrategy.CASCADE
+
+            use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
 
             # If direct routing, stream verifier only
             if not use_cascade:
                 async for chunk in self.verifier.astream(messages, **merged_kwargs):
                     yield ChatGenerationChunk(
                         message=AIMessageChunk(content=chunk.content),
-                        text=chunk.content if isinstance(chunk.content, str) else ''
+                        text=chunk.content if isinstance(chunk.content, str) else "",
                     )
                 return
 
         # STEP 1: Stream drafter optimistically
         drafter_chunks: List[ChatGenerationChunk] = []
-        drafter_content = ''
+        drafter_content = ""
 
         # Stream from drafter in real-time
         async for chunk in self.drafter.astream(messages, **merged_kwargs):
             # Extract text content from chunk
-            chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+            chunk_text = chunk.content if isinstance(chunk.content, str) else ""
             drafter_content += chunk_text
 
             # Create ChatGenerationChunk
             gen_chunk = ChatGenerationChunk(
-                message=AIMessageChunk(content=chunk_text),
-                text=chunk_text
+                message=AIMessageChunk(content=chunk_text), text=chunk_text
             )
             drafter_chunks.append(gen_chunk)
 
@@ -670,12 +663,9 @@ class CascadeFlow(BaseChatModel):
         # STEP 2: Quality check after drafter completes
         drafter_result = ChatResult(
             generations=[
-                ChatGeneration(
-                    text=drafter_content,
-                    message=AIMessage(content=drafter_content)
-                )
+                ChatGeneration(text=drafter_content, message=AIMessage(content=drafter_content))
             ],
-            llm_output={}
+            llm_output={},
         )
 
         quality_func = self.quality_validator or calculate_quality
@@ -685,36 +675,36 @@ class CascadeFlow(BaseChatModel):
         # STEP 3: If quality insufficient, cascade to verifier
         if not accepted:
             # Emit switch notification
-            verifier_model_name = getattr(self.verifier, 'model_name', None) or \
-                                 getattr(self.verifier, 'model', None) or \
-                                 'verifier'
+            verifier_model_name = (
+                getattr(self.verifier, "model_name", None)
+                or getattr(self.verifier, "model", None)
+                or "verifier"
+            )
             switch_message = f"\n\n⤴ Cascading to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
 
             yield ChatGenerationChunk(
-                message=AIMessageChunk(content=switch_message),
-                text=switch_message
+                message=AIMessageChunk(content=switch_message), text=switch_message
             )
 
             # Stream from verifier
             async for chunk in self.verifier.astream(messages, **merged_kwargs):
-                chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+                chunk_text = chunk.content if isinstance(chunk.content, str) else ""
                 yield ChatGenerationChunk(
-                    message=AIMessageChunk(content=chunk_text),
-                    text=chunk_text
+                    message=AIMessageChunk(content=chunk_text), text=chunk_text
                 )
 
         # Store cascade result (simplified for streaming)
         latency_ms = (time.time() - start_time) * 1000
         self._last_cascade_result = CascadeResult(
             content=drafter_content,
-            model_used='drafter' if accepted else 'verifier',
+            model_used="drafter" if accepted else "verifier",
             drafter_quality=drafter_quality,
             accepted=accepted,
             drafter_cost=0.0,
             verifier_cost=0.0,
             total_cost=0.0,
             savings_percentage=50.0 if accepted else 0.0,
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
         )
 
     def bind(self, **kwargs: Any) -> "CascadeFlow":
@@ -738,7 +728,7 @@ class CascadeFlow(BaseChatModel):
             quality_validator=self.quality_validator,
             enable_pre_router=self.enable_pre_router,
             pre_router=self.pre_router,
-            cascade_complexities=self.cascade_complexities
+            cascade_complexities=self.cascade_complexities,
         )
         new_instance._bind_kwargs = merged_kwargs
 
@@ -747,10 +737,7 @@ class CascadeFlow(BaseChatModel):
 
 # Helper function for convenience
 def with_cascade(
-    drafter: BaseChatModel,
-    verifier: BaseChatModel,
-    quality_threshold: float = 0.7,
-    **kwargs: Any
+    drafter: BaseChatModel, verifier: BaseChatModel, quality_threshold: float = 0.7, **kwargs: Any
 ) -> CascadeFlow:
     """Create a CascadeFlow wrapper (convenience function).
 
@@ -764,8 +751,5 @@ def with_cascade(
         CascadeFlow instance
     """
     return CascadeFlow(
-        drafter=drafter,
-        verifier=verifier,
-        quality_threshold=quality_threshold,
-        **kwargs
+        drafter=drafter, verifier=verifier, quality_threshold=quality_threshold, **kwargs
     )
