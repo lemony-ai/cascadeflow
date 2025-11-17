@@ -474,7 +474,7 @@ class ComplexityDetector:
                     "confidence": 0.95,
                 }
                 if return_metadata:
-                    result["metadata"] = metadata
+                    result["metadata"] = metadata  # type: ignore[typeddict-item]
                 return result
 
         # 2. Check for trivial concepts
@@ -484,7 +484,7 @@ class ComplexityDetector:
                 "confidence": 0.85,
             }
             if return_metadata:
-                result["metadata"] = metadata
+                result["metadata"] = metadata  # type: ignore[typeddict-item]
             return result
 
         # 3. Detect technical terms
@@ -623,7 +623,7 @@ class ComplexityDetector:
             "confidence": final_confidence,
         }
         if return_metadata:
-            result["metadata"] = metadata
+            result["metadata"] = metadata  # type: ignore[typeddict-item]
         return result
 
     def _detect_technical_terms(self, query_lower: str) -> tuple[list[str], dict[str, float]]:

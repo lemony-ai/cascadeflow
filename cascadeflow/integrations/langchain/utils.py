@@ -1,7 +1,7 @@
 """Utility functions for CascadeFlow LangChain integration."""
 
 import re
-from typing import Any
+from typing import Any, Optional
 
 from .types import CostMetadata, TokenUsage
 
@@ -186,7 +186,7 @@ def calculate_savings(drafter_cost: float, verifier_cost: float) -> float:
 
 def create_cost_metadata(
     drafter_response: Any,
-    verifier_response: Any | None,
+    verifier_response: Optional[Any],
     drafter_model: str,
     verifier_model: str,
     accepted: bool,

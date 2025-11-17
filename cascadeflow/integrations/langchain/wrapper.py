@@ -116,7 +116,7 @@ class CascadeFlow(BaseChatModel):
         if self.enable_pre_router and not self.pre_router:
             from .routers.pre_router import PreRouter
 
-            self.pre_router = PreRouter(cascade_complexities=self.cascade_complexities)
+            self.pre_router = PreRouter({"cascade_complexities": self.cascade_complexities})
 
     @property
     def _llm_type(self) -> str:

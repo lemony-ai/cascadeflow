@@ -278,11 +278,13 @@ def analyze_cascade_pair(drafter: BaseChatModel, verifier: BaseChatModel) -> Cas
     else:
         recommendation = "Unable to estimate savings (unknown model pricing)."
 
+    # Default fallback costs (type: ignore to handle TypedDict/dict compatibility)
+    default_cost: ModelPricing = {"input": 0, "output": 0, "tier": "unknown"}  # type: ignore[typeddict-item]
     return {
         "drafter_model": drafter_model,
         "verifier_model": verifier_model,
-        "drafter_cost": drafter_pricing or {"input": 0, "output": 0, "tier": "unknown"},
-        "verifier_cost": verifier_pricing or {"input": 0, "output": 0, "tier": "unknown"},
+        "drafter_cost": drafter_pricing or default_cost,  # type: ignore[typeddict-item]
+        "verifier_cost": verifier_pricing or default_cost,  # type: ignore[typeddict-item]
         "valid": valid,
         "warnings": warnings,
         "estimated_savings": estimated_savings,

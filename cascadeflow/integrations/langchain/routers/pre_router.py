@@ -277,13 +277,13 @@ class PreRouter(Router):
         )
 
         return {
-            "total_queries": total,
+            "total_queries": total,  # type: ignore[typeddict-item]
             "by_complexity": self.stats["by_complexity"].copy(),
             "by_strategy": self.stats["by_strategy"].copy(),
             "cascade_rate": f"{(cascade_count / total * 100):.1f}%",
             "direct_rate": f"{(direct_count / total * 100):.1f}%",
-            "forced_direct": self.stats["forced_direct"],
-            "cascade_disabled_count": self.stats["cascade_disabled"],
+            "forced_direct": self.stats["forced_direct"],  # type: ignore[typeddict-item]
+            "cascade_disabled_count": self.stats["cascade_disabled"],  # type: ignore[typeddict-item]
         }
 
     def reset_stats(self) -> None:
