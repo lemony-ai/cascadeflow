@@ -20,11 +20,11 @@ Example:
 """
 
 import time
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_core.outputs import ChatResult, ChatGeneration, LLMResult
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, AIMessageChunk
+from langchain_core.outputs import ChatResult, ChatGeneration, ChatGenerationChunk, LLMResult
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 
 from .types import CascadeConfig, CascadeResult
@@ -466,6 +466,256 @@ class CascadeFlow(BaseChatModel):
             CascadeResult with metadata from the last invocation, or None
         """
         return self._last_cascade_result
+
+    def _stream(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any
+    ) -> Iterator[ChatGenerationChunk]:
+        """Stream responses with optimistic drafter execution.
+
+        Uses the proven cascade streaming pattern:
+        1. Stream drafter optimistically (user sees real-time output)
+        2. Collect chunks and check quality after completion
+        3. If quality insufficient: show switch message + stream verifier
+
+        Args:
+            messages: Input messages
+            stop: Stop sequences
+            run_manager: Callback manager
+            **kwargs: Additional arguments
+
+        Yields:
+            ChatGenerationChunk instances with streaming content
+        """
+        start_time = time.time()
+
+        # Merge bind kwargs with call kwargs
+        merged_kwargs = {**self._bind_kwargs, **kwargs}
+        if stop:
+            merged_kwargs['stop'] = stop
+
+        # STEP 0: PreRouter - Check if we should bypass cascade
+        use_cascade = True
+        routing_decision = None
+
+        if self.enable_pre_router and self.pre_router:
+            # Extract query text from messages
+            query_text = '\n'.join([
+                msg.content if isinstance(msg.content, str) else ''
+                for msg in messages
+            ])
+
+            # Route based on complexity (sync call for sync streaming)
+            routing_decision = self.pre_router.route(query_text)
+            from .routers.base import RoutingStrategy
+            use_cascade = routing_decision['strategy'] == RoutingStrategy.CASCADE
+
+            # If direct routing, stream verifier only
+            if not use_cascade:
+                for chunk in self.verifier.stream(messages, **merged_kwargs):
+                    yield ChatGenerationChunk(
+                        message=AIMessageChunk(content=chunk.content),
+                        text=chunk.content if isinstance(chunk.content, str) else ''
+                    )
+                return
+
+        # STEP 1: Stream drafter optimistically
+        drafter_chunks: List[ChatGenerationChunk] = []
+        drafter_content = ''
+
+        # Stream from drafter in real-time
+        for chunk in self.drafter.stream(messages, **merged_kwargs):
+            # Extract text content from chunk
+            chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+            drafter_content += chunk_text
+
+            # Create ChatGenerationChunk
+            gen_chunk = ChatGenerationChunk(
+                message=AIMessageChunk(content=chunk_text),
+                text=chunk_text
+            )
+            drafter_chunks.append(gen_chunk)
+
+            # Yield chunk immediately for real-time streaming
+            yield gen_chunk
+
+        # STEP 2: Quality check after drafter completes
+        drafter_result = ChatResult(
+            generations=[
+                ChatGeneration(
+                    text=drafter_content,
+                    message=AIMessage(content=drafter_content)
+                )
+            ],
+            llm_output={}
+        )
+
+        quality_func = self.quality_validator or calculate_quality
+        drafter_quality = quality_func([drafter_result])
+        accepted = drafter_quality >= self.quality_threshold
+
+        # STEP 3: If quality insufficient, cascade to verifier
+        if not accepted:
+            # Emit switch notification
+            verifier_model_name = getattr(self.verifier, 'model_name', None) or \
+                                 getattr(self.verifier, 'model', None) or \
+                                 'verifier'
+            switch_message = f"\n\n⤴ Cascading to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
+
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(content=switch_message),
+                text=switch_message
+            )
+
+            # Stream from verifier
+            for chunk in self.verifier.stream(messages, **merged_kwargs):
+                chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+                yield ChatGenerationChunk(
+                    message=AIMessageChunk(content=chunk_text),
+                    text=chunk_text
+                )
+
+        # Store cascade result (simplified for streaming)
+        latency_ms = (time.time() - start_time) * 1000
+        self._last_cascade_result = CascadeResult(
+            content=drafter_content,
+            model_used='drafter' if accepted else 'verifier',
+            drafter_quality=drafter_quality,
+            accepted=accepted,
+            drafter_cost=0.0,
+            verifier_cost=0.0,
+            total_cost=0.0,
+            savings_percentage=50.0 if accepted else 0.0,
+            latency_ms=latency_ms
+        )
+
+    async def _astream(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        """Async stream responses with optimistic drafter execution.
+
+        Uses the proven cascade streaming pattern:
+        1. Stream drafter optimistically (user sees real-time output)
+        2. Collect chunks and check quality after completion
+        3. If quality insufficient: show switch message + stream verifier
+
+        Args:
+            messages: Input messages
+            stop: Stop sequences
+            run_manager: Callback manager
+            **kwargs: Additional arguments
+
+        Yields:
+            ChatGenerationChunk instances with streaming content
+        """
+        start_time = time.time()
+
+        # Merge bind kwargs with call kwargs
+        merged_kwargs = {**self._bind_kwargs, **kwargs}
+        if stop:
+            merged_kwargs['stop'] = stop
+
+        # STEP 0: PreRouter - Check if we should bypass cascade
+        use_cascade = True
+        routing_decision = None
+
+        if self.enable_pre_router and self.pre_router:
+            # Extract query text from messages
+            query_text = '\n'.join([
+                msg.content if isinstance(msg.content, str) else ''
+                for msg in messages
+            ])
+
+            # Route based on complexity
+            routing_decision = await self.pre_router.route(query_text)
+            from .routers.base import RoutingStrategy
+            use_cascade = routing_decision['strategy'] == RoutingStrategy.CASCADE
+
+            # If direct routing, stream verifier only
+            if not use_cascade:
+                async for chunk in self.verifier.astream(messages, **merged_kwargs):
+                    yield ChatGenerationChunk(
+                        message=AIMessageChunk(content=chunk.content),
+                        text=chunk.content if isinstance(chunk.content, str) else ''
+                    )
+                return
+
+        # STEP 1: Stream drafter optimistically
+        drafter_chunks: List[ChatGenerationChunk] = []
+        drafter_content = ''
+
+        # Stream from drafter in real-time
+        async for chunk in self.drafter.astream(messages, **merged_kwargs):
+            # Extract text content from chunk
+            chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+            drafter_content += chunk_text
+
+            # Create ChatGenerationChunk
+            gen_chunk = ChatGenerationChunk(
+                message=AIMessageChunk(content=chunk_text),
+                text=chunk_text
+            )
+            drafter_chunks.append(gen_chunk)
+
+            # Yield chunk immediately for real-time streaming
+            yield gen_chunk
+
+        # STEP 2: Quality check after drafter completes
+        drafter_result = ChatResult(
+            generations=[
+                ChatGeneration(
+                    text=drafter_content,
+                    message=AIMessage(content=drafter_content)
+                )
+            ],
+            llm_output={}
+        )
+
+        quality_func = self.quality_validator or calculate_quality
+        drafter_quality = quality_func([drafter_result])
+        accepted = drafter_quality >= self.quality_threshold
+
+        # STEP 3: If quality insufficient, cascade to verifier
+        if not accepted:
+            # Emit switch notification
+            verifier_model_name = getattr(self.verifier, 'model_name', None) or \
+                                 getattr(self.verifier, 'model', None) or \
+                                 'verifier'
+            switch_message = f"\n\n⤴ Cascading to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
+
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(content=switch_message),
+                text=switch_message
+            )
+
+            # Stream from verifier
+            async for chunk in self.verifier.astream(messages, **merged_kwargs):
+                chunk_text = chunk.content if isinstance(chunk.content, str) else ''
+                yield ChatGenerationChunk(
+                    message=AIMessageChunk(content=chunk_text),
+                    text=chunk_text
+                )
+
+        # Store cascade result (simplified for streaming)
+        latency_ms = (time.time() - start_time) * 1000
+        self._last_cascade_result = CascadeResult(
+            content=drafter_content,
+            model_used='drafter' if accepted else 'verifier',
+            drafter_quality=drafter_quality,
+            accepted=accepted,
+            drafter_cost=0.0,
+            verifier_cost=0.0,
+            total_cost=0.0,
+            savings_percentage=50.0 if accepted else 0.0,
+            latency_ms=latency_ms
+        )
 
     def bind(self, **kwargs: Any) -> "CascadeFlow":
         """Create a new CascadeFlow with bound parameters.
