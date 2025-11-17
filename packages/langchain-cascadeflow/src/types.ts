@@ -1,3 +1,6 @@
+import type { PreRouter } from './routers/pre-router.js';
+import type { QueryComplexity } from './complexity.js';
+
 /**
  * Configuration for the CascadeFlow wrapper
  */
@@ -19,16 +22,44 @@ export interface CascadeConfig {
   qualityThreshold?: number;
 
   /**
-   * Enable automatic cost tracking via LangSmith metadata
+   * Enable automatic cost tracking
    * @default true
    */
   enableCostTracking?: boolean;
+
+  /**
+   * Cost tracking provider
+   * - 'langsmith': Use LangSmith's server-side cost calculation (default, requires LANGSMITH_API_KEY)
+   * - 'cascadeflow': Use CascadeFlow's built-in pricing table (no external dependencies)
+   * @default 'langsmith'
+   */
+  costTrackingProvider?: 'langsmith' | 'cascadeflow';
 
   /**
    * Custom quality validator function
    * Returns confidence score between 0-1
    */
   qualityValidator?: (response: any) => Promise<number> | number;
+
+  /**
+   * Enable pre-routing based on query complexity
+   * When enabled, 'hard' and 'expert' queries skip the drafter and go directly to the verifier
+   * @default false
+   */
+  enablePreRouter?: boolean;
+
+  /**
+   * Custom PreRouter instance for advanced routing control
+   * If not provided, a default PreRouter will be created when enablePreRouter is true
+   */
+  preRouter?: PreRouter;
+
+  /**
+   * Complexity levels that should use cascade (try drafter first)
+   * Queries with other complexity levels go directly to verifier
+   * @default ['trivial', 'simple', 'moderate']
+   */
+  cascadeComplexities?: QueryComplexity[];
 }
 
 /**
