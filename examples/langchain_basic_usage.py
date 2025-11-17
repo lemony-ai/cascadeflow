@@ -15,7 +15,7 @@ import os
 
 from langchain_openai import ChatOpenAI
 
-from cascadeflow.langchain import CascadeFlow
+from cascadeflow.integrations.langchain import CascadeFlow
 
 
 async def main():

@@ -53,6 +53,39 @@ except ImportError:
     cascadeflowMetrics = None
     create_exporter_from_env = None
 
+# Try to import LangChain integration
+try:
+    from .langchain import (
+        CascadeFlow,
+        with_cascade,
+        CascadeConfig,
+        CascadeResult,
+        CostMetadata,
+        TokenUsage,
+        calculate_quality,
+        calculate_cost,
+        calculate_savings,
+        create_cost_metadata,
+        extract_token_usage,
+        MODEL_PRICING,
+    )
+
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+    CascadeFlow = None
+    with_cascade = None
+    CascadeConfig = None
+    CascadeResult = None
+    CostMetadata = None
+    TokenUsage = None
+    calculate_quality = None
+    calculate_cost = None
+    calculate_savings = None
+    create_cost_metadata = None
+    extract_token_usage = None
+    MODEL_PRICING = None
+
 __all__ = []
 
 if LITELLM_AVAILABLE:
@@ -80,10 +113,29 @@ if OPENTELEMETRY_AVAILABLE:
         ]
     )
 
+if LANGCHAIN_AVAILABLE:
+    __all__.extend(
+        [
+            "CascadeFlow",
+            "with_cascade",
+            "CascadeConfig",
+            "CascadeResult",
+            "CostMetadata",
+            "TokenUsage",
+            "calculate_quality",
+            "calculate_cost",
+            "calculate_savings",
+            "create_cost_metadata",
+            "extract_token_usage",
+            "MODEL_PRICING",
+        ]
+    )
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
     "opentelemetry": OPENTELEMETRY_AVAILABLE,
+    "langchain": LANGCHAIN_AVAILABLE,
 }
 
 
@@ -104,4 +156,5 @@ def get_integration_info():
         "capabilities": INTEGRATION_CAPABILITIES,
         "litellm_available": LITELLM_AVAILABLE,
         "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
+        "langchain_available": LANGCHAIN_AVAILABLE,
     }
