@@ -10,6 +10,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/cascadeflow?color=blue&label=Python)](https://pypi.org/project/cascadeflow/)
 [![npm version](https://img.shields.io/npm/v/@cascadeflow/core?color=red&label=TypeScript)](https://www.npmjs.com/package/@cascadeflow/core)
+[![LangChain version](https://img.shields.io/npm/v/@cascadeflow/langchain?color=purple&label=LangChain)](https://www.npmjs.com/package/@cascadeflow/langchain)
 [![n8n version](https://img.shields.io/npm/v/@cascadeflow/n8n-nodes-cascadeflow?color=orange&label=n8n)](https://www.npmjs.com/package/@cascadeflow/n8n-nodes-cascadeflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Downloads](https://static.pepy.tech/badge/cascadeflow)](https://pepy.tech/project/cascadeflow)
@@ -52,7 +53,7 @@ Use cascadeflow for:
 - **Cost Optimization.** Reduce API costs by 40-85% through intelligent model cascading and speculative execution with automatic per-query cost tracking.
 - **Cost Control and Transparency.** Built-in telemetry for query, model, and provider-level cost tracking with configurable budget limits and programmable spending caps.
 - **Low Latency & Speed Optimization**. Sub-2ms framework overhead with fast provider routing (Groq sub-50ms). Cascade simple queries to fast models while reserving expensive models for complex reasoning, achieving 2-10x latency reduction overall. (use preset `PRESET_ULTRA_FAST`)
-- **Multi-Provider Flexibility.** Unified API across **`OpenAI`, `Anthropic`, `Groq`, `Ollama`, `vLLM`, `Together`, and `Hugging Face`** with automatic provider detection and zero vendor lock-in. Optional **`LiteLLM`** integration for 100+ additional providers.
+- **Multi-Provider Flexibility.** Unified API across **`OpenAI`, `Anthropic`, `Groq`, `Ollama`, `vLLM`, `Together`, and `Hugging Face`** with automatic provider detection and zero vendor lock-in. Optional **`LiteLLM`** integration for 100+ additional providers, plus **`LangChain`** integration for LCEL chains and tools.
 - **Edge & Local-Hosted AI Deployment.** Use best of both worlds: handle most queries with local models (vLLM, Ollama), then automatically escalate complex queries to cloud providers only when needed.
 
 > **ℹ️ Note:** SLMs (under 10B parameters) are sufficiently powerful for 60-70% of agentic AI tasks. [Research paper](https://www.researchgate.net/publication/392371267_Small_Language_Models_are_the_Future_of_Agentic_AI)
@@ -361,6 +362,108 @@ CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nod
 
 ---
 
+## <picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src="./.github/assets/LC-logo-dark.png" width="42" alt="LangChain" style="vertical-align: middle;"></picture> LangChain Integration
+
+Use cascadeflow with LangChain for intelligent model cascading with full LCEL, streaming, and tools support!
+
+### Installation
+
+```bash
+npm install @cascadeflow/langchain @langchain/core @langchain/openai
+```
+
+### Quick Start
+
+Drop-in replacement for any LangChain chat model:
+
+```typescript
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { CascadeFlow } from '@cascadeflow/langchain';
+
+const cascade = new CascadeFlow({
+  drafter: new ChatOpenAI({ modelName: 'gpt-5-mini' }),      // $0.25/$2 per 1M tokens
+  verifier: new ChatAnthropic({ modelName: 'claude-sonnet-4-5' }),  // $3/$15 per 1M tokens
+  qualityThreshold: 0.8, // 80% queries use drafter
+});
+
+// Use like any LangChain chat model
+const result = await cascade.invoke('Explain quantum computing');
+
+// Optional: Enable LangSmith tracing (see https://smith.langchain.com)
+// Set LANGSMITH_API_KEY, LANGSMITH_PROJECT, LANGSMITH_TRACING=true
+
+// Or with LCEL chains
+const chain = prompt.pipe(cascade).pipe(new StringOutputParser());
+```
+
+<details>
+<summary><b>💡 Optional: Model Discovery & Analysis Helpers</b></summary>
+
+For discovering optimal cascade pairs from your existing LangChain models, use the built-in discovery helpers:
+
+```typescript
+import {
+  discoverCascadePairs,
+  findBestCascadePair,
+  analyzeModel,
+  validateCascadePair
+} from '@cascadeflow/langchain';
+
+// Your existing LangChain models (configured with YOUR API keys)
+const myModels = [
+  new ChatOpenAI({ model: 'gpt-3.5-turbo' }),
+  new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  new ChatOpenAI({ model: 'gpt-4o' }),
+  new ChatAnthropic({ model: 'claude-3-haiku' }),
+  // ... any LangChain chat models
+];
+
+// Quick: Find best cascade pair
+const best = findBestCascadePair(myModels);
+console.log(`Best pair: ${best.analysis.drafterModel} → ${best.analysis.verifierModel}`);
+console.log(`Estimated savings: ${best.estimatedSavings}%`);
+
+// Use it immediately
+const cascade = new CascadeFlow({
+  drafter: best.drafter,
+  verifier: best.verifier,
+});
+
+// Advanced: Discover all valid pairs
+const pairs = discoverCascadePairs(myModels, {
+  minSavings: 50,              // Only pairs with ≥50% savings
+  requireSameProvider: false,  // Allow cross-provider cascades
+});
+
+// Validate specific pair
+const validation = validateCascadePair(drafter, verifier);
+console.log(`Valid: ${validation.valid}`);
+console.log(`Warnings: ${validation.warnings}`);
+```
+
+**What you get:**
+- 🔍 Automatic discovery of optimal cascade pairs from YOUR models
+- 💰 Estimated cost savings calculations
+- ⚠️ Validation warnings for misconfigured pairs
+- 📊 Model tier analysis (drafter vs verifier candidates)
+
+**Full example:** See [model-discovery.ts](./packages/langchain-cascadeflow/examples/model-discovery.ts)
+
+</details>
+
+**Features:**
+
+- ✅ Full LCEL support (pipes, sequences, batch)
+- ✅ Streaming with pre-routing
+- ✅ Tool calling and structured output
+- ✅ LangSmith cost tracking metadata
+- ✅ Works with all LangChain features
+
+🦜 **Learn more:** [LangChain Integration Guide](./docs/guides/langchain_integration.md) | [Package README](./packages/langchain-cascadeflow/)
+
+---
+
 ## Resources
 
 ### Examples
@@ -426,7 +529,7 @@ CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nod
 </details>
 
 <details>
-<summary><b>Advanced Examples</b> - Production & edge deployment</summary>
+<summary><b>Advanced Examples</b> - Production, edge & LangChain</summary>
 
 | Example | Description | Link |
 |---------|-------------|------|
@@ -434,6 +537,10 @@ CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nod
 | **Multi-Instance Ollama** | Run draft/verifier on separate Ollama instances | [View](./packages/core/examples/nodejs/multi-instance-ollama.ts) |
 | **Multi-Instance vLLM** | Run draft/verifier on separate vLLM instances | [View](./packages/core/examples/nodejs/multi-instance-vllm.ts) |
 | **Browser/Edge** | Vercel Edge runtime example | [View](./packages/core/examples/browser/vercel-edge/) |
+| **LangChain Basic** | Simple LangChain cascade setup | [View](./packages/langchain-cascadeflow/examples/basic-usage.ts) |
+| **LangChain Cross-Provider** | Haiku → GPT-5 with PreRouter | [View](./packages/langchain-cascadeflow/examples/cross-provider-escalation.ts) |
+| **LangChain LangSmith** | Cost tracking with LangSmith | [View](./packages/langchain-cascadeflow/examples/langsmith-tracing.ts) |
+| **LangChain Cost Tracking** | Compare cascadeflow vs LangSmith cost tracking | [View](./packages/langchain-cascadeflow/examples/cost-tracking-providers.ts) |
 
 </details>
 
@@ -467,6 +574,7 @@ CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nod
 | **Edge Device** | Deploy cascades on edge devices | [Read](./docs/guides/edge_device.md) |
 | **Browser Cascading** | Run cascades in the browser/edge | [Read](./docs/guides/browser_cascading.md) |
 | **FastAPI Integration** | Integrate with FastAPI applications | [Read](./docs/guides/fastapi.md) |
+| **LangChain Integration** | Use cascadeflow with LangChain | [Read](./docs/guides/langchain_integration.md) |
 | **n8n Integration** | Use cascadeflow in n8n workflows | [Read](./docs/guides/n8n_integration.md) |
 
 </details>
@@ -483,7 +591,7 @@ CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nod
 | 💰 **40-85% Cost Savings** | Research-backed, proven in production                                                                                                  |
 | ⚡ **2-10x Faster** | Small models respond in <50ms vs 500-2000ms                                                                                            |
 | ⚡ **Low Latency**  | Sub-2ms framework overhead, negligible performance impact                                                                              |
-| 🔄 **Mix Any Providers**  | OpenAI, Anthropic, Groq, Ollama, vLLM, Together + LiteLLM (optional)                                                                   |
+| 🔄 **Mix Any Providers**  | OpenAI, Anthropic, Groq, Ollama, vLLM, Together + LiteLLM (optional) + LangChain integration                                           |
 | 👤 **User Profile System**  | Per-user budgets, tier-aware routing, enforcement callbacks                                                                            |
 | ✅ **Quality Validation**  | Automatic checks + semantic similarity (optional ML, ~80MB, CPU)                                                                       |
 | 🎨 **Cascading Policies**  | Domain-specific pipelines, multi-step validation strategies                                                                            |
