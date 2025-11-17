@@ -316,7 +316,8 @@ describe('createCostMetadata', () => {
       'gpt-4o-mini',
       'gpt-4o',
       true,
-      0.8
+      0.8,
+      'cascadeflow'
     );
 
     expect(metadata.drafterTokens).toEqual({ input: 14, output: 8 });
@@ -357,7 +358,8 @@ describe('createCostMetadata', () => {
       'gpt-4o-mini',
       'gpt-4o',
       false,
-      0.3
+      0.3,
+      'cascadeflow'
     );
 
     expect(metadata.drafterTokens).toEqual({ input: 14, output: 5 });

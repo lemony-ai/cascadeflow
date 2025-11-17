@@ -3,7 +3,7 @@ import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
-import { CascadeWrapper } from './wrapper.js';
+import { CascadeFlow } from './wrapper.js';
 
 /**
  * Mock chat model for testing
@@ -67,27 +67,27 @@ function createChatResult(
   };
 }
 
-describe('CascadeWrapper', () => {
+describe('CascadeFlow', () => {
   describe('Constructor and Configuration', () => {
     it('should initialize with default configuration', () => {
       const drafter = new MockChatModel('gpt-4o-mini');
       const verifier = new MockChatModel('gpt-4o');
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
 
       expect(cascade.drafter).toBe(drafter);
       expect(cascade.verifier).toBe(verifier);
-      expect(cascade._llmType()).toBe('cascade-wrapper');
+      expect(cascade._llmType()).toBe('cascadeflow');
     });
 
     it('should accept custom quality threshold', () => {
       const drafter = new MockChatModel('gpt-4o-mini');
       const verifier = new MockChatModel('gpt-4o');
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.9,
@@ -102,7 +102,7 @@ describe('CascadeWrapper', () => {
       const verifier = new MockChatModel('gpt-4o');
       const customValidator = vi.fn(() => 0.5);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityValidator: customValidator,
@@ -120,7 +120,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.7,
@@ -153,10 +153,11 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.7,
+        costTrackingProvider: 'cascadeflow',
       });
 
       const messages = [new HumanMessage('What is 2+2?')];
@@ -188,7 +189,7 @@ describe('CascadeWrapper', () => {
       // Custom validator that always returns low quality
       const customValidator = vi.fn(() => 0.3);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.7,
@@ -214,7 +215,7 @@ describe('CascadeWrapper', () => {
         return 0.9;
       });
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.7,
@@ -236,10 +237,11 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', []);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.7,
+        costTrackingProvider: 'cascadeflow',
       });
 
       const messages = [new HumanMessage('What is 2+2?')];
@@ -258,10 +260,11 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.7,
+        costTrackingProvider: 'cascadeflow',
       });
 
       const messages = [new HumanMessage('What is 2+2?')];
@@ -280,7 +283,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
@@ -294,18 +297,18 @@ describe('CascadeWrapper', () => {
   });
 
   describe('Chainable Methods - bind()', () => {
-    it('should support bind() and return new CascadeWrapper', () => {
+    it('should support bind() and return new CascadeFlow', () => {
       const drafter = new MockChatModel('gpt-4o-mini');
       const verifier = new MockChatModel('gpt-4o');
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
 
       const boundCascade = cascade.bind({ temperature: 0.5 });
 
-      expect(boundCascade).toBeInstanceOf(CascadeWrapper);
+      expect(boundCascade).toBeInstanceOf(CascadeFlow);
       expect(boundCascade).not.toBe(cascade); // New instance
     });
 
@@ -316,7 +319,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
@@ -334,7 +337,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini');
       const verifier = new MockChatModel('gpt-4o');
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
@@ -342,7 +345,7 @@ describe('CascadeWrapper', () => {
       const bound1 = cascade.bind({ temperature: 0.5 });
       const bound2 = bound1.bind({ maxTokens: 100 });
 
-      expect(bound2).toBeInstanceOf(CascadeWrapper);
+      expect(bound2).toBeInstanceOf(CascadeFlow);
     });
   });
 
@@ -354,10 +357,11 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         enableCostTracking: true,
+        costTrackingProvider: 'cascadeflow',
       });
 
       const messages = [new HumanMessage('Test')];
@@ -384,7 +388,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         enableCostTracking: false,
@@ -406,7 +410,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
@@ -424,7 +428,7 @@ describe('CascadeWrapper', () => {
       // Custom validator that returns exactly the threshold
       const exactValidator = vi.fn(() => 0.7);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
         qualityThreshold: 0.7,
@@ -456,7 +460,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [responseWithoutTokens]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
@@ -474,7 +478,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini');
       const verifier = new MockChatModel('gpt-4o');
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
@@ -490,7 +494,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });
@@ -512,7 +516,7 @@ describe('CascadeWrapper', () => {
       const drafter = new MockChatModel('gpt-4o-mini', [response1, response2]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
 
-      const cascade = new CascadeWrapper({
+      const cascade = new CascadeFlow({
         drafter,
         verifier,
       });

@@ -21,6 +21,12 @@ export const MODEL_PRICING_REFERENCE = {
   'gpt-4-turbo': { input: 10.00, output: 30.00, tier: 'powerful' },
   'gpt-3.5-turbo': { input: 0.50, output: 1.50, tier: 'fast' },
 
+  // GPT-5 Models (estimated pricing - subject to change)
+  'gpt-5': { input: 1.25, output: 10.00, tier: 'powerful' },
+  'gpt-5-mini': { input: 0.25, output: 2.00, tier: 'fast' },
+  'gpt-5-nano': { input: 0.05, output: 0.40, tier: 'fast' },
+  'gpt-5.1': { input: 2.00, output: 15.00, tier: 'powerful' },
+
   // Anthropic Models
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25, tier: 'fast' },
   'claude-3-5-haiku-20241022': { input: 0.80, output: 4.00, tier: 'balanced' },
@@ -28,9 +34,17 @@ export const MODEL_PRICING_REFERENCE = {
   'claude-3-sonnet-20240229': { input: 3.00, output: 15.00, tier: 'balanced' },
   'claude-3-opus-20240229': { input: 15.00, output: 75.00, tier: 'powerful' },
 
+  // Claude 4 Models (estimated pricing - subject to change)
+  'claude-sonnet-4': { input: 3.00, output: 15.00, tier: 'powerful' },
+  'claude-haiku-4.5': { input: 1.00, output: 5.00, tier: 'balanced' },
+
   // Google Models
   'gemini-1.5-flash': { input: 0.075, output: 0.30, tier: 'fast' },
   'gemini-1.5-pro': { input: 1.25, output: 5.00, tier: 'powerful' },
+
+  // Gemini 2.5 Models (estimated pricing - subject to change)
+  'gemini-2.5-flash': { input: 0.30, output: 2.50, tier: 'fast' },
+  'gemini-2.5-pro': { input: 1.25, output: 10.00, tier: 'powerful' },
 } as const;
 
 /**
@@ -146,13 +160,21 @@ export function analyzeModel(model: BaseChatModel): {
   const modelName = getModelName(model);
   const provider = getProvider(model);
 
-  // Look up pricing
-  const pricing = Object.entries(MODEL_PRICING_REFERENCE).find(([key]) =>
-    modelName.toLowerCase().includes(key.toLowerCase())
+  // Look up pricing - try exact match first, then fallback to contains
+  let pricing = Object.entries(MODEL_PRICING_REFERENCE).find(([key]) =>
+    modelName.toLowerCase() === key.toLowerCase()
   );
 
+  // If no exact match, try contains (but prefer longer keys first to avoid gpt-5 matching gpt-5-mini)
+  if (!pricing) {
+    const sortedEntries = Object.entries(MODEL_PRICING_REFERENCE).sort((a, b) => b[0].length - a[0].length);
+    pricing = sortedEntries.find(([key]) =>
+      modelName.toLowerCase().includes(key.toLowerCase())
+    );
+  }
+
   const estimatedCost = pricing ? { input: pricing[1].input, output: pricing[1].output } : null;
-  const tier = pricing?.[ 1].tier || 'unknown';
+  const tier = pricing?.[1].tier || 'unknown';
 
   // Generate recommendation
   let recommendation = '';

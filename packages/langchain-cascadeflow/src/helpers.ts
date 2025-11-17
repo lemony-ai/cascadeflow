@@ -1,4 +1,5 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { MODEL_PRICING_REFERENCE } from './models.js';
 
 /**
  * Model pricing information (per 1M tokens)
@@ -27,36 +28,23 @@ export interface CascadeAnalysis {
  * Returns pricing per 1M tokens
  */
 function getModelPricing(modelName: string): ModelPricing | null {
-  // Normalize model name (remove version suffixes for lookup)
+  // Use MODEL_PRICING_REFERENCE for consistent pricing across the package
   const normalizedName = modelName.toLowerCase();
 
-  // OpenAI Models
-  if (normalizedName.includes('gpt-4o-mini')) {
-    return { input: 0.150, output: 0.600 };
-  }
-  if (normalizedName.includes('gpt-4o')) {
-    return { input: 2.50, output: 10.00 };
-  }
-  if (normalizedName.includes('gpt-4-turbo')) {
-    return { input: 10.00, output: 30.00 };
-  }
-  if (normalizedName.includes('gpt-3.5-turbo')) {
-    return { input: 0.50, output: 1.50 };
+  // Try exact match first
+  let pricing = Object.entries(MODEL_PRICING_REFERENCE).find(([key]) =>
+    normalizedName === key.toLowerCase()
+  );
+
+  // If no exact match, try contains (prefer longer keys first to avoid partial matches)
+  if (!pricing) {
+    const sortedEntries = Object.entries(MODEL_PRICING_REFERENCE).sort((a, b) => b[0].length - a[0].length);
+    pricing = sortedEntries.find(([key]) =>
+      normalizedName.includes(key.toLowerCase())
+    );
   }
 
-  // Anthropic Models
-  if (normalizedName.includes('claude-3-5-haiku') || normalizedName.includes('claude-3-haiku')) {
-    return { input: 0.80, output: 4.00 };
-  }
-  if (normalizedName.includes('claude-3-5-sonnet') || normalizedName.includes('claude-3-sonnet')) {
-    return { input: 3.00, output: 15.00 };
-  }
-  if (normalizedName.includes('claude-3-opus')) {
-    return { input: 15.00, output: 75.00 };
-  }
-
-  // Unknown model
-  return null;
+  return pricing ? { input: pricing[1].input, output: pricing[1].output } : null;
 }
 
 /**
@@ -140,9 +128,11 @@ export function analyzeCascadePair(
 
   // Check if we have pricing info
   if (!drafterPricing) {
+    valid = false;
     warnings.push(`Unknown pricing for drafter model: ${drafterModel}`);
   }
   if (!verifierPricing) {
+    valid = false;
     warnings.push(`Unknown pricing for verifier model: ${verifierModel}`);
   }
 
@@ -248,8 +238,8 @@ export function suggestCascadePairs(
 
       const analysis = analyzeCascadePair(models[i], models[j]);
 
-      // Only include valid pairs with meaningful savings
-      if (analysis.valid && analysis.estimatedSavings > 20) {
+      // Only include valid pairs (filtering by savings happens in discoverCascadePairs)
+      if (analysis.valid) {
         suggestions.push({
           drafter: models[i],
           verifier: models[j],

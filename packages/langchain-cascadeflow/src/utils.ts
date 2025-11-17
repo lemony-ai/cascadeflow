@@ -143,7 +143,8 @@ export function calculateSavings(drafterCost: number, verifierCost: number): num
 }
 
 /**
- * Create cost metadata for LangSmith injection
+ * Create cost metadata with configurable provider
+ * @param costProvider - 'langsmith' (server-side) or 'cascadeflow' (local calculation)
  */
 export function createCostMetadata(
   drafterResponse: any,
@@ -151,18 +152,38 @@ export function createCostMetadata(
   drafterModel: string,
   verifierModel: string,
   accepted: boolean,
-  drafterQuality: number
+  drafterQuality: number,
+  costProvider: 'langsmith' | 'cascadeflow' = 'langsmith'
 ): CostMetadata {
   const drafterTokens = extractTokenUsage(drafterResponse);
-  const drafterCost = calculateCost(drafterModel, drafterTokens.input, drafterTokens.output);
 
-  let verifierTokens, verifierCost;
-  if (verifierResponse) {
-    verifierTokens = extractTokenUsage(verifierResponse);
-    verifierCost = calculateCost(verifierModel, verifierTokens.input, verifierTokens.output);
+  let drafterCost: number;
+  let verifierCost: number;
+  let verifierTokens: { input: number; output: number } | undefined;
+
+  if (costProvider === 'cascadeflow') {
+    // Use CascadeFlow's built-in pricing calculation
+    drafterCost = calculateCost(drafterModel, drafterTokens.input, drafterTokens.output);
+
+    if (verifierResponse) {
+      verifierTokens = extractTokenUsage(verifierResponse);
+      verifierCost = calculateCost(verifierModel, verifierTokens.input, verifierTokens.output);
+    } else {
+      verifierTokens = undefined;
+      verifierCost = 0;
+    }
   } else {
-    verifierTokens = undefined;
-    verifierCost = 0;
+    // LangSmith provider - costs calculated server-side
+    // We still track tokens for metadata, but costs are 0 (calculated by LangSmith)
+    drafterCost = 0;
+
+    if (verifierResponse) {
+      verifierTokens = extractTokenUsage(verifierResponse);
+      verifierCost = 0;
+    } else {
+      verifierTokens = undefined;
+      verifierCost = 0;
+    }
   }
 
   const totalCost = drafterCost + verifierCost;
