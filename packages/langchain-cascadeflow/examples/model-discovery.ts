@@ -6,7 +6,7 @@
  */
 
 import {
-  CascadeWrapper,
+  CascadeFlow,
   discoverCascadePairs,
   findBestCascadePair,
   analyzeModel,
@@ -70,18 +70,20 @@ if (best) {
   console.log(`Savings:  ${best.estimatedSavings.toFixed(1)}%`);
 
   // Use it!
-  const cascade = new CascadeWrapper({
+  const cascade = new CascadeFlow({
     drafter: best.drafter,
     verifier: best.verifier,
   });
 
-  const result = await cascade.invoke('What is TypeScript?');
-  console.log(`\nResponse: ${result.content.substring(0, 150)}...`);
+  (async () => {
+    const result = await cascade.invoke('What is TypeScript?');
+    console.log(`\nResponse: ${result.content.substring(0, 150)}...`);
 
-  const stats = cascade.getLastCascadeResult();
-  console.log(`Model used: ${stats?.modelUsed}`);
-  console.log(`Actual cost: $${stats?.totalCost.toFixed(6)}`);
-  console.log(`Actual savings: ${stats?.savingsPercentage.toFixed(1)}%`);
+    const stats = cascade.getLastCascadeResult();
+    console.log(`Model used: ${stats?.modelUsed}`);
+    console.log(`Actual cost: $${stats?.totalCost.toFixed(6)}`);
+    console.log(`Actual savings: ${stats?.savingsPercentage.toFixed(1)}%`);
+  })().catch(console.error);
 } else {
   console.log('No valid cascade pairs found. Need at least 2 models with different costs.');
 }
@@ -194,7 +196,7 @@ const myModels = [
 const best = findBestCascadePair(myModels);
 
 // Step 3: Create cascade
-const cascade = new CascadeWrapper({
+const cascade = new CascadeFlow({
   drafter: best.drafter,
   verifier: best.verifier,
 });
