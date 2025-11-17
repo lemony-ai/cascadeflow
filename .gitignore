@@ -264,3 +264,5 @@ token.json
 ._*
 .Spotlight-V100
 .Trashes
+# Generated TypeScript API documentation
+packages/core/docs/
