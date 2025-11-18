@@ -14,7 +14,7 @@ import csv
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, List, Optional, TypeVar, cast
+from typing import Any, Callable, Optional, TypeVar
 
 from .types import CascadeResult
 
@@ -56,7 +56,7 @@ class BudgetTracker:
 
     budget: float
     spent: float = 0.0
-    entries: List[dict[str, Any]] = field(default_factory=list)
+    entries: list[dict[str, Any]] = field(default_factory=list)
     warning_threshold: float = 0.8  # Warn at 80% of budget
 
     def add_cost(self, cost: float, model: str, metadata: Optional[dict[str, Any]] = None) -> None:
@@ -128,7 +128,7 @@ class CostHistory:
         >>> history.export_csv("costs.csv")
     """
 
-    entries: List[CostEntry] = field(default_factory=list)
+    entries: list[CostEntry] = field(default_factory=list)
 
     def add_result(self, result: CascadeResult, query: str = "") -> None:
         """Add cascade result to history."""

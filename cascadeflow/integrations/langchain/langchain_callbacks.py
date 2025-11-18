@@ -9,7 +9,7 @@ callback system, enabling:
 """
 
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
@@ -58,7 +58,7 @@ class CascadeFlowCallbackHandler(BaseCallbackHandler):
         self.current_model: Optional[str] = None
         self.current_is_drafter = False
 
-    def on_llm_start(self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any) -> None:
+    def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> None:
         """Called when LLM starts generating.
 
         Args:
