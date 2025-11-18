@@ -1,9 +1,7 @@
 """Test suite for LangChain callback handlers."""
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
-from langchain_core.outputs import LLMResult, Generation, ChatGeneration
 from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, LLMResult
 
 from cascadeflow.integrations.langchain.langchain_callbacks import (
     CascadeFlowCallbackHandler,
