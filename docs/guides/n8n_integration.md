@@ -8,22 +8,23 @@ This guide shows how to use cascadeflow in n8n workflows for intelligent AI mode
 2. [Installation](#installation)
 3. [Quick Start](#quick-start)
 4. [Configuration](#configuration)
-5. [Use Cases](#use-cases)
-6. [Best Practices](#best-practices)
-7. [Troubleshooting](#troubleshooting)
+5. [Flow Visualization](#flow-visualization)
+6. [Use Cases](#use-cases)
+7. [Best Practices](#best-practices)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-The **@cascadeflow/n8n-nodes-cascadeflow** package brings cascadeflow's intelligent model cascading to n8n workflows.
+The **@cascadeflow/n8n-nodes-cascadeflow** package brings cascadeflow's intelligent model cascading to n8n workflows as a Language Model sub-node.
 
 ### What is Model Cascading?
 
 Instead of always using expensive models:
 
 ```
-Traditional: Every query → GPT-4o ($0.00625)
+Traditional: Every query → GPT-4o ($0.0025)
 ```
 
 cascadeflow tries cheap models first:
@@ -31,20 +32,49 @@ cascadeflow tries cheap models first:
 ```
 cascadeflow:
   1. Try GPT-4o-mini ($0.00015) ← 70-80% stop here! ✅
-  2. Validate quality
-  3. If needed → GPT-4o ($0.00625)
+  2. Validate quality automatically
+  3. If needed → GPT-4o ($0.0025)
 
 Result: 50-85% cost savings
 ```
 
+### How It Works as a Sub-Node
+
+CascadeFlow is a **Language Model sub-node** that sits between your AI model nodes and downstream n8n nodes (like Basic LLM Chain, Chain, or any node that accepts Language Model inputs):
+
+![CascadeFlow n8n Workflow](../../.github/assets/n8n-CF.png)
+
+**Architecture:**
+
+```
+┌─────────────┐
+│  Drafter    │ (e.g., OpenAI gpt-4o-mini)
+│  AI Model   │
+└──────┬──────┘
+       │
+       ├──────► ┌──────────────┐
+       │        │  CascadeFlow │
+       │        │     Node     │ ────► ┌──────────────┐
+       │        └──────────────┘       │ Basic Chain  │
+       ├──────► Quality checks         │ Chain        │
+       │        Cascades if needed     │ & more       │
+       │                                └──────────────┘
+┌──────┴──────┐
+│  Verifier   │ (e.g., OpenAI gpt-4o)
+│  AI Model   │
+└─────────────┘
+```
+
 ### Why Use cascadeflow in n8n?
 
-✅ **Massive Cost Savings** - 40-85% cheaper than direct API calls
+✅ **Massive Cost Savings** - 40-85% cheaper than always using expensive models
 ✅ **Same Quality** - Automatic validation ensures quality
-✅ **Easy Integration** - Drop-in replacement for AI nodes
-✅ **Rich Metrics** - Track costs and savings in real-time
-✅ **Tool Calling** - Full function calling support
-✅ **Multi-Provider** - OpenAI, Anthropic, Groq, Together AI, Ollama, HuggingFace
+✅ **Easy Integration** - Works with any AI Chat Model in n8n
+✅ **Rich Metrics** - Track cascade decisions in real-time via Logs
+✅ **Flexible** - Use any combination of models from different providers
+✅ **Universal** - Compatible with OpenAI, Anthropic, Ollama, Azure, Google, and more
+
+> **ℹ️ Note:** CascadeFlow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
 
 ---
 
@@ -78,97 +108,187 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 
 ## Quick Start
 
-### Step 1: Add Credentials
+### Step 1: Add Your AI Model Nodes
 
-1. Go to **Credentials** in n8n
-2. Click **Add Credential**
-3. Search for **cascadeflow API**
-4. Add your API keys (only for providers you'll use):
-   - OpenAI API Key: `sk-...`
-   - Anthropic API Key: `sk-ant-...`
-   - Groq API Key: `gsk_...`
-5. Save
+First, add and configure two AI Chat Model nodes in your workflow:
 
-### Step 2: Create Your First Workflow
+1. **Add a cheap model (Drafter)**:
+   - Add an **OpenAI Chat Model** node
+   - Configure with credentials
+   - Set model: `gpt-4o-mini`
+   - Don't connect to anything yet
+
+2. **Add a powerful model (Verifier)**:
+   - Add another **OpenAI Chat Model** node
+   - Configure with credentials
+   - Set model: `gpt-4o`
+   - Don't connect to anything yet
+
+### Step 2: Add CascadeFlow Node
+
+1. Search for **CascadeFlow** in the node menu
+2. Add it to your workflow
+3. **Connect the models**:
+   - Connect your cheap model (gpt-4o-mini) to the **Drafter** input (bottom)
+   - Connect your powerful model (gpt-4o) to the **Verifier** input (top)
+4. Set **Quality Threshold**: `0.7` (default)
+
+### Step 3: Connect to a Chain Node
+
+1. Add a **Basic LLM Chain** or **Chain** node
+2. Connect the **CascadeFlow** node to it (Model input)
+3. Configure your chain as usual
+4. **Note:** Does not work with AI Agent nodes (n8n limitation)
+
+### Step 4: Execute and View Results
+
+**Example Workflow:**
 
 ```
-Manual Trigger
-    ↓
-cascadeflow Node
-    ↓
-Set Node (display result)
+┌──────────────────┐
+│ When chat        │
+│ message received │
+└────────┬─────────┘
+         │
+         v
+┌──────────────────┐       ┌──────────────────┐
+│  OpenAI Model    │──────►│                  │
+│  gpt-4o-mini     │       │  CascadeFlow     │       ┌──────────────────┐
+└──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
+                           │                  │       │                  │
+┌──────────────────┐       │  Threshold: 0.7  │       └──────────────────┘
+│  OpenAI Model    │──────►│                  │
+│  gpt-4o          │       └──────────────────┘
+└──────────────────┘
 ```
 
-**cascadeflow Node Configuration:**
-- **Message**: `What is TypeScript?`
-- **Draft Model**:
-  - Provider: OpenAI
-  - Model: `gpt-4o-mini`
-  - Cost: `0.00015`
-- **Verifier Model**:
-  - Provider: OpenAI
-  - Model: `gpt-4o`
-  - Cost: `0.00625`
-- **Output**: Full Metrics
-
-### Step 3: Execute and View Results
-
-Click **Execute Workflow** and see:
-
-```json
-{
-  "content": "TypeScript is a superset of JavaScript...",
-  "modelUsed": "gpt-4o-mini",
-  "totalCost": 0.000211,
-  "savingsPercentage": 97.8,
-  "summary": {
-    "saved": "97.8%",
-    "cost": "$0.000211",
-    "model": "gpt-4o-mini",
-    "status": "✅ Draft accepted"
-  }
-}
-```
-
-**You just saved 97.8%!** 🎉
+Click **Execute Workflow** and check the **Logs** tab to see the cascade decision!
 
 ---
 
 ## Configuration
 
-### Draft and Verifier Models
+### Node Inputs
 
-The cascade uses 2 models:
+The CascadeFlow node has **two inputs** that accept AI Language Model connections:
 
-| Role | Purpose | Cost | Example |
-|------|---------|------|---------|
-| **Draft** | Fast, cheap first attempt | Low | gpt-4o-mini ($0.00015) |
-| **Verifier** | High-quality fallback | High | gpt-4o ($0.00625) |
+| Input | Position | Purpose | Example |
+|-------|----------|---------|---------|
+| **Verifier** | Top (1st) | High-quality fallback model | gpt-4o, claude-3-5-sonnet |
+| **Drafter** | Bottom (2nd) | Fast, cheap first-attempt model | gpt-4o-mini, claude-3-5-haiku |
 
-**How to choose:**
+**Important:** Both inputs are required. Connect AI Chat Model nodes to both inputs.
 
-1. **Draft Model** - Cheapest model that's "good enough" most of the time
-2. **Verifier Model** - Best quality model for when draft fails
+### Quality Threshold (0-1)
 
-### Quality Settings
+Controls how aggressively to accept drafter responses:
 
-- **Quality Threshold** (0-1): Minimum score to accept draft
-  - `0.5` = Very permissive (more drafts accepted)
-  - `0.7` = Balanced (default)
-  - `0.9` = Very strict (fewer drafts accepted)
-- **Require Validation**: Whether to check quality (recommended: `true`)
+- **0.5-0.6**: Very aggressive (maximum cost savings, ~80-90% acceptance)
+- **0.7** (default): Balanced (good quality + savings, ~70-80% acceptance)
+- **0.8-0.9**: Conservative (highest quality, ~50-60% acceptance)
 
-### Advanced Options
+Lower threshold = more cost savings, higher threshold = better quality assurance.
 
-- **Max Tokens**: Maximum response length (default: 1000)
-- **Temperature**: Creativity/randomness (0-2, default: 0.7)
-- **System Prompt**: Instructions for the AI
+### Compatible AI Model Nodes
 
-### Output Modes
+CascadeFlow works with **any AI Chat Model node** in n8n:
 
-1. **Full Metrics** - All diagnostic data + summary
-2. **Content Only** - Just the AI response text
-3. **Metrics Summary** - Response + key metrics (cost, savings, model)
+- ✅ OpenAI Chat Model
+- ✅ Anthropic Chat Model
+- ✅ Ollama Chat Model
+- ✅ Azure OpenAI Chat Model
+- ✅ Google PaLM Chat Model
+- ✅ AWS Bedrock Chat Model
+- ✅ And any other LangChain-compatible chat model
+
+You can even **mix providers**:
+- Drafter: Ollama (local, free)
+- Verifier: OpenAI (cloud, paid)
+
+---
+
+## Flow Visualization
+
+### Viewing Cascade Decisions in Real-Time
+
+CascadeFlow provides detailed logging of every cascade decision directly in n8n's UI.
+
+**To view cascade flow logs:**
+
+1. **Execute your workflow** with the CascadeFlow node
+2. **Click on the downstream Chain node** (the node that receives the CascadeFlow output, like Basic LLM Chain)
+3. **Navigate to the "Logs" tab** (not the Output tab)
+
+### What You'll See
+
+#### When Drafter is Accepted (Fast Path)
+
+```
+🎯 CascadeFlow: Trying drafter model...
+   📊 Quality validation: confidence=0.85, method=heuristic
+   🎯 Alignment: 0.82
+
+┌─────────────────────────────────────────┐
+│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │
+└─────────────────────────────────────────┘
+   Query → Drafter → Quality Check ✅ → Response
+   ⚡ Fast & Cheap: Used drafter model only
+   Confidence: 0.85 (threshold: 0.70)
+   Quality score: 0.85
+   Latency: 420ms
+   💰 Cost savings: ~93.8% (used cheap model)
+   📊 Stats: 7 drafter, 2 verifier
+```
+
+#### When Escalated to Verifier (Slow Path)
+
+```
+🎯 CascadeFlow: Trying drafter model...
+   📊 Quality validation: confidence=0.62, method=heuristic
+
+┌────────────────────────────────────────────────┐
+│  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │
+└────────────────────────────────────────────────┘
+   Query → Drafter → Quality Check ❌ → Verifier → Response
+   🔄 Escalating: Drafter quality too low, using verifier
+   Confidence: 0.62 < 0.70 (threshold)
+   Reason: Simple check failed (confidence: 0.62 < 0.70)
+   Drafter latency: 380ms
+   🔄 Loading verifier model...
+   ✅ Verifier completed successfully
+   Verifier latency: 890ms
+   Total latency: 1270ms (drafter: 380ms + verifier: 890ms)
+   💰 Cost: Full verifier cost (0% savings this request)
+   📊 Stats: 7 drafter (77.8%), 2 verifier
+```
+
+### Metrics Shown in Logs
+
+- **Flow path**: Drafter accepted, escalated, or error fallback
+- **Quality scores**: Confidence level and alignment scores
+- **Validation method**: Heuristic, logprobs, or semantic
+- **Latency breakdown**: Time spent on each model
+- **Cost analysis**: Savings percentage for each request
+- **Running statistics**: Acceptance rate across all executions
+- **Model used**: Which model generated the final response
+
+### UI Visualization Note
+
+⚠️ **Important:** Due to n8n's rendering conventions, the node visualization always highlights the **Drafter** connection as active (green), regardless of which model was actually used at runtime. This is because n8n highlights the first input in a sub-node's definition, and the Drafter is positioned first (bottom position, but first in the connection list).
+
+**This does not affect functionality** - the cascade logic works correctly:
+- The drafter is always tried first
+- The verifier is only loaded and used when needed
+- Quality validation happens automatically
+
+**To see which model was actually used for each request:**
+- Check the **Logs tab** as described above
+- The logs show exactly which path was taken (drafter accepted vs. escalated to verifier)
+- You'll see detailed metrics including which model generated the final response
+
+The logs provide complete visibility into the cascade decision-making process, showing exactly which path was taken for each request.
+
+> **ℹ️ Important:** CascadeFlow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
 
 ---
 
@@ -178,396 +298,360 @@ The cascade uses 2 models:
 
 **Workflow:**
 ```
-Webhook (customer email)
-    ↓
-cascadeflow (generate response)
-    ├─ Draft: claude-3-haiku
-    └─ Verifier: claude-3-sonnet
-    ↓
-IF Node (check draftAccepted)
-    ├─ true → Send email
-    └─ false → Notify support team
+┌──────────────────┐
+│ Webhook          │ ← Customer question
+│ (POST /support)  │
+└────────┬─────────┘
+         │
+         v
+┌─────────────────────────────────────┐
+│  Claude Haiku ────┐                 │
+│                   │  CascadeFlow    │       ┌──────────────────┐
+│  Claude Sonnet ───┴─► Node          │──────►│  Basic Chain     │
+└─────────────────────────────────────┘       │  (responds)      │
+                                               └──────┬───────────┘
+                                                      │
+                                                      v
+                                               ┌──────────────────┐
+                                               │  Send Response   │
+                                               └──────────────────┘
 ```
 
 **Why this works:**
-- 70% of support queries are simple → draft accepted
+- 70% of support queries are simple → drafter accepted
 - 30% complex → automatically escalated
 - Average savings: 60%
 
 **Configuration:**
-```
-Draft: claude-3-haiku ($0.00075)
-Verifier: claude-3-sonnet ($0.009)
-Quality Threshold: 0.75
-```
+- Drafter: Claude 3.5 Haiku
+- Verifier: Claude 3.5 Sonnet
+- Quality Threshold: 0.75
 
 ---
 
-### Use Case 2: Content Generation
+### Use Case 2: Content Generation Pipeline
 
 **Workflow:**
 ```
-Schedule (daily 9am)
-    ↓
-Code Node (generate topics)
-    ↓
-cascadeflow (write blog post)
-    ├─ Draft: gpt-4o-mini
-    └─ Verifier: gpt-4o
-    ↓
-cascadeflow (proofread)
-    ↓
-Notion (save to calendar)
+┌──────────────────┐
+│ Schedule Trigger │ ← Daily at 9am
+│ (Daily)          │
+└────────┬─────────┘
+         │
+         v
+┌────────────────────────────────────────┐
+│  GPT-4o-mini ─────┐                    │
+│                   │  CascadeFlow       │       ┌──────────────────┐
+│  GPT-4o ──────────┴─► Node             │──────►│  Basic Chain     │
+└────────────────────────────────────────┘       │  (generates)     │
+                                                  └──────┬───────────┘
+                                                         │
+                                                         v
+                                                  ┌──────────────────┐
+                                                  │  Save to Notion  │
+                                                  └──────────────────┘
 ```
 
 **Why this works:**
-- First pass uses cheap model
-- Quality validation catches errors
+- First draft uses cheap model
+- Quality validation catches issues
 - Only escalates for complex topics
 
 **Savings:** $0.50 → $0.15 per article (70% savings)
 
 ---
 
-### Use Case 3: Data Enrichment
+### Use Case 3: Code Review Assistant
 
 **Workflow:**
 ```
-Google Sheets (read contacts)
-    ↓
-Loop Over Items
-    ↓
-cascadeflow (generate personalized message)
-    ├─ Draft: groq/llama-3.1-8b-instant
-    └─ Verifier: openai/gpt-4o
-    ↓
-Google Sheets (write back)
+┌──────────────────┐
+│ GitHub Trigger   │ ← New PR opened
+│ (PR opened)      │
+└────────┬─────────┘
+         │
+         v
+┌─────────────────────────────────────┐
+│  Ollama qwen2.5 ──┐                 │
+│                   │  CascadeFlow    │       ┌──────────────────┐
+│  GPT-4o ──────────┴─► Node          │──────►│  Basic Chain     │
+└─────────────────────────────────────┘       │  (reviews code)  │
+                                               └──────┬───────────┘
+                                                      │
+                                                      v
+                                               ┌──────────────────┐
+                                               │  Post Comment    │
+                                               └──────────────────┘
 ```
 
 **Why this works:**
-- Groq is ultra-fast and cheap for draft
-- OpenAI for verification only when needed
-- Process 1000 contacts for $3 instead of $62
+- Ollama runs locally (free, fast drafts)
+- GPT-4o for complex code analysis
+- Process unlimited PRs with minimal cost
 
 **Configuration:**
-```
-Draft: llama-3.1-8b-instant ($0.00005)
-Verifier: gpt-4o ($0.00625)
-Quality Threshold: 0.7
-Savings: 95%
-```
+- Drafter: Ollama qwen2.5:3b (local, free)
+- Verifier: GPT-4o (cloud)
+- Quality Threshold: 0.7
+- Savings: ~99% on drafter calls
 
 ---
 
-### Use Case 4: Tool Calling
+### Use Case 4: Data Enrichment
 
 **Workflow:**
 ```
-Manual Trigger
-    ↓
-cascadeflow (Generate with Tools)
-    Message: "What's the weather in Paris and London?"
-    Tools: [get_weather, get_forecast]
-    ↓
-Function Node (execute tool calls)
-    ↓
-cascadeflow (format results)
-    ↓
-Slack (send message)
+┌──────────────────┐
+│ Google Sheets    │ ← Read contacts
+│ (read rows)      │
+└────────┬─────────┘
+         │
+         v
+┌──────────────────┐
+│ Loop Over Items  │
+└────────┬─────────┘
+         │
+         v
+┌─────────────────────────────────────┐
+│  GPT-4o-mini ─────┐                 │
+│                   │  CascadeFlow    │       ┌──────────────────┐
+│  GPT-4o ──────────┴─► Node          │──────►│  Basic Chain     │
+└─────────────────────────────────────┘       │  (enriches)      │
+                                               └──────┬───────────┘
+                                                      │
+                                                      v
+                                               ┌──────────────────┐
+                                               │ Google Sheets    │
+                                               │ (write back)     │
+                                               └──────────────────┘
 ```
 
-**Tool Definition:**
-```json
-[
-  {
-    "type": "function",
-    "function": {
-      "name": "get_weather",
-      "description": "Get current weather for a location",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "location": {
-            "type": "string",
-            "description": "City name"
-          }
-        },
-        "required": ["location"]
-      }
-    }
-  }
-]
-```
-
-**Output:**
-```json
-{
-  "content": "",
-  "toolCalls": [
-    {
-      "id": "call_abc123",
-      "function": {
-        "name": "get_weather",
-        "arguments": "{\"location\": \"Paris\"}"
-      }
-    },
-    {
-      "id": "call_def456",
-      "function": {
-        "name": "get_weather",
-        "arguments": "{\"location\": \"London\"}"
-      }
-    }
-  ]
-}
-```
+**Why this works:**
+- Process 1000 contacts for $3 instead of $25
+- Cheap model for simple enrichment
+- Expensive model only when needed
 
 ---
 
 ## Best Practices
 
-### 1. Choose the Right Draft Model
+### 1. Choose the Right Model Combination
+
+**For maximum savings:**
+```
+Drafter: Ollama qwen2.5:3b (local, free)
+Verifier: GPT-4o (cloud)
+Savings: ~99% on accepted drafts
+```
+
+**For best quality:**
+```
+Drafter: Claude 3.5 Haiku
+Verifier: Claude 3.5 Sonnet
+Savings: ~70% average
+```
 
 **For speed:**
 ```
-groq/llama-3.1-8b-instant ($0.00005)
-- 500-1000 tokens/sec
-- 95% cost savings
+Drafter: GPT-4o-mini
+Verifier: GPT-4o
+Savings: ~85% average
 ```
 
-**For quality:**
-```
-openai/gpt-4o-mini ($0.00015)
-- Better reasoning
-- 75% cost savings
-```
+### 2. Tune Quality Threshold Based on Logs
 
-**For offline/privacy:**
-```
-ollama/llama3 ($0.00)
-- Free
-- Runs locally
-```
+Start with `0.7` and adjust based on what you see in the Logs:
 
-### 2. Tune Quality Threshold
+1. Run 10-20 test queries
+2. Check the Logs tab to see confidence scores
+3. Adjust threshold:
+   - **Too many escalations?** Lower threshold (0.6)
+   - **Quality issues?** Raise threshold (0.8)
+4. Monitor acceptance rate in the logs
 
-Start with `0.7` and adjust based on results:
+### 3. Monitor Long-Term Performance
 
-- **Too many escalations?** Lower threshold (0.6)
-- **Quality issues?** Raise threshold (0.8)
-- **Monitor:** Track `draftAccepted` rate in metrics
+Track these metrics from the Logs:
+- **Acceptance rate**: Should be 70-80%
+- **Confidence scores**: Should cluster above your threshold
+- **Latency**: Drafter should be <500ms
+- **Cost savings**: Track per-request savings percentage
 
-### 3. Use Output Modes Wisely
+### 4. Mix Providers for Best Results
 
-- **Full Metrics** - During development/testing
-- **Metrics Summary** - Production (balance data + performance)
-- **Content Only** - When you only need the response
-
-### 4. Handle Errors Gracefully
+You can connect models from different providers:
 
 ```
-cascadeflow
-    ↓
-IF Node (check for error)
-    ├─ Has error → Retry or fallback
-    └─ Success → Continue workflow
+┌──────────────────┐
+│ Ollama Chat      │ ← Free, local
+│ qwen2.5:3b       │
+└────────┬─────────┘
+         │
+         ├──────► ┌──────────────┐
+         │        │  CascadeFlow │
+         │        │     Node     │
+         │        └──────────────┘
+┌────────┴─────────┐
+│ OpenAI Chat      │ ← Paid, cloud
+│ gpt-4o           │
+└──────────────────┘
 ```
 
-### 5. Track Costs Over Time
+### 5. Use Different Thresholds for Different Use Cases
 
-```
-cascadeflow
-    ↓
-Google Sheets (log metrics)
-    Columns: timestamp, cost, savings%, model, query
-```
-
-Monthly analysis:
-```sql
-SELECT
-  SUM(cost) as total_cost,
-  AVG(savingsPercentage) as avg_savings,
-  COUNT(*) as queries
-FROM metrics
-WHERE timestamp > NOW() - INTERVAL '30 days'
-```
+- **Customer support**: 0.75 (prioritize quality)
+- **Content drafts**: 0.6 (prioritize speed/cost)
+- **Code review**: 0.7 (balance)
+- **Data enrichment**: 0.65 (volume optimization)
 
 ---
 
 ## Recommended Configurations
 
-### OpenAI (Balanced)
+### ⭐ Best Overall: Claude Haiku + GPT-4o
 
 ```
-Draft: gpt-4o-mini ($0.00015)
-Verifier: gpt-4o ($0.00625)
-Quality: 0.7
-Expected Savings: 50-60%
+Drafter: Claude 3.5 Haiku
+Verifier: GPT-4o
+Quality Threshold: 0.7
+Expected Savings: ~73% average
+Why: Haiku's fast drafts + GPT-4o's reasoning
 ```
 
-### Anthropic (High Quality)
+### OpenAI Only (Good Balance)
 
 ```
-Draft: claude-3-haiku ($0.00075)
-Verifier: claude-3-sonnet ($0.009)
-Quality: 0.75
-Expected Savings: 40-50%
+Drafter: GPT-4o-mini
+Verifier: GPT-4o
+Quality Threshold: 0.7
+Expected Savings: ~85% average
+Why: Both from same provider, excellent efficiency
 ```
 
-### Groq (Ultra Fast & Cheap)
+### Anthropic Only (High Quality)
 
 ```
-Draft: llama-3.1-8b-instant ($0.00005)
-Verifier: llama-3.3-70b-versatile ($0.00059)
-Quality: 0.65
-Expected Savings: 70-80%
+Drafter: Claude 3.5 Haiku
+Verifier: Claude 3.5 Sonnet
+Quality Threshold: 0.75
+Expected Savings: ~70% average
+Why: Consistent Anthropic quality
 ```
 
-### Mixed (Best Value)
+### Ultra Cost-Effective (Ollama + Cloud)
 
 ```
-Draft: groq/llama-3.1-8b-instant ($0.00005)
-Verifier: openai/gpt-4o ($0.00625)
-Quality: 0.7
-Expected Savings: 80-85%
-```
-
-### Budget (Free Draft)
-
-```
-Draft: ollama/llama3 ($0.00)
-Verifier: groq/llama-3.1-70b-versatile ($0.00059)
-Quality: 0.6
-Expected Savings: 90-95%
+Drafter: Ollama qwen2.5:3b (local, free)
+Verifier: GPT-4o (cloud)
+Quality Threshold: 0.7
+Expected Savings: ~99% on accepted drafts
+Note: Requires Ollama installed locally
 ```
 
 ---
 
 ## Troubleshooting
 
-### "API key not found"
+### Issue: "Drafter model is required"
 
-**Solution:** Check credentials:
-1. Go to **Credentials** in n8n
-2. Find **cascadeflow API**
-3. Ensure API key is set for the provider you're using
-4. Test the credential
+**Solution:** Make sure you've connected an AI Chat Model to the **Drafter** input (bottom position).
 
-### "Quality threshold too strict"
+### Issue: "Verifier model is required"
 
-**Symptom:** All queries escalate to verifier
+**Solution:** Make sure you've connected an AI Chat Model to the **Verifier** input (top position).
 
-**Solution:** Lower quality threshold:
-- Current: `0.9` → Try: `0.7`
-- Or use better draft model (e.g., gpt-4o-mini instead of gpt-3.5-turbo)
+### Issue: Not seeing cascade logs
 
-### "Tool calls not working"
+**Solution:**
+1. Make sure your workflow executed successfully
+2. Click on the **Chain node that receives the CascadeFlow output** (Basic LLM Chain, Chain, etc.)
+3. Navigate to the **"Logs"** tab (not the "Output" tab)
+4. The logs appear in the downstream node, not in the CascadeFlow node itself
 
-**Checklist:**
-- ✅ Using "Generate with Tools" operation (not "Generate Text")
-- ✅ Tools JSON is valid
-- ✅ Model supports tools (gpt-4o, claude-3-sonnet, etc.)
-- ✅ Not using Ollama (doesn't support tools reliably)
+### Issue: "This node cannot be connected" when connecting to AI Agent
 
-### "High costs despite cascading"
+**Solution:** This is expected. CascadeFlow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use CascadeFlow with:
+- ✅ Basic LLM Chain
+- ✅ Chain
+- ✅ Other nodes that accept Language Model connections
+- ❌ AI Agent (not supported)
 
-**Debug:**
-1. Check `draftAccepted` rate in output
-   - Should be 70-80%
-   - If low → quality threshold too strict OR draft model too weak
-2. Verify model costs are correct
-3. Check if you're using the right draft model
+### Issue: Always escalating to verifier
 
----
+**Debug steps:**
+1. Check the Logs tab to see confidence scores
+2. If confidence scores are just below threshold, lower it slightly (e.g., 0.7 → 0.65)
+3. Verify your drafter model is appropriate (not too weak)
+4. Try a better drafter model (e.g., gpt-4o-mini instead of gpt-3.5-turbo)
 
-## Cost Calculator
+### Issue: Verifier connection always shows green in UI
 
-Estimate your savings:
-
-```
-Traditional Cost (per 1000 queries):
-  Always use GPT-4o: 1000 × $0.00625 = $6.25
-
-cascadeflow (70% draft acceptance):
-  Draft (700): 700 × $0.00015 = $0.105
-  Verifier (300): 300 × $0.00640 = $1.920
-  Total: $2.025
-
-Savings: $6.25 - $2.025 = $4.225 (67.6%)
-```
-
-**Your numbers:**
-- Queries/month: _______
-- Draft model cost: $_______
-- Verifier model cost: $_______
-- Expected draft acceptance: _______%
-
-[Use our online calculator](https://cascadeflow.com/calculator)
+**This is expected behavior.** Due to n8n's rendering conventions, the Drafter connection is always highlighted. This does not affect functionality. Check the **Logs tab** to see which model was actually used for each request.
 
 ---
 
-## Advanced Patterns
+## Cost Savings Examples
 
-### Pattern 1: Progressive Enhancement
+### Example: Claude Haiku + GPT-4o
 
-```
-cascadeflow (draft: mini, verifier: 4o)
-    ↓
-IF (quality < 0.9)
-    ↓
-cascadeflow (draft: 4o, verifier: claude-opus)
-```
+| Scenario | Traditional (GPT-4o only) | CascadeFlow | Savings |
+|----------|---------------------------|-------------|---------|
+| Simple Q&A (75% acceptance) | $0.0025 | $0.0008 | 68% |
+| Complex query (escalated) | $0.0025 | $0.0025 | 0% |
+| **Average** | **$0.0025** | **$0.00115** | **54%** |
 
-### Pattern 2: Batch Processing with Cost Limits
+**Monthly savings (10,000 queries):**
+- Traditional: $25.00
+- CascadeFlow: $11.50
+- **You save: $13.50/month**
 
-```
-Google Sheets (read 1000 rows)
-    ↓
-Loop with Counter
-    ↓
-cascadeflow
-    ↓
-Function (track cumulative cost)
-    ↓
-IF (cost > $10) → Stop loop
-```
-
-### Pattern 3: A/B Testing
-
-```
-Code (random 0 or 1)
-    ↓
-IF (random === 0)
-    ├─ cascadeflow (with cascading)
-    └─ OpenAI (direct GPT-4o)
-    ↓
-Google Sheets (log for comparison)
-```
+**Monthly savings (100,000 queries):**
+- Traditional: $250.00
+- CascadeFlow: $115.00
+- **You save: $135.00/month**
 
 ---
 
-## Examples Repository
+## Advanced Tips
 
-Find more examples at: [github.com/lemony-ai/cascadeflow/examples/n8n/](https://github.com/lemony-ai/cascadeflow/tree/main/examples/n8n)
+### Tip 1: Chain Multiple CascadeFlow Nodes
 
-- Customer support automation
-- Content generation pipeline
-- Data enrichment workflows
-- Tool calling examples
-- Cost tracking dashboards
+```
+Input → CascadeFlow (draft) → CascadeFlow (review) → Output
+```
+
+Each stage benefits from cascading!
+
+### Tip 2: Use Different Models for Different Stages
+
+```
+Stage 1 (Generate):
+  Drafter: gpt-4o-mini
+  Verifier: gpt-4o
+
+Stage 2 (Review):
+  Drafter: claude-haiku
+  Verifier: claude-sonnet
+```
+
+### Tip 3: Combine with Caching
+
+Some providers (like Anthropic) support prompt caching. Use CascadeFlow with cached prompts for even more savings.
 
 ---
 
 ## Learn More
 
+- [CascadeFlow GitHub](https://github.com/lemony-ai/cascadeflow)
+- [Package README](../../packages/integrations/n8n/README.md)
 - [n8n Documentation](https://docs.n8n.io/)
-- [cascadeflow GitHub](https://github.com/lemony-ai/cascadeflow)
-- [cascadeflow Guides](../../README.md)
-- [Community Forum](https://community.n8n.io/)
+- [n8n Community](https://community.n8n.io/)
 
 ---
 
 **Next Steps:**
-- Install the node and try the Quick Start
-- Experiment with different model configurations
-- Share your workflows with the community!
+1. Install the node via Community Nodes
+2. Try the Quick Start workflow
+3. Check the Logs tab to see cascade decisions in action
+4. Experiment with different model combinations
+5. Share your workflows with the community!

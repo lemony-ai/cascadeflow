@@ -2,9 +2,137 @@
  * User Profile System for cascadeflow TypeScript (v0.2.1+)
  *
  * Multi-tenant subscription tier management for production applications.
+ *
+ * Enhanced in v1.0.1+ with:
+ * - Latency awareness for speed control
+ * - Optimization weights for multi-factor routing
+ * - Cost sensitivity modes
  */
 
-import { TierConfig, TierLevel, UserProfile } from './types';
+import {
+  TierConfig,
+  TierLevel,
+  UserProfile,
+  LatencyProfile,
+  OptimizationWeights,
+  CostSensitivity,
+  WorkflowProfile,
+} from './types';
+
+// ==================== VALIDATION FUNCTIONS ====================
+
+/**
+ * Validate optimization weights sum to 1.0
+ *
+ * @param weights - Optimization weights to validate
+ * @throws Error if weights don't sum to 1.0
+ */
+export function validateOptimizationWeights(weights: OptimizationWeights): void {
+  const total = weights.cost + weights.speed + weights.quality;
+  // Allow small floating point error (0.99 to 1.01)
+  if (total < 0.99 || total > 1.01) {
+    throw new Error(`Optimization weights must sum to 1.0, got ${total}`);
+  }
+
+  // Validate individual weights are in range
+  if (weights.cost < 0 || weights.cost > 1) {
+    throw new Error(`Cost weight must be between 0 and 1, got ${weights.cost}`);
+  }
+  if (weights.speed < 0 || weights.speed > 1) {
+    throw new Error(`Speed weight must be between 0 and 1, got ${weights.speed}`);
+  }
+  if (weights.quality < 0 || weights.quality > 1) {
+    throw new Error(`Quality weight must be between 0 and 1, got ${weights.quality}`);
+  }
+}
+
+/**
+ * Create optimization weights with validation
+ *
+ * @param cost - Cost weight (0-1)
+ * @param speed - Speed weight (0-1)
+ * @param quality - Quality weight (0-1)
+ * @returns Validated optimization weights
+ *
+ * @example
+ * ```typescript
+ * const weights = createOptimizationWeights(0.2, 0.5, 0.3);
+ * ```
+ */
+export function createOptimizationWeights(
+  cost: number,
+  speed: number,
+  quality: number
+): OptimizationWeights {
+  const weights: OptimizationWeights = { cost, speed, quality };
+  validateOptimizationWeights(weights);
+  return weights;
+}
+
+/**
+ * Create a latency profile with defaults
+ *
+ * @param options - Partial latency profile options
+ * @returns Complete latency profile
+ *
+ * @example
+ * ```typescript
+ * const profile = createLatencyProfile({ maxTotalMs: 2000 });
+ * ```
+ */
+export function createLatencyProfile(
+  options: Partial<LatencyProfile> = {}
+): LatencyProfile {
+  return {
+    maxTotalMs: options.maxTotalMs ?? 5000,
+    maxPerModelMs: options.maxPerModelMs ?? 3000,
+    preferParallel: options.preferParallel ?? false,
+    skipCascadeThreshold: options.skipCascadeThreshold ?? 0,
+  };
+}
+
+// ==================== DEFAULT OPTIMIZATION PRESETS ====================
+
+/**
+ * Predefined optimization weight presets for common use cases
+ */
+export const OPTIMIZATION_PRESETS: Record<CostSensitivity, OptimizationWeights> = {
+  aggressive: { cost: 0.7, speed: 0.15, quality: 0.15 },
+  balanced: { cost: 0.4, speed: 0.3, quality: 0.3 },
+  quality_first: { cost: 0.1, speed: 0.3, quality: 0.6 },
+};
+
+/**
+ * Predefined latency profile presets for common use cases
+ */
+export const LATENCY_PRESETS = {
+  realtime: createLatencyProfile({
+    maxTotalMs: 1000,
+    maxPerModelMs: 800,
+    preferParallel: true,
+    skipCascadeThreshold: 800,
+  }),
+  interactive: createLatencyProfile({
+    maxTotalMs: 3000,
+    maxPerModelMs: 2000,
+    preferParallel: true,
+    skipCascadeThreshold: 1500,
+  }),
+  standard: createLatencyProfile({
+    maxTotalMs: 8000,
+    maxPerModelMs: 5000,
+    preferParallel: false,
+    skipCascadeThreshold: 2000,
+  }),
+  batch: createLatencyProfile({
+    maxTotalMs: 30000,
+    maxPerModelMs: 20000,
+    preferParallel: false,
+    skipCascadeThreshold: 0,
+  }),
+};
+
+// ==================== TIER PRESETS ====================
 
 /**
  * Predefined tier configurations
@@ -228,13 +356,17 @@ export class UserProfileManager {
 export function serializeProfile(profile: UserProfile): Record<string, any> {
   return {
     user_id: profile.userId,
+    created_at: profile.createdAt?.toISOString(),
     tier: profile.tier,
     custom_daily_budget: profile.customDailyBudget,
     custom_requests_per_hour: profile.customRequestsPerHour,
     custom_requests_per_day: profile.customRequestsPerDay,
     preferred_models: profile.preferredModels,
+    cost_sensitivity: profile.costSensitivity,
     preferred_domains: profile.preferredDomains,
     domain_models: profile.domainModels,
+    latency: profile.latency,
+    optimization: profile.optimization,
     enable_content_moderation: profile.enableContentModeration,
     enable_pii_detection: profile.enablePiiDetection,
     metadata: profile.metadata,
@@ -247,15 +379,232 @@ export function serializeProfile(profile: UserProfile): Record<string, any> {
 export function deserializeProfile(data: Record<string, any>): UserProfile {
   return {
     userId: data.user_id,
+    createdAt: data.created_at ? new Date(data.created_at) : undefined,
     tier: data.tier,
     customDailyBudget: data.custom_daily_budget,
     customRequestsPerHour: data.custom_requests_per_hour,
     customRequestsPerDay: data.custom_requests_per_day,
     preferredModels: data.preferred_models,
+    costSensitivity: data.cost_sensitivity,
     preferredDomains: data.preferred_domains,
     domainModels: data.domain_models,
+    latency: data.latency,
+    optimization: data.optimization,
     enableContentModeration: data.enable_content_moderation,
     enablePiiDetection: data.enable_pii_detection,
     metadata: data.metadata,
   };
 }
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Get effective daily budget for a profile
+ *
+ * Returns custom budget if set, otherwise tier default
+ *
+ * @param profile - User profile
+ * @returns Effective daily budget or undefined
+ */
+export function getDailyBudget(profile: UserProfile): number | undefined {
+  return profile.customDailyBudget !== undefined
+    ? profile.customDailyBudget
+    : profile.tier.dailyBudget;
+}
+
+/**
+ * Get effective requests per hour for a profile
+ *
+ * Returns custom limit if set, otherwise tier default
+ *
+ * @param profile - User profile
+ * @returns Effective hourly request limit or undefined
+ */
+export function getRequestsPerHour(profile: UserProfile): number | undefined {
+  return profile.customRequestsPerHour !== undefined
+    ? profile.customRequestsPerHour
+    : profile.tier.requestsPerHour;
+}
+
+/**
+ * Get effective requests per day for a profile
+ *
+ * Returns custom limit if set, otherwise tier default
+ *
+ * @param profile - User profile
+ * @returns Effective daily request limit or undefined
+ */
+export function getRequestsPerDay(profile: UserProfile): number | undefined {
+  return profile.customRequestsPerDay !== undefined
+    ? profile.customRequestsPerDay
+    : profile.tier.requestsPerDay;
+}
+
+/**
+ * Get optimization weights for a profile
+ *
+ * Returns explicit weights if set, otherwise derives from cost sensitivity
+ *
+ * @param profile - User profile
+ * @returns Optimization weights
+ */
+export function getOptimizationWeights(profile: UserProfile): OptimizationWeights {
+  if (profile.optimization) {
+    return profile.optimization;
+  }
+
+  // Fallback to cost sensitivity preset
+  const sensitivity = profile.costSensitivity ?? 'balanced';
+  return OPTIMIZATION_PRESETS[sensitivity];
+}
+
+/**
+ * Get latency profile for a profile
+ *
+ * Returns explicit latency profile if set, otherwise standard preset
+ *
+ * @param profile - User profile
+ * @returns Latency profile
+ */
+export function getLatencyProfile(profile: UserProfile): LatencyProfile {
+  return profile.latency ?? LATENCY_PRESETS.standard;
+}
+
+// ==================== WORKFLOW PROFILES ====================
+
+/**
+ * Create a workflow profile with validation
+ *
+ * @param options - Workflow profile options
+ * @returns Complete workflow profile
+ *
+ * @example
+ * ```typescript
+ * const draft = createWorkflowProfile({
+ *   name: 'draft_mode',
+ *   maxBudgetOverride: 0.0001,
+ *   optimizationOverride: { cost: 0.8, speed: 0.15, quality: 0.05 }
+ * });
+ * ```
+ */
+export function createWorkflowProfile(options: WorkflowProfile): WorkflowProfile {
+  // Validate optimization weights if provided
+  if (options.optimizationOverride) {
+    validateOptimizationWeights(options.optimizationOverride);
+  }
+
+  return options;
+}
+
+/**
+ * Apply workflow profile overrides to a user profile
+ *
+ * Creates a new profile with workflow overrides applied
+ *
+ * @param baseProfile - Base user profile
+ * @param workflow - Workflow profile to apply
+ * @returns New profile with workflow overrides
+ *
+ * @example
+ * ```typescript
+ * const profile = createUserProfile('PRO', 'user-123');
+ * const withWorkflow = applyWorkflowProfile(profile, WORKFLOW_PRESETS.draft_mode);
+ * ```
+ */
+export function applyWorkflowProfile(
+  baseProfile: UserProfile,
+  workflow: WorkflowProfile
+): UserProfile {
+  return {
+    ...baseProfile,
+    // Apply optimization overrides
+    optimization: workflow.optimizationOverride ?? baseProfile.optimization,
+    latency: workflow.latencyOverride ?? baseProfile.latency,
+    // Apply budget override
+    customDailyBudget: workflow.maxBudgetOverride ?? baseProfile.customDailyBudget,
+    // Apply model preferences
+    preferredModels: workflow.preferredModels ?? baseProfile.preferredModels,
+    // Store workflow metadata
+    metadata: {
+      ...baseProfile.metadata,
+      appliedWorkflow: workflow.name,
+      workflowDescription: workflow.description,
+    },
+  };
+}
+
+/**
+ * Check if a model is allowed by the workflow
+ *
+ * @param workflow - Workflow profile
+ * @param modelName - Model name to check
+ * @returns Whether model is allowed
+ */
+export function isModelAllowedByWorkflow(
+  workflow: WorkflowProfile,
+  modelName: string
+): boolean {
+  // If forceModels is set, only those models are allowed
+  if (workflow.forceModels && workflow.forceModels.length > 0) {
+    return workflow.forceModels.includes(modelName);
+  }
+
+  // If excludeModels is set, check if model is excluded
+  if (workflow.excludeModels && workflow.excludeModels.includes(modelName)) {
+    return false;
+  }
+
+  // Otherwise allow
+  return true;
+}
+
+/**
+ * Predefined workflow profile presets for common use cases
+ */
+export const WORKFLOW_PRESETS: Record<string, WorkflowProfile> = {
+  draft_mode: {
+    name: 'draft_mode',
+    optimizationOverride: createOptimizationWeights(0.8, 0.15, 0.05),
+    maxBudgetOverride: 0.0001,
+    qualityThresholdOverride: 0.5,
+    preferredModels: ['llama3:8b', 'gpt-3.5-turbo'],
+    description: 'Quick drafts, ultra cost optimized',
+  },
+  production: {
+    name: 'production',
+    qualityThresholdOverride: 0.85,
+    enableCaching: true,
+    description: 'Production queries, balanced',
+  },
+  critical: {
+    name: 'critical',
+    optimizationOverride: createOptimizationWeights(0.1, 0.3, 0.6),
+    qualityThresholdOverride: 0.9,
+    forceModels: ['gpt-4', 'claude-3-opus', 'claude-3-5-sonnet'],
+    description: 'Critical queries, quality priority',
+  },
+  realtime: {
+    name: 'realtime',
+    latencyOverride: createLatencyProfile({
+      maxTotalMs: 800,
+      maxPerModelMs: 600,
+      preferParallel: true,
+      skipCascadeThreshold: 700,
+    }),
+    optimizationOverride: createOptimizationWeights(0.15, 0.7, 0.15),
+    preferredModels: ['gpt-3.5-turbo', 'claude-3-haiku'],
+    description: 'Realtime responses, latency critical',
+  },
+  batch_processing: {
+    name: 'batch_processing',
+    latencyOverride: createLatencyProfile({
+      maxTotalMs: 30000,
+      maxPerModelMs: 20000,
+      preferParallel: false,
+      skipCascadeThreshold: 0,
+    }),
+    optimizationOverride: createOptimizationWeights(0.7, 0.1, 0.2),
+    enableCaching: true,
+    description: 'Batch processing, cost optimized',
+  },
+};

@@ -96,15 +96,15 @@ async function main() {
       name: 'gpt-4o-mini',
       provider: 'openai',
       cost: 0.00015,
-      qualityThreshold: 0.7,
       apiKey: process.env.OPENAI_API_KEY,
+      supportsTools: true,
     },
     {
       name: 'gpt-4o',
       provider: 'openai',
       cost: 0.00625,
-      qualityThreshold: 0.95,
       apiKey: process.env.OPENAI_API_KEY,
+      supportsTools: true,
     },
   ];
 

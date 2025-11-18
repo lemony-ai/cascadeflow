@@ -157,7 +157,7 @@ class VLLMProvider(BaseProvider):
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
-        timeout: float = 120.0,
+        timeout: float = 300.0,
     ):
         """
         Initialize vLLM provider with tool calling support.
@@ -172,7 +172,7 @@ class VLLMProvider(BaseProvider):
                         - Network: http://192.168.1.200:8000/v1
                         - Remote: https://vllm.yourdomain.com/v1
             retry_config: Custom retry configuration (optional)
-            timeout: Request timeout in seconds (default: 120s for large models)
+            timeout: Request timeout in seconds (default: 300s for large models, reasoning models need more time)
         """
         super().__init__(api_key=api_key, retry_config=retry_config)
 

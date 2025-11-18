@@ -72,8 +72,7 @@ async function main() {
     models.push({
       name: 'llama-3.1-8b-instant',
       provider: 'groq',
-      cost: 0.00005, // Very cheap
-      qualityThreshold: 0.6,
+      cost: 0.0, // FREE
       apiKey: process.env.GROQ_API_KEY,
     });
   }
@@ -84,7 +83,6 @@ async function main() {
       name: 'gpt-4o-mini',
       provider: 'openai',
       cost: 0.00015,
-      qualityThreshold: 0.75,
       apiKey: process.env.OPENAI_API_KEY,
     });
   }
@@ -95,7 +93,6 @@ async function main() {
       name: 'claude-haiku-4-5',
       provider: 'anthropic',
       cost: 0.001,
-      qualityThreshold: 0.85,
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
   }
@@ -106,12 +103,14 @@ async function main() {
       name: 'gpt-4o',
       provider: 'openai',
       cost: 0.00625,
-      qualityThreshold: 0.95,
       apiKey: process.env.OPENAI_API_KEY,
     });
   }
 
-  const agent = new CascadeAgent({ models });
+  const agent = new CascadeAgent({
+    models,
+    // Using default quality config (matches Python approach)
+  });
 
   console.log(`   ✅ Configured ${models.length}-tier cascade:`);
   models.forEach((m, i) => {
@@ -139,7 +138,7 @@ async function main() {
 
     console.log('✅ Result:');
     console.log(`   🤖 Model: ${result.modelUsed}`);
-    console.log(`   🏢 Provider: ${models.find((m) => m.name === result.modelUsed)?.provider || 'unknown'}`);
+    console.log(`   🏢 Provider: ${models.find((m) => result.modelUsed.includes(m.name) || m.name.includes(result.modelUsed))?.provider || 'unknown'}`);
     console.log(`   💰 Cost: $${result.totalCost.toFixed(6)}`);
     console.log(`   ⚡ Latency: ${result.latencyMs}ms`);
     console.log(`   📝 Response: ${result.content.substring(0, 100)}...`);

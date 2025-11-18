@@ -63,7 +63,7 @@ export class VLLMProvider extends BaseProvider {
   constructor(config: ModelConfig) {
     super(config);
     this.baseUrl = config.baseUrl || process.env['VLLM_BASE_URL'] || 'http://localhost:8000/v1';
-    this.timeout = 120000; // 2 minutes for large models
+    this.timeout = 300000; // 5 minutes for large models (reasoning models like DeepSeek R1 need more time)
   }
 
   async generate(request: ProviderRequest): Promise<ProviderResponse> {

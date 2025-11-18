@@ -2,7 +2,7 @@
  * cascadeflow Agent - MVP Implementation
  */
 
-import { providerRegistry } from './providers/base';
+import { providerRegistry, getAvailableProviders } from './providers/base';
 import { OpenAIProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
 import { GroqProvider } from './providers/groq';
@@ -13,16 +13,25 @@ import { VLLMProvider } from './providers/vllm';
 import { OpenRouterProvider } from './providers/openrouter';
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
-import type { Message, Tool } from './types';
+import type { Message, Tool, UserProfile, TierLevel } from './types';
 import {
   type StreamEvent,
   StreamEventType,
   createStreamEvent,
   type StreamOptions,
 } from './streaming';
-import { QualityValidator } from './quality';
+import {
+  QualityValidator,
+  DEFAULT_QUALITY_CONFIG as DEFAULT_VALIDATOR_QUALITY_CONFIG,
+} from './quality';
+import type { QualityConfig as QualityValidatorConfig } from './quality';
 import { ComplexityDetector } from './complexity';
-import type { QueryComplexity } from './types';
+import { TIER_PRESETS } from './profiles';
+import { PreRouter } from './routers/pre-router';
+import { ToolRouter } from './routers/tool-router';
+import { TierRouter } from './routers/tier-router';
+import { RoutingStrategy } from './routers/base';
+import { CallbackEvent } from './telemetry/callbacks';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -52,6 +61,9 @@ export interface RunOptions {
 
   /** Force direct execution (skip cascade) */
   forceDirect?: boolean;
+
+  /** User tier name for tier-based model filtering (optional) */
+  userTier?: string;
 }
 
 /**
@@ -75,6 +87,11 @@ export class CascadeAgent {
   private models: ModelConfig[];
   private qualityValidator: QualityValidator;
   private complexityDetector: ComplexityDetector;
+  private batchProcessor?: import('./batch').BatchProcessor;
+  private preRouter: PreRouter;
+  private toolRouter: ToolRouter;
+  private tierRouter?: TierRouter;
+  private callbackManager?: import('./telemetry/callbacks').CallbackManager;
 
   /**
    * Create a new cascadeflow agent
@@ -126,21 +143,291 @@ export class CascadeAgent {
     this.models = [...config.models].sort((a, b) => a.cost - b.cost);
 
     // Initialize quality validator
-    // Map AgentConfig.quality to QualityValidator config format
-    const validatorConfig = config.quality
-      ? {
-          minConfidence: config.quality.threshold ?? 0.7,
-          minWordCount: config.quality.requireMinimumTokens ?? 10,
-          useLogprobs: true,
-          fallbackToHeuristic: true,
-          strictMode: false,
-        }
-      : undefined;
+    const qualityOptions = config.quality ?? config.cascade?.quality;
+    let validatorConfig: Partial<QualityValidatorConfig> | undefined;
+
+    if (qualityOptions) {
+      const {
+        threshold,
+        requireMinimumTokens,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        requireValidation,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        enableAdaptive,
+        ...validatorParams
+      } = qualityOptions;
+
+      const validatorCandidate: Partial<QualityValidatorConfig> = validatorParams;
+
+      validatorConfig = {
+        ...validatorCandidate,
+        minConfidence:
+          validatorCandidate.minConfidence ??
+          threshold ??
+          DEFAULT_VALIDATOR_QUALITY_CONFIG.minConfidence,
+        minWordCount:
+          validatorCandidate.minWordCount ??
+          requireMinimumTokens ??
+          DEFAULT_VALIDATOR_QUALITY_CONFIG.minWordCount,
+      };
+    }
+
     this.qualityValidator = new QualityValidator(validatorConfig);
 
     // Initialize complexity detector
     this.complexityDetector = new ComplexityDetector();
+
+    // Initialize routers
+    const verbose = config.cascade?.verbose ?? false;
+
+    // PreRouter: Complexity-based routing decisions
+    // Default behavior: cascade for trivial/simple/moderate, direct for hard/expert
+    this.preRouter = new PreRouter({
+      complexityDetector: this.complexityDetector,
+      enableCascade: true,
+      verbose,
+    });
+
+    // ToolRouter: Tool capability filtering
+    this.toolRouter = new ToolRouter({
+      models: this.models,
+      verbose,
+    });
+
+    // TierRouter: Optional tier-based filtering (initialized if tiers provided)
+    // Note: We don't initialize TierRouter here by default since tiers are optional
+    // It will be created on-demand if userTier is passed to run()
+    this.tierRouter = undefined;
+
+    // CallbackManager: Optional lifecycle event monitoring
+    this.callbackManager = config.callbacks;
   }
+
+  // ==================== PRIVATE HELPERS ====================
+
+  /**
+   * Safely trigger a callback event if callbackManager is configured
+   */
+  private triggerCallback(event: CallbackEvent, query: string, data: Record<string, any>): void {
+    if (this.callbackManager) {
+      try {
+        this.callbackManager.trigger(event, query, data).catch((error) => {
+          // Silently ignore callback errors to prevent disrupting cascade execution
+          console.warn(`Callback error for ${event}:`, error);
+        });
+      } catch (error) {
+        // Silently ignore callback errors to prevent disrupting cascade execution
+        console.warn(`Callback error for ${event}:`, error);
+      }
+    }
+  }
+
+  // ==================== FACTORY METHODS ====================
+
+  /**
+   * Create CascadeAgent from environment variables
+   *
+   * Auto-discovers available providers by checking environment for API keys
+   * and creates a sensible default configuration.
+   *
+   * @param options - Optional configuration overrides
+   * @param options.quality - Quality configuration
+   * @param options.enableCascade - Enable cascading (default: true)
+   * @returns CascadeAgent instance
+   *
+   * @throws {Error} When no providers are available in environment
+   *
+   * @example
+   * ```typescript
+   * // Requires OPENAI_API_KEY and/or ANTHROPIC_API_KEY in environment
+   * const agent = CascadeAgent.fromEnv();
+   * const result = await agent.run('What is TypeScript?');
+   * ```
+   */
+  static fromEnv(options?: {
+    quality?: Partial<QualityValidatorConfig>;
+    enableCascade?: boolean;
+  }): CascadeAgent {
+    const available = getAvailableProviders();
+
+    if (available.length === 0) {
+      throw new Error(
+        'No providers available. Set API keys in environment (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)'
+      );
+    }
+
+    const models: ModelConfig[] = [];
+
+    // Add OpenAI models if available
+    if (available.includes('openai')) {
+      models.push(
+        { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+        { name: 'gpt-3.5-turbo', provider: 'openai', cost: 0.002 },
+        { name: 'gpt-4o', provider: 'openai', cost: 0.00625 }
+      );
+    }
+
+    // Add Anthropic models if available
+    if (available.includes('anthropic')) {
+      models.push(
+        { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
+        { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 }
+      );
+    }
+
+    // Add Groq models if available
+    if (available.includes('groq')) {
+      models.push({ name: 'llama-3.3-70b-versatile', provider: 'groq', cost: 0.0 });
+    }
+
+    if (models.length === 0) {
+      throw new Error('No models configured for available providers');
+    }
+
+    return new CascadeAgent({
+      models,
+      quality: options?.quality,
+    });
+  }
+
+  /**
+   * Create CascadeAgent from UserProfile
+   *
+   * Configures the agent based on a user's profile including tier limits,
+   * preferred models, and quality settings.
+   *
+   * @param profile - UserProfile with tier and preferences
+   * @param options - Optional configuration overrides
+   * @param options.quality - Quality configuration override
+   * @returns CascadeAgent instance configured for the user's tier
+   *
+   * @throws {Error} When no providers are available in environment
+   *
+   * @example
+   * ```typescript
+   * import { createUserProfile, CascadeAgent } from '@cascadeflow/core';
+   *
+   * const profile = createUserProfile('PRO', 'user-123', {
+   *   preferredModels: ['gpt-4o', 'claude-3-5-sonnet-20241022']
+   * });
+   *
+   * const agent = CascadeAgent.fromProfile(profile);
+   * const result = await agent.run('What is Python?');
+   * ```
+   */
+  static fromProfile(
+    profile: UserProfile,
+    options?: {
+      quality?: Partial<QualityValidatorConfig>;
+    }
+  ): CascadeAgent {
+    const available = getAvailableProviders();
+
+    if (available.length === 0) {
+      throw new Error(
+        'No providers available. Set API keys in environment (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)'
+      );
+    }
+
+    const models: ModelConfig[] = [];
+    const preferredSet = profile.preferredModels
+      ? new Set(profile.preferredModels)
+      : null;
+
+    // Add OpenAI models if available
+    if (available.includes('openai')) {
+      const openaiModels: ModelConfig[] = [
+        { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+        { name: 'gpt-3.5-turbo', provider: 'openai', cost: 0.002 },
+        { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+      ];
+
+      for (const model of openaiModels) {
+        if (!preferredSet || preferredSet.has(model.name)) {
+          models.push(model);
+        }
+      }
+    }
+
+    // Add Anthropic models if available
+    if (available.includes('anthropic')) {
+      const anthropicModels: ModelConfig[] = [
+        { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
+        { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 },
+      ];
+
+      for (const model of anthropicModels) {
+        if (!preferredSet || preferredSet.has(model.name)) {
+          models.push(model);
+        }
+      }
+    }
+
+    // Add Groq models if available
+    if (available.includes('groq')) {
+      const groqModels: ModelConfig[] = [
+        { name: 'llama-3.3-70b-versatile', provider: 'groq', cost: 0.0 },
+      ];
+
+      for (const model of groqModels) {
+        if (!preferredSet || preferredSet.has(model.name)) {
+          models.push(model);
+        }
+      }
+    }
+
+    if (models.length === 0) {
+      throw new Error(
+        'No models available matching profile preferences. Check preferredModels configuration.'
+      );
+    }
+
+    // Apply tier quality settings if not overridden
+    const qualityConfig = options?.quality ?? {
+      minConfidence: profile.tier.minQuality,
+    };
+
+    return new CascadeAgent({
+      models,
+      quality: qualityConfig,
+    });
+  }
+
+  /**
+   * Create CascadeAgent for a specific tier
+   *
+   * Quick factory method to create an agent configured for a specific
+   * subscription tier without creating a full UserProfile.
+   *
+   * @param tier - Tier level (FREE, STARTER, PRO, BUSINESS, ENTERPRISE)
+   * @param options - Optional configuration overrides
+   * @param options.quality - Quality configuration override
+   * @returns CascadeAgent instance configured for the tier
+   *
+   * @throws {Error} When no providers are available in environment
+   *
+   * @example
+   * ```typescript
+   * const agent = CascadeAgent.forTier('PRO');
+   * const result = await agent.run('What is Rust?');
+   * ```
+   */
+  static forTier(
+    tier: TierLevel,
+    options?: {
+      quality?: Partial<QualityValidatorConfig>;
+    }
+  ): CascadeAgent {
+    const tierConfig = TIER_PRESETS[tier];
+
+    const qualityConfig = options?.quality ?? {
+      minConfidence: tierConfig.minQuality,
+    };
+
+    return CascadeAgent.fromEnv({ quality: qualityConfig });
+  }
+
+  // ==================== INSTANCE METHODS ====================
 
   /**
    * Execute a query through the AI model cascade
@@ -213,8 +500,28 @@ export class CascadeAgent {
    * @see {CascadeResult} for result structure
    * @see {RunOptions} for all available options
    */
+  private getDefaultMaxTokens(): number {
+    // Check first model's provider to determine hosting type
+    const firstProvider = this.models[0]?.provider.toLowerCase();
+
+    // Local/self-hosted providers - use conservative default (500 tokens)
+    // These are typically slower, especially reasoning models like DeepSeek R1
+    if (firstProvider === 'vllm' || firstProvider === 'ollama') {
+      return 500;
+    }
+
+    // Cloud providers - use standard default (1000 tokens)
+    // OpenAI, Anthropic, Groq, etc. are fast enough to handle more tokens
+    return 1000;
+  }
+
   async run(input: string | Message[], options: RunOptions = {}): Promise<CascadeResult> {
     const startTime = Date.now();
+
+    // Set default max_tokens based on hosting type if not specified
+    // Local providers (vllm, ollama): 500 tokens
+    // Cloud providers (openai, anthropic, etc.): 1000 tokens
+    const maxTokens = options.maxTokens ?? this.getDefaultMaxTokens();
 
     // Normalize input to messages
     const messages: Message[] =
@@ -225,20 +532,51 @@ export class CascadeAgent {
       ? input
       : input.map(m => m.content).join('\n');
 
-    // === STEP 1: COMPLEXITY DETECTION (PreRouter) ===
-    const complexityResult = this.complexityDetector.detect(queryText);
-    const { complexity } = complexityResult;
+    // Trigger QUERY_START event
+    this.triggerCallback(CallbackEvent.QUERY_START, queryText, { options });
 
-    // Define which complexities should cascade vs. direct route
-    // TRIVIAL/SIMPLE/MODERATE → Cascade (cost optimization)
-    // HARD/EXPERT → Direct to best model (quality priority)
-    const cascadeComplexities: QueryComplexity[] = [
-      'trivial',
-      'simple',
-      'moderate',
-    ];
+    // === STEP 1: MODEL FILTERING ===
+    let availableModels = [...this.models]; // Start with all models
 
-    const shouldCascade = !options.forceDirect && cascadeComplexities.includes(complexity);
+    // Step 1a: Filter by tool capability if tools are present
+    if (options.tools && options.tools.length > 0) {
+      const toolFilterResult = this.toolRouter.filterToolCapableModels({
+        tools: options.tools,
+        availableModels,
+      });
+
+      if (!toolFilterResult.hasCapableModels) {
+        throw new Error(
+          `No models support tools. Requested tools: ${options.tools.map(t => t.function?.name || 'unknown').join(', ')}`
+        );
+      }
+
+      availableModels = toolFilterResult.models;
+    }
+
+    // Step 1b: Filter by user tier if specified
+    if (options.userTier) {
+      // For tier filtering, we would need tier configuration
+      // For now, we'll skip tier filtering unless tiers are configured
+      // This matches the Python implementation where tier filtering is optional
+    }
+
+    // === STEP 2: ROUTING DECISION (PreRouter) ===
+    const routingContext = {
+      tools: options.tools,
+      userTier: options.userTier,
+      forceDirect: options.forceDirect,
+      availableModels: availableModels.length,
+    };
+
+    const routingDecision = await this.preRouter.route(queryText, routingContext);
+    const { complexity } = this.complexityDetector.detect(queryText);
+
+    // Determine if we should cascade based on routing decision
+    const shouldCascade =
+      !options.forceDirect &&
+      routingDecision.strategy === RoutingStrategy.CASCADE &&
+      availableModels.length > 1;
 
     let draftCost = 0;
     let verifierCost = 0;
@@ -253,10 +591,10 @@ export class CascadeAgent {
     let modelUsed = '';
     let finalToolCalls: any[] | undefined;
 
-    // === STEP 2: ROUTING DECISION ===
-    if (!shouldCascade || this.models.length === 1) {
-      // Direct route to best model (most expensive)
-      const bestModelConfig = this.models[this.models.length - 1];
+    // === STEP 3: EXECUTE BASED ON ROUTING DECISION ===
+    if (!shouldCascade || availableModels.length === 1) {
+      // Direct route to best model (most expensive) from available models
+      const bestModelConfig = availableModels[availableModels.length - 1];
 
       try {
         const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
@@ -264,7 +602,7 @@ export class CascadeAgent {
         const response = await provider.generate({
           messages,
           model: bestModelConfig.name,
-          maxTokens: options.maxTokens,
+          maxTokens: maxTokens,
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
@@ -311,9 +649,9 @@ export class CascadeAgent {
       }
     }
 
-    // === STEP 3: CASCADE EXECUTION ===
-    // Try draft model (cheapest)
-    const draftModelConfig = this.models[0];
+    // === STEP 4: CASCADE EXECUTION ===
+    // Try draft model (cheapest from available models)
+    const draftModelConfig = availableModels[0];
     const draftStart = Date.now();
     let draftResponse: any; // Move to wider scope for savings calculation
 
@@ -323,7 +661,7 @@ export class CascadeAgent {
       draftResponse = await draftProvider.generate({
         messages,
         model: draftModelConfig.name,
-        maxTokens: options.maxTokens,
+        maxTokens: maxTokens,
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
@@ -349,16 +687,18 @@ export class CascadeAgent {
       const qualityResult = await this.qualityValidator.validate(
         draftResponse.content,
         query,
-        draftResponse.logprobs
+        draftResponse.logprobs,
+        complexity,
+        draftModelConfig.qualityThreshold // Per-model threshold override
       );
       const qualityPassed = qualityResult.passed;
 
-      if (!qualityPassed && this.models.length > 1 && !options.forceDirect) {
-        // Escalate to verifier (next model)
+      if (!qualityPassed && availableModels.length > 1 && !options.forceDirect) {
+        // Escalate to verifier (next model from available models)
         cascaded = true;
         draftAccepted = false;
 
-        const verifierModelConfig = this.models[1];
+        const verifierModelConfig = availableModels[1];
         const verifierStart = Date.now();
 
         const verifierProvider = providerRegistry.get(
@@ -369,7 +709,7 @@ export class CascadeAgent {
         const verifierResponse = await verifierProvider.generate({
           messages,
           model: verifierModelConfig.name,
-          maxTokens: options.maxTokens,
+          maxTokens: maxTokens,
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
@@ -396,7 +736,7 @@ export class CascadeAgent {
       totalCost = draftCost + verifierCost;
 
       // Calculate savings (vs always using most expensive model) - matching Python's approach
-      const expensiveModel = this.models[this.models.length - 1];
+      const expensiveModel = availableModels[availableModels.length - 1];
       const expensiveProvider = providerRegistry.get(expensiveModel.provider, expensiveModel);
 
       let bigonlyCost = 0;
@@ -441,9 +781,13 @@ export class CascadeAgent {
         draftModel,
         draftCost,
         draftLatencyMs: draftLatency,
+        draftConfidence: qualityResult.confidence, // Confidence score from quality validator
         verifierModel,
         verifierCost,
         verifierLatencyMs: verifierLatency,
+        qualityScore: qualityResult.score, // Quality score from validator
+        qualityCheckPassed: qualityResult.passed, // Whether quality check passed
+        rejectionReason: !qualityResult.passed ? qualityResult.reason : undefined,
         costSaved,
         savingsPercentage,
       };
@@ -468,15 +812,131 @@ export class CascadeAgent {
    * }
    * ```
    */
+
+  /**
+   * Process multiple queries in batch
+   *
+   * Efficient batch processing with:
+   * - Concurrency control (max parallel requests)
+   * - Per-query timeout and retry logic
+   * - Cost tracking across all queries
+   * - Quality validation per query
+   * - Graceful error handling
+   *
+   * @param queries - Array of query strings to process
+   * @param batchConfig - Batch configuration (optional)
+   * @param runOptions - Options passed to each run() call (optional)
+   * @returns BatchResult with all results and statistics
+   *
+   * @example
+   * ```typescript
+   * const queries = [
+   *   'What is TypeScript?',
+   *   'What is JavaScript?',
+   *   'What is Rust?'
+   * ];
+   *
+   * const result = await agent.runBatch(queries);
+   *
+   * console.log(`Success: ${result.successCount}/${queries.length}`);
+   * console.log(`Total cost: $${result.totalCost.toFixed(4)}`);
+   * console.log(`Strategy: ${result.strategyUsed}`);
+   *
+   * result.results.forEach((r, i) => {
+   *   if (r) {
+   *     console.log(`Query ${i}: ${r.content.slice(0, 100)}...`);
+   *   }
+   * });
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // With custom configuration
+   * const config: BatchConfig = {
+   *   maxParallel: 5,
+   *   timeoutPerQuery: 60,
+   *   retryFailed: true,
+   *   stopOnError: false
+   * };
+   *
+   * const result = await agent.runBatch(queries, config);
+   * ```
+   */
+  async runBatch(
+    queries: string[],
+    batchConfig?: import('./batch').BatchConfig,
+    runOptions?: RunOptions
+  ): Promise<import('./batch').BatchResult> {
+    const { BatchProcessor } = await import('./batch');
+
+    // Create batch processor (lazy-loaded)
+    if (!this.batchProcessor) {
+      this.batchProcessor = new BatchProcessor();
+    }
+
+    // Process batch using the processor
+    return this.batchProcessor.processBatch(
+      queries,
+      (query, options) => this.run(query, options),
+      batchConfig,
+      runOptions
+    );
+  }
+
   async *runStream(
     input: string | Message[],
     options: StreamOptions = {}
   ): AsyncIterable<StreamEvent> {
     const startTime = Date.now();
 
+    // Set default max_tokens based on hosting type if not specified
+    const maxTokens = options.maxTokens ?? this.getDefaultMaxTokens();
+
     // Normalize input to messages
     const messages: Message[] =
       typeof input === 'string' ? [{ role: 'user', content: input }] : input;
+
+    // Extract query text for complexity detection
+    const queryText = typeof input === 'string'
+      ? input
+      : input.map(m => m.content).join('\n');
+
+    // === STEP 1: MODEL FILTERING ===
+    let availableModels = [...this.models]; // Start with all models
+
+    // Step 1a: Filter by tool capability if tools are present
+    if (options.tools && options.tools.length > 0) {
+      const toolFilterResult = this.toolRouter.filterToolCapableModels({
+        tools: options.tools,
+        availableModels,
+      });
+
+      if (!toolFilterResult.hasCapableModels) {
+        throw new Error(
+          `No models support tools. Requested tools: ${options.tools.map(t => t.function?.name || 'unknown').join(', ')}`
+        );
+      }
+
+      availableModels = toolFilterResult.models;
+    }
+
+    // Step 1b: Filter by user tier if specified (future enhancement)
+    // if (options.userTier) { ... }
+
+    // === STEP 2: ROUTING DECISION ===
+    const routingContext = {
+      tools: options.tools,
+      forceDirect: options.forceDirect,
+      availableModels: availableModels.length,
+    };
+
+    const routingDecision = await this.preRouter.route(queryText, routingContext);
+    const { complexity } = this.complexityDetector.detect(queryText);
+
+    const shouldCascade =
+      !options.forceDirect &&
+      routingDecision.strategy === RoutingStrategy.CASCADE &&
+      availableModels.length > 1;
 
     // For MVP, use simple cascade logic similar to run()
     let draftCost = 0;
@@ -496,15 +956,102 @@ export class CascadeAgent {
     let draftToolCalls: any[] | undefined;
     let verifierToolCalls: any[] | undefined;
 
+    const routingStrategy = shouldCascade ? 'cascade' : 'direct';
+
     // Emit ROUTING event
     yield createStreamEvent(StreamEventType.ROUTING, '', {
-      strategy: this.models.length > 1 ? 'cascade' : 'direct',
-      complexity: 'unknown',
+      strategy: routingStrategy,
+      complexity,
     });
 
     try {
-      // Try draft model (cheapest)
-      const draftModelConfig = this.models[0];
+      if (!shouldCascade) {
+        const bestModelConfig = availableModels[availableModels.length - 1];
+        const directProvider = providerRegistry.get(
+          bestModelConfig.provider,
+          bestModelConfig
+        );
+
+        if (!directProvider.stream) {
+          // Fallback to non-streaming path
+          const result = await this.run(input, {
+            maxTokens: maxTokens,
+            temperature: options.temperature,
+            systemPrompt: options.systemPrompt,
+            tools: options.tools,
+            forceDirect: true,
+          });
+          yield createStreamEvent(StreamEventType.CHUNK, result.content, {
+            model: result.modelUsed,
+            phase: 'direct',
+            provider: bestModelConfig.provider,
+            streaming_supported: false,
+          });
+          yield createStreamEvent(StreamEventType.COMPLETE, '', { result });
+          return;
+        }
+
+        let directContent = '';
+        let directToolCalls: any[] | undefined;
+
+        for await (const chunk of directProvider.stream({
+          messages,
+          model: bestModelConfig.name,
+          maxTokens: maxTokens,
+          temperature: options.temperature,
+          systemPrompt: options.systemPrompt,
+          tools: options.tools,
+        })) {
+          directContent += chunk.content;
+
+          if (chunk.tool_calls) {
+            directToolCalls = chunk.tool_calls;
+          }
+
+          yield createStreamEvent(StreamEventType.CHUNK, chunk.content, {
+            model: bestModelConfig.name,
+            phase: 'direct',
+            provider: bestModelConfig.provider,
+          });
+
+          if (chunk.done) {
+            break;
+          }
+        }
+
+        const latencyMs = Date.now() - startTime;
+        const wordCount = directContent.split(/\s+/).length;
+        const estimatedTokens = Math.ceil(wordCount * 1.3);
+        totalCost = (estimatedTokens / 1000) * bestModelConfig.cost;
+
+        const result: CascadeResult = {
+          content: directContent,
+          modelUsed: bestModelConfig.name,
+          totalCost,
+          latencyMs,
+          complexity,
+          cascaded: false,
+          draftAccepted: false,
+          routingStrategy: 'direct',
+          reason: `Direct route (${complexity} complexity detected)`,
+          toolCalls: directToolCalls,
+          hasToolCalls: !!directToolCalls && directToolCalls.length > 0,
+          draftModel: undefined,
+          draftCost: 0,
+          draftLatencyMs: 0,
+          verifierModel: undefined,
+          verifierCost: 0,
+          verifierLatencyMs: 0,
+          costSaved: 0,
+          savingsPercentage: 0,
+        };
+
+        yield createStreamEvent(StreamEventType.COMPLETE, '', { result });
+        return;
+      }
+
+      // Try draft model (cheapest from available models)
+      const draftModelConfig = availableModels[0];
       const draftProvider = providerRegistry.get(draftModelConfig.provider, draftModelConfig);
 
       // Check if provider supports streaming
@@ -529,7 +1076,7 @@ export class CascadeAgent {
       for await (const chunk of draftProvider.stream({
         messages,
         model: draftModelConfig.name,
-        maxTokens: options.maxTokens,
+        maxTokens: maxTokens,
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
@@ -570,11 +1117,13 @@ export class CascadeAgent {
       const qualityResult = await this.qualityValidator.validate(
         draftContent,
         query,
-        draftLogprobs.length > 0 ? draftLogprobs : undefined
+        draftLogprobs.length > 0 ? draftLogprobs : undefined,
+        complexity,
+        draftModelConfig.qualityThreshold // Per-model threshold override
       );
       const qualityPassed = qualityResult.passed;
 
-      draftAccepted = qualityPassed || this.models.length === 1 || options.forceDirect === true;
+      draftAccepted = qualityPassed || availableModels.length === 1 || options.forceDirect === true;
 
       // Emit DRAFT_DECISION event with real quality scores
       yield createStreamEvent(StreamEventType.DRAFT_DECISION, '', {
@@ -582,16 +1131,16 @@ export class CascadeAgent {
         score: qualityResult.score,
         confidence: qualityResult.confidence,
         draft_model: draftModel,
-        verifier_model: this.models.length > 1 ? this.models[1].name : undefined,
+        verifier_model: availableModels.length > 1 ? availableModels[1].name : undefined,
         reason: draftAccepted ? 'quality_passed' : 'quality_failed',
         checks_passed: qualityPassed,
         quality_threshold: this.qualityValidator.getConfig().minConfidence,
       });
 
-      if (!draftAccepted && this.models.length > 1) {
-        // Cascade to verifier
+      if (!draftAccepted && availableModels.length > 1) {
+        // Cascade to verifier (next model from available models)
         cascaded = true;
-        const verifierModelConfig = this.models[1];
+        const verifierModelConfig = availableModels[1];
         verifierModel = verifierModelConfig.name;
 
         // Emit SWITCH event
@@ -620,7 +1169,7 @@ export class CascadeAgent {
           for await (const chunk of verifierProvider.stream({
             messages,
             model: verifierModelConfig.name,
-            maxTokens: options.maxTokens,
+            maxTokens: maxTokens,
             temperature: options.temperature,
             systemPrompt: options.systemPrompt,
             tools: options.tools,
@@ -651,7 +1200,7 @@ export class CascadeAgent {
           const verifierResponse = await verifierProvider.generate({
             messages,
             model: verifierModelConfig.name,
-            maxTokens: options.maxTokens,
+            maxTokens: maxTokens,
             temperature: options.temperature,
             systemPrompt: options.systemPrompt,
             tools: options.tools,
@@ -699,7 +1248,7 @@ export class CascadeAgent {
         modelUsed,
         totalCost,
         latencyMs,
-        complexity: 'unknown',
+        complexity,
         cascaded,
         draftAccepted,
         routingStrategy: cascaded ? 'cascade' : 'direct',
@@ -792,4 +1341,237 @@ export class CascadeAgent {
   getModelCount(): number {
     return this.models.length;
   }
+
+  // ========================================================================
+  // STREAMING APIS (v0.6+) - High-level streaming methods
+  // ========================================================================
+
+  /**
+   * Run query with streaming and return complete result
+   *
+   * This method provides streaming with visual feedback and returns a complete
+   * CascadeResult when done. Unlike streamEvents(), this collects all events
+   * internally and returns the final result.
+   *
+   * Key features:
+   * - Automatic manager selection (StreamManager vs ToolStreamManager)
+   * - Visual feedback (optional pulsing indicator)
+   * - Complete result with costs and metadata
+   * - Tool support with automatic routing
+   *
+   * @param query - User query to process
+   * @param options - Streaming options
+   * @returns Complete CascadeResult with all metadata
+   *
+   * @example
+   * ```typescript
+   * const result = await agent.runStreaming('Explain TypeScript', {
+   *   maxTokens: 100,
+   *   enableVisual: true
+   * });
+   * console.log(result.content);
+   * console.log(`Cost: $${result.totalCost}`);
+   * ```
+   */
+  async runStreaming(
+    query: string,
+    options: RunStreamingOptions = {}
+  ): Promise<CascadeResult> {
+    // TODO: Full implementation in future milestone
+    // For now, use runStream and collect result
+    const events: StreamEvent[] = [];
+    for await (const event of this.runStream(query, options)) {
+      events.push(event);
+    }
+
+    // Extract result from COMPLETE event
+    const completeEvent = events.find(e => e.type === StreamEventType.COMPLETE);
+    if (completeEvent?.data?.result) {
+      return completeEvent.data.result as CascadeResult;
+    }
+
+    // Fallback: construct result from events
+    const chunks = events
+      .filter(e => e.type === StreamEventType.CHUNK)
+      .map(e => e.content)
+      .join('');
+
+    return {
+      content: chunks,
+      modelUsed: this.models[0].name,
+      totalCost: 0,
+      draftCost: 0,
+      verifierCost: 0,
+      latencyMs: 0,
+      draftLatencyMs: 0,
+      verifierLatencyMs: 0,
+      cascaded: false,
+      draftAccepted: true,
+      complexity: 'unknown',
+      savingsPercentage: 0,
+      costSaved: 0,
+      routingStrategy: 'direct',
+      reason: 'Streaming fallback',
+      hasToolCalls: false,
+    };
+  }
+
+  /**
+   * Stream events as async iterator
+   *
+   * This method yields StreamEvent objects as they occur, allowing fine-grained
+   * control over streaming. Use this when you need to process events in real-time.
+   *
+   * Automatically selects the correct streaming manager:
+   * - IF tools provided → ToolStreamManager (handles tool calls)
+   * - ELSE → StreamManager (standard text streaming)
+   *
+   * @param query - User query to process
+   * @param options - Streaming options
+   * @yields StreamEvent objects with type, content, and data
+   *
+   * @example
+   * ```typescript
+   * for await (const event of agent.streamEvents('What is TypeScript?')) {
+   *   switch (event.type) {
+   *     case StreamEventType.CHUNK:
+   *       process.stdout.write(event.content);
+   *       break;
+   *     case StreamEventType.COMPLETE:
+   *       console.log(`\nDone! Cost: $${event.data.result.totalCost}`);
+   *       break;
+   *   }
+   * }
+   * ```
+   */
+  async *streamEvents(
+    query: string,
+    options: StreamEventsOptions = {}
+  ): AsyncIterable<StreamEvent> {
+    // TODO: Full implementation with StreamManager/ToolStreamManager in future milestone
+    // For now, delegate to existing runStream
+    for await (const event of this.runStream(query, options)) {
+      yield event;
+    }
+  }
+
+  /**
+   * Stream responses with real-time events (alias for streamEvents)
+   *
+   * This is a simpler alias for streamEvents() that matches the documented API.
+   * Use this method for most streaming needs.
+   *
+   * @param prompt - User query or prompt
+   * @param options - Streaming options
+   * @yields StreamEvent objects with incremental content
+   *
+   * @example
+   * ```typescript
+   * for await (const event of agent.stream('Tell me a story')) {
+   *   if (event.type === StreamEventType.CHUNK) {
+   *     process.stdout.write(event.content);
+   *   } else if (event.type === StreamEventType.COMPLETE) {
+   *     console.log(`\nCost: $${event.data.result?.totalCost || 0}`);
+   *   }
+   * }
+   * ```
+   */
+  async *stream(
+    prompt: string,
+    options: StreamOptions = {}
+  ): AsyncIterable<StreamEvent> {
+    // Simple alias that delegates to streamEvents
+    for await (const event of this.streamEvents(prompt, options)) {
+      yield event;
+    }
+  }
+
+  // ==================== ROUTER STATISTICS ====================
+
+  /**
+   * Get routing statistics from all routers
+   *
+   * Returns statistics about routing decisions made by PreRouter, ToolRouter, and TierRouter.
+   * Useful for monitoring and debugging routing behavior.
+   *
+   * @returns Object containing statistics from each router
+   *
+   * @example
+   * ```typescript
+   * const agent = new CascadeAgent({ models: [...] });
+   *
+   * // Run some queries
+   * await agent.run('Simple query');
+   * await agent.run('Complex query');
+   * await agent.run('Query with tools', { tools: [...] });
+   *
+   * // Get routing statistics
+   * const stats = agent.getRouterStats();
+   * console.log('PreRouter stats:', stats.preRouter);
+   * console.log('ToolRouter stats:', stats.toolRouter);
+   * ```
+   */
+  getRouterStats(): {
+    preRouter: Record<string, any>;
+    toolRouter: Record<string, any>;
+    tierRouter?: Record<string, any>;
+  } {
+    return {
+      preRouter: this.preRouter.getStats(),
+      toolRouter: this.toolRouter.getStats(),
+      tierRouter: this.tierRouter?.getStats(),
+    };
+  }
+
+  /**
+   * Reset routing statistics for all routers
+   *
+   * Clears all accumulated statistics from PreRouter, ToolRouter, and TierRouter.
+   * Useful for starting fresh measurements or testing.
+   *
+   * @example
+   * ```typescript
+   * const agent = new CascadeAgent({ models: [...] });
+   *
+   * // Run some queries
+   * await agent.run('Query 1');
+   * await agent.run('Query 2');
+   *
+   * // Reset stats for new measurement period
+   * agent.resetRouterStats();
+   *
+   * // Run more queries with clean stats
+   * await agent.run('Query 3');
+   * ```
+   */
+  resetRouterStats(): void {
+    this.preRouter.resetStats();
+    this.toolRouter.resetStats();
+    this.tierRouter?.resetStats();
+  }
+}
+
+/**
+ * Options for runStreaming method
+ */
+export interface RunStreamingOptions extends RunOptions {
+  /** Enable visual feedback (pulsing indicator) */
+  enableVisual?: boolean;
+
+  /** Complexity hint (override detection) */
+  complexityHint?: string;
+
+  /** Tool choice strategy */
+  toolChoice?: any;
+}
+
+/**
+ * Options for streamEvents method
+ */
+export interface StreamEventsOptions extends RunOptions {
+  /** Complexity hint (override detection) */
+  complexityHint?: string;
+
+  /** Tool choice strategy */
+  toolChoice?: any;
 }

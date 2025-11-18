@@ -22,7 +22,11 @@
 
 // Main agent
 export { CascadeAgent } from './agent';
-export type { RunOptions } from './agent';
+export type {
+  RunOptions,
+  RunStreamingOptions,
+  StreamEventsOptions,
+} from './agent';
 
 // Configuration
 export type {
@@ -41,6 +45,16 @@ export {
 // Results
 export type { CascadeResult } from './result';
 export { resultToObject } from './result';
+
+// Batch Processing (v0.2.1+)
+export {
+  BatchStrategy,
+  BatchProcessor,
+  BatchProcessingError,
+  normalizeBatchConfig,
+  DEFAULT_BATCH_CONFIG,
+} from './batch';
+export type { BatchConfig, BatchResult } from './batch';
 
 // Streaming
 export {
@@ -62,6 +76,7 @@ export type {
 // Quality validation
 export {
   QualityValidator,
+  QualityConfigFactory,
   calculateConfidenceFromLogprobs,
   estimateConfidenceFromContent,
   DEFAULT_QUALITY_CONFIG as DEFAULT_QUALITY_VALIDATOR_CONFIG,
@@ -88,15 +103,33 @@ export type {
   ComplexityResult,
 } from './complexity';
 
+// Production Confidence Estimation (v1.0.1+)
+export {
+  ProductionConfidenceEstimator,
+  PROVIDER_CONFIDENCE_CALIBRATION,
+} from './confidence';
+export type {
+  ConfidenceAnalysis,
+  ConfidenceEstimationOptions,
+  ProviderCalibration,
+} from './confidence';
+
+// Response Analysis (v1.0.1+)
+export { ResponseAnalyzer } from './response-analyzer';
+export type {
+  LengthAnalysis,
+  HedgingAnalysis,
+  SpecificityAnalysis,
+  HallucinationAnalysis,
+} from './response-analyzer';
+
 // Types
 export type {
   Provider as ProviderType,
-  RoutingStrategy,
   QueryComplexity,
   MessageRole,
   Message,
   Tool,
-  ToolCall,
   ProviderResponse,
   CostBreakdown,
   TimingBreakdown,
@@ -109,13 +142,19 @@ export type {
   PiiMatch,
   ModerationResult,
   GuardrailsCheck,
-  BatchStrategy,
-  BatchConfig,
   BatchItemResult,
+  // v1.0.1+ Latency & optimization types
+  CostSensitivity,
+  LatencyProfile,
+  OptimizationWeights,
+  WorkflowProfile,
 } from './types';
 
+// Legacy routing type (kept for backward compatibility, prefer RoutingStrategy enum from routers/base)
+export type { RoutingStrategy as LegacyRoutingStrategy } from './types';
+
 // Providers
-export { providerRegistry } from './providers/base';
+export { providerRegistry, getAvailableProviders } from './providers/base';
 export type { Provider, ProviderRequest } from './providers/base';
 export { OpenAIProvider } from './providers/openai';
 export { AnthropicProvider } from './providers/anthropic';
@@ -124,6 +163,7 @@ export { TogetherProvider } from './providers/together';
 export { OllamaProvider } from './providers/ollama';
 export { HuggingFaceProvider, HuggingFaceEndpointType } from './providers/huggingface';
 export { VLLMProvider } from './providers/vllm';
+export { OpenRouterProvider } from './providers/openrouter';
 
 // Presets
 export {
@@ -181,6 +221,22 @@ export {
   UserProfileManager,
   serializeProfile,
   deserializeProfile,
+  // v1.0.1+ Latency & optimization helpers
+  validateOptimizationWeights,
+  createOptimizationWeights,
+  createLatencyProfile,
+  OPTIMIZATION_PRESETS,
+  LATENCY_PRESETS,
+  getDailyBudget,
+  getRequestsPerHour,
+  getRequestsPerDay,
+  getOptimizationWeights,
+  getLatencyProfile,
+  // v1.0.1+ Workflow profiles
+  createWorkflowProfile,
+  applyWorkflowProfile,
+  isModelAllowedByWorkflow,
+  WORKFLOW_PRESETS,
 } from './profiles';
 
 // Rate Limiting (v0.2.1+)
@@ -209,6 +265,118 @@ export type {
   ModelPricing,
   CostCalculationOptions,
 } from './integrations/litellm';
+
+// Cost Calculator (Telemetry)
+export {
+  CostCalculator,
+  calculateCascadeCost,
+} from './telemetry/cost-calculator';
+export type {
+  CostCalculationFromTokensOptions,
+} from './telemetry/cost-calculator';
+
+// Metrics Collector (Telemetry)
+export { MetricsCollector } from './telemetry/metrics-collector';
+export type { MetricsSnapshot } from './telemetry/metrics-collector';
+
+// Callback Manager (Telemetry)
+export {
+  CallbackManager,
+  CallbackEvent,
+} from './telemetry/callbacks';
+export type {
+  CallbackData,
+  CallbackFunction,
+  CallbackStats,
+} from './telemetry/callbacks';
+
+// Retry Manager
+export {
+  RetryManager,
+  ErrorType,
+  DEFAULT_RETRY_CONFIG,
+  createRetryManager,
+} from './retry-manager';
+export type {
+  RetryConfig,
+  RetryMetrics,
+  RetryMetricsSummary,
+} from './retry-manager';
+
+// Response Cache
+export {
+  ResponseCache,
+  createResponseCache,
+} from './response-cache';
+export type {
+  CacheStats,
+  ResponseCacheConfig,
+  CacheSetOptions,
+  CacheGetOptions,
+} from './response-cache';
+
+// Routers (v1.0.1+)
+export {
+  Router,
+  RouterChain,
+  RoutingStrategy,
+  RoutingDecisionHelper,
+} from './routers/base';
+export type { RoutingDecision } from './routers/base';
+export { PreRouter, createPreRouter } from './routers/pre-router';
+export type { PreRouterConfig, PreRouterStats } from './routers/pre-router';
+export { ToolRouter, createToolRouter } from './routers/tool-router';
+export type {
+  ToolRouterConfig,
+  ToolRouterStats,
+  ToolFilterResult,
+  ToolValidationResult,
+  FilterToolCapableModelsOptions,
+  SuggestModelsOptions,
+} from './routers/tool-router';
+export { TierRouter, createTierRouter } from './routers/tier-router';
+export type {
+  TierAwareRouterConfig,
+  TierRouterConfig,
+  TierRouterStats,
+  TierConstraints,
+  FilterModelsOptions,
+} from './routers/tier-router';
+export { DomainRouter, createDomainRouter, Domain } from './routers/domain-router';
+export type {
+  DomainKeywords,
+  DomainDetectionResult,
+  DomainRouterStats,
+} from './routers/domain-router';
+
+// Tools (v1.1.0+)
+export {
+  ToolConfig,
+  createTool,
+  tool,
+  inferJsonType,
+  buildParameterSchema,
+  ToolExecutor,
+  ToolCall,
+  ToolResult,
+  ToolCallFormat,
+  toOpenAIFormat,
+  toAnthropicFormat,
+  toOllamaFormat,
+  toProviderFormat,
+  getProviderFormatType,
+  ToolValidator,
+  formatToolQualityScore,
+} from './tools';
+export type {
+  ToolFunction,
+  ToolParameters,
+  ToolConfigOptions,
+  ToolCallOptions,
+  ToolResultOptions,
+  ToolQualityScore,
+  ComplexityLevel,
+} from './tools';
 
 // Version
 export const VERSION = '1.0.0';

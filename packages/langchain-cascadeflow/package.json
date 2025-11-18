@@ -1,0 +1,80 @@
+{
+  "name": "@cascadeflow/langchain",
+  "version": "0.1.0",
+  "description": "LangChain integration for cascadeflow - Add intelligent cost optimization to your LangChain models",
+  "author": {
+    "name": "Lemony Inc.",
+    "email": "hello@lemony.ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lemony-ai/cascadeflow.git",
+    "directory": "packages/langchain-cascadeflow"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "langchain",
+    "cascadeflow",
+    "ai",
+    "llm",
+    "cost-optimization",
+    "model-routing",
+    "cascade",
+    "typescript"
+  ],
+  "dependencies": {
+    "@cascadeflow/core": "workspace:^",
+    "@cascadeflow/ml": "workspace:^",
+    "@langchain/anthropic": "^1.0.1",
+    "@langchain/google-genai": "^1.0.1"
+  },
+  "peerDependencies": {
+    "@langchain/core": "^0.3.0",
+    "langchain": "^0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "langchain": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.24",
+    "@langchain/openai": "^0.3.17",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.55.0",
+    "langchain": "^0.3.13",
+    "openai": "^4.73.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

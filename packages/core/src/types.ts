@@ -154,13 +154,45 @@ export interface ProviderResponse {
 
 /**
  * Cost breakdown information
+ *
+ * Enhanced to match Python implementation with token tracking and metadata
  */
 export interface CostBreakdown {
+  /** Cost of draft model call (USD) */
   draftCost: number;
+
+  /** Cost of verifier model call (USD) */
   verifierCost: number;
+
+  /** Total cost (draft + verifier, USD) */
   totalCost: number;
+
+  /** Cost saved vs always using best model (USD) */
   costSaved: number;
+
+  /** Cost if only using the most expensive model (USD) */
+  bigonlyCost: number;
+
+  /** Savings percentage (0-100) */
   savingsPercentage: number;
+
+  /** Total tokens used by draft (input + output) */
+  draftTokens: number;
+
+  /** Total tokens used by verifier (input + output) */
+  verifierTokens: number;
+
+  /** Total tokens across all models */
+  totalTokens: number;
+
+  /** Whether cascade was used (vs direct routing) */
+  wasCascaded: boolean;
+
+  /** Whether draft was accepted (only relevant if cascaded) */
+  draftAccepted: boolean;
+
+  /** Additional metadata (model names, timestamps, etc.) */
+  metadata: Record<string, any>;
 }
 
 /**
@@ -191,6 +223,44 @@ export interface QualityValidation {
 export type TierLevel = 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 
 /**
+ * Cost sensitivity modes for optimization (v1.0.1+)
+ */
+export type CostSensitivity = 'aggressive' | 'balanced' | 'quality_first';
+
+/**
+ * Latency profile for speed control (v1.0.1+)
+ */
+export interface LatencyProfile {
+  /** Maximum total query time in milliseconds */
+  maxTotalMs: number;
+
+  /** Maximum time per model call in milliseconds */
+  maxPerModelMs: number;
+
+  /** Whether to prefer parallel execution when beneficial */
+  preferParallel: boolean;
+
+  /** If latency < this threshold, consider skipping cascade */
+  skipCascadeThreshold: number;
+}
+
+/**
+ * Multi-factor optimization weights (v1.0.1+)
+ *
+ * Weights must sum to 1.0 and guide routing decisions
+ */
+export interface OptimizationWeights {
+  /** Weight for cost optimization (0-1) */
+  cost: number;
+
+  /** Weight for speed optimization (0-1) */
+  speed: number;
+
+  /** Weight for quality optimization (0-1) */
+  quality: number;
+}
+
+/**
  * Tier configuration (v0.2.1+)
  */
 export interface TierConfig {
@@ -207,18 +277,135 @@ export interface TierConfig {
 
 /**
  * User profile for multi-tenant applications (v0.2.1+)
+ *
+ * Enhanced in v1.0.1+ with:
+ * - Latency awareness for speed control
+ * - Optimization weights for multi-factor routing
+ * - Cost sensitivity modes
  */
 export interface UserProfile {
+  /** Unique user identifier */
   userId: string;
+
+  /** Timestamp when profile was created */
+  createdAt?: Date;
+
+  /** Subscription tier configuration */
   tier: TierConfig;
+
+  // ===== LIMITS (Overrides) =====
+
+  /** Custom daily budget override */
   customDailyBudget?: number;
+
+  /** Custom hourly request limit override */
   customRequestsPerHour?: number;
+
+  /** Custom daily request limit override */
   customRequestsPerDay?: number;
+
+  // ===== PREFERENCES =====
+
+  /** Preferred models to use */
   preferredModels?: string[];
+
+  /** Cost sensitivity mode (v1.0.1+) */
+  costSensitivity?: CostSensitivity;
+
+  /** Preferred domains (e.g., ['code', 'medical', 'legal']) */
   preferredDomains?: string[];
+
+  /** Domain-specific model overrides */
   domainModels?: Record<string, string[]>;
+
+  // ===== LATENCY & OPTIMIZATION (v1.0.1+) =====
+
+  /** Latency profile for speed control */
+  latency?: LatencyProfile;
+
+  /** Multi-factor optimization weights */
+  optimization?: OptimizationWeights;
+
+  // ===== GUARDRAILS =====
+
+  /** Enable content moderation */
   enableContentModeration?: boolean;
+
+  /** Enable PII detection */
   enablePiiDetection?: boolean;
+
+  // ===== TELEMETRY =====
+
+  /** Additional metadata */
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Workflow profile for specific use cases (v1.0.1+)
+ *
+ * Developer-defined profiles that override UserProfile settings
+ * for specific workflows like draft mode, production, critical queries, etc.
+ *
+ * @example
+ * ```typescript
+ * const draftMode: WorkflowProfile = {
+ *   name: 'draft_mode',
+ *   optimizationOverride: { cost: 0.8, speed: 0.15, quality: 0.05 },
+ *   maxBudgetOverride: 0.0001,
+ *   qualityThresholdOverride: 0.5,
+ *   description: 'Quick drafts, ultra cost optimized'
+ * };
+ * ```
+ */
+export interface WorkflowProfile {
+  /** Workflow name (e.g., 'draft_mode', 'production', 'critical') */
+  name: string;
+
+  // ===== OVERRIDES =====
+
+  /** Override tier latency settings */
+  latencyOverride?: LatencyProfile;
+
+  /** Override tier optimization weights */
+  optimizationOverride?: OptimizationWeights;
+
+  /** Override tier max budget */
+  maxBudgetOverride?: number;
+
+  /** Override tier quality threshold */
+  qualityThresholdOverride?: number;
+
+  // ===== MODEL CONTROL =====
+
+  /** Force use of specific models only (restricts to these models) */
+  forceModels?: string[];
+
+  /** Prefer these models when available */
+  preferredModels?: string[];
+
+  /** Exclude these models from selection */
+  excludeModels?: string[];
+
+  // ===== FEATURES =====
+
+  /** Override caching setting */
+  enableCaching?: boolean;
+
+  /** Override parallel execution setting */
+  enableParallel?: boolean;
+
+  /** Override speculative cascading setting */
+  enableSpeculative?: boolean;
+
+  /** Override streaming setting */
+  enableStreaming?: boolean;
+
+  // ===== METADATA =====
+
+  /** Workflow description */
+  description?: string;
+
+  /** Additional metadata */
   metadata?: Record<string, any>;
 }
 

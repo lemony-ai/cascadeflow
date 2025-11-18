@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "cascadeflow TypeScript library - Smart AI model cascading for cost optimization",
   "author": {
     "name": "Lemony Inc.",
@@ -33,6 +33,9 @@
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc --noEmit -p examples/nodejs/tsconfig.json",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch",
     "clean": "rm -rf dist"
   },
   "keywords": [
@@ -53,14 +56,14 @@
     "edge-functions"
   ],
   "dependencies": {
-    "@cascadeflow/ml": "^0.4.0"
+    "@cascadeflow/ml": "^0.5.0"
   },
   "peerDependencies": {
-    "openai": "^4.0.0",
     "@anthropic-ai/sdk": "^0.30.0",
-    "groq-sdk": "^0.5.0",
     "@huggingface/inference": "^2.8.0",
-    "@xenova/transformers": "^2.17.2"
+    "@xenova/transformers": "^2.17.2",
+    "groq-sdk": "^0.5.0",
+    "openai": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "openai": {
@@ -80,17 +83,21 @@
     }
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@huggingface/inference": "^2.8.0",
+    "@types/express": "^5.0.5",
     "@types/node": "^20.10.0",
-    "eslint": "^8.55.0",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.55.0",
+    "express": "^5.1.0",
+    "groq-sdk": "^0.5.0",
+    "openai": "^4.73.1",
     "tsup": "^8.0.1",
+    "typedoc": "^0.28.14",
     "typescript": "^5.3.3",
     "vitest": "^1.0.4",
-    "openai": "^4.73.1",
-    "@anthropic-ai/sdk": "^0.30.0",
-    "groq-sdk": "^0.5.0",
-    "@huggingface/inference": "^2.8.0"
+    "zod": "^4.1.12"
   },
   "engines": {
     "node": ">=18.0.0"

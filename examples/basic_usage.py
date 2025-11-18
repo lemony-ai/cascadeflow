@@ -50,6 +50,7 @@ Documentation:
 """
 
 import asyncio
+import os
 
 from cascadeflow import CascadeAgent, ModelConfig
 
@@ -58,6 +59,18 @@ async def main():
     """
     Basic cascadeflow usage - the simplest possible example.
     """
+
+    # Check for required API key
+    if not os.getenv("OPENAI_API_KEY"):
+        print("\n❌ Error: OPENAI_API_KEY environment variable not set")
+        print("\nThis example requires an OpenAI API key to run.")
+        print("\nSetup:")
+        print("  1. Get your API key from: https://platform.openai.com/api-keys")
+        print("  2. Set the environment variable:")
+        print("     export OPENAI_API_KEY='sk-...'")
+        print("  3. Run this example:")
+        print("     python examples/basic_usage.py")
+        return
 
     print("=" * 80)
     print("🌊 CASCADEFLOW - BASIC USAGE EXAMPLE")

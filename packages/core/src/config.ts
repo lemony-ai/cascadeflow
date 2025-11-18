@@ -3,6 +3,7 @@
  */
 
 import type { Provider, RoutingStrategy } from './types';
+import type { QualityConfig as QualityValidatorConfig } from './quality';
 
 /**
  * Configuration for a single model in the cascade
@@ -59,6 +60,12 @@ export interface ModelConfig {
 
   /** Whether model supports tool/function calling */
   supportsTools?: boolean;
+
+  /** Tool quality score (0-1) for ranking tool-capable models */
+  toolQuality?: number;
+
+  /** Per-model quality threshold for cascade acceptance (0-1, overrides global threshold) */
+  qualityThreshold?: number;
 }
 
 /**
@@ -79,23 +86,27 @@ export interface ModelConfig {
  * ```typescript
  * const config: QualityConfig = {
  *   confidenceThresholds: {
+ *     trivial: 0.5,   // Very low bar for trivial queries
  *     simple: 0.6,    // Lower bar for simple queries
  *     moderate: 0.7,  // Medium bar
- *     complex: 0.8,   // High bar for complex queries
+ *     hard: 0.8,      // High bar for hard queries
  *     expert: 0.9     // Very high bar for expert-level
  *   }
  * };
  * ```
  */
-export interface QualityConfig {
+type QualityValidatorParams = Partial<QualityValidatorConfig>;
+
+export interface QualityConfig extends QualityValidatorParams {
   /** Minimum confidence threshold to accept result (0-1, default: 0.7) */
   threshold?: number;
 
   /** Confidence thresholds by complexity level (overrides global threshold) */
   confidenceThresholds?: {
+    trivial?: number;
     simple?: number;
     moderate?: number;
-    complex?: number;
+    hard?: number;
     expert?: number;
   };
 
@@ -231,6 +242,29 @@ export interface AgentConfig {
 
   /** Optional quality configuration (shorthand for cascade.quality) */
   quality?: QualityConfig;
+
+  /**
+   * Optional callback manager for lifecycle event monitoring
+   *
+   * Use this to track query execution, model calls, complexity detection,
+   * and other cascade lifecycle events.
+   *
+   * @example
+   * ```typescript
+   * import { CascadeAgent, CallbackManager, CallbackEvent } from '@cascadeflow/core';
+   *
+   * const callbacks = new CallbackManager();
+   * callbacks.register(CallbackEvent.QUERY_START, (data) => {
+   *   console.log(`Query started: ${data.query}`);
+   * });
+   *
+   * const agent = new CascadeAgent({
+   *   models: [...],
+   *   callbacks
+   * });
+   * ```
+   */
+  callbacks?: import('./telemetry/callbacks').CallbackManager;
 }
 
 /**
@@ -252,20 +286,24 @@ export function validateModelConfig(config: ModelConfig): void {
   if (config.maxTokens !== undefined && config.maxTokens <= 0) {
     throw new Error('maxTokens must be positive');
   }
+  if (config.qualityThreshold !== undefined && (config.qualityThreshold < 0 || config.qualityThreshold > 1)) {
+    throw new Error('qualityThreshold must be between 0 and 1');
+  }
 }
 
 /**
  * Default quality configuration
  */
-export const DEFAULT_QUALITY_CONFIG: Required<QualityConfig> = {
+export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   threshold: 0.7,
   confidenceThresholds: {
-    simple: 0.6,
-    moderate: 0.7,
-    complex: 0.8,
-    expert: 0.85,
+    trivial: 0.55,   // Aligned with Python (was 0.3) - strict for trivial queries
+    simple: 0.50,    // Aligned with Python (was 0.4) - standard for simple queries
+    moderate: 0.45,  // Aligned with Python (was 0.6) - permissive for moderate queries
+    hard: 0.42,      // Aligned with Python (was 0.75) - permissive for hard queries
+    expert: 0.40,    // Aligned with Python (was 0.8) - permissive for expert queries
   },
-  requireMinimumTokens: 10,
+  requireMinimumTokens: 3,  // Lowered from 10 - allow short correct answers like "Paris" or "hola"
   requireValidation: true,
   enableAdaptive: true,
 };

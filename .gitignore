@@ -117,6 +117,10 @@ node_modules/
 *.tsbuildinfo
 .turbo/
 
+# Package manager lockfiles - use pnpm-lock.yaml only
+package-lock.json
+yarn.lock
+
 # ============================================================================
 # DEVELOPMENT TEST FILES (Do not commit to repo)
 # ============================================================================
@@ -260,3 +264,5 @@ token.json
 ._*
 .Spotlight-V100
 .Trashes
+# Generated TypeScript API documentation
+packages/core/docs/

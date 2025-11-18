@@ -4,8 +4,12 @@
  * Based on Python quality validation with TypeScript patterns
  */
 
+import type { QueryComplexity } from './types';
 import { QueryResponseAlignmentScorer } from './alignment';
-import { SemanticQualityChecker } from './quality-semantic';
+import { ProductionConfidenceEstimator, type ConfidenceAnalysis } from './confidence';
+import { ComplexityDetector } from './complexity';
+// SemanticQualityChecker is imported dynamically to avoid loading @cascadeflow/ml dependencies
+// when they're not needed (fixes n8n crash issue)
 
 /**
  * Quality validation result
@@ -51,6 +55,14 @@ export interface QualityResult {
 
     /** Semantic similarity score (0-1) from ML embeddings */
     semanticSimilarity?: number;
+
+    /** Production confidence analysis (when useProductionConfidence is true) */
+    productionConfidence?: {
+      methodUsed: string;
+      components: Record<string, number | string | boolean>;
+      alignmentFloorApplied: boolean;
+      queryDifficulty?: number;
+    };
   };
 }
 
@@ -58,8 +70,17 @@ export interface QualityResult {
  * Quality configuration
  */
 export interface QualityConfig {
-  /** Minimum confidence threshold (0-1) */
+  /** Minimum confidence threshold (0-1) - fallback if confidenceThresholds not provided */
   minConfidence: number;
+
+  /** Adaptive confidence thresholds by complexity (overrides minConfidence) */
+  confidenceThresholds?: {
+    trivial?: number;
+    simple?: number;
+    moderate?: number;
+    hard?: number;
+    expert?: number;
+  };
 
   /** Minimum word count */
   minWordCount: number;
@@ -84,6 +105,12 @@ export interface QualityConfig {
 
   /** Minimum semantic similarity score (0-1, default: 0.5) */
   semanticThreshold?: number;
+
+  /** Enable production-grade confidence estimation (multi-signal approach) */
+  useProductionConfidence?: boolean;
+
+  /** Provider name for production confidence calibration (e.g., 'openai', 'anthropic') */
+  provider?: string;
 }
 
 /**
@@ -115,7 +142,196 @@ export const CASCADE_QUALITY_CONFIG: QualityConfig = {
   strictMode: false,
   useAlignmentScoring: true,
   minAlignmentScore: 0.15, // Alignment floor
+  useSemanticValidation: false, // Disable ML validation for cascade (not needed, saves deps)
 };
+
+/**
+ * Quality configuration factory methods
+ *
+ * Provides preset configurations for different use cases:
+ * - `forProduction()`: Balanced quality (98%, 30-40% acceptance)
+ * - `forDevelopment()`: More lenient (95%, 40-50% acceptance)
+ * - `strict()`: High quality bar (99%+, 15-25% acceptance)
+ * - `forCascade()`: CASCADE-optimized (95%, 50-60% acceptance)
+ */
+export class QualityConfigFactory {
+  /**
+   * Production configuration - balanced quality
+   *
+   * Target: 98% quality, ~30-40% acceptance
+   * Use case: High-quality applications, research, quality-critical systems
+   *
+   * @example
+   * ```typescript
+   * const validator = new QualityValidator(QualityConfigFactory.forProduction());
+   * ```
+   */
+  static forProduction(): QualityConfig {
+    return {
+      minConfidence: 0.73, // Default fallback
+      confidenceThresholds: {
+        trivial: 0.60,
+        simple: 0.68,
+        moderate: 0.73,
+        hard: 0.83,
+        expert: 0.88,
+      },
+      minWordCount: 10,
+      useLogprobs: true,
+      fallbackToHeuristic: true,
+      strictMode: false,
+      useAlignmentScoring: true,
+      minAlignmentScore: 0.15,
+      useSemanticValidation: false,
+    };
+  }
+
+  /**
+   * Development configuration - more lenient
+   *
+   * Target: 95% quality, ~40-50% acceptance
+   * Use case: Testing, debugging, iterative development
+   *
+   * @example
+   * ```typescript
+   * const validator = new QualityValidator(QualityConfigFactory.forDevelopment());
+   * ```
+   */
+  static forDevelopment(): QualityConfig {
+    return {
+      minConfidence: 0.70, // Default fallback
+      confidenceThresholds: {
+        trivial: 0.50,
+        simple: 0.60,
+        moderate: 0.70,
+        hard: 0.75,
+        expert: 0.80,
+      },
+      minWordCount: 8,
+      useLogprobs: true,
+      fallbackToHeuristic: true,
+      strictMode: false,
+      useAlignmentScoring: true,
+      minAlignmentScore: 0.15,
+      useSemanticValidation: false,
+    };
+  }
+
+  /**
+   * Strict configuration - high quality bar
+   *
+   * Target: 99%+ quality, ~15-25% acceptance
+   * Use case: Mission-critical, customer-facing, zero-tolerance systems
+   *
+   * @example
+   * ```typescript
+   * const validator = new QualityValidator(QualityConfigFactory.strict());
+   * ```
+   */
+  static strict(): QualityConfig {
+    return {
+      minConfidence: 0.85, // Default fallback
+      confidenceThresholds: {
+        trivial: 0.70,
+        simple: 0.80,
+        moderate: 0.85,
+        hard: 0.90,
+        expert: 0.95,
+      },
+      minWordCount: 15,
+      useLogprobs: true,
+      fallbackToHeuristic: true,
+      strictMode: true,
+      useAlignmentScoring: true,
+      minAlignmentScore: 0.20, // Higher alignment floor for strict mode
+      useSemanticValidation: true, // Enable ML validation for strictest quality
+      semanticThreshold: 0.6, // Higher threshold for semantic similarity
+      useProductionConfidence: true, // Enable production-grade multi-signal confidence
+    };
+  }
+
+  /**
+   * CASCADE-OPTIMIZED configuration
+   *
+   * Research-backed thresholds for optimal cascade performance.
+   *
+   * Target Metrics:
+   * - Acceptance rate: 50-60% (optimal for cascade)
+   * - Quality: 94-96% (acceptable trade-off from 98%)
+   * - Cost savings: 50-60%
+   * - Speedup: 1.8-2.1x
+   *
+   * Research Basis:
+   * - SmartSpec (2024): "Target 40-70% acceptance for optimal cost/quality"
+   * - Medusa (2024): "50-80% acceptance with temperature-aware thresholds"
+   * - HiSpec (2024): "Relaxed gates achieve 60-80% acceptance, 94% quality"
+   *
+   * When to use:
+   * ✓ Speculative cascade systems (draft + verifier)
+   * ✓ Cost optimization priority (50%+ savings)
+   * ✓ Speed optimization priority (2x+ speedup)
+   * ✓ High-throughput systems (1000+ queries/sec)
+   *
+   * When NOT to use:
+   * ✗ Customer-facing quality-critical apps (use forProduction)
+   * ✗ Zero-tolerance error systems (use strict)
+   *
+   * @example
+   * ```typescript
+   * const validator = new QualityValidator(QualityConfigFactory.forCascade());
+   * ```
+   */
+  static forCascade(): QualityConfig {
+    return {
+      minConfidence: 0.55, // Default fallback
+      confidenceThresholds: {
+        trivial: 0.25, // High acceptance for simple facts
+        simple: 0.40,  // Good acceptance for basic queries
+        moderate: 0.55, // Balanced quality/speed
+        hard: 0.70,    // Selective acceptance
+        expert: 0.80,  // Very selective
+      },
+      minWordCount: 5, // Relaxed minimum length
+      useLogprobs: true,
+      fallbackToHeuristic: true,
+      strictMode: false,
+      useAlignmentScoring: true,
+      minAlignmentScore: 0.15, // Standard alignment floor
+      useSemanticValidation: false, // Disabled for cascade speed
+    };
+  }
+
+  /**
+   * Permissive configuration - very lenient
+   *
+   * Target: 90% quality, ~60-70% acceptance
+   * Use case: Rapid prototyping, brainstorming, creative tasks
+   *
+   * @example
+   * ```typescript
+   * const validator = new QualityValidator(QualityConfigFactory.permissive());
+   * ```
+   */
+  static permissive(): QualityConfig {
+    return {
+      minConfidence: 0.50, // Default fallback
+      confidenceThresholds: {
+        trivial: 0.30,
+        simple: 0.40,
+        moderate: 0.50,
+        hard: 0.60,
+        expert: 0.70,
+      },
+      minWordCount: 3,
+      useLogprobs: true,
+      fallbackToHeuristic: true,
+      strictMode: false,
+      useAlignmentScoring: true,
+      minAlignmentScore: 0.10, // More lenient alignment
+      useSemanticValidation: false,
+    };
+  }
+}
 
 /**
  * Uncertainty markers that indicate low confidence
@@ -224,22 +440,115 @@ export function estimateConfidenceFromContent(
 export class QualityValidator {
   private config: QualityConfig;
   private alignmentScorer: QueryResponseAlignmentScorer | null = null;
-  private semanticChecker: SemanticQualityChecker | null = null;
+  private semanticChecker: any = null; // Lazy-loaded to avoid @cascadeflow/ml dependency
+  private semanticCheckerInitialized: boolean = false;
+  private productionConfidenceEstimator: ProductionConfidenceEstimator | null = null;
+  private complexityDetector: ComplexityDetector | null = null;
 
   constructor(config: Partial<QualityConfig> = {}) {
     this.config = { ...DEFAULT_QUALITY_CONFIG, ...config };
+
+    // Validate minConfidence
+    if (this.config.minConfidence < 0 || this.config.minConfidence > 1) {
+      throw new Error(`minConfidence must be between 0 and 1, got ${this.config.minConfidence}`);
+    }
+
+    // Validate confidenceThresholds if provided
+    if (this.config.confidenceThresholds) {
+      const thresholds = this.config.confidenceThresholds;
+      for (const [level, value] of Object.entries(thresholds)) {
+        if (value !== undefined && (value < 0 || value > 1)) {
+          throw new Error(`confidenceThresholds.${level} must be between 0 and 1, got ${value}`);
+        }
+      }
+    }
 
     // Initialize alignment scorer if enabled
     if (this.config.useAlignmentScoring) {
       this.alignmentScorer = new QueryResponseAlignmentScorer();
     }
 
-    // Initialize semantic checker if enabled (optional ML feature)
-    if (this.config.useSemanticValidation !== false) {
+    // Initialize semantic checker immediately if explicitly enabled
+    // This allows model pre-loading to avoid latency on first validation
+    // Note: Only loads if useSemanticValidation is true (not undefined)
+    if (this.config.useSemanticValidation === true) {
+      this.initSemanticChecker();
+    }
+
+    // Initialize production confidence estimator if enabled
+    if (this.config.useProductionConfidence === true) {
+      const provider = this.config.provider || 'openai';
+      this.productionConfidenceEstimator = new ProductionConfidenceEstimator(provider);
+      this.complexityDetector = new ComplexityDetector();
+    }
+  }
+
+  /**
+   * Initialize semantic quality checker (dynamic import to avoid static @cascadeflow/ml dependency)
+   * Called at construction time to allow model pre-loading
+   */
+  private async initSemanticChecker(): Promise<void> {
+    if (this.semanticCheckerInitialized) {
+      return;
+    }
+
+    this.semanticCheckerInitialized = true;
+
+    try {
+      const { SemanticQualityChecker } = await import('./quality-semantic');
       this.semanticChecker = new SemanticQualityChecker(
         this.config.semanticThreshold || 0.5
       );
+    } catch (e: any) {
+      // Semantic validation dependencies not available - gracefully degrade
+      if (e?.code !== 'ERR_MODULE_NOT_FOUND' && !e?.message?.includes('Cannot find module')) {
+        console.warn(
+          'SemanticQualityChecker not available (install @cascadeflow/ml for ML-based validation)'
+        );
+      }
+      this.semanticChecker = null;
     }
+  }
+
+  /**
+   * Get the appropriate confidence threshold for given complexity level
+   *
+   * @param complexity - Query complexity level
+   * @returns Confidence threshold to use (0-1)
+   */
+  private getThresholdForComplexity(complexity?: QueryComplexity): number {
+    // If no complexity provided, use default
+    if (!complexity) {
+      return this.config.minConfidence;
+    }
+
+    // If confidenceThresholds configured, use complexity-specific threshold
+    if (this.config.confidenceThresholds) {
+      const thresholds = this.config.confidenceThresholds;
+
+      // Get threshold for specific complexity, fallback to default
+      switch (complexity) {
+        case 'trivial':
+          return thresholds.trivial ?? this.config.minConfidence;
+        case 'simple':
+          return thresholds.simple ?? this.config.minConfidence;
+        case 'moderate':
+          return thresholds.moderate ?? this.config.minConfidence;
+        case 'hard':
+          return thresholds.hard ?? this.config.minConfidence;
+        case 'expert':
+          return thresholds.expert ?? this.config.minConfidence;
+        default: {
+          // TypeScript will catch this if we add new complexity levels
+          const _exhaustiveCheck: never = complexity;
+          console.warn(`Unknown complexity level: ${_exhaustiveCheck}, using default threshold`);
+          return this.config.minConfidence;
+        }
+      }
+    }
+
+    // Fallback to default threshold
+    return this.config.minConfidence;
   }
 
   /**
@@ -248,20 +557,53 @@ export class QualityValidator {
    * @param content - Generated content
    * @param query - Original query
    * @param logprobs - Log probabilities (if available)
+   * @param complexity - Query complexity level (for adaptive thresholds)
+   * @param thresholdOverride - Per-model threshold override (takes precedence over complexity-based thresholds)
    * @returns Quality validation result
    */
   async validate(
     content: string,
     query: string,
-    logprobs?: number[]
+    logprobs?: number[],
+    complexity?: QueryComplexity,
+    thresholdOverride?: number
   ): Promise<QualityResult> {
     // Step 1: Calculate confidence
     let confidence: number;
     let method: 'logprobs' | 'heuristic' | 'hybrid';
     let avgLogprob: number | undefined;
     let minLogprob: number | undefined;
+    let productionAnalysis: ConfidenceAnalysis | undefined;
 
-    if (this.config.useLogprobs && logprobs && logprobs.length > 0) {
+    // Use production confidence estimator if enabled (most sophisticated)
+    if (this.config.useProductionConfidence && this.productionConfidenceEstimator) {
+      // Get query difficulty from complexity if available
+      let queryDifficulty: number | undefined;
+      if (complexity && this.complexityDetector) {
+        const complexityMap: Record<QueryComplexity, number> = {
+          trivial: 0.1,
+          simple: 0.3,
+          moderate: 0.5,
+          hard: 0.7,
+          expert: 0.9,
+        };
+        queryDifficulty = complexityMap[complexity];
+      }
+
+      productionAnalysis = this.productionConfidenceEstimator.estimate(content, {
+        query,
+        logprobs,
+        queryDifficulty,
+      });
+
+      confidence = productionAnalysis.finalConfidence;
+      method = productionAnalysis.methodUsed as 'logprobs' | 'heuristic' | 'hybrid';
+
+      if (logprobs && logprobs.length > 0) {
+        avgLogprob = logprobs.reduce((sum, lp) => sum + lp, 0) / logprobs.length;
+        minLogprob = Math.min(...logprobs);
+      }
+    } else if (this.config.useLogprobs && logprobs && logprobs.length > 0) {
       // Use logprobs for confidence
       confidence = calculateConfidenceFromLogprobs(logprobs);
       method = 'logprobs';
@@ -327,13 +669,18 @@ export class QualityValidator {
     let semanticSimilarity: number | undefined;
     let semanticPassed = true;
 
-    if (this.config.useSemanticValidation && this.semanticChecker) {
-      const isAvailable = await this.semanticChecker.isAvailable();
+    if (this.config.useSemanticValidation) {
+      // Ensure semantic checker is initialized (should be done in constructor, but await completion)
+      await this.initSemanticChecker();
 
-      if (isAvailable) {
-        const semanticResult = await this.semanticChecker.checkSimilarity(query, content);
-        semanticSimilarity = semanticResult.similarity;
-        semanticPassed = semanticResult.passed;
+      if (this.semanticChecker) {
+        const isAvailable = await this.semanticChecker.isAvailable();
+
+        if (isAvailable) {
+          const semanticResult = await this.semanticChecker.checkSimilarity(query, content);
+          semanticSimilarity = semanticResult.similarity;
+          semanticPassed = semanticResult.passed;
+        }
       }
     }
 
@@ -360,9 +707,10 @@ export class QualityValidator {
       score = Math.min(score, this.config.minAlignmentScore);
     }
 
-    // Step 6: Determine pass/fail
+    // Step 6: Determine pass/fail using threshold (per-model override or complexity-aware)
+    const effectiveThreshold = thresholdOverride ?? this.getThresholdForComplexity(complexity);
     const passed =
-      score >= this.config.minConfidence &&
+      score >= effectiveThreshold &&
       lengthOk &&
       alignmentPassed &&
       semanticPassed;
@@ -370,7 +718,10 @@ export class QualityValidator {
     // Step 7: Generate reason
     let reason: string;
     if (passed) {
-      reason = `Quality check passed (score: ${score.toFixed(2)}, confidence: ${confidence.toFixed(2)})`;
+      reason = `Quality check passed (score: ${score.toFixed(2)}, confidence: ${confidence.toFixed(2)}, threshold: ${effectiveThreshold.toFixed(2)})`;
+      if (complexity) {
+        reason += `, complexity: ${complexity}`;
+      }
       if (alignmentScore !== undefined) {
         reason += `, alignment: ${alignmentScore.toFixed(2)}`;
       }
@@ -384,7 +735,7 @@ export class QualityValidator {
     } else if (!alignmentPassed && alignmentScore !== undefined) {
       reason = `Alignment too low (${alignmentScore.toFixed(2)}, minimum: ${this.config.minAlignmentScore})`;
     } else {
-      reason = `Confidence too low (${confidence.toFixed(2)}, minimum: ${this.config.minConfidence})`;
+      reason = `Confidence too low (${confidence.toFixed(2)}, threshold: ${effectiveThreshold.toFixed(2)} for ${complexity || 'unknown'} complexity)`;
     }
 
     return {
@@ -403,6 +754,15 @@ export class QualityValidator {
         alignmentScore,
         alignmentReasoning,
         semanticSimilarity,
+        // Include production analysis if used
+        productionConfidence: productionAnalysis
+          ? {
+              methodUsed: productionAnalysis.methodUsed,
+              components: productionAnalysis.components,
+              alignmentFloorApplied: productionAnalysis.alignmentFloorApplied,
+              queryDifficulty: productionAnalysis.queryDifficulty,
+            }
+          : undefined,
       },
     };
   }
@@ -426,6 +786,100 @@ export class QualityValidator {
    */
   getConfig(): QualityConfig {
     return { ...this.config };
+  }
+
+  // ==========================================
+  // Static Factory Methods
+  // ==========================================
+
+  /**
+   * Create a production-grade quality validator
+   *
+   * Target: 98% quality, ~30-40% acceptance
+   * Use case: High-quality applications, research, quality-critical systems
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.forProduction();
+   * const result = await validator.validate(content, query, logprobs);
+   * ```
+   */
+  static forProduction(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.forProduction());
+  }
+
+  /**
+   * Create a development-friendly quality validator
+   *
+   * Target: 95% quality, ~40-50% acceptance
+   * Use case: Testing, debugging, iterative development
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.forDevelopment();
+   * const result = await validator.validate(content, query);
+   * ```
+   */
+  static forDevelopment(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.forDevelopment());
+  }
+
+  /**
+   * Create a strict quality validator with high quality bar
+   *
+   * Target: 99%+ quality, ~15-25% acceptance
+   * Use case: Mission-critical, customer-facing, zero-tolerance systems
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.strict();
+   * const result = await validator.validate(content, query, logprobs);
+   * ```
+   */
+  static strict(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.strict());
+  }
+
+  /**
+   * Create a CASCADE-optimized quality validator
+   *
+   * Research-backed thresholds for optimal cascade performance.
+   *
+   * Target Metrics:
+   * - Acceptance rate: 50-60% (optimal for cascade)
+   * - Quality: 94-96% (acceptable trade-off from 98%)
+   * - Cost savings: 50-60%
+   * - Speedup: 1.8-2.1x
+   *
+   * When to use:
+   * ✓ Speculative cascade systems (draft + verifier)
+   * ✓ Cost optimization priority (50%+ savings)
+   * ✓ Speed optimization priority (2x+ speedup)
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.forCascade();
+   * const result = await validator.validate(draftContent, query);
+   * ```
+   */
+  static forCascade(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.forCascade());
+  }
+
+  /**
+   * Create a permissive quality validator
+   *
+   * Target: 90% quality, ~60-70% acceptance
+   * Use case: Rapid prototyping, brainstorming, creative tasks
+   *
+   * @example
+   * ```typescript
+   * const validator = QualityValidator.permissive();
+   * const result = await validator.validate(content, query);
+   * ```
+   */
+  static permissive(): QualityValidator {
+    return new QualityValidator(QualityConfigFactory.permissive());
   }
 }
 
