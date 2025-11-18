@@ -192,7 +192,7 @@ jobs:
         continue-on-error: true
         run: |
           cd packages/integrations/n8n
-          pnpm publish --access public --no-git-checks
+          pnpm publish --access public --no-git-checks --no-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
