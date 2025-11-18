@@ -20,7 +20,7 @@ importers:
     dependencies:
       '@cascadeflow/ml':
         specifier: ^0.5.0
-        version: link:../ml
+        version: 0.5.0
       '@xenova/transformers':
         specifier: ^2.17.2
         version: 2.17.2
@@ -96,7 +96,7 @@ importers:
   packages/integrations/n8n:
     dependencies:
       '@cascadeflow/core':
-        specifier: ^0.5.0
+        specifier: ^0.6.0
         version: link:../../core
       '@langchain/core':
         specifier: ^0.3.0
@@ -234,6 +234,17 @@ packages:
   /@babel/runtime@7.28.4:
     resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
     engines: {node: '>=6.9.0'}
+
+  /@cascadeflow/ml@0.5.0:
+    resolution: {integrity: sha512-Mhe1fl8qFTgSlGCdR7FWU/g+7hJJMRo3wcaSPt+xGRnvE1eGETILuZxUnMg29KVVp+EedRgzQJoEgHjL7ZCFaQ==}
+    engines: {node: '>=18.0.0'}
+    dependencies:
+      '@xenova/transformers': 2.17.2
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+    dev: false
 
   /@cfworker/json-schema@4.1.1:
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
