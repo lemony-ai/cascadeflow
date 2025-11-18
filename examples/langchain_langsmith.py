@@ -103,7 +103,7 @@ async def main():
     print(f"Answer: {response.content}")
     print(f"Model used: {result['model_used']}")
     print(f"Quality score: {result['drafter_quality']:.2f}")
-    print(f"Threshold: 0.9")
+    print("Threshold: 0.9")
     print(f"Accepted: {result['accepted']}\n")
 
     print("=" * 80)

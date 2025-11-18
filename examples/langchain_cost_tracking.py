@@ -16,7 +16,7 @@ import os
 
 from langchain_openai import ChatOpenAI
 
-from cascadeflow.integrations.langchain import CascadeFlow, BudgetTracker, CostHistory, track_costs
+from cascadeflow.integrations.langchain import BudgetTracker, CascadeFlow, CostHistory, track_costs
 
 
 async def example_1_basic_cost_history():
@@ -49,7 +49,7 @@ async def example_1_basic_cost_history():
 
     print("\nProcessing queries...")
     for query in queries:
-        response = await cascade.ainvoke(query)
+        await cascade.ainvoke(query)
         result = cascade.get_last_cascade_result()
         history.add_result(result, query)
         print(f"  ✓ {query[:50]}")
@@ -98,7 +98,7 @@ async def example_2_budget_tracking():
     ]
 
     for query in queries:
-        response = await cascade.ainvoke(query)
+        await cascade.ainvoke(query)
         result = cascade.get_last_cascade_result()
 
         # Add cost to budget tracker
@@ -164,7 +164,7 @@ async def example_3_context_manager():
         ]
 
         for query in queries:
-            response = await cascade.ainvoke(query)
+            await cascade.ainvoke(query)
             result = cascade.get_last_cascade_result()
             tracker.add_result(result, query)
             print(f"✓ Processed: {query[:50]}")
@@ -208,7 +208,7 @@ async def example_4_pandas_export():
 
     print("\nProcessing queries...")
     for query in queries:
-        response = await cascade.ainvoke(query)
+        await cascade.ainvoke(query)
         result = cascade.get_last_cascade_result()
         history.add_result(result, query)
 

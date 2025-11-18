@@ -132,7 +132,7 @@ async def run_benchmark():
         cost_tracking_provider="cascadeflow",
     )
 
-    results: List[BenchmarkResult] = []
+    results: list[BenchmarkResult] = []
     history = CostHistory()
 
     # Test configurations
@@ -150,13 +150,13 @@ async def run_benchmark():
         print("=" * 80)
 
         # Test non-streaming mode
-        print(f"\n--- Non-Streaming Mode ---\n")
+        print("\n--- Non-Streaming Mode ---\n")
         for i, query in enumerate(queries, 1):
             query_preview = query[:60] + "..." if len(query) > 60 else query
             print(f"Query {i}: {query_preview}")
 
             try:
-                response = await cascade.ainvoke(query)
+                await cascade.ainvoke(query)
                 result = cascade.get_last_cascade_result()
 
                 # Track result
@@ -191,7 +191,7 @@ async def run_benchmark():
                 continue
 
         # Test streaming mode
-        print(f"\n--- Streaming Mode ---\n")
+        print("\n--- Streaming Mode ---\n")
         for i, query in enumerate(queries, 1):
             query_preview = query[:60] + "..." if len(query) > 60 else query
             print(f"Query {i}: {query_preview}")
@@ -244,14 +244,14 @@ async def run_benchmark():
     total_escalated = sum(1 for r in results if r.escalated)
     total_accepted = total_queries - total_escalated
 
-    print(f"\nOVERALL STATISTICS:")
+    print("\nOVERALL STATISTICS:")
     print(f"  Total Queries:       {total_queries}")
     print(f"  Drafter Accepted:    {total_accepted} ({total_accepted/total_queries*100:.1f}%)")
     print(f"  Escalated:           {total_escalated} ({total_escalated/total_queries*100:.1f}%)")
 
     # Cost analysis
     summary = history.get_summary()
-    print(f"\nCOST ANALYSIS:")
+    print("\nCOST ANALYSIS:")
     print(f"  Total Cost:          ${summary['total_cost']:.6f}")
     print(f"  Average Cost:        ${summary['avg_cost']:.6f}")
     print(f"  Average Savings:     {summary['avg_savings']:.1f}%")
@@ -264,17 +264,17 @@ async def run_benchmark():
     savings = verifier_only_cost - actual_cost
     savings_pct = (savings / verifier_only_cost * 100) if verifier_only_cost > 0 else 0
 
-    print(f"\nVS. ALWAYS-VERIFIER BASELINE:")
+    print("\nVS. ALWAYS-VERIFIER BASELINE:")
     print(f"  Verifier-Only Cost:  ${verifier_only_cost:.6f}")
     print(f"  Cascade Cost:        ${actual_cost:.6f}")
     print(f"  Total Savings:       ${savings:.6f} ({savings_pct:.1f}%)")
 
     # Performance
-    print(f"\nPERFORMANCE:")
+    print("\nPERFORMANCE:")
     print(f"  Average Latency:     {summary['avg_latency_ms']:.0f}ms")
 
     # By query type
-    print(f"\nBY QUERY TYPE:")
+    print("\nBY QUERY TYPE:")
     for query_type in ["trivial_short", "trivial_long", "expert_short", "expert_long"]:
         type_results = [r for r in results if r.query_type == query_type]
         if not type_results:
@@ -292,7 +292,7 @@ async def run_benchmark():
         print(f"    Total Cost:        ${type_cost:.6f}")
 
     # By mode
-    print(f"\nBY MODE:")
+    print("\nBY MODE:")
     for mode in ["non_streaming", "streaming"]:
         mode_results = [r for r in results if r.mode == mode]
         if not mode_results:
@@ -309,17 +309,17 @@ async def run_benchmark():
 
     # Export results
     history.export_csv("/tmp/cascade_benchmark_results.csv")
-    print(f"\n📊 Results exported to: /tmp/cascade_benchmark_results.csv")
+    print("\n📊 Results exported to: /tmp/cascade_benchmark_results.csv")
 
     # LangSmith traces
     if os.getenv("LANGSMITH_TRACING") == "true":
-        print(f"\n🔍 View detailed traces in LangSmith:")
-        print(f"   https://smith.langchain.com/")
-        print(f"\n   Each trace includes:")
-        print(f"   - Drafter and verifier token usage")
-        print(f"   - Cost breakdown (drafter, verifier, total)")
-        print(f"   - Quality scores and acceptance decisions")
-        print(f"   - Latency measurements")
+        print("\n🔍 View detailed traces in LangSmith:")
+        print("   https://smith.langchain.com/")
+        print("\n   Each trace includes:")
+        print("   - Drafter and verifier token usage")
+        print("   - Cost breakdown (drafter, verifier, total)")
+        print("   - Quality scores and acceptance decisions")
+        print("   - Latency measurements")
 
     print("\n" + "=" * 80)
     print("✅ BENCHMARK COMPLETE")
