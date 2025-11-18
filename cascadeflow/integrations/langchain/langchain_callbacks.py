@@ -58,9 +58,7 @@ class CascadeFlowCallbackHandler(BaseCallbackHandler):
         self.current_model: Optional[str] = None
         self.current_is_drafter = False
 
-    def on_llm_start(
-        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
-    ) -> None:
+    def on_llm_start(self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any) -> None:
         """Called when LLM starts generating.
 
         Args:
@@ -112,11 +110,7 @@ class CascadeFlowCallbackHandler(BaseCallbackHandler):
 
         # Calculate cost if we know the model
         if model_name:
-            cost = calculate_cost(
-                model_name,
-                token_usage["input"],
-                token_usage["output"]
-            )
+            cost = calculate_cost(model_name, token_usage["input"], token_usage["output"])
 
             # Track drafter vs verifier costs separately
             if self.current_is_drafter:

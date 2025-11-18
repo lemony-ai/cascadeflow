@@ -20,6 +20,7 @@ from .types import CascadeResult
 
 try:
     import pandas as pd  # type: ignore
+
     HAS_PANDAS = True
 except ImportError:
     HAS_PANDAS = False
@@ -194,31 +195,35 @@ class CostHistory:
 
         with open(filename, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "query",
-                "model_used",
-                "drafter_cost",
-                "verifier_cost",
-                "total_cost",
-                "savings_%",
-                "accepted",
-                "quality",
-                "latency_ms",
-            ])
+            writer.writerow(
+                [
+                    "timestamp",
+                    "query",
+                    "model_used",
+                    "drafter_cost",
+                    "verifier_cost",
+                    "total_cost",
+                    "savings_%",
+                    "accepted",
+                    "quality",
+                    "latency_ms",
+                ]
+            )
             for entry in self.entries:
-                writer.writerow([
-                    entry.timestamp.isoformat(),
-                    entry.query,
-                    entry.model_used,
-                    f"{entry.drafter_cost:.6f}",
-                    f"{entry.verifier_cost:.6f}",
-                    f"{entry.total_cost:.6f}",
-                    f"{entry.savings_percentage:.2f}",
-                    entry.accepted,
-                    f"{entry.drafter_quality:.2f}",
-                    f"{entry.latency_ms:.0f}",
-                ])
+                writer.writerow(
+                    [
+                        entry.timestamp.isoformat(),
+                        entry.query,
+                        entry.model_used,
+                        f"{entry.drafter_cost:.6f}",
+                        f"{entry.verifier_cost:.6f}",
+                        f"{entry.total_cost:.6f}",
+                        f"{entry.savings_percentage:.2f}",
+                        entry.accepted,
+                        f"{entry.drafter_quality:.2f}",
+                        f"{entry.latency_ms:.0f}",
+                    ]
+                )
 
         print(f"✅ Exported {len(self.entries)} entries to {filename}")
 
@@ -239,18 +244,21 @@ class CostHistory:
         if not self.entries:
             return pd.DataFrame()
 
-        data = [{
-            "timestamp": e.timestamp,
-            "query": e.query,
-            "model_used": e.model_used,
-            "drafter_cost": e.drafter_cost,
-            "verifier_cost": e.verifier_cost,
-            "total_cost": e.total_cost,
-            "savings_percentage": e.savings_percentage,
-            "accepted": e.accepted,
-            "drafter_quality": e.drafter_quality,
-            "latency_ms": e.latency_ms,
-        } for e in self.entries]
+        data = [
+            {
+                "timestamp": e.timestamp,
+                "query": e.query,
+                "model_used": e.model_used,
+                "drafter_cost": e.drafter_cost,
+                "verifier_cost": e.verifier_cost,
+                "total_cost": e.total_cost,
+                "savings_percentage": e.savings_percentage,
+                "accepted": e.accepted,
+                "drafter_quality": e.drafter_quality,
+                "latency_ms": e.latency_ms,
+            }
+            for e in self.entries
+        ]
 
         return pd.DataFrame(data)
 
@@ -322,6 +330,8 @@ def track_costs(history: Optional[CostHistory] = None, budget: Optional[float] =
             cost_history.print_report()
         if budget_tracker and budget_tracker.entries:
             summary = budget_tracker.get_summary()
-            print(f"\nBudget: ${summary['budget']:.4f} | "
-                  f"Spent: ${summary['spent']:.4f} | "
-                  f"Remaining: ${summary['remaining']:.4f}")
+            print(
+                f"\nBudget: ${summary['budget']:.4f} | "
+                f"Spent: ${summary['spent']:.4f} | "
+                f"Remaining: ${summary['remaining']:.4f}"
+            )

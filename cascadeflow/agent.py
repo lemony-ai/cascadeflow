@@ -490,7 +490,7 @@ class CascadeAgent:
         Falls back to provider-type lookup for backwards compatibility.
         """
         # First try model-specific provider (for multi-instance setups)
-        if hasattr(self, 'model_providers') and model.name in self.model_providers:
+        if hasattr(self, "model_providers") and model.name in self.model_providers:
             return self.model_providers[model.name]
 
         # Fallback to provider-type lookup (backwards compatibility)

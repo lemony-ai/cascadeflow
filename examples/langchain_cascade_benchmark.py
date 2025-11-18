@@ -57,11 +57,9 @@ TRIVIAL_LONG = [
     "What is 2 plus 2? Please provide a clear, detailed explanation of this simple arithmetic operation, "
     "including the mathematical reasoning behind the addition of these two numbers. I want to understand "
     "the fundamental principles of addition as they apply to this specific calculation.",
-
     "What is the capital of France? Please provide comprehensive information about this city, including "
     "its historical significance, cultural importance, geographical location, and why it serves as the "
     "administrative center of the French Republic. I'm interested in understanding all aspects of this city.",
-
     "Who wrote the famous play Hamlet? Please provide detailed information about the author, including "
     "their biographical background, other notable works, the historical context in which they wrote, "
     "and the significance of their contribution to English literature and world drama.",
@@ -78,12 +76,10 @@ EXPERT_LONG = [
     "Bell states and density matrices, the EPR paradox, Bell's theorem and its experimental verification, "
     "the implications for quantum information theory, and applications in quantum computing and quantum "
     "cryptography. Also discuss the philosophical implications regarding locality and realism.",
-
     "Provide a comprehensive explanation of NP-completeness, including the formal definitions of P, NP, "
     "NP-hard, and NP-complete complexity classes, the Cook-Levin theorem and its proof sketch, examples "
     "of NP-complete problems (SAT, 3-SAT, Clique, Vertex Cover), polynomial-time reductions, and the "
     "significance of the P vs NP question for theoretical computer science and practical applications.",
-
     "Derive the Euler-Lagrange equation from the principle of least action in classical mechanics. Include "
     "the mathematical formalism using the calculus of variations, the concept of functionals and their "
     "extremization, the full derivation showing all steps, examples of applying the equation to simple "
@@ -113,7 +109,10 @@ async def run_benchmark():
     print("  Verifier: claude-sonnet-4-5-20250929 (Anthropic)")
     print("  Quality Threshold: 0.7")
     print("  Semantic Evaluation: Enabled")
-    print("  LangSmith Tracing:", "✅ Enabled" if os.getenv("LANGSMITH_TRACING") == "true" else "❌ Disabled")
+    print(
+        "  LangSmith Tracing:",
+        "✅ Enabled" if os.getenv("LANGSMITH_TRACING") == "true" else "❌ Disabled",
+    )
 
     if os.getenv("LANGSMITH_TRACING") == "true":
         print(f"  LangSmith Project: {os.getenv('LANGSMITH_PROJECT', 'default')}")
@@ -261,7 +260,7 @@ async def run_benchmark():
 
     # Calculate what it would cost if we always used verifier
     verifier_only_cost = total_queries * 0.05  # Rough estimate
-    actual_cost = summary['total_cost']
+    actual_cost = summary["total_cost"]
     savings = verifier_only_cost - actual_cost
     savings_pct = (savings / verifier_only_cost * 100) if verifier_only_cost > 0 else 0
 

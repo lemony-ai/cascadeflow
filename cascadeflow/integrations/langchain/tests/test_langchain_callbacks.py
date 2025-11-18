@@ -38,7 +38,7 @@ class TestCascadeFlowCallbackHandler:
             serialized={},
             prompts=["test prompt"],
             invocation_params={"model_name": "gpt-4o-mini"},
-            tags=["drafter"]
+            tags=["drafter"],
         )
 
         assert handler.current_model == "gpt-4o-mini"
@@ -52,7 +52,7 @@ class TestCascadeFlowCallbackHandler:
             serialized={},
             prompts=["test"],
             invocation_params={"model": "gpt-4o-mini"},
-            tags=["drafter", "other-tag"]
+            tags=["drafter", "other-tag"],
         )
 
         assert handler.current_is_drafter is True
@@ -65,7 +65,7 @@ class TestCascadeFlowCallbackHandler:
             serialized={},
             prompts=["test"],
             invocation_params={"model": "gpt-4o"},
-            tags=["verifier"]
+            tags=["verifier"],
         )
 
         assert handler.current_is_drafter is False
@@ -88,20 +88,13 @@ class TestCascadeFlowCallbackHandler:
         handler.current_is_drafter = True
 
         # Create mock LLMResult with token usage
-        generation = ChatGeneration(
-            message=AIMessage(content="Test response"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test response"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
                 "model_name": "gpt-4o-mini",
-                "token_usage": {
-                    "prompt_tokens": 10,
-                    "completion_tokens": 20,
-                    "total_tokens": 30
-                }
-            }
+                "token_usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            },
         )
 
         handler.on_llm_end(llm_result)
@@ -117,10 +110,7 @@ class TestCascadeFlowCallbackHandler:
         handler.current_model = "gpt-4o-mini"
         handler.current_is_drafter = True
 
-        generation = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
@@ -128,9 +118,9 @@ class TestCascadeFlowCallbackHandler:
                 "token_usage": {
                     "prompt_tokens": 1000,
                     "completion_tokens": 2000,
-                    "total_tokens": 3000
-                }
-            }
+                    "total_tokens": 3000,
+                },
+            },
         )
 
         handler.on_llm_end(llm_result)
@@ -147,10 +137,7 @@ class TestCascadeFlowCallbackHandler:
         handler.current_model = "gpt-4o"
         handler.current_is_drafter = False
 
-        generation = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
@@ -158,9 +145,9 @@ class TestCascadeFlowCallbackHandler:
                 "token_usage": {
                     "prompt_tokens": 1000,
                     "completion_tokens": 1000,
-                    "total_tokens": 2000
-                }
-            }
+                    "total_tokens": 2000,
+                },
+            },
         )
 
         handler.on_llm_end(llm_result)
@@ -179,10 +166,7 @@ class TestCascadeFlowCallbackHandler:
         handler.current_model = "gpt-4o-mini"
         handler.current_is_drafter = True
 
-        generation1 = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation1 = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         result1 = LLMResult(
             generations=[[generation1]],
             llm_output={
@@ -190,9 +174,9 @@ class TestCascadeFlowCallbackHandler:
                 "token_usage": {
                     "prompt_tokens": 100,
                     "completion_tokens": 200,
-                    "total_tokens": 300
-                }
-            }
+                    "total_tokens": 300,
+                },
+            },
         )
         handler.on_llm_end(result1)
 
@@ -202,10 +186,7 @@ class TestCascadeFlowCallbackHandler:
         handler.current_model = "gpt-4o"
         handler.current_is_drafter = False
 
-        generation2 = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation2 = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         result2 = LLMResult(
             generations=[[generation2]],
             llm_output={
@@ -213,9 +194,9 @@ class TestCascadeFlowCallbackHandler:
                 "token_usage": {
                     "prompt_tokens": 100,
                     "completion_tokens": 100,
-                    "total_tokens": 200
-                }
-            }
+                    "total_tokens": 200,
+                },
+            },
         )
         handler.on_llm_end(result2)
 
@@ -230,10 +211,7 @@ class TestCascadeFlowCallbackHandler:
         handler.current_model = None  # No model set from on_llm_start
         handler.current_is_drafter = False
 
-        generation = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
@@ -241,9 +219,9 @@ class TestCascadeFlowCallbackHandler:
                 "token_usage": {
                     "prompt_tokens": 100,
                     "completion_tokens": 100,
-                    "total_tokens": 200
-                }
-            }
+                    "total_tokens": 200,
+                },
+            },
         )
 
         handler.on_llm_end(llm_result)
@@ -257,10 +235,7 @@ class TestCascadeFlowCallbackHandler:
         handler.current_model = "unknown-model-xyz"
         handler.current_is_drafter = True
 
-        generation = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
@@ -268,9 +243,9 @@ class TestCascadeFlowCallbackHandler:
                 "token_usage": {
                     "prompt_tokens": 100,
                     "completion_tokens": 100,
-                    "total_tokens": 200
-                }
-            }
+                    "total_tokens": 200,
+                },
+            },
         )
 
         handler.on_llm_end(llm_result)
@@ -356,10 +331,7 @@ class TestGetCascadeCallback:
             cb.current_model = "gpt-4o-mini"
             cb.current_is_drafter = True
 
-            generation = ChatGeneration(
-                message=AIMessage(content="Test"),
-                generation_info={}
-            )
+            generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
             llm_result = LLMResult(
                 generations=[[generation]],
                 llm_output={
@@ -367,9 +339,9 @@ class TestGetCascadeCallback:
                     "token_usage": {
                         "prompt_tokens": 100,
                         "completion_tokens": 200,
-                        "total_tokens": 300
-                    }
-                }
+                        "total_tokens": 300,
+                    },
+                },
             )
             cb.on_llm_end(llm_result)
 
@@ -390,7 +362,7 @@ class TestCallbackIntegrationWithMocks:
             serialized={},
             prompts=["test prompt"],
             invocation_params={"model_name": "gpt-4o-mini"},
-            tags=["drafter"]
+            tags=["drafter"],
         )
         assert handler.current_model == "gpt-4o-mini"
 
@@ -403,20 +375,13 @@ class TestCallbackIntegrationWithMocks:
         assert handler.total_tokens == 3
 
         # on_llm_end
-        generation = ChatGeneration(
-            message=AIMessage(content="Hello world"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Hello world"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
                 "model_name": "gpt-4o-mini",
-                "token_usage": {
-                    "prompt_tokens": 5,
-                    "completion_tokens": 10,
-                    "total_tokens": 15
-                }
-            }
+                "token_usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+            },
         )
         handler.on_llm_end(llm_result)
 
@@ -437,20 +402,13 @@ class TestCallbackIntegrationWithMocks:
 
         # on_llm_end with final counts
         handler.current_model = "gpt-4o-mini"
-        generation = ChatGeneration(
-            message=AIMessage(content="Response"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Response"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
                 "model_name": "gpt-4o-mini",
-                "token_usage": {
-                    "prompt_tokens": 5,
-                    "completion_tokens": 10,
-                    "total_tokens": 15
-                }
-            }
+                "token_usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+            },
         )
         handler.on_llm_end(llm_result)
 
@@ -467,10 +425,7 @@ class TestCallbackIntegrationWithMocks:
         # Drafter call
         handler.current_model = "gpt-4o-mini"
         handler.current_is_drafter = True
-        generation1 = ChatGeneration(
-            message=AIMessage(content="Draft"),
-            generation_info={}
-        )
+        generation1 = ChatGeneration(message=AIMessage(content="Draft"), generation_info={})
         result1 = LLMResult(
             generations=[[generation1]],
             llm_output={
@@ -478,9 +433,9 @@ class TestCallbackIntegrationWithMocks:
                 "token_usage": {
                     "prompt_tokens": 100,
                     "completion_tokens": 100,
-                    "total_tokens": 200
-                }
-            }
+                    "total_tokens": 200,
+                },
+            },
         )
         handler.on_llm_end(result1)
 
@@ -491,10 +446,7 @@ class TestCallbackIntegrationWithMocks:
         # Verifier call
         handler.current_model = "gpt-4o"
         handler.current_is_drafter = False
-        generation2 = ChatGeneration(
-            message=AIMessage(content="Verified"),
-            generation_info={}
-        )
+        generation2 = ChatGeneration(message=AIMessage(content="Verified"), generation_info={})
         result2 = LLMResult(
             generations=[[generation2]],
             llm_output={
@@ -502,9 +454,9 @@ class TestCallbackIntegrationWithMocks:
                 "token_usage": {
                     "prompt_tokens": 100,
                     "completion_tokens": 100,
-                    "total_tokens": 200
-                }
-            }
+                    "total_tokens": 200,
+                },
+            },
         )
         handler.on_llm_end(result2)
 
@@ -522,10 +474,7 @@ class TestAnthropicModels:
         handler.current_model = "claude-3-5-sonnet-20241022"
         handler.current_is_drafter = False
 
-        generation = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
@@ -533,8 +482,8 @@ class TestAnthropicModels:
                 "token_usage": {
                     "input_tokens": 1000,
                     "output_tokens": 1000,
-                }
-            }
+                },
+            },
         )
 
         handler.on_llm_end(llm_result)
@@ -552,10 +501,7 @@ class TestEdgeCases:
         handler = CascadeFlowCallbackHandler()
         handler.current_model = "gpt-4o-mini"
 
-        llm_result = LLMResult(
-            generations=[],
-            llm_output={}
-        )
+        llm_result = LLMResult(generations=[], llm_output={})
 
         # Should not crash
         handler.on_llm_end(llm_result)
@@ -566,13 +512,10 @@ class TestEdgeCases:
         handler = CascadeFlowCallbackHandler()
         handler.current_model = "gpt-4o-mini"
 
-        generation = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
-            llm_output={"model_name": "gpt-4o-mini"}
+            llm_output={"model_name": "gpt-4o-mini"},
             # No token_usage
         )
 
@@ -588,10 +531,7 @@ class TestEdgeCases:
         handler = CascadeFlowCallbackHandler()
         handler.current_model = "gpt-4o-mini"
 
-        generation = ChatGeneration(
-            message=AIMessage(content="Test"),
-            generation_info={}
-        )
+        generation = ChatGeneration(message=AIMessage(content="Test"), generation_info={})
         llm_result = LLMResult(
             generations=[[generation]],
             llm_output={
@@ -599,8 +539,8 @@ class TestEdgeCases:
                 "token_usage": {
                     "prompt_tokens": 100,
                     # Missing completion_tokens
-                }
-            }
+                },
+            },
         )
 
         handler.on_llm_end(llm_result)

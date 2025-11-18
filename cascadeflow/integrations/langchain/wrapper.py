@@ -162,7 +162,8 @@ class CascadeFlow(BaseChatModel):
         # Passing these explicitly to nested models would create duplicate parameter errors
         # NOTE: We keep 'tags' in safe_kwargs and merge with our tags for reliable LangSmith tracking
         safe_kwargs = {
-            k: v for k, v in merged_kwargs.items()
+            k: v
+            for k, v in merged_kwargs.items()
             if k not in ("callbacks", "run_manager", "run_id", "stop")
         }
 
@@ -188,13 +189,16 @@ class CascadeFlow(BaseChatModel):
                 existing_tags = safe_kwargs.get("tags", [])
                 verifier_tags = existing_tags + ["verifier"] if existing_tags else ["verifier"]
                 verifier_llm_result = self.verifier.generate(
-                    [messages], stop=stop, callbacks=callbacks, **{**safe_kwargs, "tags": verifier_tags}
+                    [messages],
+                    stop=stop,
+                    callbacks=callbacks,
+                    **{**safe_kwargs, "tags": verifier_tags},
                 )
 
                 # Convert LLMResult to ChatResult (generate returns LLMResult with nested generations)
                 verifier_result = ChatResult(
                     generations=verifier_llm_result.generations[0],
-                    llm_output=verifier_llm_result.llm_output
+                    llm_output=verifier_llm_result.llm_output,
                 )
 
                 latency_ms = (time.time() - start_time) * 1000
@@ -254,8 +258,7 @@ class CascadeFlow(BaseChatModel):
 
         # Convert LLMResult to ChatResult
         drafter_result = ChatResult(
-            generations=drafter_llm_result.generations[0],
-            llm_output=drafter_llm_result.llm_output
+            generations=drafter_llm_result.generations[0], llm_output=drafter_llm_result.llm_output
         )
 
         # Calculate drafter quality
@@ -280,7 +283,7 @@ class CascadeFlow(BaseChatModel):
             # Convert LLMResult to ChatResult
             verifier_result = ChatResult(
                 generations=verifier_llm_result.generations[0],
-                llm_output=verifier_llm_result.llm_output
+                llm_output=verifier_llm_result.llm_output,
             )
             final_result = verifier_result
 
@@ -373,7 +376,8 @@ class CascadeFlow(BaseChatModel):
         # Passing these explicitly to nested models would create duplicate parameter errors
         # NOTE: We keep 'tags' in safe_kwargs and merge with our tags for reliable LangSmith tracking
         safe_kwargs = {
-            k: v for k, v in merged_kwargs.items()
+            k: v
+            for k, v in merged_kwargs.items()
             if k not in ("callbacks", "run_manager", "run_id", "stop")
         }
 
@@ -399,13 +403,16 @@ class CascadeFlow(BaseChatModel):
                 existing_tags = safe_kwargs.get("tags", [])
                 verifier_tags = existing_tags + ["verifier"] if existing_tags else ["verifier"]
                 verifier_llm_result = await self.verifier.agenerate(
-                    [messages], stop=stop, callbacks=callbacks, **{**safe_kwargs, "tags": verifier_tags}
+                    [messages],
+                    stop=stop,
+                    callbacks=callbacks,
+                    **{**safe_kwargs, "tags": verifier_tags},
                 )
 
                 # Convert LLMResult to ChatResult (agenerate returns LLMResult with nested generations)
                 verifier_result = ChatResult(
                     generations=verifier_llm_result.generations[0],
-                    llm_output=verifier_llm_result.llm_output
+                    llm_output=verifier_llm_result.llm_output,
                 )
 
                 latency_ms = (time.time() - start_time) * 1000
@@ -465,8 +472,7 @@ class CascadeFlow(BaseChatModel):
 
         # Convert LLMResult to ChatResult
         drafter_result = ChatResult(
-            generations=drafter_llm_result.generations[0],
-            llm_output=drafter_llm_result.llm_output
+            generations=drafter_llm_result.generations[0], llm_output=drafter_llm_result.llm_output
         )
 
         # Calculate drafter quality
@@ -491,7 +497,7 @@ class CascadeFlow(BaseChatModel):
             # Convert LLMResult to ChatResult
             verifier_result = ChatResult(
                 generations=verifier_llm_result.generations[0],
-                llm_output=verifier_llm_result.llm_output
+                llm_output=verifier_llm_result.llm_output,
             )
             final_result = verifier_result
 
