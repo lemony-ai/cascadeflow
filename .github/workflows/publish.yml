@@ -171,7 +171,6 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
 
       - name: Publish @cascadeflow/core
         continue-on-error: true
