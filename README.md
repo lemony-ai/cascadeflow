@@ -368,13 +368,22 @@ Use cascadeflow with LangChain for intelligent model cascading with full LCEL, s
 
 ### Installation
 
+**<img src=".github/assets/CF_ts_color.svg" width="18" height="18" alt="TypeScript" style="vertical-align: middle;"/> TypeScript**
+
 ```bash
 npm install @cascadeflow/langchain @langchain/core @langchain/openai
 ```
 
+**<img src=".github/assets/CF_python_color.svg" width="18" height="18" alt="Python" style="vertical-align: middle;"/> Python**
+
+```bash
+pip install cascadeflow[langchain]
+```
+
 ### Quick Start
 
-Drop-in replacement for any LangChain chat model:
+<details open>
+<summary><b><img src=".github/assets/CF_ts_color.svg" width="18" height="18" alt="TypeScript" style="vertical-align: middle;"/> TypeScript - Drop-in replacement for any LangChain chat model</b></summary>
 
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
@@ -397,8 +406,66 @@ const result = await cascade.invoke('Explain quantum computing');
 const chain = prompt.pipe(cascade).pipe(new StringOutputParser());
 ```
 
+</details>
+
 <details>
-<summary><b>💡 Optional: Model Discovery & Analysis Helpers</b></summary>
+<summary><b><img src=".github/assets/CF_python_color.svg" width="18" height="18" alt="Python" style="vertical-align: middle;"/> Python - Drop-in replacement for any LangChain chat model</b></summary>
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from cascadeflow.integrations.langchain import CascadeFlow
+
+cascade = CascadeFlow(
+    drafter=ChatOpenAI(model="gpt-4o-mini"),      # $0.15/$0.60 per 1M tokens
+    verifier=ChatAnthropic(model="claude-sonnet-4-5"),  # $3/$15 per 1M tokens
+    quality_threshold=0.8,  # 80% queries use drafter
+)
+
+# Use like any LangChain chat model
+result = await cascade.ainvoke("Explain quantum computing")
+
+# Optional: Enable LangSmith tracing (see https://smith.langchain.com)
+# Set LANGSMITH_API_KEY, LANGSMITH_PROJECT, LANGSMITH_TRACING=true
+
+# Or with LCEL chains
+chain = prompt | cascade | StrOutputParser()
+```
+
+</details>
+
+<details>
+<summary><b>💡 Optional: Cost Tracking with Callbacks (Python)</b></summary>
+
+Track costs, tokens, and cascade decisions with LangChain-compatible callbacks:
+
+```python
+from cascadeflow.integrations.langchain.langchain_callbacks import get_cascade_callback
+
+# Track costs similar to get_openai_callback()
+with get_cascade_callback() as cb:
+    response = await cascade.ainvoke("What is Python?")
+
+    print(f"Total cost: ${cb.total_cost:.6f}")
+    print(f"Drafter cost: ${cb.drafter_cost:.6f}")
+    print(f"Verifier cost: ${cb.verifier_cost:.6f}")
+    print(f"Total tokens: {cb.total_tokens}")
+    print(f"Successful requests: {cb.successful_requests}")
+```
+
+**Features:**
+- 🎯 Compatible with `get_openai_callback()` pattern
+- 💰 Separate drafter/verifier cost tracking
+- 📊 Token usage (including streaming)
+- 🔄 Works with LangSmith tracing
+- ⚡ Near-zero overhead
+
+**Full example:** See [langchain_cost_tracking.py](./examples/langchain_cost_tracking.py)
+
+</details>
+
+<details>
+<summary><b>💡 Optional: Model Discovery & Analysis Helpers (TypeScript)</b></summary>
 
 For discovering optimal cascade pairs from your existing LangChain models, use the built-in discovery helpers:
 
@@ -458,9 +525,10 @@ console.log(`Warnings: ${validation.warnings}`);
 - ✅ Streaming with pre-routing
 - ✅ Tool calling and structured output
 - ✅ LangSmith cost tracking metadata
+- ✅ Cost tracking callbacks (Python)
 - ✅ Works with all LangChain features
 
-🦜 **Learn more:** [LangChain Integration Guide](./docs/guides/langchain_integration.md) | [Package README](./packages/langchain-cascadeflow/)
+🦜 **Learn more:** [LangChain Integration Guide](./docs/guides/langchain_integration.md) | [TypeScript Package](./packages/langchain-cascadeflow/) | [Python Examples](./examples/)
 
 ---
 
@@ -508,6 +576,12 @@ console.log(`Warnings: ${validation.warnings}`);
 | **Cost Forecasting** | Forecast costs and detect anomalies | [View](./examples/cost_forecasting_anomaly_detection.py) |
 | **Semantic Quality Detection** | ML-based domain and quality detection | [View](./examples/semantic_quality_domain_detection.py) |
 | **Profile Database Integration** | Integrate user profiles with databases | [View](./examples/profile_database_integration.py) |
+| **LangChain Basic** | Simple LangChain cascade setup | [View](./examples/langchain_basic_usage.py) |
+| **LangChain Streaming** | Stream responses with LangChain | [View](./examples/langchain_streaming.py) |
+| **LangChain Model Discovery** | Discover and analyze LangChain models | [View](./examples/langchain_model_discovery.py) |
+| **LangChain LangSmith** | Cost tracking with LangSmith integration | [View](./examples/langchain_langsmith.py) |
+| **LangChain Cost Tracking** | Track costs with callback handlers | [View](./examples/langchain_cost_tracking.py) |
+| **LangChain Benchmark** | Comprehensive cascade benchmarking | [View](./examples/langchain_cascade_benchmark.py) |
 
 </details>
 

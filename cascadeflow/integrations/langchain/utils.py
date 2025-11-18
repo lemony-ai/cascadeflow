@@ -13,6 +13,7 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
     "gpt-4-turbo": {"input": 10.00, "output": 30.00},
     "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
     # Anthropic
+    "claude-sonnet-4-5-20250929": {"input": 3.00, "output": 15.00},
     "claude-3-5-sonnet-20241022": {"input": 3.00, "output": 15.00},
     "claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
     "claude-3-opus-20240229": {"input": 15.00, "output": 75.00},
@@ -138,12 +139,12 @@ def calculate_quality(response: Any) -> float:
         return 0.2  # Low quality for empty/very short responses
 
     # Check for common quality indicators
-    score = 0.6  # Base score (increased from 0.5)
+    score = 0.4  # Base score (lowered from 0.6 for more realistic evaluation)
 
     # Length bonus (reasonable response)
-    if len(text) > 20:
+    if len(text) > 50:  # Increased threshold from 20
         score += 0.1
-    if len(text) > 100:
+    if len(text) > 200:  # Increased threshold from 100
         score += 0.1
 
     # Structure bonus (has punctuation, capitalization)
@@ -154,13 +155,13 @@ def calculate_quality(response: Any) -> float:
 
     # Completeness bonus (ends with punctuation)
     if re.search(r"[.!?]$", text.strip()):
-        score += 0.1
+        score += 0.05  # Reduced from 0.1
 
-    # Penalize hedging phrases (but less harshly)
+    # Penalize hedging phrases
     hedging_phrases = ["i don't know", "i'm not sure", "i cannot", "i can't"]
     lower_text = text.lower()
     hedge_count = sum(1 for phrase in hedging_phrases if phrase in lower_text)
-    score -= hedge_count * 0.1
+    score -= hedge_count * 0.15  # Increased penalty from 0.1
 
     return max(0.1, min(1.0, score))
 

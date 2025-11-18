@@ -3,7 +3,7 @@ Example: Using Reasoning Models Across All Providers
 
 cascadeflow supports reasoning models from 4 providers with automatic detection:
 
-1. OpenAI (o1, o1-mini, o3-mini)
+1. OpenAI (o1, o1-mini-2024-09-12, o3-mini)
    - Chain-of-thought reasoning with hidden thinking
    - reasoning_effort parameter (low/medium/high)
    - max_completion_tokens required
@@ -41,15 +41,15 @@ async def main():
         print("  1. Get your API key from: https://platform.openai.com/api-keys")
         print("  2. Set the environment variable:")
         print("     export OPENAI_API_KEY='sk-...'")
-        print("\nNote: o1-mini and o1 models require Tier 3+ API access")
+        print("\nNote: o1-mini and o1 models require Tier 5 API access")
         print("      Check your tier at: https://platform.openai.com/settings/organization/limits")
         return
-    # Example 1: o1-mini (supports streaming, no tools, no system messages)
-    print("\n=== Example 1: o1-mini (original reasoning model) ===")
+    # Example 1: o1-mini-2024-09-12 (supports streaming, no tools, no system messages)
+    print("\n=== Example 1: o1-mini-2024-09-12 (original reasoning model) ===")
     agent1 = CascadeAgent(
         models=[
             ModelConfig(
-                name="o1-mini",  # Auto-detected as reasoning model
+                name="o1-mini-2024-09-12",  # Auto-detected as reasoning model
                 provider="openai",
             )
         ],
@@ -99,7 +99,7 @@ async def main():
                 provider="openai",
             ),
             ModelConfig(
-                name="o1-mini",  # Falls back to reasoning model if needed
+                name="o1-mini-2024-09-12",  # Falls back to reasoning model if needed
                 provider="openai",
             ),
         ],
@@ -227,7 +227,7 @@ async def main():
                 cost=0,  # Free local inference
             ),
             ModelConfig(
-                name="o1-mini",
+                name="o1-mini-2024-09-12",
                 provider="openai",
             ),
             ModelConfig(

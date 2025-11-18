@@ -377,7 +377,8 @@ async def main():
             print(f"  {tier_color} Tier {tier}: {tier_name}")
             print(f"  ⚡ Latency: {latency:.0f}ms")
             print(f"  💰 Cost: ${result.total_cost:.6f}")
-            print(f"  🎯 Confidence: {result.confidence:.2f}")
+            if result.quality_score is not None:
+                print(f"  🎯 Quality Score: {result.quality_score:.2f}")
 
             if result.cascaded:
                 print("  🔄 Cascaded: Yes (local model insufficient)")

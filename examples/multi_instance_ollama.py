@@ -190,8 +190,10 @@ async def main():
         print("Setup Instructions:")
         print("1. Start both Ollama instances (see Docker Compose example)")
         print("2. Pull models:")
-        print(f"   docker exec ollama-draft ollama pull {config.draft_instance.model}")
-        print(f"   docker exec ollama-verifier ollama pull {config.verifier_instance.model}")
+        print(f"   ollama --host {config.draft_instance.url} pull {config.draft_instance.model}")
+        print(
+            f"   ollama --host {config.verifier_instance.url} pull {config.verifier_instance.model}"
+        )
         return
 
     print(f"  ✅ Draft instance: {config.draft_instance.url}")

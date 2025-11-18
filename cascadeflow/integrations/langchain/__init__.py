@@ -29,17 +29,30 @@ from .utils import (
     extract_token_usage,
     MODEL_PRICING,
 )
-from .models import (
-    MODEL_PRICING_REFERENCE,
-    analyze_cascade_pair,
-    suggest_cascade_pairs,
-    discover_cascade_pairs,
-    analyze_model,
-    compare_models,
-    find_best_cascade_pair,
-    validate_cascade_pair,
-    extract_model_name,
-    get_provider,
+
+# Model discovery utilities - optional feature
+# TODO: Implement models.py module
+# from .models import (
+#     MODEL_PRICING_REFERENCE,
+#     analyze_cascade_pair,
+#     suggest_cascade_pairs,
+#     discover_cascade_pairs,
+#     analyze_model,
+#     compare_models,
+#     find_best_cascade_pair,
+#     validate_cascade_pair,
+#     extract_model_name,
+#     get_provider,
+# )
+from .cost_tracking import (
+    BudgetTracker,
+    CostHistory,
+    CostEntry,
+    track_costs,
+)
+from .langchain_callbacks import (
+    CascadeFlowCallbackHandler,
+    get_cascade_callback,
 )
 
 __all__ = [
@@ -58,15 +71,23 @@ __all__ = [
     "create_cost_metadata",
     "extract_token_usage",
     "MODEL_PRICING",
-    # Model discovery
-    "MODEL_PRICING_REFERENCE",
-    "analyze_cascade_pair",
-    "suggest_cascade_pairs",
-    "discover_cascade_pairs",
-    "analyze_model",
-    "compare_models",
-    "find_best_cascade_pair",
-    "validate_cascade_pair",
-    "extract_model_name",
-    "get_provider",
+    # Model discovery (TODO: implement models.py module)
+    # "MODEL_PRICING_REFERENCE",
+    # "analyze_cascade_pair",
+    # "suggest_cascade_pairs",
+    # "discover_cascade_pairs",
+    # "analyze_model",
+    # "compare_models",
+    # "find_best_cascade_pair",
+    # "validate_cascade_pair",
+    # "extract_model_name",
+    # "get_provider",
+    # Cost tracking (Python-specific features)
+    "BudgetTracker",
+    "CostHistory",
+    "CostEntry",
+    "track_costs",
+    # LangChain callback handlers
+    "CascadeFlowCallbackHandler",
+    "get_cascade_callback",
 ]
