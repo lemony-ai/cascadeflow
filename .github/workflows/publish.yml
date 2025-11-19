@@ -172,37 +172,34 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      # Update npm to v11.5.1+ for OIDC trusted publishing support
+      - name: Update npm to latest
+        run: npm install -g npm@latest
+
       - name: Publish @cascadeflow/core
         continue-on-error: true
         run: |
           cd packages/core
           npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # OIDC authentication - no token needed!
 
       - name: Publish @cascadeflow/ml
         continue-on-error: true
         run: |
           cd packages/ml
           npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/n8n-nodes-cascadeflow
         continue-on-error: true
         run: |
           cd packages/integrations/n8n
-          pnpm publish --access public --no-git-checks --no-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          npm publish --access public --provenance
 
-      - name: Publish @cascadeflow/langchain-cascadeflow
+      - name: Publish @cascadeflow/langchain
         continue-on-error: true
         run: |
           cd packages/langchain-cascadeflow
           npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-to-testpypi:
     name: Publish to TestPyPI
