@@ -13,7 +13,7 @@ import {
   isChunkEvent,
   isCompleteEvent,
   type StreamEvent,
-} from '../src/index';
+} from '@cascadeflow/core';
 
 async function main() {
   // Create agent with cascade models

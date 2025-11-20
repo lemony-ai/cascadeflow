@@ -49,7 +49,7 @@ CascadeFlow wraps any LangChain chat model and provides intelligent routing:
 │         Your LangChain Application       │
 │                                          │
 │  ┌────────────────────────────────────┐ │
-│  │      CascadeWrapper (Proxy)        │ │
+│  │      withCascade (Proxy)        │ │
 │  ├────────────────────────────────────┤ │
 │  │  1. Route to Drafter (GPT-4o-mini) │ │
 │  │  2. Quality Check (90% pass!)      │ │
@@ -89,7 +89,7 @@ yarn add @cascadeflow/langchain @langchain/core @langchain/openai
 
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
-import { CascadeWrapper } from '@cascadeflow/langchain';
+import { withCascade } from '@cascadeflow/langchain';
 
 // Create your models
 const drafter = new ChatOpenAI({
@@ -103,7 +103,7 @@ const verifier = new ChatOpenAI({
 });
 
 // Wrap them with cascade
-const cascade = new CascadeWrapper({
+const cascade = withCascade({
   drafter,
   verifier,
   qualityThreshold: 0.8, // 80% of queries will use drafter
@@ -138,10 +138,10 @@ const result = await chain.invoke({
 
 ## Configuration
 
-### CascadeWrapper Options
+### withCascade Options
 
 ```typescript
-interface CascadeWrapperConfig {
+interface CascadeConfig {
   // Required: The fast, cheap model
   drafter: BaseChatModel;
 
@@ -374,7 +374,7 @@ View in LangSmith traces:
 
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
-import { CascadeWrapper } from '@cascadeflow/langchain';
+import { withCascade } from '@cascadeflow/langchain';
 import { PromptTemplate } from '@langchain/core/prompts';
 
 const supportPrompt = PromptTemplate.fromTemplate(`
@@ -385,7 +385,7 @@ User question: {question}
 Provide a clear, helpful answer.
 `);
 
-const cascade = new CascadeWrapper({
+const cascade = withCascade({
   drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
   verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
   qualityThreshold: 0.85, // Most queries use cheap model
@@ -412,7 +412,7 @@ await chain.invoke({
 
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
-import { CascadeWrapper } from '@cascadeflow/langchain';
+import { withCascade } from '@cascadeflow/langchain';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 
@@ -424,7 +424,7 @@ Question: {question}
 Answer based on the context above.
 `);
 
-const cascade = new CascadeWrapper({
+const cascade = withCascade({
   drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
   verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
   qualityThreshold: 0.8,
@@ -462,7 +462,7 @@ const extractionSchema = {
   },
 };
 
-const cascade = new CascadeWrapper({
+const cascade = withCascade({
   drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
   verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
 });
@@ -492,7 +492,7 @@ Provide:
 3. Overall assessment
 `);
 
-const cascade = new CascadeWrapper({
+const cascade = withCascade({
   drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
   verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
   qualityThreshold: 0.75, // More critical task
@@ -513,13 +513,13 @@ const review = await chain.invoke({ code: userCode });
 
 ```typescript
 // High-volume, low-stakes
-const chatbot = new CascadeWrapper({
+const chatbot = withCascade({
   drafter, verifier,
   qualityThreshold: 0.9, // 90% use drafter
 });
 
 // Critical business logic
-const criticalAnalysis = new CascadeWrapper({
+const criticalAnalysis = withCascade({
   drafter, verifier,
   qualityThreshold: 0.6, // 60% use drafter
 });
@@ -545,7 +545,7 @@ const result = await cascade.invoke('test', {
 ### 3. Custom Quality Checks
 
 ```typescript
-const cascade = new CascadeWrapper({
+const cascade = withCascade({
   drafter,
   verifier,
   qualityCheck: async (response) => {
@@ -611,7 +611,7 @@ for await (const chunk of stream) {
 
 **Solution 1:** Increase quality threshold
 ```typescript
-const cascade = new CascadeWrapper({
+const cascade = withCascade({
   drafter, verifier,
   qualityThreshold: 0.85, // Increased from 0.8
 });
@@ -669,7 +669,7 @@ const drafter = new ChatOpenAI({
 ```typescript
 import type { Runnable } from '@langchain/core/runnables';
 
-const cascade: Runnable = new CascadeWrapper({
+const cascade: Runnable = withCascade({
   drafter, verifier,
 });
 
