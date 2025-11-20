@@ -105,7 +105,7 @@ async def test_provider_comparison():
     print("  Anthropic Verifier: claude-sonnet-4-5-20250929")
     print("  Quality Threshold: 0.7 (same for both)\n")
 
-    results: List[ProviderComparisonResult] = []
+    results: list[ProviderComparisonResult] = []
 
     # Test configurations
     test_sets = [
@@ -213,7 +213,7 @@ async def test_provider_comparison():
     print_analysis(results)
 
 
-def print_analysis(results: List[ProviderComparisonResult]):
+def print_analysis(results: list[ProviderComparisonResult]):
     """Print comprehensive analysis of provider comparison."""
 
     if not results:
