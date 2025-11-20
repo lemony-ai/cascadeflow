@@ -3,7 +3,7 @@
 Runs all available CascadeFlow benchmarks and generates comparison reports.
 
 Features:
-- Runs HumanEval, GSM8K, and Provider Comparison benchmarks
+- Runs HumanEval, GSM8K, MT-Bench, TruthfulQA, and Provider Comparison benchmarks
 - Generates comparison table across all benchmarks
 - Exports results to JSON, CSV, and Markdown
 - Calculates aggregate statistics
@@ -74,6 +74,30 @@ async def run_all_benchmarks(output_dir: Path) -> dict[str, Any]:
     except Exception as e:
         print(f"❌ GSM8K benchmark failed: {e}\n")
         results["gsm8k"] = None
+
+    # Run MT-Bench
+    try:
+        print("Running MT-Bench Multi-Turn Conversation Benchmark...")
+        from .mtbench import run_mtbench_benchmark
+
+        mtbench_summary = await run_mtbench_benchmark()
+        results["mtbench"] = mtbench_summary
+        print("✅ MT-Bench benchmark completed\n")
+    except Exception as e:
+        print(f"❌ MT-Bench benchmark failed: {e}\n")
+        results["mtbench"] = None
+
+    # Run TruthfulQA
+    try:
+        print("Running TruthfulQA Factual Accuracy Benchmark...")
+        from .truthfulqa import run_truthfulqa_benchmark
+
+        truthfulqa_summary = await run_truthfulqa_benchmark()
+        results["truthfulqa"] = truthfulqa_summary
+        print("✅ TruthfulQA benchmark completed\n")
+    except Exception as e:
+        print(f"❌ TruthfulQA benchmark failed: {e}\n")
+        results["truthfulqa"] = None
 
     # Run Provider Comparison
     try:
