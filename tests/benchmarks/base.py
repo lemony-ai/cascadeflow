@@ -138,9 +138,7 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def evaluate_prediction(
-        self, prediction: str, ground_truth: Any
-    ) -> Tuple[bool, float]:
+    def evaluate_prediction(self, prediction: str, ground_truth: Any) -> Tuple[bool, float]:
         """
         Evaluate if prediction matches ground truth.
 
@@ -259,9 +257,7 @@ class Benchmark(ABC):
                 status = "✅ PASS" if is_correct else "❌ FAIL"
                 model = "D" if cascade_result["accepted"] else "V"
                 savings = result.cost_savings_pct
-                print(
-                    f"{status} [{model}] (${result.total_cost:.6f}, {savings:.1f}% savings)"
-                )
+                print(f"{status} [{model}] (${result.total_cost:.6f}, {savings:.1f}% savings)")
 
             except Exception as e:
                 print(f"❌ ERROR: {e}")
@@ -338,9 +334,7 @@ class Benchmark(ABC):
         total_cost = sum(r.total_cost for r in valid_results)
         total_baseline = sum(r.baseline_cost for r in valid_results)
         total_savings = total_baseline - total_cost
-        avg_savings_pct = (
-            (total_savings / total_baseline * 100) if total_baseline > 0 else 0.0
-        )
+        avg_savings_pct = (total_savings / total_baseline * 100) if total_baseline > 0 else 0.0
 
         # Latency metrics
         latencies = sorted([r.latency_ms for r in valid_results])
@@ -362,9 +356,7 @@ class Benchmark(ABC):
         verifier_results = [r for r in valid_results if r.escalated]
         verifier_correct = sum(1 for r in verifier_results if r.is_correct)
         verifier_accuracy = (
-            (verifier_correct / len(verifier_results) * 100)
-            if verifier_results
-            else 0.0
+            (verifier_correct / len(verifier_results) * 100) if verifier_results else 0.0
         )
 
         # Token usage
@@ -378,9 +370,7 @@ class Benchmark(ABC):
             failed_tests=failed,
             drafter_accepted=drafter_accepted,
             escalated_to_verifier=escalated,
-            acceptance_rate_pct=(drafter_accepted / successful * 100)
-            if successful > 0
-            else 0.0,
+            acceptance_rate_pct=(drafter_accepted / successful * 100) if successful > 0 else 0.0,
             escalation_rate_pct=(escalated / successful * 100) if successful > 0 else 0.0,
             total_cost=total_cost,
             total_baseline_cost=total_baseline,
@@ -411,8 +401,12 @@ class Benchmark(ABC):
         print(f"  Failed:              {summary.failed_tests}")
 
         print("\nCASCADE PERFORMANCE:")
-        print(f"  Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)")
-        print(f"  Escalated:           {summary.escalated_to_verifier} ({summary.escalation_rate_pct:.1f}%)")
+        print(
+            f"  Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)"
+        )
+        print(
+            f"  Escalated:           {summary.escalated_to_verifier} ({summary.escalation_rate_pct:.1f}%)"
+        )
 
         print("\nCOST ANALYSIS:")
         print(f"  Total Cost:          ${summary.total_cost:.6f}")
