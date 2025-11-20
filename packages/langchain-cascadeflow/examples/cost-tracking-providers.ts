@@ -7,7 +7,7 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { CascadeFlow } from '../src/index.js';
+import { withCascade } from '../src/index.js';
 
 const COLORS = {
   reset: '\x1b[0m',
@@ -26,7 +26,7 @@ async function testLangSmithProvider() {
   const verifier = new ChatOpenAI({ modelName: 'gpt-5', temperature: 1.0 });
 
   // LangSmith provider (default)
-  const cascade = new CascadeFlow({
+  const cascade = withCascade({
     drafter,
     verifier,
     qualityThreshold: 0.7,
@@ -65,7 +65,7 @@ async function testCascadeFlowProvider() {
   const verifier = new ChatOpenAI({ modelName: 'gpt-5', temperature: 1.0 });
 
   // CascadeFlow provider (built-in pricing)
-  const cascade = new CascadeFlow({
+  const cascade = withCascade({
     drafter,
     verifier,
     qualityThreshold: 0.7,

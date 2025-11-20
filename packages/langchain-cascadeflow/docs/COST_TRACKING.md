@@ -10,9 +10,9 @@ Use LangSmith's server-side cost calculation - the native LangChain ecosystem ch
 
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
-import { CascadeFlow } from '@cascadeflow/langchain';
+import { withCascade } from '@cascadeflow/langchain';
 
-const cascade = new CascadeFlow({
+const cascade = withCascade({
   drafter: new ChatOpenAI({ modelName: 'gpt-5-nano' }),
   verifier: new ChatOpenAI({ modelName: 'gpt-5' }),
   // LangSmith is the default provider
@@ -54,7 +54,7 @@ console.log('Local Cost:', stats.totalCost);       // 0 (see LangSmith UI)
 Use CascadeFlow's built-in pricing table for offline, dependency-free cost tracking.
 
 ```typescript
-const cascade = new CascadeFlow({
+const cascade = withCascade({
   drafter: new ChatOpenAI({ modelName: 'gpt-5-nano' }),
   verifier: new ChatOpenAI({ modelName: 'gpt-5' }),
   costTrackingProvider: 'cascadeflow', // Use local pricing
@@ -124,7 +124,7 @@ interface CascadeConfig {
 ### Disabling Cost Tracking
 
 ```typescript
-const cascade = new CascadeFlow({
+const cascade = withCascade({
   drafter,
   verifier,
   enableCostTracking: false, // Disable all cost tracking
@@ -139,14 +139,14 @@ You can easily switch between providers:
 
 ```typescript
 // Development: Use CascadeFlow for quick local feedback
-const devCascade = new CascadeFlow({
+const devCascade = withCascade({
   drafter,
   verifier,
   costTrackingProvider: 'cascadeflow',
 });
 
 // Production: Use LangSmith for comprehensive observability
-const prodCascade = new CascadeFlow({
+const prodCascade = withCascade({
   drafter,
   verifier,
   costTrackingProvider: 'langsmith',
