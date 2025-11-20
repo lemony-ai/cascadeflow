@@ -446,7 +446,7 @@ async def run_customer_support_benchmark() -> BenchmarkSummary:
     monthly_savings = monthly_baseline - monthly_cascade
     annual_savings = monthly_savings * 12
 
-    print(f"\n  💰 Projected ROI (10K queries/month):")
+    print("\n  💰 Projected ROI (10K queries/month):")
     print(f"     Monthly Savings:  ${monthly_savings:.2f}")
     print(f"     Annual Savings:   ${annual_savings:.2f}")
 
@@ -480,7 +480,7 @@ async def run_customer_support_benchmark() -> BenchmarkSummary:
     print("\n📊 Business Impact:")
     print(f"  - Cascade pattern saves ${annual_savings:.0f}/year at 10K queries/month")
     print(f"  - Drafter handles {summary.acceptance_rate*100:.0f}% of queries at 10x lower cost")
-    print(f"  - Verifier escalation ensures complex queries get premium responses")
+    print("  - Verifier escalation ensures complex queries get premium responses")
 
     if summary.acceptance_rate >= 0.6 and summary.accuracy >= 0.85:
         print("  - ✅ Ready for production deployment in customer support use cases")
