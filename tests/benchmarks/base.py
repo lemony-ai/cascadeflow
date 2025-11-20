@@ -125,10 +125,10 @@ class Benchmark(ABC):
         self.quality_threshold = quality_threshold
         self.max_samples = max_samples
 
-        self.results: List[BenchmarkResult] = []
+        self.results: list[BenchmarkResult] = []
 
     @abstractmethod
-    def load_dataset(self) -> List[Tuple[str, Any]]:
+    def load_dataset(self) -> list[tuple[str, Any]]:
         """
         Load benchmark dataset.
 
@@ -138,7 +138,7 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def evaluate_prediction(self, prediction: str, ground_truth: Any) -> Tuple[bool, float]:
+    def evaluate_prediction(self, prediction: str, ground_truth: Any) -> tuple[bool, float]:
         """
         Evaluate if prediction matches ground truth.
 
@@ -152,7 +152,7 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    async def run_cascade(self, query: str) -> Dict[str, Any]:
+    async def run_cascade(self, query: str) -> dict[str, Any]:
         """
         Run cascade on a single query.
 

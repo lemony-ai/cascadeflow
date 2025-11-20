@@ -63,7 +63,7 @@ class CascadeProfile:
     # Total timing
     total_latency_ms: float = 0.0
 
-    def latency_breakdown(self) -> Dict[str, float]:
+    def latency_breakdown(self) -> dict[str, float]:
         """Get breakdown of latency by component."""
         return {
             "drafter_inference": self.drafter_inference_ms,
@@ -75,7 +75,7 @@ class CascadeProfile:
             "total": self.total_latency_ms,
         }
 
-    def component_summary(self) -> Dict[str, Dict[str, float]]:
+    def component_summary(self) -> dict[str, dict[str, float]]:
         """Get summary statistics for each component."""
         return {
             "quality_scorer": {
@@ -120,7 +120,7 @@ class CascadeProfiler:
 
     def __init__(self):
         """Initialize profiler."""
-        self.profiles: List[CascadeProfile] = []
+        self.profiles: list[CascadeProfile] = []
 
     def start_profile(self) -> CascadeProfile:
         """Start a new profile for a cascade operation."""
@@ -128,7 +128,7 @@ class CascadeProfiler:
         self.profiles.append(profile)
         return profile
 
-    def aggregate_profiles(self) -> Dict[str, any]:
+    def aggregate_profiles(self) -> dict[str, any]:
         """Aggregate all profiles into summary statistics."""
         if not self.profiles:
             return {

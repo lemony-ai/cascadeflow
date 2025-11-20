@@ -19,7 +19,7 @@ class CostMetrics:
     verifier_cost: float
 
     @staticmethod
-    def from_results(results: List[BenchmarkResult]) -> "CostMetrics":
+    def from_results(results: list[BenchmarkResult]) -> "CostMetrics":
         """Calculate cost metrics from benchmark results."""
         if not results:
             return CostMetrics(
@@ -60,7 +60,7 @@ class LatencyMetrics:
     p99_latency_ms: float
 
     @staticmethod
-    def from_results(results: List[BenchmarkResult]) -> "LatencyMetrics":
+    def from_results(results: list[BenchmarkResult]) -> "LatencyMetrics":
         """Calculate latency metrics from benchmark results."""
         if not results:
             return LatencyMetrics(
@@ -99,7 +99,7 @@ class QualityMetrics:
     verifier_incorrect: int
 
     @staticmethod
-    def from_results(results: List[BenchmarkResult]) -> "QualityMetrics":
+    def from_results(results: list[BenchmarkResult]) -> "QualityMetrics":
         """Calculate quality metrics from benchmark results."""
         if not results:
             return QualityMetrics(

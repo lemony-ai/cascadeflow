@@ -23,7 +23,7 @@ class BenchmarkReporter:
     def export_json(
         self,
         summary: BenchmarkSummary,
-        results: List[BenchmarkResult],
+        results: list[BenchmarkResult],
         filename: Optional[str] = None,
     ) -> Path:
         """
@@ -91,7 +91,7 @@ class BenchmarkReporter:
 
     def export_csv(
         self,
-        results: List[BenchmarkResult],
+        results: list[BenchmarkResult],
         filename: Optional[str] = None,
     ) -> Path:
         """
@@ -165,7 +165,7 @@ class BenchmarkReporter:
     def generate_markdown_report(
         self,
         summary: BenchmarkSummary,
-        results: List[BenchmarkResult],
+        results: list[BenchmarkResult],
         filename: Optional[str] = None,
     ) -> Path:
         """
