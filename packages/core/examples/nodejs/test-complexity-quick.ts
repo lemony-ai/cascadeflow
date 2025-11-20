@@ -2,7 +2,7 @@
  * Quick test of complexity detection improvements
  */
 
-import { ComplexityDetector } from '../../src/complexity';
+import { ComplexityDetector } from '@cascadeflow/core';
 
 const detector = new ComplexityDetector();
 
