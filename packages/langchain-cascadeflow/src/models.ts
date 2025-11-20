@@ -21,11 +21,11 @@ export const MODEL_PRICING_REFERENCE = {
   'gpt-4-turbo': { input: 10.00, output: 30.00, tier: 'powerful' },
   'gpt-3.5-turbo': { input: 0.50, output: 1.50, tier: 'fast' },
 
-  // GPT-5 Models (estimated pricing - subject to change)
+  // GPT-5 Models (official non-batch pricing per 1M tokens)
   'gpt-5': { input: 1.25, output: 10.00, tier: 'powerful' },
   'gpt-5-mini': { input: 0.25, output: 2.00, tier: 'fast' },
   'gpt-5-nano': { input: 0.05, output: 0.40, tier: 'fast' },
-  'gpt-5.1': { input: 2.00, output: 15.00, tier: 'powerful' },
+  'gpt-5.1': { input: 1.25, output: 10.00, tier: 'powerful' },
 
   // Anthropic Models
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25, tier: 'fast' },

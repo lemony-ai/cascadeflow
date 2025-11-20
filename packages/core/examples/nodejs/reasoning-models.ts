@@ -3,11 +3,11 @@
  *
  * cascadeflow supports reasoning models from 4 providers with automatic detection:
  *
- * 1. OpenAI (o3, o4-mini)
+ * 1. OpenAI (o1-preview, o1-mini)
  *    - Chain-of-thought reasoning with hidden thinking
  *    - reasoning_effort parameter (low/medium/high)
  *    - max_completion_tokens required
- *    - o3 and o4-mini are the latest reasoning models (2025)
+ *    - Note: Requires OpenAI Tier 3+ API access (https://platform.openai.com/settings/organization/limits)
  *
  * 2. Anthropic (claude-sonnet-4-5, claude-opus-4-1)
  *    - Extended thinking mode (enable with thinkingBudget)
@@ -31,46 +31,60 @@
 import { CascadeAgent } from '@cascadeflow/core';
 
 async function reasoningModelsExample() {
-  // Example 1: o4-mini (latest fast reasoning model)
-  console.log('\n=== Example 1: o4-mini (latest reasoning model) ===');
-  const agent1 = new CascadeAgent({
-    models: [
-      {
-        name: 'o4-mini', // Auto-detected as reasoning model
-        provider: 'openai',
-        cost: 0.004, // Estimate
-      },
-    ],
-  });
+  // Example 1: o1-mini (fast reasoning model)
+  console.log('\n=== Example 1: o1-mini (fast reasoning model) ===');
+  console.log('Note: Requires OpenAI Tier 3+ API access');
+  console.log('Check your tier at: https://platform.openai.com/settings/organization/limits\n');
 
-  const result1 = await agent1.run(
-    'Solve this problem step by step: If a train travels at 80 km/h for 2.5 hours, then slows to 60 km/h for the next hour, what is the total distance traveled?',
-    { maxTokens: 2000 }
-  );
+  try {
+    const agent1 = new CascadeAgent({
+      models: [
+        {
+          name: 'o1-mini', // Auto-detected as reasoning model
+          provider: 'openai',
+          cost: 0.003, // $3 per 1M input tokens, $12 per 1M output tokens
+        },
+      ],
+    });
 
-  console.log('Response:', result1.content);
-  console.log('Cost:', `$${result1.totalCost.toFixed(6)}`);
+    const result1 = await agent1.run(
+      'Solve this problem step by step: If a train travels at 80 km/h for 2.5 hours, then slows to 60 km/h for the next hour, what is the total distance traveled?',
+      { maxTokens: 2000 }
+    );
 
-  // Example 2: o3 (latest advanced reasoning model with reasoning_effort)
-  console.log('\n=== Example 2: o3 with reasoning_effort ===');
-  const agent2 = new CascadeAgent({
-    models: [
-      {
-        name: 'o3',
-        provider: 'openai',
-        cost: 0.008, // Estimate
-      },
-    ],
-  });
+    console.log('Response:', result1.content);
+    console.log('Cost:', `$${result1.totalCost.toFixed(6)}`);
+  } catch (error) {
+    console.log('Skipping - API access required:', (error as Error).message);
+    console.log('Solution: Upgrade to Tier 3+ or use different models');
+  }
 
-  // High reasoning effort for complex problem
-  const result2 = await agent2.run(
-    'Design an efficient algorithm to find all palindromic substrings in a string of length n. Analyze the time and space complexity.',
-    { maxTokens: 4000 }
-  );
+  // Example 2: o1-preview (advanced reasoning model)
+  console.log('\n=== Example 2: o1-preview (advanced reasoning) ===');
+  console.log('Note: Requires OpenAI Tier 5 API access\n');
 
-  console.log('Response:', result2.content.substring(0, 500) + '...');
-  console.log('Cost:', `$${result2.totalCost.toFixed(6)}`);
+  try {
+    const agent2 = new CascadeAgent({
+      models: [
+        {
+          name: 'o1-preview',
+          provider: 'openai',
+          cost: 0.015, // $15 per 1M input tokens, $60 per 1M output tokens
+        },
+      ],
+    });
+
+    // High reasoning effort for complex problem
+    const result2 = await agent2.run(
+      'Design an efficient algorithm to find all palindromic substrings in a string of length n. Analyze the time and space complexity.',
+      { maxTokens: 4000 }
+    );
+
+    console.log('Response:', result2.content.substring(0, 500) + '...');
+    console.log('Cost:', `$${result2.totalCost.toFixed(6)}`);
+  } catch (error) {
+    console.log('Skipping - API access required:', (error as Error).message);
+  }
 
   // Example 3: Using in cascade (auto-routing to reasoning model)
   console.log('\n=== Example 3: Cascade with reasoning model fallback ===');
@@ -82,7 +96,7 @@ async function reasoningModelsExample() {
         cost: 0.00015,
       },
       {
-        name: 'o4-mini', // Falls back to reasoning model if needed
+        name: 'o1-mini', // Falls back to reasoning model if needed
         provider: 'openai',
         cost: 0.004,
       },
@@ -101,40 +115,36 @@ async function reasoningModelsExample() {
   console.log('Response:', result3.content.substring(0, 300) + '...');
   console.log('Quality score:', result3.qualityScore);
 
-  // Example 4: Comparing reasoning efforts
+  // Example 4: Comparing reasoning efforts (skipped - requires Tier 5 access)
   console.log('\n=== Example 4: Comparing reasoning efforts ===');
-  const query = 'What are the implications of quantum entanglement for computing?';
-
-  const efforts: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];
-
-  for (const effort of efforts) {
-    const result = await agent2.run(query, { maxTokens: 1000 });
-
-    console.log(`\n${effort.toUpperCase()} effort:`);
-    console.log('  Cost:', `$${result.totalCost.toFixed(6)}`);
-    console.log('  Response length:', result.content.length, 'chars');
-  }
+  console.log('Skipped - Requires o1-preview access (Tier 5)');
+  console.log('This example would compare low/medium/high reasoning effort settings\n');
 
   // Example 5: Anthropic Claude Sonnet 4.5 with Extended Thinking
   console.log('\n=== Example 5: Claude Sonnet 4.5 (Extended Thinking) ===');
-  const agent4 = new CascadeAgent({
-    models: [
-      {
-        name: 'claude-sonnet-4-5',
-        provider: 'anthropic',
-        cost: 0.003,
-      },
-    ],
-  });
 
-  const result4 = await agent4.run(
-    'Design a fault-tolerant distributed consensus algorithm. Explain your reasoning process.',
-    { maxTokens: 5000 }
-  );
+  try {
+    const agent4 = new CascadeAgent({
+      models: [
+        {
+          name: 'claude-sonnet-4-5',
+          provider: 'anthropic',
+          cost: 0.003,
+        },
+      ],
+    });
 
-  console.log('Response:', result4.content.substring(0, 500) + '...');
-  console.log('Cost:', `$${result4.totalCost.toFixed(6)}`);
-  console.log('\nNote: Claude extended thinking produces visible reasoning in the response!');
+    const result4 = await agent4.run(
+      'Design a fault-tolerant distributed consensus algorithm. Explain your reasoning process.',
+      { maxTokens: 5000 }
+    );
+
+    console.log('Response:', result4.content.substring(0, 500) + '...');
+    console.log('Cost:', `$${result4.totalCost.toFixed(6)}`);
+    console.log('\nNote: Claude extended thinking produces visible reasoning in the response!');
+  } catch (error) {
+    console.log('Skipping - Anthropic API error:', (error as Error).message);
+  }
 
   // Example 6: DeepSeek-R1 via Ollama (Free Local Inference)
   console.log('\n=== Example 6: DeepSeek-R1 via Ollama (Local) ===');
@@ -208,7 +218,7 @@ async function reasoningModelsExample() {
         cost: 0, // Free local inference
       },
       {
-        name: 'o4-mini',
+        name: 'o1-mini',
         provider: 'openai',
         cost: 0.004,
       },
@@ -225,7 +235,7 @@ async function reasoningModelsExample() {
 
   console.log('This cascade tries:');
   console.log('  1. DeepSeek-R1 (local, free)');
-  console.log('  2. Falls back to o4-mini if quality < 0.85');
+  console.log('  2. Falls back to o1-mini if quality < 0.85');
   console.log('  3. Falls back to Claude Sonnet 4.5 as final option');
   console.log();
   console.log('Perfect for cost optimization with reasoning models!');
