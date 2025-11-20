@@ -388,9 +388,9 @@ pip install cascadeflow[langchain]
 ```typescript
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
-import { CascadeFlow } from '@cascadeflow/langchain';
+import { withCascade } from '@cascadeflow/langchain';
 
-const cascade = new CascadeFlow({
+const cascade = withCascade({
   drafter: new ChatOpenAI({ modelName: 'gpt-5-mini' }),      // $0.25/$2 per 1M tokens
   verifier: new ChatAnthropic({ modelName: 'claude-sonnet-4-5' }),  // $3/$15 per 1M tokens
   qualityThreshold: 0.8, // 80% queries use drafter
@@ -492,7 +492,7 @@ console.log(`Best pair: ${best.analysis.drafterModel} → ${best.analysis.verifi
 console.log(`Estimated savings: ${best.estimatedSavings}%`);
 
 // Use it immediately
-const cascade = new CascadeFlow({
+const cascade = withCascade({
   drafter: best.drafter,
   verifier: best.verifier,
 });
