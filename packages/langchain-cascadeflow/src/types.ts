@@ -44,7 +44,7 @@ export interface CascadeConfig {
   /**
    * Enable pre-routing based on query complexity
    * When enabled, 'hard' and 'expert' queries skip the drafter and go directly to the verifier
-   * @default false
+   * @default true
    */
   enablePreRouter?: boolean;
 
