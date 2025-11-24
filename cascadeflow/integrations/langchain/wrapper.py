@@ -893,6 +893,154 @@ class CascadeFlow(BaseChatModel):
 
         return new_instance
 
+    def bind_tools(
+        self,
+        tools: Any,
+        *,
+        tool_choice: Any = None,
+        **kwargs: Any,
+    ) -> "CascadeFlow":
+        """Bind tools to both drafter and verifier models.
+
+        This method overrides the inherited BaseChatModel.bind_tools() to ensure
+        tools are properly bound to both the drafter and verifier models used in
+        the cascade. The inherited version would only wrap the CascadeFlow instance,
+        leaving the internal models without tool access.
+
+        Args:
+            tools: Sequence of tools to bind (dicts, types, callables, or BaseTool instances)
+            tool_choice: The tool to use (e.g., "any", "auto", or specific tool name)
+            **kwargs: Additional arguments to pass to bind_tools()
+
+        Returns:
+            New CascadeFlow instance with tools bound to both drafter and verifier
+
+        Example:
+            >>> from langchain_openai import ChatOpenAI
+            >>> from cascadeflow.langchain import CascadeFlow
+            >>>
+            >>> drafter = ChatOpenAI(model='gpt-4o-mini')
+            >>> verifier = ChatOpenAI(model='gpt-4o')
+            >>> cascade = CascadeFlow(drafter=drafter, verifier=verifier)
+            >>>
+            >>> # Bind tools to both models
+            >>> tools = [{"name": "calculator", "description": "...", "parameters": {...}}]
+            >>> cascade_with_tools = cascade.bind_tools(tools)
+            >>> result = await cascade_with_tools.ainvoke("What is 15 + 27?")
+        """
+        # Check if models support bind_tools
+        if not hasattr(self.drafter, "bind_tools"):
+            raise AttributeError(
+                f"Drafter model ({type(self.drafter).__name__}) does not support bind_tools(). "
+                "Ensure you're using a model that supports tool calling."
+            )
+        if not hasattr(self.verifier, "bind_tools"):
+            raise AttributeError(
+                f"Verifier model ({type(self.verifier).__name__}) does not support bind_tools(). "
+                "Ensure you're using a model that supports tool calling."
+            )
+
+        # Bind tools to both drafter and verifier
+        bound_drafter = self.drafter.bind_tools(tools, tool_choice=tool_choice, **kwargs)
+        bound_verifier = self.verifier.bind_tools(tools, tool_choice=tool_choice, **kwargs)
+
+        # Create new CascadeFlow with bound models
+        new_instance = CascadeFlow(
+            drafter=bound_drafter,
+            verifier=bound_verifier,
+            quality_threshold=self.quality_threshold,
+            enable_cost_tracking=self.enable_cost_tracking,
+            cost_tracking_provider=self.cost_tracking_provider,
+            quality_validator=self.quality_validator,
+            enable_pre_router=self.enable_pre_router,
+            pre_router=self.pre_router,
+            cascade_complexities=self.cascade_complexities,
+        )
+        # Preserve any bound kwargs
+        new_instance._bind_kwargs = self._bind_kwargs.copy()
+
+        return new_instance
+
+    def with_structured_output(
+        self,
+        schema: Any,
+        *,
+        include_raw: bool = False,
+        **kwargs: Any,
+    ) -> "CascadeFlow":
+        """Bind structured output schema to both drafter and verifier models.
+
+        This method overrides the inherited BaseChatModel.with_structured_output() to
+        ensure the schema is properly bound to both the drafter and verifier models used
+        in the cascade. The inherited version would only wrap the CascadeFlow instance,
+        leaving the internal models without schema access.
+
+        Args:
+            schema: The output schema (Pydantic model, TypedDict, or JSON schema dict)
+            include_raw: Whether to include the raw message alongside the parsed output
+            **kwargs: Additional arguments to pass to with_structured_output()
+
+        Returns:
+            New CascadeFlow instance with structured output bound to both models
+
+        Example:
+            >>> from langchain_openai import ChatOpenAI
+            >>> from cascadeflow.langchain import CascadeFlow
+            >>> from pydantic import BaseModel, Field
+            >>>
+            >>> class User(BaseModel):
+            ...     name: str = Field(description="User's name")
+            ...     age: int = Field(description="User's age")
+            ...     email: str = Field(description="User's email")
+            >>>
+            >>> drafter = ChatOpenAI(model='gpt-4o-mini')
+            >>> verifier = ChatOpenAI(model='gpt-4o')
+            >>> cascade = CascadeFlow(drafter=drafter, verifier=verifier)
+            >>>
+            >>> # Bind structured output to both models
+            >>> cascade_structured = cascade.with_structured_output(User)
+            >>> user = await cascade_structured.ainvoke("Extract: John, 28, john@email.com")
+            >>> print(user.name)  # "John"
+        """
+        # Check if models support with_structured_output
+        if not hasattr(self.drafter, "with_structured_output"):
+            raise AttributeError(
+                f"Drafter model ({type(self.drafter).__name__}) does not support "
+                "with_structured_output(). Ensure you're using a model that supports "
+                "structured output."
+            )
+        if not hasattr(self.verifier, "with_structured_output"):
+            raise AttributeError(
+                f"Verifier model ({type(self.verifier).__name__}) does not support "
+                "with_structured_output(). Ensure you're using a model that supports "
+                "structured output."
+            )
+
+        # Bind structured output to both drafter and verifier
+        bound_drafter = self.drafter.with_structured_output(
+            schema, include_raw=include_raw, **kwargs
+        )
+        bound_verifier = self.verifier.with_structured_output(
+            schema, include_raw=include_raw, **kwargs
+        )
+
+        # Create new CascadeFlow with bound models
+        new_instance = CascadeFlow(
+            drafter=bound_drafter,
+            verifier=bound_verifier,
+            quality_threshold=self.quality_threshold,
+            enable_cost_tracking=self.enable_cost_tracking,
+            cost_tracking_provider=self.cost_tracking_provider,
+            quality_validator=self.quality_validator,
+            enable_pre_router=self.enable_pre_router,
+            pre_router=self.pre_router,
+            cascade_complexities=self.cascade_complexities,
+        )
+        # Preserve any bound kwargs
+        new_instance._bind_kwargs = self._bind_kwargs.copy()
+
+        return new_instance
+
 
 # Helper function for convenience
 def with_cascade(
