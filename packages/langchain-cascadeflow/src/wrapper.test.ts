@@ -114,7 +114,12 @@ describe('CascadeFlow', () => {
 
   describe('Cascade Logic - High Quality Drafter', () => {
     it('should use drafter response when quality is above threshold', async () => {
-      const drafterResponse = createChatResult('The answer is 4.', 14, 8);
+      // Response needs >200 chars to score 0.75 (above 0.7 threshold) with new thresholds
+      const drafterResponse = createChatResult(
+        'The answer to 2+2 is 4. This is a basic arithmetic operation that adds two and two together. When you add the number two to another instance of the number two, the result is four. This fundamental mathematical principle is one of the first concepts taught in elementary arithmetic education.',
+        14,
+        8
+      );
       const verifierResponse = createChatResult('2 + 2 equals 4.', 14, 10);
 
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
@@ -130,7 +135,9 @@ describe('CascadeFlow', () => {
       const result = await cascade._generate(messages, {});
 
       // Should use drafter response
-      expect(result.generations[0].text).toBe('The answer is 4.');
+      expect(result.generations[0].text).toBe(
+        'The answer to 2+2 is 4. This is a basic arithmetic operation that adds two and two together. When you add the number two to another instance of the number two, the result is four. This fundamental mathematical principle is one of the first concepts taught in elementary arithmetic education.'
+      );
       expect(drafter.callCount).toBe(1);
       expect(verifier.callCount).toBe(0); // Verifier not called
 
@@ -232,7 +239,12 @@ describe('CascadeFlow', () => {
 
   describe('Cost Tracking', () => {
     it('should calculate costs correctly for accepted drafter', async () => {
-      const drafterResponse = createChatResult('The answer is 4.', 14, 8);
+      // Response needs >200 chars to score 0.75 (above 0.7 threshold) with new thresholds
+      const drafterResponse = createChatResult(
+        'The answer to the question is 4, which is the result of adding 2 plus 2 together. This is a fundamental arithmetic operation that demonstrates the basic principles of addition in mathematics. Understanding addition is essential for more advanced mathematical concepts and practical everyday calculations that we encounter in daily life.',
+        14,
+        8
+      );
 
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', []);
@@ -351,8 +363,13 @@ describe('CascadeFlow', () => {
 
   describe('Metadata Injection', () => {
     it('should inject cascade metadata into llmOutput', async () => {
-      const drafterResponse = createChatResult('The answer is correct.', 14, 8);
-      const dummyResponse = createChatResult('Dummy', 14, 8);
+      // Response needs >200 chars to score 0.75 (above 0.7 threshold) with new thresholds
+      const drafterResponse = createChatResult(
+        'The answer provided here is completely correct and demonstrates excellent understanding of the underlying concepts. This response shows a thorough grasp of the subject matter and provides clear, accurate information that addresses the question comprehensively with proper attention to detail and clarity.',
+        14,
+        8
+      );
+      const dummyResponse = createChatResult('Dummy response text here for testing purposes only.', 14, 8);
 
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
@@ -488,8 +505,13 @@ describe('CascadeFlow', () => {
     });
 
     it('should return stats after successful call', async () => {
-      const drafterResponse = createChatResult('The answer is correct.', 14, 8);
-      const dummyResponse = createChatResult('Dummy', 14, 8);
+      // Response needs >200 chars to score 0.75 (above 0.7 threshold) with new thresholds
+      const drafterResponse = createChatResult(
+        'The answer provided is completely correct and demonstrates good understanding of the fundamental concepts involved. This explanation shows careful consideration of the topic and presents information in a clear, well-structured manner that effectively communicates the key points to the reader.',
+        14,
+        8
+      );
+      const dummyResponse = createChatResult('Dummy response for testing purposes only here.', 14, 8);
 
       const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
@@ -504,14 +526,23 @@ describe('CascadeFlow', () => {
 
       const stats = cascade.getLastCascadeResult();
       expect(stats).toBeDefined();
-      expect(stats!.content).toBe('The answer is correct.');
+      expect(stats!.content).toBe('The answer provided is completely correct and demonstrates good understanding of the fundamental concepts involved. This explanation shows careful consideration of the topic and presents information in a clear, well-structured manner that effectively communicates the key points to the reader.');
       expect(stats!.modelUsed).toBe('drafter');
     });
 
     it('should update stats on each call', async () => {
-      const response1 = createChatResult('The first answer is good.', 14, 8);
-      const response2 = createChatResult('The second answer is better.', 20, 10);
-      const dummyResponse = createChatResult('Dummy', 14, 8);
+      // Responses need >200 chars to score 0.75 (above 0.7 threshold) with new thresholds
+      const response1 = createChatResult(
+        'The first answer provided here is good and shows solid understanding of the key concepts involved in this discussion. This response demonstrates comprehensive knowledge and presents the information clearly with appropriate detail to help readers understand the main points effectively.',
+        14,
+        8
+      );
+      const response2 = createChatResult(
+        'The second answer given here is even better with more detail and thorough explanation of the concepts. This response provides excellent clarity and demonstrates a deep understanding of the subject matter with well-structured reasoning that makes the content accessible to readers.',
+        20,
+        10
+      );
+      const dummyResponse = createChatResult('Dummy response for verification testing only here.', 14, 8);
 
       const drafter = new MockChatModel('gpt-4o-mini', [response1, response2]);
       const verifier = new MockChatModel('gpt-4o', [dummyResponse]);
@@ -525,11 +556,11 @@ describe('CascadeFlow', () => {
 
       await cascade._generate(messages, {});
       const stats1 = cascade.getLastCascadeResult();
-      expect(stats1!.content).toBe('The first answer is good.');
+      expect(stats1!.content).toBe('The first answer provided here is good and shows solid understanding of the key concepts involved in this discussion. This response demonstrates comprehensive knowledge and presents the information clearly with appropriate detail to help readers understand the main points effectively.');
 
       await cascade._generate(messages, {});
       const stats2 = cascade.getLastCascadeResult();
-      expect(stats2!.content).toBe('The second answer is better.');
+      expect(stats2!.content).toBe('The second answer given here is even better with more detail and thorough explanation of the concepts. This response provides excellent clarity and demonstrates a deep understanding of the subject matter with well-structured reasoning that makes the content accessible to readers.');
     });
   });
 });

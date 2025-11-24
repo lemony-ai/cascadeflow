@@ -106,26 +106,26 @@ export function calculateQuality(response: any): number {
   }
 
   // Check for common quality indicators
-  let score = 0.6; // Base score (increased from 0.5)
+  let score = 0.4; // Base score (lowered from 0.6 to match Python for realistic evaluation)
 
-  // Length bonus (reasonable response)
-  if (text.length > 20) score += 0.1;
-  if (text.length > 100) score += 0.1;
+  // Length bonus (reasonable response) - increased thresholds to match Python
+  if (text.length > 50) score += 0.1;  // Increased from 20
+  if (text.length > 200) score += 0.1; // Increased from 100
 
   // Structure bonus (has punctuation, capitalization)
   if (/[.!?]/.test(text)) score += 0.05;
   if (/^[A-Z]/.test(text)) score += 0.05;
 
-  // Completeness bonus (ends with punctuation)
-  if (/[.!?]$/.test(text.trim())) score += 0.1;
+  // Completeness bonus (ends with punctuation) - reduced to match Python
+  if (/[.!?]$/.test(text.trim())) score += 0.05; // Reduced from 0.1
 
-  // Penalize hedging phrases (but less harshly)
+  // Penalize hedging phrases - increased penalty to match Python
   const hedgingPhrases = [
     'i don\'t know', 'i\'m not sure', 'i cannot', 'i can\'t'
   ];
   const lowerText = text.toLowerCase();
   const hedgeCount = hedgingPhrases.filter(phrase => lowerText.includes(phrase)).length;
-  score -= hedgeCount * 0.1;
+  score -= hedgeCount * 0.15; // Increased from 0.1 to match Python
 
   return Math.max(0.1, Math.min(1, score));
 }
