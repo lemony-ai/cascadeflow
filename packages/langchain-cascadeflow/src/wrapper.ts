@@ -57,7 +57,7 @@ export class CascadeFlow extends BaseChatModel {
       enableCostTracking: config.enableCostTracking ?? true,
       costTrackingProvider: config.costTrackingProvider ?? 'langsmith',
       qualityValidator: config.qualityValidator ?? calculateQuality,
-      enablePreRouter: config.enablePreRouter ?? false,
+      enablePreRouter: config.enablePreRouter ?? true,  // Match Python default
       preRouter: config.preRouter,
       cascadeComplexities: config.cascadeComplexities ?? ['trivial', 'simple', 'moderate'],
     };
