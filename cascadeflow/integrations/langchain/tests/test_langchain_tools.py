@@ -24,8 +24,9 @@ class MockToolChatModel(BaseChatModel):
 
     class Config:
         """Pydantic configuration."""
+
         arbitrary_types_allowed = True
-        extra = 'allow'  # Allow setting bound_tools and other attributes
+        extra = "allow"  # Allow setting bound_tools and other attributes
 
     def __init__(self, model_name: str = "mock", response_text: str = "Mock response", **kwargs):
         super().__init__(model_name=model_name, response_text=response_text, **kwargs)
@@ -80,13 +81,15 @@ class MockToolChatModel(BaseChatModel):
         """Bind tools to this model."""
         new_model = MockToolChatModel(model_name=self.model_name, response_text=self.response_text)
         new_model.bound_tools = list(tools) if tools else []
-        new_model.bound_schema = getattr(self, 'bound_schema', None)
+        new_model.bound_schema = getattr(self, "bound_schema", None)
         return new_model
 
     def with_structured_output(self, schema: Any, **kwargs: Any) -> "MockToolChatModel":
         """Bind structured output schema to this model."""
         new_model = MockToolChatModel(model_name=self.model_name, response_text=self.response_text)
-        new_model.bound_tools = getattr(self, 'bound_tools', []).copy() if hasattr(self, 'bound_tools') else []
+        new_model.bound_tools = (
+            getattr(self, "bound_tools", []).copy() if hasattr(self, "bound_tools") else []
+        )
         new_model.bound_schema = schema
         return new_model
 
@@ -180,6 +183,7 @@ class TestBindTools:
 
     def test_bind_tools_error_when_drafter_lacks_support(self):
         """Test error when drafter doesn't support bind_tools."""
+
         # Create a minimal model class without bind_tools
         class MinimalChatModel(BaseChatModel):
             @property
@@ -305,6 +309,7 @@ class TestWithStructuredOutput:
 
     def test_with_structured_output_error_when_drafter_lacks_support(self):
         """Test error when drafter doesn't support with_structured_output."""
+
         # Create a minimal model class without with_structured_output
         class MinimalChatModel(BaseChatModel):
             @property
