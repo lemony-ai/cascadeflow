@@ -125,24 +125,25 @@ describe('calculateQuality', () => {
     };
 
     const result = calculateQuality(response);
-    // Base 0.6 + length>20 (0.1) + has punctuation (0.05) + starts capital (0.05) + ends punctuation (0.1) = 0.9
-    expect(result).toBeGreaterThanOrEqual(0.7);
-    expect(result).toBeLessThanOrEqual(1.0);
+    // Base 0.4 + has punctuation (0.05) + starts capital (0.05) + ends punctuation (0.05) = 0.55
+    // Text is only 18 chars, so no length bonuses (need >50 and >200)
+    expect(result).toBeGreaterThanOrEqual(0.5);
+    expect(result).toBeLessThanOrEqual(0.6);
   });
 
   it('should calculate quality for complex answer', () => {
     const response = {
       generations: [
         {
-          text: 'Quantum entanglement is a fundamental phenomenon in quantum mechanics where two or more particles become interconnected.',
+          text: 'Quantum entanglement is a fundamental phenomenon in quantum mechanics where two or more particles become interconnected in such a way that the quantum state of each particle cannot be described independently, even when separated by large distances.',
         },
       ],
     };
 
     const result = calculateQuality(response);
-    // Base 0.6 + length>20 (0.1) + length>100 (0.1) + punctuation (0.05) + capital (0.05) + ends (0.1) = 1.0
-    expect(result).toBeGreaterThanOrEqual(0.9);
-    expect(result).toBe(1.0);
+    // Base 0.4 + length>50 (0.1) + length>200 (0.1) + punctuation (0.05) + capital (0.05) + ends (0.05) = 0.75
+    expect(result).toBeGreaterThanOrEqual(0.7);
+    expect(result).toBeLessThanOrEqual(0.8);
   });
 
   it('should penalize hedging phrases', () => {
@@ -155,8 +156,8 @@ describe('calculateQuality', () => {
     };
 
     const result = calculateQuality(response);
-    // Base 0.6 + length>20 (0.1) + punct (0.05) + capital (0.05) + ends (0.1) - hedge (0.1) = 0.8
-    expect(result).toBeLessThanOrEqual(0.8);
+    // Base 0.4 + punct (0.05) + capital (0.05) + ends (0.05) - hedge (0.15) = 0.4
+    expect(result).toBeLessThanOrEqual(0.5);
   });
 
   it('should extract text from message.content', () => {
@@ -171,7 +172,9 @@ describe('calculateQuality', () => {
     };
 
     const result = calculateQuality(response);
-    expect(result).toBeGreaterThan(0.7);
+    // Base 0.4 + punct (0.05) + capital (0.05) + ends (0.05) = 0.55 (text is 48 chars, needs >50 for bonus)
+    expect(result).toBeGreaterThan(0.5);
+    expect(result).toBeLessThan(0.7);
   });
 
   it('should handle logprobs-based confidence (OpenAI)', () => {
