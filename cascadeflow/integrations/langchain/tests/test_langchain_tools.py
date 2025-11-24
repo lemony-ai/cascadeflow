@@ -5,10 +5,9 @@ work correctly with the cascade pattern, ensuring tools are properly bound
 to both drafter and verifier models.
 """
 
-import pytest
 from typing import Any, Optional
-from unittest.mock import AsyncMock, MagicMock, Mock
 
+import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
