@@ -266,3 +266,14 @@ token.json
 .Trashes
 # Generated TypeScript API documentation
 packages/core/docs/
+
+# Temporary development files
+HOW_*.md
+*_ISSUE.md
+*_PLAN.md
+*_ANALYSIS.md
+benchmark_*.py
+test_all_*.py
+test_semantic_*.py
+test_milestone*.py
+comprehensive_test.py
