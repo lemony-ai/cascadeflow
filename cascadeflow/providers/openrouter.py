@@ -154,7 +154,23 @@ class OpenRouterProvider(BaseProvider):
         # OpenRouter supports logprobs for compatible models
         return True
 
-    async def complete(
+    def estimate_cost(self, tokens: int, model: str) -> float:
+        """
+        Estimate cost for given token count (fallback method).
+
+        Args:
+            tokens: Number of tokens
+            model: Model identifier
+
+        Returns:
+            Estimated cost in USD
+        """
+        pricing = OPENROUTER_PRICING.get(model.lower(), {"input": 0.15, "output": 0.6})
+        # Assume 50/50 split between input and output for estimation
+        avg_rate = (pricing["input"] + pricing["output"]) / 2
+        return (tokens / 1_000_000) * avg_rate
+
+    async def _complete_impl(
         self,
         prompt: str,
         model: str = "openai/gpt-4o-mini",
@@ -166,7 +182,7 @@ class OpenRouterProvider(BaseProvider):
         **kwargs,
     ) -> ModelResponse:
         """
-        Generate a completion using OpenRouter.
+        Internal implementation of completion using OpenRouter.
 
         Args:
             prompt: User prompt
@@ -262,7 +278,7 @@ class OpenRouterProvider(BaseProvider):
             },
         )
 
-    async def stream(
+    async def _stream_impl(
         self,
         prompt: str,
         model: str = "openai/gpt-4o-mini",
@@ -272,7 +288,7 @@ class OpenRouterProvider(BaseProvider):
         **kwargs,
     ) -> AsyncIterator[str]:
         """
-        Stream a completion from OpenRouter.
+        Internal implementation of streaming from OpenRouter.
 
         Args:
             prompt: User prompt
