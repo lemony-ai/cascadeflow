@@ -9,6 +9,7 @@ from .groq import GroqProvider
 from .huggingface import HuggingFaceProvider
 from .ollama import OllamaProvider
 from .openai import OpenAIProvider
+from .openrouter import OpenRouterProvider
 from .together import TogetherProvider
 from .vllm import VLLMProvider
 
@@ -24,6 +25,7 @@ PROVIDER_REGISTRY = {
     "vllm": VLLMProvider,
     "huggingface": HuggingFaceProvider,
     "together": TogetherProvider,
+    "openrouter": OpenRouterProvider,
 }
 
 
@@ -92,6 +94,7 @@ __all__ = [
     "VLLMProvider",
     "HuggingFaceProvider",
     "TogetherProvider",
+    "OpenRouterProvider",
     "PROVIDER_REGISTRY",
     "get_provider",
     "get_available_providers",
