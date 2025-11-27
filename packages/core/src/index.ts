@@ -360,6 +360,33 @@ export type {
   DomainRouterStats,
 } from './routers/domain-router';
 
+// Cascade Pipeline (v0.7.0+)
+export {
+  ValidationMethod,
+  StepStatus,
+  createCascadeStep,
+  getStepByName,
+  getFallbackSteps,
+  getStepResult,
+  getCostBreakdown,
+  getSuccessfulSteps,
+  getCodeStrategy,
+  getMedicalStrategy,
+  getGeneralStrategy,
+  getDataStrategy,
+  getMathStrategy,
+  getStructuredStrategy,
+  BUILT_IN_STRATEGIES,
+  getStrategyForDomain,
+  listAvailableStrategies,
+} from './routers/cascade-pipeline';
+export type {
+  CascadeStep,
+  StepResult,
+  DomainCascadeStrategy,
+  CascadeExecutionResult,
+} from './routers/cascade-pipeline';
+
 // Tools (v1.1.0+)
 export {
   ToolConfig,
