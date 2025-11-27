@@ -416,5 +416,28 @@ export type {
   ComplexityLevel,
 } from './tools';
 
+// Domain Configuration (v0.7.0+)
+export {
+  type DomainConfig,
+  type DomainConfigMap,
+  type DomainValidationMethod,
+  DEFAULT_DOMAIN_CONFIG,
+  BUILTIN_DOMAIN_CONFIGS,
+  createDomainConfig,
+  validateDomainConfig,
+  getBuiltinDomainConfig,
+  validationMethodToDomain,
+  domainValidationToMethod,
+} from './config/domain-config';
+
+// Model Registry (v0.7.0+)
+export {
+  type ModelRegistryEntry,
+  ModelRegistry,
+  defaultModelRegistry,
+  getModel,
+  hasModel,
+} from './config/model-registry';
+
 // Version
 export const VERSION = '1.0.0';
