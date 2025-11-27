@@ -266,6 +266,17 @@ export type {
   CostCalculationOptions,
 } from './integrations/litellm';
 
+// OpenTelemetry Integration (v0.7.0+)
+export {
+  OpenTelemetryExporter,
+  createExporterFromEnv,
+} from './integrations/otel';
+export type {
+  MetricDimensions,
+  CascadeflowMetrics,
+  OpenTelemetryExporterConfig,
+} from './integrations/otel';
+
 // Cost Calculator (Telemetry)
 export {
   CostCalculator,
