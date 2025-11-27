@@ -75,7 +75,10 @@ from .quality import QualityConfig
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
 from .routing import PreRouter, ToolRouter
+# Phase 3.2: Domain detection (NEW)
+from .routing import Domain, DomainDetector, DomainDetectionResult
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
+from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
 
@@ -151,6 +154,11 @@ class CascadeAgent:
         enable_cascade: bool = True,
         verbose: bool = False,
         # ========================================================================
+        # 🆕 v2.6: Domain-Aware Routing
+        # ========================================================================
+        domain_configs: Optional[dict[str, DomainConfig]] = None,  # Per-domain cascade config
+        enable_domain_detection: bool = False,  # Auto-detect query domain
+        # ========================================================================
         # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
         # ========================================================================
         config: Optional[CascadeConfig] = None,  # DEPRECATED - use quality_config
@@ -170,6 +178,9 @@ class CascadeAgent:
             quality_config: Quality validation config
             enable_cascade: Enable cascade system
             verbose: Enable verbose logging
+            domain_configs: Optional dict mapping domain strings to DomainConfig
+                           (e.g., {"code": DomainConfig(...), "medical": DomainConfig(...)})
+            enable_domain_detection: Enable automatic domain detection for queries
 
         Deprecated Args (v0.1.x compatibility):
             config: Old CascadeConfig (use quality_config instead)
@@ -287,6 +298,11 @@ class CascadeAgent:
 
         # Initialize tool router
         self.tool_router = ToolRouter(models=self.models, verbose=verbose)
+
+        # 🆕 v2.6: Initialize domain detection
+        self.enable_domain_detection = enable_domain_detection
+        self.domain_configs = domain_configs or {}
+        self.domain_detector = DomainDetector() if enable_domain_detection else None
 
         # Initialize telemetry collector
         self.telemetry = MetricsCollector(max_recent_results=100, verbose=verbose)
@@ -558,6 +574,35 @@ class CascadeAgent:
             f"Query complexity: {complexity.value} (confidence: {complexity_confidence:.2f})"
         )
 
+        # 🆕 v2.6: Detect domain and get domain-specific config
+        detected_domain: Optional[str] = None
+        domain_confidence: float = 0.0
+        domain_config: Optional[DomainConfig] = None
+
+        if self.domain_detector and self.enable_domain_detection:
+            domain_start = time.time()
+            domain_result = self.domain_detector.detect_with_scores(query)
+            detected_domain = domain_result.domain.value
+            domain_confidence = domain_result.confidence
+            timing_breakdown["domain_detection"] = (time.time() - domain_start) * 1000
+
+            # Get domain-specific config (user-provided or builtin)
+            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
+                detected_domain
+            )
+
+            if self.verbose:
+                print(f"[Domain: {detected_domain} (confidence: {domain_confidence:.2f})]")
+                if domain_config:
+                    print(
+                        f"[Domain Config: drafter={domain_config.drafter}, "
+                        f"verifier={domain_config.verifier}, threshold={domain_config.threshold}]"
+                    )
+
+            logger.info(
+                f"Query domain: {detected_domain} (confidence: {domain_confidence:.2f})"
+            )
+
         # Filter models by tool capability
         available_models = self.models
 
@@ -676,6 +721,10 @@ class CascadeAgent:
             timing_breakdown=timing_breakdown,
             tools=tools,
             streaming=False,
+            # 🆕 v2.6: Domain detection info
+            detected_domain=detected_domain,
+            domain_confidence=domain_confidence,
+            domain_config=domain_config,
         )
 
     # ========================================================================
@@ -1289,12 +1338,18 @@ class CascadeAgent:
         timing_breakdown: dict[str, float],
         tools: Optional[list[dict]] = None,
         streaming: bool = False,
+        # 🆕 v2.6: Domain detection info
+        detected_domain: Optional[str] = None,
+        domain_confidence: float = 0.0,
+        domain_config: Optional[DomainConfig] = None,
     ) -> CascadeResult:
         """
         Build comprehensive cascade result with ALL diagnostic metadata and tool calls.
 
         🆕 v2.5 ENHANCEMENT: Now uses CostCalculator for accurate cost aggregation.
         This fixes the bug where cascaded queries only showed draft cost.
+
+        🆕 v2.6 ENHANCEMENT: Includes domain detection metadata.
         """
         # Extract ALL diagnostic information from metadata
         quality_score = None
@@ -1397,6 +1452,15 @@ class CascadeAgent:
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
             "complexity_detection_ms": timing_breakdown.get("complexity_detection", 0),
+            # 🆕 v2.6: Domain detection info
+            "detected_domain": detected_domain,
+            "domain_confidence": domain_confidence,
+            "domain_detection_ms": timing_breakdown.get("domain_detection", 0),
+            "domain_config_used": domain_config is not None,
+            "domain_drafter": domain_config.drafter if domain_config else None,
+            "domain_verifier": domain_config.verifier if domain_config else None,
+            "domain_threshold": domain_config.threshold if domain_config else None,
+            # Original fields
             "routing_strategy": routing_strategy,
             "routing_reason": routing_reason,
             "direct_routing": routing_strategy == "direct",
