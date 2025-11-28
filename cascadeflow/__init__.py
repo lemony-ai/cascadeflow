@@ -100,6 +100,29 @@ from .schema.config import (
     UserTier,
     WorkflowProfile,
 )
+# Domain configuration (v0.7.0)
+from .schema.domain_config import (
+    DomainConfig,
+    DomainValidationMethod,
+    BUILTIN_DOMAIN_CONFIGS,
+    create_domain_config,
+    get_builtin_domain_config,
+    DOMAIN_CODE,
+    DOMAIN_GENERAL,
+    DOMAIN_DATA,
+    DOMAIN_MEDICAL,
+    DOMAIN_LEGAL,
+    DOMAIN_MATH,
+    DOMAIN_STRUCTURED,
+)
+# Model registry (v0.7.0)
+from .schema.model_registry import (
+    ModelRegistry,
+    ModelRegistryEntry,
+    get_model,
+    has_model,
+    get_default_registry,
+)
 from .schema.exceptions import (
     BudgetExceededError,
     cascadeflowError,
@@ -216,6 +239,25 @@ __all__ = [
     "OptimizationWeights",
     "DEFAULT_TIERS",
     "EXAMPLE_WORKFLOWS",
+    # ===== DOMAIN CONFIGURATION (v0.7.0) =====
+    "DomainConfig",
+    "DomainValidationMethod",
+    "BUILTIN_DOMAIN_CONFIGS",
+    "create_domain_config",
+    "get_builtin_domain_config",
+    "DOMAIN_CODE",
+    "DOMAIN_GENERAL",
+    "DOMAIN_DATA",
+    "DOMAIN_MEDICAL",
+    "DOMAIN_LEGAL",
+    "DOMAIN_MATH",
+    "DOMAIN_STRUCTURED",
+    # ===== MODEL REGISTRY (v0.7.0) =====
+    "ModelRegistry",
+    "ModelRegistryEntry",
+    "get_model",
+    "has_model",
+    "get_default_registry",
     # ===== MAIN AGENT & RESULT =====
     "CascadeAgent",
     "CascadeResult",
