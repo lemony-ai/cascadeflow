@@ -772,6 +772,8 @@ class CascadeAgent:
 
         # Filter models by tool capability
         available_models = self.models
+        tool_drafter = None
+        tool_verifier = None
 
         if tools:
             tool_filter_result = self.tool_router.filter_tool_capable_models(
@@ -788,6 +790,17 @@ class CascadeAgent:
                 f"Tool filtering: {len(available_models)}/{len(self.models)} models capable. "
                 f"Models: {[m.name for m in available_models]}"
             )
+
+            # 🆕 Phase 5: Domain-aware tool routing
+            if domain_config:
+                tool_drafter, tool_verifier = self.tool_router.get_domain_tool_models(
+                    domain_config=domain_config, available_models=available_models
+                )
+                if tool_drafter or tool_verifier:
+                    logger.info(
+                        f"Domain tool models: drafter={tool_drafter.name if tool_drafter else 'default'}, "
+                        f"verifier={tool_verifier.name if tool_verifier else 'default'}"
+                    )
 
         # 🔄 OPTIONAL: Filter models by user tier (v0.1.x backwards compatibility)
         if user_tier and self.tier_router:
@@ -825,6 +838,9 @@ class CascadeAgent:
             "detected_domain": detected_domain,
             "domain_config": domain_config,
             "domain_confidence": domain_confidence,
+            # 🆕 Phase 5: Domain-specific tool models
+            "tool_drafter": tool_drafter,
+            "tool_verifier": tool_verifier,
         }
 
         decision = await self.router.route(query, routing_context)
@@ -989,12 +1005,20 @@ class CascadeAgent:
 
         # Filter models by tool capability
         available_models = self.models
+        tool_drafter = None
+        tool_verifier = None
 
         if tools:
             tool_filter_result = self.tool_router.filter_tool_capable_models(
                 tools=tools, available_models=self.models
             )
             available_models = tool_filter_result["models"]
+
+            # 🆕 Phase 5: Domain-aware tool routing
+            if domain_config:
+                tool_drafter, tool_verifier = self.tool_router.get_domain_tool_models(
+                    domain_config=domain_config, available_models=available_models
+                )
 
         # Get routing decision (domain-aware routing for streaming)
         routing_context = {
@@ -1007,6 +1031,9 @@ class CascadeAgent:
             "detected_domain": detected_domain,
             "domain_config": domain_config,
             "domain_confidence": domain_confidence,
+            # 🆕 Phase 5: Domain-specific tool models
+            "tool_drafter": tool_drafter,
+            "tool_verifier": tool_verifier,
         }
 
         decision = await self.router.route(query, routing_context)
@@ -1158,12 +1185,20 @@ class CascadeAgent:
 
         # Filter models by tool capability
         available_models = self.models
+        tool_drafter = None
+        tool_verifier = None
 
         if tools:
             tool_filter_result = self.tool_router.filter_tool_capable_models(
                 tools=tools, available_models=self.models
             )
             available_models = tool_filter_result["models"]
+
+            # 🆕 Phase 5: Domain-aware tool routing
+            if domain_config:
+                tool_drafter, tool_verifier = self.tool_router.get_domain_tool_models(
+                    domain_config=domain_config, available_models=available_models
+                )
 
         # Get routing decision (domain-aware routing for stream_events)
         routing_context = {
@@ -1176,6 +1211,9 @@ class CascadeAgent:
             "detected_domain": detected_domain,
             "domain_config": domain_config,
             "domain_confidence": domain_confidence,
+            # 🆕 Phase 5: Domain-specific tool models
+            "tool_drafter": tool_drafter,
+            "tool_verifier": tool_verifier,
         }
 
         decision = await self.router.route(query, routing_context)

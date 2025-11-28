@@ -101,6 +101,10 @@ class DomainConfig:
     drafter: Union[str, Any]  # str or ModelConfig
     verifier: Union[str, Any]  # str or ModelConfig
 
+    # Tool-specific model selection (optional, falls back to drafter/verifier)
+    tool_drafter: Optional[Union[str, Any]] = None  # Tool-capable drafter
+    tool_verifier: Optional[Union[str, Any]] = None  # Tool-capable verifier
+
     # Quality control
     threshold: float = 0.70
     validation_method: Union[str, DomainValidationMethod] = DomainValidationMethod.QUALITY
@@ -169,64 +173,134 @@ class DomainConfig:
         return drafter, verifier
 
 
-# Built-in domain configurations (using string keys to avoid circular imports)
+# Built-in domain configurations (2025 optimized model pairings)
+# Based on benchmarks: DeepSeek excels at math/code, Claude 4.5 at reasoning/code review
+# See: https://binaryverseai.com/llm-math-benchmark-performance-2025/
+#
+# Claude Haiku Model Selection (2025):
+# - Haiku 3.5: $0.80/$4.00 per 1M tokens - Best for high-volume, simple tasks
+# - Haiku 4.5: $1.00/$5.00 per 1M tokens - 25% more expensive but:
+#   * 73.3% SWE-bench (matches Sonnet 4)
+#   * Extended thinking support
+#   * Better tool orchestration for agentic workflows
+#   * 64K output tokens (vs 8K for 3.5)
+# Decision: Use Haiku 3.5 for general/conversation (cost-sensitive), Haiku 4.5 for creative
+#
+# GPT-5 Family (August 2025):
+# - GPT-5 Nano: $0.05/$0.40 per 1M tokens - Ultra cheap, good for simple drafts
+# - GPT-5 Mini: $0.25/$2.00 per 1M tokens - Better quality, still cheaper than GPT-4o-mini
+# - GPT-5: $1.25/$10 per 1M tokens - 74.9% SWE-bench, best reasoning
+#
+# Note: DeepSeek V3 is optimal for code/math/data (97.3% MATH-500, $0.27/M)
+# but requires DEEPSEEK_API_KEY. Using GPT-5 Mini/Nano as fallback.
 BUILTIN_DOMAIN_CONFIGS: dict[str, DomainConfig] = {
     DOMAIN_CODE: DomainConfig(
-        drafter="deepseek-coder",
-        verifier="gpt-4o",
+        drafter="gpt-5-mini",  # GPT-5 Mini - good code, cheap ($0.25/M)
+        verifier="claude-opus-4-5-20251101",  # Claude Opus 4.5 - best code review
         threshold=0.85,
         validation_method=DomainValidationMethod.SYNTAX,
         temperature=0.2,
-        description="Optimized for code generation with syntax validation",
+        cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        description="Code generation with GPT-5 Mini drafter and Opus 4.5 verifier",
+    ),
+    DOMAIN_MATH: DomainConfig(
+        drafter="gpt-5-mini",  # GPT-5 Mini - strong math reasoning ($0.25/M)
+        verifier="gpt-5",  # GPT-5 for strong math verification
+        threshold=0.85,
+        validation_method=DomainValidationMethod.SYNTAX,
+        temperature=0.1,
+        cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        description="Math reasoning with GPT-5 Mini drafter and GPT-5 verifier",
     ),
     DOMAIN_MEDICAL: DomainConfig(
-        drafter="gpt-4o-mini",
-        verifier="gpt-4",
+        drafter="gpt-5-mini",  # GPT-5 Mini - better accuracy ($0.25/M)
+        verifier="claude-opus-4-5-20251101",  # Highest accuracy needed
         threshold=0.95,
         validation_method=DomainValidationMethod.FACT,
         temperature=0.1,
-        require_verifier=True,
-        description="High-accuracy medical responses with mandatory verification",
+        require_verifier=True,  # Always verify medical content
+        description="High-accuracy medical responses with mandatory Opus 4.5 verification",
     ),
     DOMAIN_LEGAL: DomainConfig(
-        drafter="gpt-4o-mini",
-        verifier="gpt-4o",
+        drafter="gpt-5-mini",  # GPT-5 Mini - better accuracy ($0.25/M)
+        verifier="claude-opus-4-5-20251101",  # Best reasoning for legal
         threshold=0.90,
         validation_method=DomainValidationMethod.FACT,
         temperature=0.2,
-        description="Legal domain with fact-checking",
+        require_verifier=True,  # Legal requires high accuracy
+        description="Legal domain with Opus 4.5 fact-checking",
+    ),
+    DOMAIN_FINANCIAL: DomainConfig(
+        drafter="gpt-5-mini",  # GPT-5 Mini - strong at calculations ($0.25/M)
+        verifier="gpt-5",  # GPT-5 for financial verification
+        threshold=0.85,
+        validation_method=DomainValidationMethod.SYNTAX,
+        temperature=0.2,
+        cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        description="Financial analysis with GPT-5 Mini drafter and GPT-5 verifier",
     ),
     DOMAIN_DATA: DomainConfig(
-        drafter="gpt-4o-mini",
-        verifier="gpt-4o",
+        drafter="gpt-5-mini",  # GPT-5 Mini - good at SQL/analysis ($0.25/M)
+        verifier="gpt-5",
         threshold=0.80,
         validation_method=DomainValidationMethod.SYNTAX,
         temperature=0.3,
-        description="Data analysis and SQL with syntax validation",
-    ),
-    DOMAIN_MATH: DomainConfig(
-        drafter="gpt-4o-mini",
-        verifier="gpt-4o",
-        threshold=0.90,
-        validation_method=DomainValidationMethod.SYNTAX,
-        temperature=0.1,
-        description="Mathematical reasoning with high precision",
+        cascade_complexities=["trivial", "simple", "moderate", "hard"],
+        description="Data analysis and SQL with GPT-5 Mini drafter",
     ),
     DOMAIN_STRUCTURED: DomainConfig(
-        drafter="gpt-4o-mini",
-        verifier="gpt-4o",
+        drafter="gpt-5-mini",  # GPT-5 Mini - good at structured output ($0.25/M)
+        verifier="gpt-5",
         threshold=0.75,
         validation_method=DomainValidationMethod.SYNTAX,
         temperature=0.2,
-        description="Structured data extraction (JSON/XML)",
+        cascade_complexities=["trivial", "simple", "moderate", "hard"],
+        description="Structured data extraction (JSON/XML) with GPT-5 Mini",
+    ),
+    DOMAIN_CREATIVE: DomainConfig(
+        drafter="claude-haiku-4-5-20251001",  # Haiku 4.5 - better quality for creative (25% more)
+        verifier="claude-sonnet-4-5-20250929",  # Claude Sonnet 4.5
+        threshold=0.65,
+        validation_method=DomainValidationMethod.QUALITY,
+        temperature=0.9,
+        cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        description="Creative writing with Claude Haiku 4.5 (better quality) and Sonnet 4.5",
     ),
     DOMAIN_GENERAL: DomainConfig(
-        drafter="groq/llama-3.1-70b",
-        verifier="gpt-4o",
+        drafter="claude-3-5-haiku-20241022",  # Fast, cheap, good quality
+        verifier="claude-sonnet-4-5-20250929",  # Claude Sonnet 4.5
         threshold=0.70,
         validation_method=DomainValidationMethod.QUALITY,
         temperature=0.7,
-        description="Fast general-purpose queries",
+        cascade_complexities=["trivial", "simple", "moderate"],
+        description="General queries with Claude Haiku and Sonnet 4.5 verifier",
+    ),
+    DOMAIN_CONVERSATION: DomainConfig(
+        drafter="claude-3-5-haiku-20241022",
+        verifier="gpt-5",
+        threshold=0.65,
+        validation_method=DomainValidationMethod.QUALITY,
+        temperature=0.8,
+        cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        description="Conversational responses with Claude Haiku and GPT-5 verifier",
+    ),
+    DOMAIN_SCIENCE: DomainConfig(
+        drafter="gpt-5-mini",  # GPT-5 Mini - good scientific reasoning ($0.25/M)
+        verifier="claude-opus-4-5-20251101",  # Best reasoning
+        threshold=0.85,
+        validation_method=DomainValidationMethod.FACT,
+        temperature=0.2,
+        cascade_complexities=["trivial", "simple", "moderate", "hard"],
+        description="Scientific reasoning with GPT-5 Mini drafter and Opus 4.5 verification",
+    ),
+    DOMAIN_TOOL: DomainConfig(
+        drafter="gpt-5-mini",  # GPT-5 Mini - good tool calling ($0.25/M)
+        verifier="gpt-5",  # GPT-5 - excellent function calling
+        threshold=0.75,
+        validation_method=DomainValidationMethod.SYNTAX,  # Validate tool output format
+        temperature=0.2,  # Low temp for precise tool calls
+        cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        description="Tool calling with GPT-5 Mini drafter and GPT-5 verifier",
     ),
 }
 

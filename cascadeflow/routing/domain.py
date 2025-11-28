@@ -434,7 +434,12 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "factorial",
             "summation",
         ],
-        weak=["add", "subtract", "multiply", "divide", "number", "math"],
+        weak=[
+            "add", "subtract", "multiply", "divide", "number", "math",
+            # Common math instruction phrases
+            "show your work", "step by step", "calculate", "equals",
+            "what is", "how much", "how many", "times", "plus", "minus",
+        ],
     ),
     Domain.MEDICAL: DomainKeywords(
         very_strong=[  # Highly discriminative medical terms
@@ -589,12 +594,13 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
         moderate=[
             "see",
             "view",
-            "look",
-            "show",
+            "look at",
             "display",
             "caption",
             "describe image",
             "analyze photo",
+            "show me the image",
+            "show the picture",
         ],
         weak=["this", "that", "here"],
     ),
@@ -952,14 +958,21 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Translate this legal document from Italian",
     ],
     Domain.MATH: [
+        # Simple arithmetic (for better detection of basic calculations)
+        "What is 25 times 17?",
+        "Calculate 156 divided by 12",
+        "What is 48 + 73?",
+        "Multiply 234 by 56",
+        # Word problems
+        "If I have 45 apples and give away 12, how many remain?",
+        "A train travels 120 miles in 2 hours. What's its speed?",
+        # Advanced math
         "Solve this differential equation: dy/dx = 2x + 3",
         "Calculate the probability of rolling two sixes",
         "Find the derivative of x^2 + 3x + 2",
         "Prove the Pythagorean theorem using geometric reasoning",
         "Compute the area under this curve using integration",
-        "Calculate the eigenvalues of matrix [[1,2],[3,4]]",
         "Solve the quadratic equation 3x^2 + 5x - 2 = 0",
-        "Find the limit as x approaches infinity of (x^2+1)/x",
     ],
     Domain.MEDICAL: [
         "Explain the symptoms of diabetes",
@@ -1154,12 +1167,16 @@ class SemanticDomainDetector:
         if self.use_hybrid and self.rule_detector:
             rule_result = self.rule_detector.detect_with_scores(query)
 
-            # Average ML and rule-based scores
+            # Weighted average: favor semantic when confident, rules for tie-breaking
+            # If semantic is confident (>0.7), weight it 70/30; otherwise 50/50
+            ml_weight = 0.7 if confidence > 0.7 else 0.5
+            rule_weight = 1.0 - ml_weight
+
             hybrid_scores = {}
             for domain in Domain:
                 ml_score = scores.get(domain, 0.0)
                 rule_score = rule_result.scores.get(domain, 0.0)
-                hybrid_scores[domain] = (ml_score + rule_score) / 2
+                hybrid_scores[domain] = (ml_score * ml_weight) + (rule_score * rule_weight)
 
             detected_domain = max(hybrid_scores, key=hybrid_scores.get)
             confidence = hybrid_scores[detected_domain]

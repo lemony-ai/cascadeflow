@@ -313,6 +313,60 @@ class ToolRouter:
             ),
         }
 
+    def get_domain_tool_models(
+        self,
+        domain_config: Optional[Any] = None,
+        available_models: Optional[list[ModelConfig]] = None,
+    ) -> tuple[Optional[ModelConfig], Optional[ModelConfig]]:
+        """
+        Get domain-specific tool-capable models.
+
+        Checks domain config for tool_drafter/tool_verifier, falling back to
+        drafter/verifier if not specified. Verifies models support tools.
+
+        Args:
+            domain_config: DomainConfig with model preferences
+            available_models: Models to search in (defaults to self.models)
+
+        Returns:
+            Tuple of (tool_drafter, tool_verifier) ModelConfigs or None
+
+        Example:
+            >>> drafter, verifier = router.get_domain_tool_models(
+            ...     domain_config=math_config,
+            ...     available_models=models
+            ... )
+        """
+        if domain_config is None:
+            return None, None
+
+        models = available_models or self.models
+        tool_capable = [m for m in models if getattr(m, "supports_tools", False)]
+
+        # Helper to find model by name
+        def find_model(name: str) -> Optional[ModelConfig]:
+            if name is None:
+                return None
+            for m in tool_capable:
+                if m.name == name:
+                    return m
+            return None
+
+        # Get tool-specific models, fall back to regular drafter/verifier
+        tool_drafter_name = getattr(domain_config, "tool_drafter", None) or domain_config.drafter
+        tool_verifier_name = getattr(domain_config, "tool_verifier", None) or domain_config.verifier
+
+        tool_drafter = find_model(tool_drafter_name)
+        tool_verifier = find_model(tool_verifier_name)
+
+        if self.verbose:
+            if tool_drafter:
+                logger.info(f"Domain tool drafter: {tool_drafter.name}")
+            if tool_verifier:
+                logger.info(f"Domain tool verifier: {tool_verifier.name}")
+
+        return tool_drafter, tool_verifier
+
     def reset_stats(self):
         """Reset statistics tracking."""
         self.stats = {

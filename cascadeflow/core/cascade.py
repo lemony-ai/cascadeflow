@@ -1035,9 +1035,13 @@ class WholeResponseCascade:
             verifier_task = None
 
         # === PHASE 3: Quality Validation ===
+        # 🆕 v2.7: Support domain-specific quality threshold
+        domain_threshold = kwargs.get('quality_threshold', None)
+        quality_threshold = domain_threshold if domain_threshold is not None else self.confidence_threshold
+
         quality_start = time.time()
         should_accept, validation_result, detected_complexity = self._should_accept_draft(
-            draft_result, query, complexity_hint=complexity
+            draft_result, query, complexity_hint=complexity, domain_threshold=domain_threshold
         )
         timing["quality_check_ms"] = (time.time() - quality_start) * 1000
 
@@ -1045,11 +1049,11 @@ class WholeResponseCascade:
 
         if self.verbose:
             logger.info(f"Quality check completed in {timing['quality_check_ms']:.1f}ms")
+            if domain_threshold is not None:
+                logger.info(f"Using domain threshold: {domain_threshold:.2f}")
 
         # Extract validation metrics
         quality_score = getattr(validation_result, "score", None)
-        # 🆕 v2.6: Support domain-specific quality threshold override
-        quality_threshold = kwargs.get('quality_threshold', self.confidence_threshold)
         validation_reason = getattr(validation_result, "reason", "validation_completed")
         validation_checks = getattr(validation_result, "checks", {})
 
@@ -1317,10 +1321,23 @@ class WholeResponseCascade:
             }
 
     def _should_accept_draft(
-        self, draft_result: dict[str, Any], query: str, complexity_hint: Optional[str] = None
+        self,
+        draft_result: dict[str, Any],
+        query: str,
+        complexity_hint: Optional[str] = None,
+        domain_threshold: Optional[float] = None,
     ) -> tuple[bool, Any, Optional[str]]:
         """
-        Decide whether to accept draft with complexity awareness (TEXT PATH).
+        Decide whether to accept draft with complexity and domain awareness (TEXT PATH).
+
+        Args:
+            draft_result: Draft model response
+            query: Original query
+            complexity_hint: Optional complexity hint
+            domain_threshold: Optional domain-specific threshold (takes precedence)
+
+        Returns:
+            Tuple of (should_accept, validation_result, detected_complexity)
         """
         draft_content = draft_result.get("content", "")
         draft_confidence = draft_result.get("confidence", 0.0)
@@ -1341,7 +1358,8 @@ class WholeResponseCascade:
         else:
             complexity = "simple"
 
-        threshold = self.confidence_threshold
+        # Domain threshold takes precedence over default threshold
+        threshold = domain_threshold if domain_threshold is not None else self.confidence_threshold
 
         if self.quality_config.enable_adaptive and complexity:
             adaptive_threshold = self.adaptive_threshold.get_threshold(complexity)

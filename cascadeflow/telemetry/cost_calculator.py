@@ -302,9 +302,16 @@ class CostCalculator:
             verifier_total_tokens = query_input_tokens + verifier_output_tokens
             bigonly_tokens = verifier_total_tokens
 
-        # Calculate individual costs with BOTH input and output
-        draft_cost = self._calculate_model_cost(self.drafter, draft_total_tokens)
-        verifier_cost = self._calculate_model_cost(self.verifier, verifier_total_tokens)
+        # Calculate individual costs with SEPARATE input and output for LiteLLM accuracy
+        draft_cost = self._calculate_model_cost(
+            self.drafter, draft_total_tokens,
+            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+        )
+        verifier_cost = self._calculate_model_cost(
+            self.verifier, verifier_total_tokens,
+            input_tokens=query_input_tokens if not draft_accepted else 0,
+            output_tokens=verifier_output_tokens
+        )
 
         # Total cost
         total_cost = draft_cost + verifier_cost
@@ -313,7 +320,10 @@ class CostCalculator:
         if draft_accepted:
             # Saved by using draft instead of verifier
             # Verifier would have used same input + similar output
-            bigonly_cost = self._calculate_model_cost(self.verifier, bigonly_tokens)
+            bigonly_cost = self._calculate_model_cost(
+                self.verifier, bigonly_tokens,
+                input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+            )
             cost_saved = bigonly_cost - draft_cost
         else:
             # Both models called - no savings (wasted draft cost)
@@ -383,8 +393,11 @@ class CostCalculator:
         # 🆕 Add input tokens to get TOTAL tokens
         draft_total_tokens = query_input_tokens + draft_output_tokens
 
-        # Calculate draft cost with BOTH input and output
-        draft_cost = self._calculate_model_cost(self.drafter, draft_total_tokens)
+        # Calculate draft cost with SEPARATE input/output for LiteLLM accuracy
+        draft_cost = self._calculate_model_cost(
+            self.drafter, draft_total_tokens,
+            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+        )
 
         # 🔧 CRITICAL FIX: Verifier was NOT called, so 0 tokens and $0 cost
         verifier_cost = 0.0
@@ -393,7 +406,10 @@ class CostCalculator:
         # Calculate what verifier would have cost (for savings analysis)
         # 🆕 Include input tokens in bigonly calculation
         verifier_total_tokens_estimate = query_input_tokens + draft_output_tokens
-        bigonly_cost = self._calculate_model_cost(self.verifier, verifier_total_tokens_estimate)
+        bigonly_cost = self._calculate_model_cost(
+            self.verifier, verifier_total_tokens_estimate,
+            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+        )
 
         # Savings = avoided verifier cost - draft cost
         cost_saved = bigonly_cost - draft_cost
@@ -455,9 +471,15 @@ class CostCalculator:
         draft_total_tokens = query_input_tokens + draft_output_tokens
         verifier_total_tokens = query_input_tokens + verifier_output_tokens
 
-        # Calculate costs with BOTH input and output
-        draft_cost = self._calculate_model_cost(self.drafter, draft_total_tokens)
-        verifier_cost = self._calculate_model_cost(self.verifier, verifier_total_tokens)
+        # Calculate costs with SEPARATE input/output for LiteLLM accuracy
+        draft_cost = self._calculate_model_cost(
+            self.drafter, draft_total_tokens,
+            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+        )
+        verifier_cost = self._calculate_model_cost(
+            self.verifier, verifier_total_tokens,
+            input_tokens=query_input_tokens, output_tokens=verifier_output_tokens
+        )
 
         # Total cost = both models (THIS IS THE KEY FIX!)
         total_cost = draft_cost + verifier_cost
@@ -648,18 +670,41 @@ class CostCalculator:
     # UTILITY METHODS
     # ========================================================================
 
-    def _calculate_model_cost(self, model, tokens: int) -> float:
+    def _calculate_model_cost(self, model, tokens: int, input_tokens: int = 0, output_tokens: int = 0) -> float:
         """
         Calculate cost for a model given token count.
 
+        Uses LiteLLMCostProvider for accurate input/output pricing when available.
+        Falls back to model.cost (flat rate) if LiteLLM unavailable.
+
         Args:
-            model: ModelConfig with cost per 1K tokens
-            tokens: Number of tokens (input + output)
+            model: ModelConfig with cost per 1K tokens (fallback)
+            tokens: Total tokens (legacy, used for fallback)
+            input_tokens: Input tokens for accurate pricing
+            output_tokens: Output tokens for accurate pricing
 
         Returns:
             Cost in dollars
         """
-        # model.cost is cost per 1K tokens
+        # Try LiteLLM for accurate input/output pricing
+        try:
+            from cascadeflow.integrations.litellm import LiteLLMCostProvider, LITELLM_AVAILABLE
+
+            if LITELLM_AVAILABLE and (input_tokens > 0 or output_tokens > 0):
+                provider = LiteLLMCostProvider()
+                cost = provider.calculate_cost(
+                    model=model.name,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+                if self.verbose:
+                    logger.debug(f"LiteLLM cost for {model.name}: ${cost:.6f} ({input_tokens} in, {output_tokens} out)")
+                return cost
+        except Exception as e:
+            if self.verbose:
+                logger.debug(f"LiteLLM cost calculation failed for {model.name}: {e}, using fallback")
+
+        # Fallback: model.cost is cost per 1K tokens
         return (tokens / 1000) * model.cost
 
     @staticmethod

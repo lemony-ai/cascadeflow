@@ -30,8 +30,10 @@ import { TIER_PRESETS } from './profiles';
 import { PreRouter } from './routers/pre-router';
 import { ToolRouter } from './routers/tool-router';
 import { TierRouter } from './routers/tier-router';
+import { DomainRouter, Domain } from './routers/domain-router';
 import { RoutingStrategy } from './routers/base';
 import { CallbackEvent } from './telemetry/callbacks';
+import type { DomainConfig, DomainConfigMap } from './config/domain-config';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -92,6 +94,9 @@ export class CascadeAgent {
   private toolRouter: ToolRouter;
   private tierRouter?: TierRouter;
   private callbackManager?: import('./telemetry/callbacks').CallbackManager;
+  private domainRouter: DomainRouter;
+  private domainConfigs: DomainConfigMap;
+  private enableDomainDetection: boolean;
 
   /**
    * Create a new cascadeflow agent
@@ -193,6 +198,11 @@ export class CascadeAgent {
       models: this.models,
       verbose,
     });
+
+    // DomainRouter: Domain detection for smart routing
+    this.domainRouter = new DomainRouter();
+    this.domainConfigs = config.domainConfigs ?? {};
+    this.enableDomainDetection = config.enableDomainDetection ?? true;
 
     // TierRouter: Optional tier-based filtering (initialized if tiers provided)
     // Note: We don't initialize TierRouter here by default since tiers are optional
@@ -561,12 +571,30 @@ export class CascadeAgent {
       // This matches the Python implementation where tier filtering is optional
     }
 
+    // === STEP 1c: DOMAIN DETECTION (for smart routing) ===
+    let detectedDomain: Domain | undefined;
+    let domainConfidence = 0;
+    let domainConfig: DomainConfig | undefined;
+
+    if (this.enableDomainDetection) {
+      const domainResult = this.domainRouter.detect(queryText);
+      detectedDomain = domainResult.domain;
+      domainConfidence = domainResult.confidence;
+
+      // Get domain-specific config if user configured it
+      domainConfig = this.domainConfigs[detectedDomain];
+    }
+
     // === STEP 2: ROUTING DECISION (PreRouter) ===
-    const routingContext = {
+    const routingContext: Record<string, any> = {
       tools: options.tools,
       userTier: options.userTier,
       forceDirect: options.forceDirect,
       availableModels: availableModels.length,
+      // Domain context for domain-aware routing
+      detectedDomain: detectedDomain,
+      domainConfig: domainConfig,
+      domainConfidence: domainConfidence,
     };
 
     const routingDecision = await this.preRouter.route(queryText, routingContext);
@@ -683,13 +711,15 @@ export class CascadeAgent {
       }
 
       // Quality validation using logprobs and heuristics
+      // Domain threshold takes precedence over per-model threshold
+      const qualityThreshold = domainConfig?.threshold ?? draftModelConfig.qualityThreshold;
       const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
       const qualityResult = await this.qualityValidator.validate(
         draftResponse.content,
         query,
         draftResponse.logprobs,
         complexity,
-        draftModelConfig.qualityThreshold // Per-model threshold override
+        qualityThreshold // Domain or per-model threshold override
       );
       const qualityPassed = qualityResult.passed;
 
@@ -923,11 +953,26 @@ export class CascadeAgent {
     // Step 1b: Filter by user tier if specified (future enhancement)
     // if (options.userTier) { ... }
 
+    // === STEP 1c: DOMAIN DETECTION (for smart routing) ===
+    let detectedDomain: Domain | undefined;
+    let domainConfidence = 0;
+    let domainConfig: DomainConfig | undefined;
+
+    if (this.enableDomainDetection) {
+      const domainResult = this.domainRouter.detect(queryText);
+      detectedDomain = domainResult.domain;
+      domainConfidence = domainResult.confidence;
+      domainConfig = this.domainConfigs[detectedDomain];
+    }
+
     // === STEP 2: ROUTING DECISION ===
-    const routingContext = {
+    const routingContext: Record<string, any> = {
       tools: options.tools,
       forceDirect: options.forceDirect,
       availableModels: availableModels.length,
+      detectedDomain: detectedDomain,
+      domainConfig: domainConfig,
+      domainConfidence: domainConfidence,
     };
 
     const routingDecision = await this.preRouter.route(queryText, routingContext);

@@ -64,6 +64,20 @@ export interface DomainConfig {
   verifier: string | ModelConfig;
 
   /**
+   * Tool-specific drafter model (optional).
+   * Falls back to drafter if not specified.
+   * Used when tools are provided and domain-aware tool routing is enabled.
+   */
+  toolDrafter?: string | ModelConfig;
+
+  /**
+   * Tool-specific verifier model (optional).
+   * Falls back to verifier if not specified.
+   * Used when tools are provided and domain-aware tool routing is enabled.
+   */
+  toolVerifier?: string | ModelConfig;
+
+  /**
    * Quality threshold (0-1) for accepting drafter responses.
    * Higher = stricter validation, more verifier usage.
    * @default 0.70
@@ -149,7 +163,7 @@ export interface DomainConfig {
 /**
  * Default domain configuration values.
  */
-export const DEFAULT_DOMAIN_CONFIG: Required<Omit<DomainConfig, 'drafter' | 'verifier' | 'fallbackModels' | 'description' | 'metadata' | 'cascadeComplexities'>> = {
+export const DEFAULT_DOMAIN_CONFIG: Required<Omit<DomainConfig, 'drafter' | 'verifier' | 'toolDrafter' | 'toolVerifier' | 'fallbackModels' | 'description' | 'metadata' | 'cascadeComplexities'>> = {
   threshold: 0.70,
   validationMethod: 'quality',
   temperature: 0.7,
@@ -167,6 +181,8 @@ export function createDomainConfig(config: DomainConfig): DomainConfig & { draft
   return {
     drafter: config.drafter,
     verifier: config.verifier,
+    toolDrafter: config.toolDrafter, // Optional, falls back to drafter
+    toolVerifier: config.toolVerifier, // Optional, falls back to verifier
     threshold: config.threshold ?? DEFAULT_DOMAIN_CONFIG.threshold,
     validationMethod: config.validationMethod ?? DEFAULT_DOMAIN_CONFIG.validationMethod,
     temperature: config.temperature ?? DEFAULT_DOMAIN_CONFIG.temperature,

@@ -4,6 +4,7 @@
 
 import type { Provider, RoutingStrategy } from './types';
 import type { QualityConfig as QualityValidatorConfig } from './quality';
+import type { DomainConfigMap } from './config/domain-config';
 
 /**
  * Configuration for a single model in the cascade
@@ -265,6 +266,46 @@ export interface AgentConfig {
    * ```
    */
   callbacks?: import('./telemetry/callbacks').CallbackManager;
+
+  /**
+   * Domain-specific configurations for specialized routing
+   *
+   * Configure different drafter/verifier models and thresholds for
+   * specific domains like math, code, medical, etc.
+   *
+   * @example
+   * ```typescript
+   * import { CascadeAgent, Domain } from '@cascadeflow/core';
+   *
+   * const agent = new CascadeAgent({
+   *   models: [...],
+   *   domainConfigs: {
+   *     [Domain.MATH]: {
+   *       drafter: 'gpt-5-mini',
+   *       verifier: 'gpt-5',
+   *       threshold: 0.85,
+   *       cascadeComplexities: ['trivial', 'simple', 'moderate', 'hard', 'expert'],
+   *     },
+   *     [Domain.CODE]: {
+   *       drafter: 'gpt-5-mini',
+   *       verifier: 'claude-opus-4-5-20251101',
+   *       threshold: 0.85,
+   *     },
+   *   },
+   * });
+   * ```
+   */
+  domainConfigs?: DomainConfigMap;
+
+  /**
+   * Enable automatic domain detection for smart routing
+   *
+   * When enabled, the agent will detect the domain of each query
+   * (e.g., math, code, medical) and use domain-specific configurations.
+   *
+   * @default true
+   */
+  enableDomainDetection?: boolean;
 }
 
 /**
