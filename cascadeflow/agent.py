@@ -468,6 +468,151 @@ class CascadeAgent:
         """Backward compatibility property."""
         return self.streaming_manager
 
+    # ========================================================================
+    # 🆕 v2.6: RUNTIME CONFIGURATION UPDATES
+    # ========================================================================
+
+    def update_quality_threshold(self, threshold: float) -> None:
+        """
+        Update quality threshold at runtime.
+
+        Args:
+            threshold: New quality threshold (0.0-1.0)
+
+        Example:
+            >>> agent.update_quality_threshold(0.85)
+        """
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"Threshold must be 0.0-1.0, got {threshold}")
+
+        if self.cascade:
+            self.cascade.confidence_threshold = threshold
+            logger.info(f"Updated quality threshold to {threshold}")
+
+    def update_models(self, models: list[ModelConfig]) -> None:
+        """
+        Update model configuration at runtime.
+
+        Args:
+            models: New list of model configurations
+
+        Example:
+            >>> agent.update_models([
+            ...     ModelConfig(name='gpt-4o-mini', provider='openai', cost=0.00015),
+            ...     ModelConfig(name='gpt-4o', provider='openai', cost=0.003),
+            ... ])
+        """
+        if not models:
+            raise ValueError("At least one model required")
+
+        # Sort by cost
+        self.models = sorted(models, key=lambda m: m.cost)
+
+        # Reinitialize cascade if enabled
+        if self.enable_cascade and len(self.models) >= 2:
+            self._reinit_cascade()
+            logger.info(f"Updated models: {[m.name for m in self.models]}")
+
+    def update_domain_config(
+        self,
+        domain: str,
+        config: "DomainConfig",
+    ) -> None:
+        """
+        Update or add domain configuration at runtime.
+
+        Args:
+            domain: Domain name (e.g., "code", "medical")
+            config: New DomainConfig for the domain
+
+        Example:
+            >>> agent.update_domain_config("code", DomainConfig(
+            ...     drafter="gpt-4o-mini",
+            ...     verifier="gpt-4o",
+            ...     threshold=0.90,
+            ...     temperature=0.1,
+            ... ))
+        """
+        self.domain_configs[domain] = config
+        logger.info(f"Updated domain config for '{domain}'")
+
+    def enable_domain_routing(self, use_semantic: bool = True) -> None:
+        """
+        Enable domain detection at runtime.
+
+        Args:
+            use_semantic: Use ML-based semantic detection (default: True)
+        """
+        self.enable_domain_detection = True
+        self.use_semantic_domains = use_semantic
+
+        if use_semantic:
+            self.domain_detector = SemanticDomainDetector(
+                use_hybrid=True,
+                confidence_threshold=0.5,
+            )
+            if not self.domain_detector.is_available:
+                self.domain_detector = DomainDetector()
+        else:
+            self.domain_detector = DomainDetector()
+
+        logger.info(f"Domain routing enabled (semantic={use_semantic})")
+
+    def disable_domain_routing(self) -> None:
+        """Disable domain detection at runtime."""
+        self.enable_domain_detection = False
+        self.domain_detector = None
+        logger.info("Domain routing disabled")
+
+    def get_config_snapshot(self) -> dict[str, Any]:
+        """
+        Get snapshot of current configuration.
+
+        Returns:
+            Dict with current configuration state
+        """
+        return {
+            "models": [
+                {"name": m.name, "provider": m.provider, "cost": m.cost}
+                for m in self.models
+            ],
+            "enable_cascade": self.enable_cascade,
+            "enable_domain_detection": self.enable_domain_detection,
+            "use_semantic_domains": getattr(self, 'use_semantic_domains', False),
+            "domain_configs": {
+                domain: {
+                    "drafter": cfg.drafter,
+                    "verifier": cfg.verifier,
+                    "threshold": cfg.threshold,
+                    "temperature": cfg.temperature,
+                }
+                for domain, cfg in self.domain_configs.items()
+            },
+            "quality_threshold": (
+                self.cascade.confidence_threshold
+                if self.cascade else None
+            ),
+            "verbose": self.verbose,
+        }
+
+    def _reinit_cascade(self) -> None:
+        """Reinitialize cascade with current configuration."""
+        if len(self.models) < 2:
+            self.cascade = None
+            return
+
+        drafter = self.models[0]
+        verifier = self.models[-1]
+
+        self.cascade = WholeResponseCascade(
+            drafter=drafter,
+            verifier=verifier,
+            providers=self.providers,
+            quality_config=self.quality_config,
+            verbose=self.verbose,
+            cost_calculator=self.cost_calculator,
+        )
+
     def _init_providers(self) -> dict[str, Any]:
         """
         Initialize providers for all models.

@@ -214,6 +214,14 @@ from .resilience import (
     get_circuit_breaker,
 )
 
+# NEW: Dynamic Configuration (v0.8.0 - Runtime Config Updates)
+from .dynamic_config import (
+    ConfigManager,
+    ConfigChangeEvent,
+    ConfigSection,
+    ConfigWatcher,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -346,6 +354,11 @@ __all__ = [
     "CircuitBreakerRegistry",  # NEW: v0.8.0 - Per-provider circuit tracking
     "CircuitState",  # NEW: v0.8.0 - Circuit state enum
     "get_circuit_breaker",  # NEW: v0.8.0 - Get circuit breaker for provider
+    # ===== DYNAMIC CONFIG (v0.8.0) =====
+    "ConfigManager",  # NEW: v0.8.0 - Runtime config management
+    "ConfigChangeEvent",  # NEW: v0.8.0 - Config change event
+    "ConfigSection",  # NEW: v0.8.0 - Config section enum
+    "ConfigWatcher",  # NEW: v0.8.0 - File watcher for auto-reload
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
