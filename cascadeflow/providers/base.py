@@ -6,6 +6,11 @@ NEW in v2.5 (Oct 20, 2025):
     - estimate_tokens_from_text(): Utility for token estimation
     - estimate_cost_from_text(): Utility for cost estimation
     - Better integration with telemetry.CostCalculator
+
+NEW in v2.6 (Nov 28, 2025):
+    - Circuit Breaker integration for provider resilience
+    - Per-provider health tracking
+    - Automatic failure detection and recovery
 """
 
 import asyncio
@@ -16,7 +21,10 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cascadeflow.resilience import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -188,25 +196,38 @@ class BaseProvider(ABC):
     - Automatic retry logic with exponential backoff
     - Streaming support
     - Optional tool calling support (Oct 11, 2025)
-    - Cost estimation utilities (Oct 20, 2025) 🆕
+    - Cost estimation utilities (Oct 20, 2025)
+    - Circuit breaker for resilience (Nov 28, 2025) 🆕
 
     BACKWARD COMPATIBLE: Tool calling is 100% optional. Existing code works unchanged.
 
     """
 
-    def __init__(self, api_key: Optional[str] = None, retry_config: Optional[RetryConfig] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+        enable_circuit_breaker: bool = True,
+    ):
         """
-        Initialize provider with retry logic.
+        Initialize provider with retry logic and circuit breaker.
 
         Args:
             api_key: API key for the provider (if needed)
             retry_config: Custom retry configuration (optional)
+            enable_circuit_breaker: Enable circuit breaker for resilience (default: True)
         """
         # Load API key from parameter or environment
         if api_key:
             self.api_key = api_key
         else:
             self.api_key = self._load_api_key()
+
+        # Circuit breaker integration
+        self._enable_circuit_breaker = enable_circuit_breaker
+        self._circuit_breaker: Optional["CircuitBreaker"] = None
+        if enable_circuit_breaker:
+            self._init_circuit_breaker()
 
         # Initialize retry configuration
         self.retry_config = retry_config or RetryConfig()
@@ -272,6 +293,52 @@ class BaseProvider(ABC):
             API key or None
         """
         return None
+
+    def _init_circuit_breaker(self) -> None:
+        """
+        Initialize circuit breaker for this provider.
+
+        Uses the global CircuitBreakerRegistry for per-provider tracking.
+        """
+        try:
+            from cascadeflow.resilience import get_circuit_breaker
+
+            provider_name = self.__class__.__name__.replace("Provider", "").lower()
+            self._circuit_breaker = get_circuit_breaker(provider_name)
+            logger.debug(f"Circuit breaker enabled for {provider_name}")
+        except ImportError:
+            logger.warning(
+                "Circuit breaker module not available. "
+                "Provider will operate without circuit breaker protection."
+            )
+            self._circuit_breaker = None
+
+    @property
+    def circuit_breaker(self) -> Optional["CircuitBreaker"]:
+        """Get circuit breaker for this provider (if enabled)."""
+        return self._circuit_breaker
+
+    def is_available(self) -> bool:
+        """
+        Check if provider is available (circuit breaker allows execution).
+
+        Returns:
+            True if provider can accept requests, False if circuit is open
+        """
+        if not self._circuit_breaker:
+            return True
+        return self._circuit_breaker.can_execute()
+
+    def get_circuit_state(self) -> Optional[str]:
+        """
+        Get current circuit breaker state.
+
+        Returns:
+            State string ("closed", "open", "half_open") or None if disabled
+        """
+        if not self._circuit_breaker:
+            return None
+        return self._circuit_breaker.state.value
 
     def _check_logprobs_support(self) -> bool:
         """
@@ -389,9 +456,10 @@ class BaseProvider(ABC):
 
     async def _execute_with_retry(self, func, *args, **kwargs) -> Any:
         """
-        Execute function with automatic retry logic.
+        Execute function with automatic retry logic and circuit breaker.
 
         This is the core retry mechanism that wraps provider calls.
+        Integrates with circuit breaker for provider resilience.
 
         Args:
             func: Async function to execute
@@ -401,10 +469,25 @@ class BaseProvider(ABC):
             Result from function
 
         Raises:
+            CircuitOpenError: If circuit breaker is open
             Last exception if all retries exhausted
         """
-        last_exception = None
         provider_name = self.__class__.__name__.replace("Provider", "")
+
+        # Check circuit breaker before attempting
+        if self._circuit_breaker and not self._circuit_breaker.can_execute():
+            from cascadeflow.resilience.circuit_breaker import CircuitOpenError
+
+            self._circuit_breaker.record_rejection()
+            time_until_retry = self._circuit_breaker.get_time_until_retry() or 0
+
+            logger.warning(
+                f"{provider_name}: Circuit breaker OPEN, rejecting request. "
+                f"Retry in {time_until_retry:.1f}s"
+            )
+            raise CircuitOpenError(provider_name, time_until_retry)
+
+        last_exception = None
 
         for attempt in range(1, self.retry_config.max_attempts + 1):
             self.retry_metrics.total_attempts += 1
@@ -415,6 +498,10 @@ class BaseProvider(ABC):
 
                 # Success!
                 self.retry_metrics.successful_attempts += 1
+
+                # Record success with circuit breaker
+                if self._circuit_breaker:
+                    self._circuit_breaker.record_success()
 
                 if attempt > 1:
                     logger.info(
@@ -435,11 +522,23 @@ class BaseProvider(ABC):
                     self.retry_metrics.retries_by_error.get(error_name, 0) + 1
                 )
 
+                # Record failure with circuit breaker
+                if self._circuit_breaker:
+                    self._circuit_breaker.record_failure(e)
+
                 # Should we retry?
                 if not self._should_retry(error_type, attempt):
                     logger.error(
                         f"{provider_name}: ✗ Not retrying {error_type.value} "
                         f"on attempt {attempt}/{self.retry_config.max_attempts}: {e}"
+                    )
+                    raise
+
+                # Check if circuit opened after recording failure
+                if self._circuit_breaker and not self._circuit_breaker.can_execute():
+                    logger.warning(
+                        f"{provider_name}: Circuit breaker opened after failure, "
+                        f"stopping retries"
                     )
                     raise
 

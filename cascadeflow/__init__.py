@@ -205,6 +205,15 @@ from .config_loader import (
     EXAMPLE_JSON_CONFIG,
 )
 
+# NEW: Resilience (v0.8.0 - Circuit Breaker)
+from .resilience import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerRegistry,
+    CircuitState,
+    get_circuit_breaker,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -331,6 +340,12 @@ __all__ = [
     "parse_domain_config",  # NEW: v0.7.0 - Parse domain config dict
     "EXAMPLE_YAML_CONFIG",  # NEW: v0.7.0 - Example YAML config string
     "EXAMPLE_JSON_CONFIG",  # NEW: v0.7.0 - Example JSON config string
+    # ===== RESILIENCE (v0.8.0) =====
+    "CircuitBreaker",  # NEW: v0.8.0 - Circuit breaker pattern
+    "CircuitBreakerConfig",  # NEW: v0.8.0 - Circuit breaker configuration
+    "CircuitBreakerRegistry",  # NEW: v0.8.0 - Per-provider circuit tracking
+    "CircuitState",  # NEW: v0.8.0 - Circuit state enum
+    "get_circuit_breaker",  # NEW: v0.8.0 - Get circuit breaker for provider
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
