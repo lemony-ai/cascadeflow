@@ -222,6 +222,14 @@ from .dynamic_config import (
     ConfigWatcher,
 )
 
+# NEW: Tool Risk Classification (v0.8.0 - OSS-3 gap)
+from .routing import (
+    ToolRiskLevel,
+    ToolRiskClassification,
+    ToolRiskClassifier,
+    get_tool_risk_routing,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -359,6 +367,11 @@ __all__ = [
     "ConfigChangeEvent",  # NEW: v0.8.0 - Config change event
     "ConfigSection",  # NEW: v0.8.0 - Config section enum
     "ConfigWatcher",  # NEW: v0.8.0 - File watcher for auto-reload
+    # ===== TOOL RISK (v0.8.0 - OSS-3 gap) =====
+    "ToolRiskLevel",  # NEW: v0.8.0 - Tool risk level enum
+    "ToolRiskClassification",  # NEW: v0.8.0 - Classification result
+    "ToolRiskClassifier",  # NEW: v0.8.0 - Tool risk classifier
+    "get_tool_risk_routing",  # NEW: v0.8.0 - Routing by risk level
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
