@@ -21,9 +21,7 @@ Dataset: Subset of 10 representative GSM8K problems (varying difficulty)
 import asyncio
 import os
 import re
-from typing import Any
-
-from cascadeflow.agent import CascadeAgent
+from typing import Any, Optional
 
 from .base import Benchmark, BenchmarkResult, BenchmarkSummary
 from .profiler import CascadeProfiler
@@ -41,14 +39,40 @@ class GSM8KBenchmark(Benchmark):
     ):
         """Initialize GSM8K benchmark."""
         super().__init__(
-            dataset_name="GSM8K-10",
+            name="GSM8K-10",
             drafter_model=drafter_model,
             verifier_model=verifier_model,
-            baseline_model=verifier_model,
             quality_threshold=quality_threshold,
             max_samples=max_samples,
         )
+        self.baseline_model = verifier_model
         self.profiler = CascadeProfiler()
+        # Store verifier costs for accurate baseline comparison
+        self._last_verifier_cost = 0.0
+
+    def get_baseline_cost(self, query: str) -> float:
+        """
+        Calculate baseline cost (verifier only).
+
+        Uses the actual verifier cost from the most recent query
+        for accurate savings calculation.
+        """
+        # Return the actual verifier cost for fair comparison
+        # This makes savings accurate:
+        # - Drafter accepted: savings = verifier_cost - drafter_cost (positive)
+        # - Drafter rejected: savings = verifier_cost - total_cost (negative)
+        # - Direct routing: savings = 0
+        if self._last_verifier_cost > 0:
+            return self._last_verifier_cost
+
+        # Fallback: Estimate based on typical GPT-4o pricing
+        # ~200 input tokens (query) + ~300 output tokens (response) for math
+        input_tokens = 200
+        output_tokens = 300
+        # GPT-4o pricing: $2.50/1M input, $10.00/1M output
+        input_cost = (input_tokens / 1_000_000) * 2.50
+        output_cost = (output_tokens / 1_000_000) * 10.00
+        return input_cost + output_cost
 
     def load_dataset(self) -> list[tuple[str, Any]]:
         """
@@ -170,7 +194,7 @@ class GSM8KBenchmark(Benchmark):
             print(f"  Warning: Answer evaluation error: {e}")
             return False, 0.0
 
-    def _extract_number(self, text: str) -> str | None:
+    def _extract_number(self, text: str) -> Optional[str]:
         """Extract the final numerical answer from text."""
         # Try to find answer after "####" (GSM8K format)
         gsm8k_pattern = r"####\s*([0-9,\.]+)"
@@ -199,21 +223,129 @@ class GSM8KBenchmark(Benchmark):
             query: Math word problem
 
         Returns:
-            Cascade result dict
+            Cascade result dict with expected keys
         """
+        import time
+
         # Add instruction for clear answer format
         enhanced_query = f"{query}\n\nPlease show your step-by-step reasoning and clearly state your final answer."
 
-        agent = CascadeAgent(
-            models=[
-                {"name": self.drafter_model, "provider": "openai"},
-                {"name": self.verifier_model, "provider": "openai"},
-            ],
-            quality={"threshold": self.quality_threshold},
+        from cascadeflow import CascadeAgent, ModelConfig, QualityConfig, DomainConfig
+
+        # Configure domain-specific models for math domain
+        # Using specified drafter model for cost-effective math reasoning
+        # Per-domain cascade_complexities: cascade ALL complexity levels for math
+        math_domain_config = DomainConfig(
+            drafter=self.drafter_model,
+            verifier=self.verifier_model,
+            threshold=self.quality_threshold,
+            temperature=0.1,  # Low temperature for precise math
+            validation_method="syntax",  # Validate numeric answers
+            # Cascade all complexity levels for math - specialized drafter can handle them
+            cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
         )
 
-        result = await agent.arun(enhanced_query)
-        return result
+        # Also configure for "financial" domain since detector sometimes misclassifies
+        financial_domain_config = DomainConfig(
+            drafter=self.drafter_model,
+            verifier=self.verifier_model,
+            threshold=self.quality_threshold,
+            temperature=0.1,
+            # Cascade all complexity levels for math-related financial queries
+            cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        )
+
+        # Configure quality thresholds based on quality_threshold parameter
+        # Higher quality threshold = stricter acceptance criteria
+        quality_thresholds = {
+            "trivial": self.quality_threshold,
+            "simple": self.quality_threshold - 0.05,
+            "moderate": self.quality_threshold - 0.10,
+            "hard": self.quality_threshold - 0.12,
+            "expert": self.quality_threshold - 0.15,
+        }
+
+        agent = CascadeAgent(
+            models=[
+                # Drafter (fast, cheap) - good at math
+                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
+                # Verifier (accurate)
+                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+            ],
+            quality_config=QualityConfig(
+                confidence_thresholds=quality_thresholds,
+            ),
+            enable_domain_detection=True,  # Enable domain detection
+            use_semantic_domains=True,  # Enable semantic (ML-based) domain detection
+            domain_configs={
+                "math": math_domain_config,  # Math-specific config for GSM8K
+                "financial": financial_domain_config,  # Also handle financial domain
+            },
+        )
+
+        start_time = time.time()
+        # Use higher max_tokens for math problems that require step-by-step reasoning
+        result = await agent.run(enhanced_query, max_tokens=500)
+        latency_ms = (time.time() - start_time) * 1000
+
+        # Convert CascadeResult to expected dict format
+        draft_accepted = result.metadata.get("draft_accepted", False)
+        routing_strategy = result.metadata.get("routing_strategy", "unknown")
+        is_direct = result.metadata.get("direct_routing", False)
+
+        # Get actual token counts from LiteLLM
+        prompt_tokens = result.metadata.get("prompt_tokens", 0)
+        completion_tokens = result.metadata.get("completion_tokens", 0)
+
+        # Calculate costs using LiteLLM pricing
+        # GPT-4o-mini: $0.15/1M input, $0.60/1M output
+        # GPT-4o: $2.50/1M input, $10.00/1M output
+        gpt4o_mini_input_rate = 0.15 / 1_000_000
+        gpt4o_mini_output_rate = 0.60 / 1_000_000
+        gpt4o_input_rate = 2.50 / 1_000_000
+        gpt4o_output_rate = 10.00 / 1_000_000
+
+        # Actual total cost from cascade
+        total_cost = result.total_cost
+
+        if draft_accepted:
+            # Drafter accepted - only drafter cost incurred
+            drafter_cost = total_cost
+            verifier_cost = 0.0
+            # Baseline: what verifier would have cost
+            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (completion_tokens * gpt4o_output_rate)
+        elif is_direct:
+            # Direct routing - only verifier cost
+            drafter_cost = 0.0
+            verifier_cost = total_cost
+            # Baseline = actual cost (no savings)
+            baseline_cost = total_cost
+        else:
+            # Cascade rejection - drafter tried, then verifier called
+            # Estimate split based on token ratios
+            drafter_cost = (prompt_tokens * gpt4o_mini_input_rate) + (completion_tokens * gpt4o_mini_output_rate)
+            verifier_cost = total_cost - drafter_cost
+            # Baseline: what verifier alone would have cost
+            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (completion_tokens * gpt4o_output_rate)
+
+        # Store for accurate baseline calculation
+        self._last_verifier_cost = baseline_cost
+
+        return {
+            "prediction": result.content,
+            "model_used": "drafter" if draft_accepted else "verifier",
+            "accepted": draft_accepted,
+            "quality_score": result.metadata.get("quality_score", 0.7),
+            "drafter_cost": drafter_cost,
+            "verifier_cost": verifier_cost,
+            "total_cost": total_cost,
+            "baseline_cost": baseline_cost,  # For accurate savings calculation
+            "latency_ms": latency_ms,
+            "tokens_input": prompt_tokens,
+            "tokens_output": completion_tokens,
+            "routing_strategy": routing_strategy,
+            "is_direct": is_direct,
+        }
 
 
 async def run_gsm8k_benchmark():
@@ -252,31 +384,32 @@ async def run_gsm8k_benchmark():
     print("GSM8K BENCHMARK RESULTS")
     print("=" * 80 + "\n")
 
+    # Calculate correct solutions from accuracy
+    correct_count = int(summary.accuracy / 100 * summary.successful_tests) if summary.successful_tests else 0
     print(f"Total Problems:      {summary.total_tests}")
-    print(f"Correct Solutions:   {summary.correct} ({summary.accuracy*100:.1f}%)")
-    print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate*100:.1f}%)")
+    print(f"Correct Solutions:   {correct_count} ({summary.accuracy:.1f}%)")
+    print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)")
     print(
-        f"Verifier Escalated:  {summary.total_tests - summary.drafter_accepted} ({(1-summary.acceptance_rate)*100:.1f}%)"
+        f"Verifier Escalated:  {summary.escalated_to_verifier} ({summary.escalation_rate_pct:.1f}%)"
     )
 
     print("\nCost Analysis:")
     print(f"  Cascade Total Cost:  ${summary.total_cost:.6f}")
-    print(f"  Baseline Total Cost: ${summary.baseline_cost:.6f}")
-    print(f"  Cost Savings:        ${summary.cost_savings:.6f} ({summary.cost_reduction_pct:.1f}%)")
+    print(f"  Baseline Total Cost: ${summary.total_baseline_cost:.6f}")
+    print(f"  Cost Savings:        ${summary.total_savings:.6f} ({summary.avg_savings_pct:.1f}%)")
 
     print("\nPerformance:")
     print(f"  Average Latency:     {summary.avg_latency_ms:.0f}ms")
-    print(f"  Average Quality:     {summary.avg_quality_score:.3f}")
-    print(f"  Drafter Accuracy:    {summary.drafter_accuracy*100:.1f}% (when accepted)")
+    print(f"  Drafter Accuracy:    {summary.drafter_accuracy:.1f}% (when accepted)")
 
     print("\nKey Findings:")
-    if summary.acceptance_rate > 0.6:
-        print(f"  ✅ Drafter handles {summary.acceptance_rate*100:.0f}% of problems independently")
-    if summary.cost_reduction_pct > 50:
-        print(f"  💰 Achieved {summary.cost_reduction_pct:.0f}% cost reduction")
-    if summary.drafter_accuracy < 0.8:
+    if summary.acceptance_rate_pct > 60:
+        print(f"  ✅ Drafter handles {summary.acceptance_rate_pct:.0f}% of problems independently")
+    if summary.avg_savings_pct > 50:
+        print(f"  💰 Achieved {summary.avg_savings_pct:.0f}% cost reduction")
+    if summary.drafter_accuracy < 80.0:  # Accuracy is percentage (0-100)
         print("  ⚠️  Low drafter accuracy on math reasoning - consider raising quality threshold")
-    if summary.accuracy < 0.9:
+    if summary.accuracy < 90.0:  # Accuracy is percentage (0-100)
         print("  ⚠️  Overall accuracy below 90% - math reasoning is challenging for cascade")
 
     print("\n" + "=" * 80 + "\n")
