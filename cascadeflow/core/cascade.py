@@ -788,6 +788,9 @@ class WholeResponseCascade:
             self.stats["total_speedup"] += speedup
             self.stats["total_cost_saved"] += costs["cost_saved"]
 
+            # 🆕 v2.6: Support domain-specific quality threshold override
+            effective_threshold = kwargs.get('quality_threshold', self.confidence_threshold)
+
             return self._create_result(
                 content=draft_content,
                 confidence=draft_result["confidence"],
@@ -805,7 +808,7 @@ class WholeResponseCascade:
                 complexity=complexity,
                 timing=timing,
                 quality_score=quality_score,
-                quality_threshold=self.confidence_threshold,
+                quality_threshold=effective_threshold,
                 rejection_reason=None,
                 draft_method=draft_method,
                 tool_calls=draft_tool_calls,
@@ -858,6 +861,9 @@ class WholeResponseCascade:
                 query_text=query,  # 🆕 Pass query!
             )
 
+            # 🆕 v2.6: Support domain-specific quality threshold override
+            effective_threshold = kwargs.get('quality_threshold', self.confidence_threshold)
+
             return self._create_result(
                 content=verifier_content,
                 confidence=verifier_result["confidence"],
@@ -876,7 +882,7 @@ class WholeResponseCascade:
                 complexity=complexity,
                 timing=timing,
                 quality_score=quality_score,
-                quality_threshold=self.confidence_threshold,
+                quality_threshold=effective_threshold,
                 rejection_reason=rejection_reason,
                 tool_calls=verifier_tool_calls,
                 alignment_score=None,
@@ -1042,7 +1048,8 @@ class WholeResponseCascade:
 
         # Extract validation metrics
         quality_score = getattr(validation_result, "score", None)
-        quality_threshold = self.confidence_threshold
+        # 🆕 v2.6: Support domain-specific quality threshold override
+        quality_threshold = kwargs.get('quality_threshold', self.confidence_threshold)
         validation_reason = getattr(validation_result, "reason", "validation_completed")
         validation_checks = getattr(validation_result, "checks", {})
 

@@ -76,7 +76,7 @@ from .quality import QualityConfig
 # Phase 2A: Routing module imports
 from .routing import PreRouter, ToolRouter
 # Phase 3.2: Domain detection (NEW)
-from .routing import Domain, DomainDetector, DomainDetectionResult
+from .routing import Domain, DomainDetector, DomainDetectionResult, SemanticDomainDetector
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
@@ -158,6 +158,7 @@ class CascadeAgent:
         # ========================================================================
         domain_configs: Optional[dict[str, DomainConfig]] = None,  # Per-domain cascade config
         enable_domain_detection: bool = False,  # Auto-detect query domain
+        use_semantic_domains: bool = True,  # 🆕 Use ML-based semantic detection (hybrid)
         # ========================================================================
         # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
         # ========================================================================
@@ -181,6 +182,8 @@ class CascadeAgent:
             domain_configs: Optional dict mapping domain strings to DomainConfig
                            (e.g., {"code": DomainConfig(...), "medical": DomainConfig(...)})
             enable_domain_detection: Enable automatic domain detection for queries
+            use_semantic_domains: Use ML-based semantic domain detection (hybrid mode)
+                                 Leverages same embedding model as quality system for better accuracy
 
         Deprecated Args (v0.1.x compatibility):
             config: Old CascadeConfig (use quality_config instead)
@@ -301,8 +304,27 @@ class CascadeAgent:
 
         # 🆕 v2.6: Initialize domain detection
         self.enable_domain_detection = enable_domain_detection
+        self.use_semantic_domains = use_semantic_domains
         self.domain_configs = domain_configs or {}
-        self.domain_detector = DomainDetector() if enable_domain_detection else None
+
+        # 🆕 v2.6: Semantic domain detection with hybrid mode
+        # Uses same embedding service as quality system for efficiency
+        if enable_domain_detection:
+            if use_semantic_domains:
+                self.domain_detector = SemanticDomainDetector(
+                    use_hybrid=True,  # Combines ML + rule-based for best accuracy
+                    confidence_threshold=0.5,  # Lower threshold for hybrid mode
+                )
+                if self.domain_detector.is_available:
+                    logger.info("Domain detection: SEMANTIC (hybrid ML + rules)")
+                else:
+                    logger.warning("Semantic domains unavailable, falling back to rule-based")
+                    self.domain_detector = DomainDetector()
+            else:
+                self.domain_detector = DomainDetector()
+                logger.info("Domain detection: RULE-BASED (keyword matching)")
+        else:
+            self.domain_detector = None
 
         # Initialize telemetry collector
         self.telemetry = MetricsCollector(max_recent_results=100, verbose=verbose)
@@ -666,23 +688,36 @@ class CascadeAgent:
             print(f"[Confidence: {decision.confidence:.2f}]")
 
         # Execute
+        # 🆕 v2.6: Apply domain-specific configuration if available
+        effective_temperature = temperature
+        effective_max_tokens = max_tokens
+        effective_threshold = None
+
+        if domain_config and domain_config.enabled:
+            effective_temperature = domain_config.temperature
+            effective_max_tokens = domain_config.max_tokens or max_tokens
+            effective_threshold = domain_config.threshold
+            if self.verbose:
+                print(f"[Applying domain config: temp={effective_temperature}, threshold={effective_threshold}]")
+
         if use_cascade:
             result, exec_timing = await self._execute_cascade_with_timing(
                 query,
-                max_tokens,
-                temperature,
+                effective_max_tokens,
+                effective_temperature,
                 complexity,
                 available_models,
                 tools,
                 tool_choice,
+                domain_config=domain_config,  # 🆕 v2.6: Pass domain config
                 **kwargs,
             )
             timing_breakdown.update(exec_timing)
         else:
             result, exec_timing = await self._execute_direct_with_timing(
                 query,
-                max_tokens,
-                temperature,
+                effective_max_tokens,
+                effective_temperature,
                 complexity,
                 force_direct,
                 available_models,
@@ -1132,18 +1167,59 @@ class CascadeAgent:
         available_models,
         tools,
         tool_choice,
+        domain_config: Optional[DomainConfig] = None,
         **kwargs,
     ):
-        """Execute cascade with detailed timing tracking and tool support."""
+        """
+        Execute cascade with detailed timing tracking and tool support.
+
+        🆕 v2.6: Supports domain-specific drafter/verifier selection.
+        """
         # Use filtered models if available
         drafter = available_models[0] if available_models else self.models[0]
         verifier = available_models[-1] if available_models else self.models[-1]
+
+        # 🆕 v2.6: Apply domain-specific drafter/verifier if configured
+        if domain_config and domain_config.enabled:
+            # Try to find domain-specific drafter model
+            domain_drafter_name = (
+                domain_config.drafter if isinstance(domain_config.drafter, str)
+                else domain_config.drafter.name if hasattr(domain_config.drafter, 'name')
+                else None
+            )
+            domain_verifier_name = (
+                domain_config.verifier if isinstance(domain_config.verifier, str)
+                else domain_config.verifier.name if hasattr(domain_config.verifier, 'name')
+                else None
+            )
+
+            # Find matching models from available models
+            if domain_drafter_name:
+                for model in available_models:
+                    if model.name == domain_drafter_name or domain_drafter_name in model.name:
+                        drafter = model
+                        logger.info(f"Using domain-specific drafter: {drafter.name}")
+                        break
+
+            if domain_verifier_name:
+                for model in available_models:
+                    if model.name == domain_verifier_name or domain_verifier_name in model.name:
+                        verifier = model
+                        logger.info(f"Using domain-specific verifier: {verifier.name}")
+                        break
 
         logger.info(f"Routing to cascade: {drafter.name} → {verifier.name}")
         if tools:
             logger.info(f"Tool calling enabled with {len(tools)} tools")
 
         cascade_start = time.time()
+
+        # 🆕 v2.6: Pass domain-specific quality threshold if configured
+        cascade_kwargs = dict(kwargs)
+        if domain_config and domain_config.threshold:
+            cascade_kwargs['quality_threshold'] = domain_config.threshold
+            if self.verbose:
+                logger.info(f"Using domain-specific quality threshold: {domain_config.threshold}")
 
         # Pass tools to cascade execution
         result = await self.cascade.execute(
@@ -1153,7 +1229,7 @@ class CascadeAgent:
             complexity=complexity.value,
             tools=tools,
             tool_choice=tool_choice,
-            **kwargs,
+            **cascade_kwargs,
         )
         cascade_total = (time.time() - cascade_start) * 1000
 

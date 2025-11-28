@@ -437,6 +437,17 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
         weak=["add", "subtract", "multiply", "divide", "number", "math"],
     ),
     Domain.MEDICAL: DomainKeywords(
+        very_strong=[  # Highly discriminative medical terms
+            "symptoms of",
+            "diagnosis of",
+            "treatment for",
+            "blood test",
+            "medical advice",
+            "diabetes",
+            "hypertension",
+            "cardiovascular",
+            "prescription drug",
+        ],
         strong=[
             "diagnosis",
             "symptom",
@@ -451,6 +462,9 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "pharmacy",
             "prescription",
             "healthcare",
+            "prognosis",
+            "chronic",
+            "acute",
         ],
         moderate=[
             "health",
@@ -462,6 +476,8 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "drug",
             "dosage",
             "protocol",
+            "interact",  # medication interactions
+            "side effect",
         ],
         weak=["feel", "hurt", "sick", "ill"],
     ),
@@ -513,13 +529,48 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "analysis",
             "forecast",
             "budget",
-            "capital",
+            "venture capital",  # More specific than just "capital"
             "asset",
             "liability",
             "cash flow",
             "dividend",
         ],
         weak=["money", "cost", "price", "pay"],
+    ),
+    # GENERAL domain for factual/knowledge queries
+    Domain.GENERAL: DomainKeywords(
+        very_strong=[
+            "what is the capital",  # Geography questions
+            "who invented",
+            "when was",
+            "how does",
+            "explain how",
+            "tell me about",
+        ],
+        strong=[
+            "fact",
+            "history",
+            "geography",
+            "science",
+            "explain",
+            "describe",
+            "definition",
+            "famous",
+            "country",
+            "city",
+            "world",
+        ],
+        moderate=[
+            "what is",
+            "who is",
+            "where is",
+            "why does",
+            "information about",
+            "knowledge",
+            "encyclopedia",
+            "trivia",
+        ],
+        weak=["simple", "basic", "general"],
     ),
     Domain.MULTIMODAL: DomainKeywords(
         strong=[

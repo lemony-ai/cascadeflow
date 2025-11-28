@@ -92,6 +92,7 @@ from .domain import (
     DomainDetectionResult,
     DomainDetector,
     DomainKeywords,
+    SemanticDomainDetector,  # 🆕 ML-based hybrid detection
 )
 
 # Phase 4: Multi-Step Cascade Pipelines (NEW)
@@ -146,6 +147,7 @@ __all__ = [
     "DomainDetector",  # Domain detection with 4-tier keyword weighting
     "DomainDetectionResult",  # Detection result with confidence scores
     "DomainKeywords",  # Keyword weighting configuration
+    "SemanticDomainDetector",  # 🆕 ML-based hybrid detection (embeddings)
     # ═══════════════════════════════════════════════════
     # Phase 4: Multi-Step Cascade Pipelines (NEW)
     # ═══════════════════════════════════════════════════
