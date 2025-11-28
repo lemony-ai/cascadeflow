@@ -169,6 +169,19 @@ from .guardrails import (
     GuardrailViolation,
 )
 
+# NEW: Config File Loading (v0.7.0 - Architecture Alignment)
+from .config_loader import (
+    load_config,
+    load_agent,
+    load_default_agent,
+    create_agent_from_config,
+    find_config,
+    parse_model_config,
+    parse_domain_config,
+    EXAMPLE_YAML_CONFIG,
+    EXAMPLE_JSON_CONFIG,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -266,6 +279,16 @@ __all__ = [
     "PIIMatch",  # NEW: v0.2.1 - PII match
     "GuardrailsManager",  # NEW: v0.2.1 - Centralized guardrails
     "GuardrailViolation",  # NEW: v0.2.1 - Guardrail violation exception
+    # Config File Loading (v0.7.0 - Architecture Alignment)
+    "load_config",  # NEW: v0.7.0 - Load YAML/JSON config
+    "load_agent",  # NEW: v0.7.0 - Load config and create agent
+    "load_default_agent",  # NEW: v0.7.0 - Load from default locations
+    "create_agent_from_config",  # NEW: v0.7.0 - Create agent from config dict
+    "find_config",  # NEW: v0.7.0 - Find config in standard locations
+    "parse_model_config",  # NEW: v0.7.0 - Parse model config dict
+    "parse_domain_config",  # NEW: v0.7.0 - Parse domain config dict
+    "EXAMPLE_YAML_CONFIG",  # NEW: v0.7.0 - Example YAML config string
+    "EXAMPLE_JSON_CONFIG",  # NEW: v0.7.0 - Example JSON config string
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
