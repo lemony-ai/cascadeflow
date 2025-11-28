@@ -115,7 +115,13 @@ class DomainConfig:
     # Behavior flags
     require_verifier: bool = False
     adaptive_threshold: bool = True
-    skip_on_simple: bool = True
+    skip_on_simple: bool = True  # DEPRECATED: use cascade_complexities instead
+
+    # Per-domain complexity handling
+    # Specifies which complexity levels should use cascade (try drafter first)
+    # If None, defaults to all complexities using cascade
+    # Example: ["trivial", "simple", "moderate", "hard"] - EXPERT goes to verifier
+    cascade_complexities: Optional[list[str]] = None
 
     # Metadata
     enabled: bool = True

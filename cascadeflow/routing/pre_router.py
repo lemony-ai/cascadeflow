@@ -1,13 +1,23 @@
 """
-Pre-execution router based on query complexity.
+Pre-execution router based on query complexity and domain detection.
 
 This router makes decisions BEFORE cascade execution starts,
 routing queries to either cascade or direct execution based
-on detected complexity level.
+on detected complexity level AND domain-specific configuration.
 
-Routing Logic:
-- TRIVIAL/SIMPLE/MODERATE → CASCADE (cost optimization)
-- HARD/EXPERT → DIRECT_BEST (quality priority)
+Routing Logic (Priority Order):
+1. Domain-specific routing (if domain detected AND configured):
+   - User-configured domains get cascade with domain-specific models
+   - Domain's require_verifier flag can force direct routing
+   - Domain's skip_on_simple flag affects simple query handling
+2. Complexity-based routing (fallback):
+   - TRIVIAL/SIMPLE/MODERATE → CASCADE (cost optimization)
+   - HARD/EXPERT → DIRECT_BEST (quality priority)
+
+This enables:
+- Cost savings via domain-specialized cheap models (e.g., deepseek for math)
+- Quality control via domain-specific thresholds
+- Selective domain enabling (only configure domains you care about)
 """
 
 import logging
@@ -88,14 +98,25 @@ class PreRouter(Router):
 
     async def route(self, query: str, context: Optional[dict[str, Any]] = None) -> RoutingDecision:
         """
-        Route query based on complexity.
+        Route query based on complexity AND domain configuration.
 
         Context keys (optional):
         - 'complexity': Override auto-detection (QueryComplexity enum)
         - 'complexity_hint': String hint for complexity
         - 'force_direct': Force direct routing
+        - 'detected_domain': Detected domain name (from domain detector)
+        - 'domain_config': DomainConfig for detected domain (if user configured)
+        - 'domain_confidence': Confidence of domain detection
         - 'user_tier': User tier (for future premium routing)
         - 'budget': Budget constraint (for future cost-aware routing)
+
+        Routing Priority:
+        1. force_direct → DIRECT_BEST
+        2. cascade disabled → DIRECT_BEST
+        3. domain configured AND enabled:
+           - require_verifier=True → DIRECT_BEST (with domain model)
+           - Otherwise → CASCADE (with domain-specific models)
+        4. domain NOT configured → fall back to complexity-based routing
 
         Args:
             query: User query text
@@ -132,8 +153,29 @@ class PreRouter(Router):
         # Track complexity
         self.stats["by_complexity"][complexity.value] += 1
 
-        # === STEP 2: Make Routing Decision ===
+        # === STEP 2: Extract Domain Context ===
+        detected_domain = context.get("detected_domain")
+        domain_config = context.get("domain_config")
+        domain_confidence = context.get("domain_confidence", 0.0)
+
+        # Check if domain config is user-provided and enabled
+        domain_routing_active = (
+            domain_config is not None
+            and getattr(domain_config, "enabled", True)
+        )
+
+        # === STEP 3: Make Routing Decision ===
         force_direct = context.get("force_direct", False)
+        metadata = {
+            "complexity": complexity.value,
+            "complexity_confidence": complexity_confidence,
+            "router": "pre",
+            "force_direct": force_direct,
+            "cascade_enabled": self.enable_cascade,
+            "detected_domain": detected_domain,
+            "domain_confidence": domain_confidence,
+            "domain_routing_active": domain_routing_active,
+        }
 
         if force_direct:
             # Forced direct routing
@@ -141,6 +183,7 @@ class PreRouter(Router):
             reason = "Forced direct routing (bypass cascade)"
             confidence = 1.0
             self.stats["forced_direct"] += 1
+            metadata["router_type"] = "forced"
 
         elif not self.enable_cascade:
             # Cascade system disabled
@@ -148,47 +191,101 @@ class PreRouter(Router):
             reason = "Cascade disabled, routing to best model"
             confidence = 1.0
             self.stats["cascade_disabled"] += 1
+            metadata["router_type"] = "cascade_disabled"
+
+        elif domain_routing_active:
+            # === DOMAIN-AWARE ROUTING (takes precedence) ===
+            # User has configured this domain - use domain-specific logic
+            self.stats["by_strategy"]["domain_routed"] = self.stats["by_strategy"].get("domain_routed", 0) + 1
+
+            # Get domain's cascade complexities (which complexity levels should try drafter)
+            domain_cascade_complexities = getattr(domain_config, "cascade_complexities", None)
+            if domain_cascade_complexities:
+                # Convert string list to QueryComplexity enums
+                try:
+                    domain_cascade_set = {
+                        QueryComplexity(c.lower()) for c in domain_cascade_complexities
+                    }
+                except ValueError as e:
+                    logger.warning(f"Invalid complexity in domain config: {e}")
+                    domain_cascade_set = None
+            else:
+                domain_cascade_set = None
+
+            if getattr(domain_config, "require_verifier", False):
+                # Domain mandates verifier (e.g., medical, legal)
+                strategy = RoutingStrategy.DIRECT_BEST
+                reason = f"Domain '{detected_domain}' requires mandatory verification"
+                confidence = domain_confidence
+                metadata["router_type"] = "domain_require_verifier"
+
+            elif domain_cascade_set is not None:
+                # Per-domain complexity handling
+                if complexity in domain_cascade_set:
+                    # This complexity level should use cascade for this domain
+                    strategy = RoutingStrategy.CASCADE
+                    reason = f"Domain '{detected_domain}' + {complexity.value} → cascade with domain models"
+                    confidence = min(complexity_confidence, domain_confidence)
+                    metadata["router_type"] = "domain_cascade_complexity"
+                else:
+                    # This complexity level should go direct to verifier for this domain
+                    strategy = RoutingStrategy.DIRECT_BEST
+                    reason = f"Domain '{detected_domain}' + {complexity.value} → direct to domain verifier"
+                    confidence = domain_confidence
+                    metadata["router_type"] = "domain_direct_complexity"
+
+            else:
+                # No per-domain complexity config - default: cascade all complexities
+                # This enables cost savings via specialized cheap models (e.g., deepseek for math)
+                strategy = RoutingStrategy.CASCADE
+                reason = f"Domain '{detected_domain}' configured → cascade with domain-specific models"
+                confidence = domain_confidence
+                metadata["router_type"] = "domain_cascade_all"
+
+            # Add domain model info to metadata
+            metadata["domain_drafter"] = getattr(domain_config, "drafter", None)
+            metadata["domain_verifier"] = getattr(domain_config, "verifier", None)
+            metadata["domain_threshold"] = getattr(domain_config, "threshold", 0.7)
+            metadata["domain_cascade_complexities"] = domain_cascade_complexities
 
         elif complexity in self.cascade_complexities:
-            # Simple query → cascade for cost optimization
+            # === COMPLEXITY-BASED ROUTING (fallback) ===
+            # No domain config OR domain not detected → use complexity rules
             strategy = RoutingStrategy.CASCADE
             reason = f"{complexity.value} query suitable for cascade optimization"
             confidence = complexity_confidence
+            metadata["router_type"] = "complexity_cascade"
 
         else:
-            # Complex query → direct for quality
+            # Complex query without domain config → direct for quality
             strategy = RoutingStrategy.DIRECT_BEST
             reason = f"{complexity.value} query requires best model for quality"
             confidence = complexity_confidence
+            metadata["router_type"] = "complexity_direct"
 
         # Track strategy
         self.stats["by_strategy"][strategy.value] += 1
 
-        # === STEP 3: Build Decision ===
+        # === STEP 4: Build Decision ===
         decision = RoutingDecision(
             strategy=strategy,
             reason=reason,
             confidence=confidence,
-            metadata={
-                "complexity": complexity.value,
-                "complexity_confidence": complexity_confidence,
-                "router": "pre",
-                "router_type": "complexity_based",
-                "force_direct": force_direct,
-                "cascade_enabled": self.enable_cascade,
-            },
+            metadata=metadata,
         )
 
         if self.verbose:
+            domain_info = f" [Domain: {detected_domain}]" if detected_domain else ""
             print(
-                f"[PreRouter] {query[:50]}... → {strategy.value}\n"
+                f"[PreRouter] {query[:50]}...{domain_info} → {strategy.value}\n"
                 f"           Complexity: {complexity.value} (conf: {complexity_confidence:.2f})\n"
                 f"           Reason: {reason}"
             )
 
         logger.debug(
             f"Routed query to {strategy.value}: "
-            f"complexity={complexity.value}, confidence={complexity_confidence:.2f}"
+            f"complexity={complexity.value}, domain={detected_domain}, "
+            f"domain_routing={domain_routing_active}"
         )
 
         return decision

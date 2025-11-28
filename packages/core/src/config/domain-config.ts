@@ -127,6 +127,15 @@ export interface DomainConfig {
   enabled?: boolean;
 
   /**
+   * Per-domain complexity handling.
+   * Specifies which complexity levels should use cascade (try drafter first).
+   * If undefined, defaults to all complexities using cascade.
+   * @example ['trivial', 'simple', 'moderate', 'hard'] - EXPERT goes to verifier
+   * @example ['trivial', 'simple', 'moderate', 'hard', 'expert'] - All cascade
+   */
+  cascadeComplexities?: Array<'trivial' | 'simple' | 'moderate' | 'hard' | 'expert'>;
+
+  /**
    * Human-readable description of this configuration.
    */
   description?: string;
@@ -140,7 +149,7 @@ export interface DomainConfig {
 /**
  * Default domain configuration values.
  */
-export const DEFAULT_DOMAIN_CONFIG: Required<Omit<DomainConfig, 'drafter' | 'verifier' | 'fallbackModels' | 'description' | 'metadata'>> = {
+export const DEFAULT_DOMAIN_CONFIG: Required<Omit<DomainConfig, 'drafter' | 'verifier' | 'fallbackModels' | 'description' | 'metadata' | 'cascadeComplexities'>> = {
   threshold: 0.70,
   validationMethod: 'quality',
   temperature: 0.7,
@@ -154,7 +163,7 @@ export const DEFAULT_DOMAIN_CONFIG: Required<Omit<DomainConfig, 'drafter' | 'ver
 /**
  * Create a DomainConfig with default values filled in.
  */
-export function createDomainConfig(config: DomainConfig): Required<DomainConfig> {
+export function createDomainConfig(config: DomainConfig): DomainConfig & { drafter: string | ModelConfig; verifier: string | ModelConfig } {
   return {
     drafter: config.drafter,
     verifier: config.verifier,
@@ -167,6 +176,7 @@ export function createDomainConfig(config: DomainConfig): Required<DomainConfig>
     adaptiveThreshold: config.adaptiveThreshold ?? DEFAULT_DOMAIN_CONFIG.adaptiveThreshold,
     skipOnSimple: config.skipOnSimple ?? DEFAULT_DOMAIN_CONFIG.skipOnSimple,
     enabled: config.enabled ?? DEFAULT_DOMAIN_CONFIG.enabled,
+    cascadeComplexities: config.cascadeComplexities, // Optional, can be undefined
     description: config.description ?? '',
     metadata: config.metadata ?? {},
   };

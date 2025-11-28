@@ -813,13 +813,18 @@ class CascadeAgent:
                 f"To use tiers, initialize agent with: CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
             )
 
-        # Get routing decision
+        # Get routing decision (domain-aware)
+        # Pass domain context so router can make domain-specific routing decisions
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
             "force_direct": force_direct,
             "available_models": available_models,
             "has_tools": bool(tools),
+            # Domain context for domain-aware routing
+            "detected_domain": detected_domain,
+            "domain_config": domain_config,
+            "domain_confidence": domain_confidence,
         }
 
         decision = await self.router.route(query, routing_context)
@@ -961,6 +966,27 @@ class CascadeAgent:
 
         timing_breakdown["complexity_detection"] = (time.time() - complexity_start) * 1000
 
+        # 🆕 v2.7: Detect domain and get domain-specific config for streaming
+        detected_domain: Optional[str] = None
+        domain_confidence: float = 0.0
+        domain_config: Optional[DomainConfig] = None
+
+        if self.domain_detector and self.enable_domain_detection:
+            domain_start = time.time()
+            domain_result = self.domain_detector.detect_with_scores(query)
+            detected_domain = domain_result.domain.value
+            domain_confidence = domain_result.confidence
+            timing_breakdown["domain_detection"] = (time.time() - domain_start) * 1000
+
+            # Get domain-specific config (user-provided or builtin)
+            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
+                detected_domain
+            )
+
+            logger.info(
+                f"[Streaming] Query domain: {detected_domain} (confidence: {domain_confidence:.2f})"
+            )
+
         # Filter models by tool capability
         available_models = self.models
 
@@ -970,13 +996,17 @@ class CascadeAgent:
             )
             available_models = tool_filter_result["models"]
 
-        # Get routing decision
+        # Get routing decision (domain-aware routing for streaming)
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
             "force_direct": force_direct,
             "available_models": available_models,
             "has_tools": bool(tools),
+            # Domain context for domain-aware routing
+            "detected_domain": detected_domain,
+            "domain_config": domain_config,
+            "domain_confidence": domain_confidence,
         }
 
         decision = await self.router.route(query, routing_context)
@@ -1101,10 +1131,30 @@ class CascadeAgent:
         if complexity_hint:
             try:
                 complexity = QueryComplexity(complexity_hint.lower())
+                complexity_confidence = 1.0
             except ValueError:
-                complexity, _ = self.complexity_detector.detect(query, return_metadata=False)
+                complexity, complexity_confidence = self.complexity_detector.detect(query, return_metadata=False)
         else:
-            complexity, _ = self.complexity_detector.detect(query, return_metadata=False)
+            complexity, complexity_confidence = self.complexity_detector.detect(query, return_metadata=False)
+
+        # 🆕 v2.7: Detect domain and get domain-specific config for stream_events
+        detected_domain: Optional[str] = None
+        domain_confidence: float = 0.0
+        domain_config: Optional[DomainConfig] = None
+
+        if self.domain_detector and self.enable_domain_detection:
+            domain_result = self.domain_detector.detect_with_scores(query)
+            detected_domain = domain_result.domain.value
+            domain_confidence = domain_result.confidence
+
+            # Get domain-specific config (user-provided or builtin)
+            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
+                detected_domain
+            )
+
+            logger.info(
+                f"[StreamEvents] Query domain: {detected_domain} (confidence: {domain_confidence:.2f})"
+            )
 
         # Filter models by tool capability
         available_models = self.models
@@ -1115,12 +1165,17 @@ class CascadeAgent:
             )
             available_models = tool_filter_result["models"]
 
-        # Get routing decision
+        # Get routing decision (domain-aware routing for stream_events)
         routing_context = {
             "complexity": complexity,
+            "complexity_confidence": complexity_confidence,
             "force_direct": force_direct,
             "available_models": available_models,
             "has_tools": bool(tools),
+            # Domain context for domain-aware routing
+            "detected_domain": detected_domain,
+            "domain_config": domain_config,
+            "domain_confidence": domain_confidence,
         }
 
         decision = await self.router.route(query, routing_context)

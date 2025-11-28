@@ -1,13 +1,23 @@
 /**
- * Pre-execution router based on query complexity
+ * Pre-execution router based on query complexity AND domain detection
  *
  * This router makes decisions BEFORE cascade execution starts,
  * routing queries to either cascade or direct execution based
- * on detected complexity level.
+ * on detected complexity level AND domain-specific configuration.
  *
- * Routing Logic:
- * - TRIVIAL/SIMPLE/MODERATE → CASCADE (cost optimization)
- * - HARD/EXPERT → DIRECT_BEST (quality priority)
+ * Routing Logic (Priority Order):
+ * 1. Domain-specific routing (if domain detected AND configured):
+ *    - User-configured domains get cascade with domain-specific models
+ *    - Domain's requireVerifier flag can force direct routing
+ *    - Domain's cascadeComplexities controls which levels cascade
+ * 2. Complexity-based routing (fallback):
+ *    - TRIVIAL/SIMPLE/MODERATE → CASCADE (cost optimization)
+ *    - HARD/EXPERT → DIRECT_BEST (quality priority)
+ *
+ * This enables:
+ * - Cost savings via domain-specialized cheap models (e.g., deepseek for math)
+ * - Quality control via domain-specific thresholds
+ * - Selective domain enabling (only configure domains you care about)
  *
  * Port from Python cascadeflow/routing/pre_router.py
  */
@@ -149,14 +159,26 @@ export class PreRouter extends Router {
   }
 
   /**
-   * Route query based on complexity
+   * Route query based on complexity AND domain configuration
    *
    * Context keys (optional):
    * - 'complexity': Override auto-detection (QueryComplexity string)
+   * - 'complexityConfidence': Confidence of complexity detection
    * - 'complexityHint': String hint for complexity
    * - 'forceDirect': Force direct routing
+   * - 'detectedDomain': Detected domain name (from domain detector)
+   * - 'domainConfig': DomainConfig for detected domain (if user configured)
+   * - 'domainConfidence': Confidence of domain detection
    * - 'userTier': User tier (for future premium routing)
    * - 'budget': Budget constraint (for future cost-aware routing)
+   *
+   * Routing Priority:
+   * 1. forceDirect → DIRECT_BEST
+   * 2. cascade disabled → DIRECT_BEST
+   * 3. domain configured AND enabled:
+   *    - requireVerifier=true → DIRECT_BEST (with domain model)
+   *    - Otherwise → CASCADE (with domain-specific models)
+   * 4. domain NOT configured → fall back to complexity-based routing
    *
    * @param query - User query text
    * @param context - Optional context dict
@@ -167,9 +189,11 @@ export class PreRouter extends Router {
    * // Auto-detect complexity
    * const decision1 = await router.route('What is 2+2?');
    *
-   * // Override complexity
-   * const decision2 = await router.route('Complex query', {
-   *   complexity: 'expert'
+   * // Domain-aware routing
+   * const decision2 = await router.route('Solve: 2x + 5 = 15', {
+   *   detectedDomain: 'math',
+   *   domainConfig: { drafter: 'gpt-4o-mini', verifier: 'gpt-4o', cascadeComplexities: ['trivial', 'simple', 'moderate', 'hard', 'expert'] },
+   *   domainConfidence: 0.9,
    * });
    *
    * // Force direct routing
@@ -216,59 +240,133 @@ export class PreRouter extends Router {
     const complexityCount = this.stats.byComplexity.get(complexity) || 0;
     this.stats.byComplexity.set(complexity, complexityCount + 1);
 
-    // === STEP 2: Make Routing Decision ===
+    // === STEP 2: Extract Domain Context ===
+    const detectedDomain = context.detectedDomain as string | undefined;
+    const domainConfig = context.domainConfig as Record<string, any> | undefined;
+    const domainConfidence = (context.domainConfidence as number) ?? 0.0;
+
+    // Check if domain config is user-provided and enabled
+    const domainRoutingActive =
+      domainConfig !== undefined &&
+      (domainConfig.enabled === undefined || domainConfig.enabled === true);
+
+    // === STEP 3: Make Routing Decision ===
     const forceDirect = context.forceDirect === true;
 
     let strategy: RoutingStrategy;
     let reason: string;
     let confidence: number;
+    let routerType: string;
+
+    const metadata: Record<string, any> = {
+      complexity,
+      complexityConfidence,
+      router: 'pre',
+      forceDirect,
+      cascadeEnabled: this.enableCascade,
+      detectedDomain,
+      domainConfidence,
+      domainRoutingActive,
+    };
 
     if (forceDirect) {
       // Forced direct routing
       strategy = RoutingStrategy.DIRECT_BEST;
       reason = 'Forced direct routing (bypass cascade)';
       confidence = 1.0;
+      routerType = 'forced';
       this.stats.forcedDirect++;
     } else if (!this.enableCascade) {
       // Cascade system disabled
       strategy = RoutingStrategy.DIRECT_BEST;
       reason = 'Cascade disabled, routing to best model';
       confidence = 1.0;
+      routerType = 'cascade_disabled';
       this.stats.cascadeDisabled++;
+    } else if (domainRoutingActive) {
+      // === DOMAIN-AWARE ROUTING (takes precedence) ===
+      // User has configured this domain - use domain-specific logic
+      const domainRouted = this.stats.byStrategy.get('domain_routed') || 0;
+      this.stats.byStrategy.set('domain_routed', domainRouted + 1);
+
+      // Get domain's cascade complexities (which complexity levels should try drafter)
+      const domainCascadeComplexities = domainConfig.cascadeComplexities as string[] | undefined;
+      let domainCascadeSet: Set<string> | undefined;
+
+      if (domainCascadeComplexities && Array.isArray(domainCascadeComplexities)) {
+        domainCascadeSet = new Set(
+          domainCascadeComplexities.map((c: string) => c.toLowerCase())
+        );
+      }
+
+      if (domainConfig.requireVerifier === true) {
+        // Domain mandates verifier (e.g., medical, legal)
+        strategy = RoutingStrategy.DIRECT_BEST;
+        reason = `Domain '${detectedDomain}' requires mandatory verification`;
+        confidence = domainConfidence;
+        routerType = 'domain_require_verifier';
+      } else if (domainCascadeSet !== undefined) {
+        // Per-domain complexity handling
+        if (domainCascadeSet.has(complexity)) {
+          // This complexity level should use cascade for this domain
+          strategy = RoutingStrategy.CASCADE;
+          reason = `Domain '${detectedDomain}' + ${complexity} → cascade with domain models`;
+          confidence = Math.min(complexityConfidence, domainConfidence);
+          routerType = 'domain_cascade_complexity';
+        } else {
+          // This complexity level should go direct to verifier for this domain
+          strategy = RoutingStrategy.DIRECT_BEST;
+          reason = `Domain '${detectedDomain}' + ${complexity} → direct to domain verifier`;
+          confidence = domainConfidence;
+          routerType = 'domain_direct_complexity';
+        }
+      } else {
+        // No per-domain complexity config - default: cascade all complexities
+        // This enables cost savings via specialized cheap models (e.g., deepseek for math)
+        strategy = RoutingStrategy.CASCADE;
+        reason = `Domain '${detectedDomain}' configured → cascade with domain-specific models`;
+        confidence = domainConfidence;
+        routerType = 'domain_cascade_all';
+      }
+
+      // Add domain model info to metadata
+      metadata.domainDrafter = domainConfig.drafter;
+      metadata.domainVerifier = domainConfig.verifier;
+      metadata.domainThreshold = domainConfig.threshold ?? 0.7;
+      metadata.domainCascadeComplexities = domainCascadeComplexities;
     } else if (this.cascadeComplexities.has(complexity)) {
-      // Simple query → cascade for cost optimization
+      // === COMPLEXITY-BASED ROUTING (fallback) ===
+      // No domain config OR domain not detected → use complexity rules
       strategy = RoutingStrategy.CASCADE;
       reason = `${complexity} query suitable for cascade optimization`;
       confidence = complexityConfidence;
+      routerType = 'complexity_cascade';
     } else {
-      // Complex query → direct for quality
+      // Complex query without domain config → direct for quality
       strategy = RoutingStrategy.DIRECT_BEST;
       reason = `${complexity} query requires best model for quality`;
       confidence = complexityConfidence;
+      routerType = 'complexity_direct';
     }
+
+    metadata.routerType = routerType;
 
     // Track strategy
     const strategyCount = this.stats.byStrategy.get(strategy) || 0;
     this.stats.byStrategy.set(strategy, strategyCount + 1);
 
-    // === STEP 3: Build Decision ===
+    // === STEP 4: Build Decision ===
     const decision = RoutingDecisionHelper.create(
       strategy,
       reason,
       confidence,
-      {
-        complexity,
-        complexityConfidence,
-        router: 'pre',
-        routerType: 'complexity_based',
-        forceDirect,
-        cascadeEnabled: this.enableCascade,
-      }
+      metadata
     );
 
     if (this.verbose) {
+      const domainInfo = detectedDomain ? ` [Domain: ${detectedDomain}]` : '';
       console.log(
-        `[PreRouter] ${query.substring(0, 50)}... → ${strategy}\n` +
+        `[PreRouter] ${query.substring(0, 50)}...${domainInfo} → ${strategy}\n` +
           `           Complexity: ${complexity} (conf: ${complexityConfidence.toFixed(2)})\n` +
           `           Reason: ${reason}`
       );
