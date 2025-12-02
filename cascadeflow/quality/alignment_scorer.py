@@ -18,6 +18,11 @@ CHANGELOG:
 - Oct 20, 2025 (v7.1): PERFORMANCE FIX - Replaced regex with split() (30-50% faster)
 - Oct 20, 2025 (v7.11): QUICK FIX - Fixed off-topic penalty for short valid answers
 - Oct 27, 2025 (v8): Added optional ML-based semantic alignment enhancement
+- Nov 29, 2025 (v9): Added reasoning chain detection for CoT responses
+  * Detects step-by-step reasoning patterns (math operations, step indicators)
+  * Gives +0.15 to +0.25 boost for responses with clear reasoning
+  * Fixes alignment floor triggering on valid CoT responses (was 0.17→0.35+)
+  * Domain-agnostic - works for math, code, analysis, any multi-step reasoning
 
 PRODUCTION TEST RESULTS:
 After v7.11:
@@ -334,6 +339,11 @@ class QueryResponseAlignmentScorer:
         features["answer_pattern"] = pattern_score
         score += pattern_score
 
+        # v9: Reasoning chain detection for CoT responses
+        reasoning_score = self._detect_reasoning_chain(response_lower)
+        features["reasoning_chain"] = reasoning_score
+        score += reasoning_score
+
         # v7.11 FIX: Only apply off-topic penalty if truly off-topic
         # Don't penalize short valid answers that have keywords
         if not has_keywords and len(query_lower.split()) > 2:
@@ -616,6 +626,123 @@ class QueryResponseAlignmentScorer:
 
         return max(0.0, score)
 
+    def _detect_reasoning_chain(self, response: str) -> float:
+        """
+        Detect chain-of-thought / step-by-step reasoning patterns in response.
+
+        v9 (Nov 2025): Fixes alignment floor triggering on valid CoT responses.
+        v9.1 (Nov 2025): Enhanced multi-domain support (code, data, analysis, general)
+        v9.2 (Dec 2025): STRICTER detection to reduce false positives
+          - Requires STRUCTURAL reasoning evidence (steps, lists, conclusions)
+          - Domain keywords alone are NOT enough
+          - Minimum response length required (100 chars)
+          - Higher thresholds to avoid false positives
+
+        A response with clear reasoning structure should get a boost because:
+        1. It shows the model engaged with the problem
+        2. CoT responses naturally have lower keyword overlap with questions
+        3. Step-by-step reasoning is a sign of quality, not off-topic drift
+
+        v9.2 Key Change: Only boost if there's ACTUAL multi-step structure,
+        not just domain-specific keywords.
+
+        Returns:
+            float: Boost score 0.0 to 0.25
+        """
+        response_lower = response.lower()
+
+        # v9.2: Require minimum response length for reasoning detection
+        # Short responses can't have meaningful reasoning chains
+        if len(response) < 100:
+            return 0.0
+
+        # === PHASE 1: Detect STRUCTURAL reasoning indicators ===
+        # These are required for any boost to be applied
+        structural_score = 0.0
+
+        # Signal 1: Math/Financial operations (equations with = sign)
+        # These ARE structural - showing work step by step
+        equation_count = len(re.findall(r'\d+\s*[+\-*/]\s*\d+\s*=\s*\d+', response))
+        equals_count = len(re.findall(r'=\s*\$?\d+', response))
+        if equation_count >= 3 or equals_count >= 3:
+            structural_score += 0.15
+        elif equation_count >= 2 or equals_count >= 2:
+            structural_score += 0.10
+
+        # Signal 2: Step indicators (shows multi-step reasoning)
+        step_indicators = [
+            'first,', 'then,', 'next,', 'finally,', 'step 1', 'step 2',
+            'second,', 'third,', 'after that,', 'let\'s calculate',
+            'let\'s find', 'let\'s solve', 'to begin,', 'initially,', 'lastly,'
+        ]
+        step_count = sum(1 for indicator in step_indicators if indicator in response_lower)
+        if step_count >= 3:
+            structural_score += 0.12
+        elif step_count >= 2:
+            structural_score += 0.08
+
+        # Signal 3: Conclusion markers (shows reasoning has a final answer)
+        conclusion_markers = [
+            'therefore,', 'thus,', 'hence,', 'the answer is',
+            'the final answer', '####', 'in total,', 'altogether,',
+            'in conclusion,', 'to summarize,', 'the result is',
+            'this gives us', 'we conclude'
+        ]
+        conclusion_count = sum(1 for marker in conclusion_markers if marker in response_lower)
+        if conclusion_count >= 2:
+            structural_score += 0.08
+        elif conclusion_count >= 1:
+            structural_score += 0.04
+
+        # Signal 4: Numbered/bulleted lists with 3+ items (shows enumerated steps)
+        numbered_list = len(re.findall(r'^\s*\d+[\.\)]\s', response, re.MULTILINE))
+        bullet_list = len(re.findall(r'^\s*[-•*]\s', response, re.MULTILINE))
+        if numbered_list >= 3 or bullet_list >= 3:
+            structural_score += 0.08
+
+        # Signal 5: Code blocks with explanation (shows structured code reasoning)
+        # Only count if there's a code block AND explanatory text
+        has_code_block = '```' in response
+        has_code_explanation = any(
+            phrase in response_lower
+            for phrase in ['this code', 'the function', 'this function', 'here\'s how', 'this will']
+        )
+        if has_code_block and has_code_explanation:
+            structural_score += 0.10
+
+        # v9.2 CRITICAL: Require minimum structural evidence
+        # Without this, we get false positives from domain keywords alone
+        if structural_score < 0.08:
+            return 0.0
+
+        # === PHASE 2: Add domain-specific bonuses (only if structural evidence exists) ===
+        domain_bonus = 0.0
+
+        # Only add domain bonuses for domains with HEAVY reasoning requirements
+        # and ONLY if multiple domain signals are present
+
+        # Math domain bonus (already got credit from equations)
+        math_markers = ['calculate', 'compute', 'solve', 'equation', 'formula']
+        if sum(1 for m in math_markers if m in response_lower) >= 2:
+            domain_bonus += 0.03
+
+        # Analysis/comparison domain (requires strong multi-signal evidence)
+        analysis_strong = [
+            'on one hand', 'on the other hand', 'in contrast',
+            'compared to', 'whereas', 'advantage', 'disadvantage'
+        ]
+        if sum(1 for p in analysis_strong if p in response_lower) >= 2:
+            domain_bonus += 0.03
+
+        # Scientific reasoning (requires methodology + findings)
+        science_structure = ['hypothesis', 'experiment', 'methodology', 'conclusion', 'findings']
+        if sum(1 for p in science_structure if p in response_lower) >= 3:
+            domain_bonus += 0.03
+
+        # Cap total score and return
+        total_score = structural_score + domain_bonus
+        return min(0.25, total_score)
+
     def _generate_reasoning(self, features: dict, final_score: float) -> str:
         """Generate human-readable reasoning."""
         reasons = []
@@ -657,6 +784,9 @@ class QueryResponseAlignmentScorer:
 
         if features.get("answer_pattern", 0) > 0.05:
             reasons.append("matches question type")
+
+        if features.get("reasoning_chain", 0) > 0.10:
+            reasons.append("chain-of-thought reasoning detected")
 
         if not reasons:
             reasons.append("standard alignment")

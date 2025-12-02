@@ -11,7 +11,7 @@
  * - Trivial query detection for edge cases
  * - Bidirectional keyword matching for short answers
  *
- * Based on Python alignment_scorer.py v7.11
+ * Based on Python alignment_scorer.py v9
  *
  * Key improvements from Python:
  * - Oct 6, 2025 (v1): Word length filter changed from > 3 to > 2 characters
@@ -20,6 +20,11 @@
  * - Oct 6, 2025 (v4): Dynamic baseline adjustment (0.20 standard, 0.25 trivial)
  * - Oct 7, 2025 (v7.11): Fixed off-topic penalty for short valid answers
  * - Oct 20, 2025 (v7.1): Performance fix - replaced regex with split() (30-50% faster)
+ * - Nov 29, 2025 (v9): Added reasoning chain detection for CoT responses
+ *   * Detects step-by-step reasoning patterns (math operations, step indicators)
+ *   * Gives +0.15 to +0.25 boost for responses with clear reasoning
+ *   * Fixes alignment floor triggering on valid CoT responses
+ *   * Domain-agnostic - works for math, code, analysis, any multi-step reasoning
  *
  * @example
  * ```typescript
@@ -65,6 +70,9 @@ export interface AlignmentAnalysis {
 
     /** Answer pattern score */
     answerPattern?: number;
+
+    /** Reasoning chain detection score (v9) */
+    reasoningChain?: number;
 
     /** Whether query is trivial */
     isTrivial?: boolean;
@@ -652,6 +660,186 @@ export class QueryResponseAlignmentScorer {
   }
 
   /**
+   * Detect chain-of-thought / step-by-step reasoning patterns in response.
+   *
+   * v9 (Nov 2025): Fixes alignment floor triggering on valid CoT responses.
+   * v9.1 (Nov 2025): Enhanced multi-domain support (code, data, analysis, general)
+   * v9.2 (Dec 2025): STRICTER detection to reduce false positives
+   *   - Requires STRUCTURAL reasoning evidence (steps, lists, conclusions)
+   *   - Domain keywords alone are NOT enough
+   *   - Minimum response length required (100 chars)
+   *   - Higher thresholds to avoid false positives
+   *
+   * A response with clear reasoning structure should get a boost because:
+   * 1. It shows the model engaged with the problem
+   * 2. CoT responses naturally have lower keyword overlap with questions
+   * 3. Step-by-step reasoning is a sign of quality, not off-topic drift
+   *
+   * v9.2 Key Change: Only boost if there's ACTUAL multi-step structure,
+   * not just domain-specific keywords.
+   *
+   * @param response - Response text
+   * @returns Boost score 0.0 to 0.25
+   */
+  private detectReasoningChain(response: string): number {
+    const responseLower = response.toLowerCase();
+
+    // v9.2: Require minimum response length for reasoning detection
+    // Short responses can't have meaningful reasoning chains
+    if (response.length < 100) {
+      return 0.0;
+    }
+
+    // === PHASE 1: Detect STRUCTURAL reasoning indicators ===
+    // These are required for any boost to be applied
+    let structuralScore = 0.0;
+
+    // Signal 1: Math/Financial operations (equations with = sign)
+    // These ARE structural - showing work step by step
+    const equationMatches = response.match(/\d+\s*[+\-*/]\s*\d+\s*=\s*\d+/g) || [];
+    const equalsMatches = response.match(/=\s*\$?\d+/g) || [];
+
+    if (equationMatches.length >= 3 || equalsMatches.length >= 3) {
+      structuralScore += 0.15;
+    } else if (equationMatches.length >= 2 || equalsMatches.length >= 2) {
+      structuralScore += 0.1;
+    }
+
+    // Signal 2: Step indicators (shows multi-step reasoning)
+    const stepIndicators = [
+      'first,',
+      'then,',
+      'next,',
+      'finally,',
+      'step 1',
+      'step 2',
+      'second,',
+      'third,',
+      'after that,',
+      "let's calculate",
+      "let's find",
+      "let's solve",
+      'to begin,',
+      'initially,',
+      'lastly,',
+    ];
+
+    let stepCount = 0;
+    for (const indicator of stepIndicators) {
+      if (responseLower.includes(indicator)) {
+        stepCount++;
+      }
+    }
+
+    if (stepCount >= 3) {
+      structuralScore += 0.12;
+    } else if (stepCount >= 2) {
+      structuralScore += 0.08;
+    }
+
+    // Signal 3: Conclusion markers (shows reasoning has a final answer)
+    const conclusionMarkers = [
+      'therefore,',
+      'thus,',
+      'hence,',
+      'the answer is',
+      'the final answer',
+      '####',
+      'in total,',
+      'altogether,',
+      'in conclusion,',
+      'to summarize,',
+      'the result is',
+      'this gives us',
+      'we conclude',
+    ];
+
+    let conclusionCount = 0;
+    for (const marker of conclusionMarkers) {
+      if (responseLower.includes(marker)) {
+        conclusionCount++;
+      }
+    }
+
+    if (conclusionCount >= 2) {
+      structuralScore += 0.08;
+    } else if (conclusionCount >= 1) {
+      structuralScore += 0.04;
+    }
+
+    // Signal 4: Numbered/bulleted lists with 3+ items (shows enumerated steps)
+    const numberedList = (response.match(/^\s*\d+[.)]\s/gm) || []).length;
+    const bulletList = (response.match(/^\s*[-•*]\s/gm) || []).length;
+
+    if (numberedList >= 3 || bulletList >= 3) {
+      structuralScore += 0.08;
+    }
+
+    // Signal 5: Code blocks with explanation (shows structured code reasoning)
+    // Only count if there's a code block AND explanatory text
+    const hasCodeBlock = response.includes('```');
+    const hasCodeExplanation = [
+      'this code',
+      'the function',
+      'this function',
+      "here's how",
+      'this will',
+    ].some((phrase) => responseLower.includes(phrase));
+
+    if (hasCodeBlock && hasCodeExplanation) {
+      structuralScore += 0.1;
+    }
+
+    // v9.2 CRITICAL: Require minimum structural evidence
+    // Without this, we get false positives from domain keywords alone
+    if (structuralScore < 0.08) {
+      return 0.0;
+    }
+
+    // === PHASE 2: Add domain-specific bonuses (only if structural evidence exists) ===
+    let domainBonus = 0.0;
+
+    // Only add domain bonuses for domains with HEAVY reasoning requirements
+    // and ONLY if multiple domain signals are present
+
+    // Math domain bonus (already got credit from equations)
+    const mathMarkers = ['calculate', 'compute', 'solve', 'equation', 'formula'];
+    if (mathMarkers.filter((m) => responseLower.includes(m)).length >= 2) {
+      domainBonus += 0.03;
+    }
+
+    // Analysis/comparison domain (requires strong multi-signal evidence)
+    const analysisStrong = [
+      'on one hand',
+      'on the other hand',
+      'in contrast',
+      'compared to',
+      'whereas',
+      'advantage',
+      'disadvantage',
+    ];
+    if (analysisStrong.filter((p) => responseLower.includes(p)).length >= 2) {
+      domainBonus += 0.03;
+    }
+
+    // Scientific reasoning (requires methodology + findings)
+    const scienceStructure = [
+      'hypothesis',
+      'experiment',
+      'methodology',
+      'conclusion',
+      'findings',
+    ];
+    if (scienceStructure.filter((p) => responseLower.includes(p)).length >= 3) {
+      domainBonus += 0.03;
+    }
+
+    // Cap total score and return
+    const totalScore = structuralScore + domainBonus;
+    return Math.min(0.25, totalScore);
+  }
+
+  /**
    * Generate human-readable reasoning from features.
    *
    * @param features - Feature scores
@@ -709,6 +897,11 @@ export class QueryResponseAlignmentScorer {
 
     if ((features.answerPattern || 0) > 0.05) {
       reasons.push('matches question type');
+    }
+
+    // v9: Report reasoning chain detection
+    if ((features.reasoningChain || 0) > 0.1) {
+      reasons.push('chain-of-thought reasoning detected');
     }
 
     if (reasons.length === 0) {
@@ -829,6 +1022,11 @@ export class QueryResponseAlignmentScorer {
     const patternScore = this.detectAnswerPattern(queryLower, responseLower);
     features.answerPattern = patternScore;
     score += patternScore;
+
+    // v9: Reasoning chain detection for CoT responses
+    const reasoningScore = this.detectReasoningChain(responseLower);
+    features.reasoningChain = reasoningScore;
+    score += reasoningScore;
 
     // v7.11 FIX: Only apply off-topic penalty if truly off-topic
     // Don't penalize short valid answers that have keywords
