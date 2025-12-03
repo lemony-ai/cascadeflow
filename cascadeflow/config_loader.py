@@ -45,9 +45,12 @@ Usage:
 
 import json
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from .schema import DomainConfig, DomainValidationMethod, ModelConfig
+
+if TYPE_CHECKING:
+    from .agent import CascadeAgent
 
 
 def load_yaml(path: Union[str, Path]) -> dict[str, Any]:
@@ -69,13 +72,13 @@ def load_json(path: Union[str, Path]) -> dict[str, Any]:
         return json.load(f)
 
 
-def load_config(path: Union[str, Path], format: Optional[str] = None) -> dict[str, Any]:
+def load_config(path: Union[str, Path], file_format: Optional[str] = None) -> dict[str, Any]:
     """
     Load configuration from a file.
 
     Args:
         path: Path to config file (YAML or JSON)
-        format: Explicit format ('yaml' or 'json'). If None, infers from extension.
+        file_format: Explicit format ('yaml' or 'json'). If None, infers from extension.
 
     Returns:
         Parsed configuration dictionary
@@ -90,24 +93,24 @@ def load_config(path: Union[str, Path], format: Optional[str] = None) -> dict[st
         raise FileNotFoundError(f"Config file not found: {path}")
 
     # Infer format from extension if not specified
-    if format is None:
+    if file_format is None:
         suffix = path.suffix.lower()
         if suffix in (".yaml", ".yml"):
-            format = "yaml"
+            file_format = "yaml"
         elif suffix == ".json":
-            format = "json"
+            file_format = "json"
         else:
             raise ValueError(
                 f"Unknown config file format: {suffix}. "
                 "Use .yaml, .yml, or .json extension, or specify format explicitly."
             )
 
-    if format == "yaml":
+    if file_format == "yaml":
         return load_yaml(path)
-    elif format == "json":
+    elif file_format == "json":
         return load_json(path)
     else:
-        raise ValueError(f"Unknown format: {format}. Use 'yaml' or 'json'.")
+        raise ValueError(f"Unknown format: {file_format}. Use 'yaml' or 'json'.")
 
 
 def parse_model_config(config: dict[str, Any]) -> ModelConfig:

@@ -10,8 +10,9 @@
  * - Alignment floor (0.15) for off-topic detection
  * - Trivial query detection for edge cases
  * - Bidirectional keyword matching for short answers
+ * - MCQ (multiple-choice question) format detection (v10)
  *
- * Based on Python alignment_scorer.py v9
+ * Based on Python alignment_scorer.py v10
  *
  * Key improvements from Python:
  * - Oct 6, 2025 (v1): Word length filter changed from > 3 to > 2 characters
@@ -25,6 +26,11 @@
  *   * Gives +0.15 to +0.25 boost for responses with clear reasoning
  *   * Fixes alignment floor triggering on valid CoT responses
  *   * Domain-agnostic - works for math, code, analysis, any multi-step reasoning
+ * - Dec 3, 2025 (v10): Added MCQ (multiple-choice question) format detection
+ *   * Detects MCQ prompts: "Answer the following multiple-choice question"
+ *   * Recognizes valid MCQ responses: single letters A-D, "The answer is B", etc.
+ *   * Gives 0.75 alignment score for valid MCQ responses to MCQ prompts
+ *   * Fixes alignment floor triggering on MMLU benchmark (was 0.06→0.75)
  *
  * @example
  * ```typescript
@@ -73,6 +79,15 @@ export interface AlignmentAnalysis {
 
     /** Reasoning chain detection score (v9) */
     reasoningChain?: number;
+
+    /** Whether query is MCQ format (v10) */
+    isMcq?: boolean;
+
+    /** Whether response is valid MCQ answer (v10) */
+    validMcqResponse?: boolean;
+
+    /** Whether MCQ boost was applied (v10) */
+    mcqBoost?: boolean;
 
     /** Whether query is trivial */
     isTrivial?: boolean;
@@ -324,6 +339,96 @@ export class QueryResponseAlignmentScorer {
 
       const queryLower = query.toLowerCase();
       return trivialPatterns.some((pattern) => queryLower.includes(pattern));
+    }
+
+    return false;
+  }
+
+  /**
+   * Detect if query is a multiple-choice question (MCQ) format.
+   *
+   * v10 (Dec 2025): Fixes alignment floor triggering on MMLU benchmark.
+   *
+   * MCQ prompts typically have:
+   * - Explicit MCQ instruction: "Answer the following multiple-choice question"
+   * - Choice markers: "A)", "B)", "C)", "D)" or "A.", "B.", "C.", "D."
+   * - Answer prompt: "Answer:" at the end
+   *
+   * @param query - Query text
+   * @returns True if query is MCQ format
+   */
+  private isMcqFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+
+    // Check for explicit MCQ instructions
+    const mcqInstructions = [
+      'multiple-choice question',
+      'multiple choice question',
+      'answer the following question',
+      'select the correct answer',
+      'choose the correct answer',
+      'which of the following',
+      'pick the best answer',
+    ];
+    const hasMcqInstruction = mcqInstructions.some((instr) =>
+      queryLower.includes(instr)
+    );
+
+    // Check for choice markers (A), B), etc. or A., B., etc.)
+    const choicePattern = /\b[A-D][.)]\s/gi;
+    const choices = query.match(choicePattern) || [];
+    const hasChoices = choices.length >= 2;
+
+    // Check for answer prompt at end
+    const trimmedQuery = queryLower.trim();
+    const hasAnswerPrompt =
+      trimmedQuery.endsWith('answer:') || trimmedQuery.endsWith('answer');
+
+    // MCQ if has instruction + choices, or has choices + answer prompt
+    return (hasMcqInstruction && hasChoices) || (hasChoices && hasAnswerPrompt);
+  }
+
+  /**
+   * Check if response is a valid MCQ answer (A, B, C, or D).
+   *
+   * v10 (Dec 2025): Recognizes various MCQ response formats.
+   *
+   * Valid formats:
+   * - Single letter: "A", "B", "C", "D"
+   * - With explanation: "The answer is B", "B. Because..."
+   * - With confidence: "I believe the answer is C"
+   *
+   * @param response - Response text
+   * @returns True if response is a valid MCQ answer
+   */
+  private isValidMcqResponse(response: string): boolean {
+    const responseStripped = response.trim().toUpperCase();
+
+    // Single letter answer
+    if (['A', 'B', 'C', 'D'].includes(responseStripped)) {
+      return true;
+    }
+
+    // Check for letter at start with punctuation
+    if (/^[A-D][.)\s]/.test(responseStripped)) {
+      return true;
+    }
+
+    // Check for common MCQ answer patterns
+    const responseLower = response.toLowerCase();
+    const mcqAnswerPatterns = [
+      /(?:the\s+)?answer\s+is\s+[a-d]/,
+      /(?:i\s+)?(?:believe|think)\s+(?:the\s+)?answer\s+is\s+[a-d]/,
+      /(?:i\s+)?(?:would\s+)?(?:choose|select|pick)\s+[a-d]/,
+      /^[a-d]\s*[.):]/,
+      /correct\s+answer\s+is\s+[a-d]/,
+      /option\s+[a-d]/,
+    ];
+
+    for (const pattern of mcqAnswerPatterns) {
+      if (pattern.test(responseLower)) {
+        return true;
+      }
     }
 
     return false;
@@ -960,6 +1065,34 @@ export class QueryResponseAlignmentScorer {
     const features: AlignmentAnalysis['features'] = {};
     const queryLower = query.toLowerCase().trim();
     const responseLower = response.toLowerCase().trim();
+
+    // v10: MCQ format detection - handle before normal scoring
+    // MCQ responses (A, B, C, D) to MCQ prompts should get high alignment
+    const isMcq = this.isMcqFormat(query);
+    const validMcqResponse = isMcq ? this.isValidMcqResponse(response) : false;
+    features.isMcq = isMcq;
+    features.validMcqResponse = validMcqResponse;
+
+    // v10: If MCQ with valid response, return high alignment score immediately
+    if (isMcq && validMcqResponse) {
+      // MCQ responses are trivial by nature - single letter answers are expected
+      features.isTrivial = true;
+      features.baseline = this.BASELINE_TRIVIAL;
+      features.mcqBoost = true;
+      // Give 0.75 score to valid MCQ responses to avoid alignment floor
+      const finalScore = 0.75;
+
+      if (verbose) {
+        return {
+          alignmentScore: finalScore,
+          features,
+          reasoning: `Score ${finalScore.toFixed(3)}: MCQ format with valid letter answer`,
+          isTrivial: true,
+          baselineUsed: this.BASELINE_TRIVIAL,
+        };
+      }
+      return finalScore;
+    }
 
     // Check if trivial
     const isTrivial = this.isTrivialQuery(query, response);
