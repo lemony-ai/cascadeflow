@@ -235,80 +235,129 @@ export type DomainConfigMap = Partial<Record<Domain, DomainConfig>>;
 
 /**
  * Built-in domain configurations optimized for common use cases.
+ * Updated December 2025 with GPT-5, Claude Opus/Sonnet/Haiku 4.5 models.
  */
 export const BUILTIN_DOMAIN_CONFIGS: DomainConfigMap = {
   [Domain.CODE]: {
-    drafter: 'deepseek-coder',
-    verifier: 'gpt-4o',
+    drafter: 'deepseek-coder', // DeepSeek Coder - excellent code generation
+    verifier: 'claude-opus-4-5-20251101', // Opus 4.5 - best code reasoning
     threshold: 0.85,
     validationMethod: 'syntax',
     temperature: 0.2,
-    description: 'Optimized for code generation with syntax validation',
+    description: 'Code generation with DeepSeek drafter and Opus 4.5 verification',
   },
   [Domain.MEDICAL]: {
-    drafter: 'gpt-4o-mini',
-    verifier: 'gpt-4',
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good medical knowledge ($0.25/M)
+    verifier: 'claude-opus-4-5-20251101', // Opus 4.5 - best medical reasoning
     threshold: 0.95,
     validationMethod: 'fact',
     temperature: 0.1,
     requireVerifier: true,
-    description: 'High-accuracy medical responses with mandatory verification',
+    description: 'High-accuracy medical with mandatory Opus 4.5 verification',
   },
   [Domain.LEGAL]: {
-    drafter: 'gpt-4o-mini',
-    verifier: 'gpt-4o',
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good legal knowledge ($0.25/M)
+    verifier: 'claude-opus-4-5-20251101', // Opus 4.5 - best legal reasoning
     threshold: 0.90,
     validationMethod: 'fact',
     temperature: 0.2,
-    description: 'Legal domain with fact-checking',
+    description: 'Legal domain with GPT-5 Mini and Opus 4.5 verification',
   },
   [Domain.FINANCIAL]: {
-    drafter: 'gpt-4o-mini',
-    verifier: 'gpt-4o',
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good financial ($0.25/M)
+    verifier: 'gpt-5', // GPT-5 - excellent numerical reasoning
     threshold: 0.85,
     validationMethod: 'quality',
     temperature: 0.3,
-    description: 'Financial analysis with quality validation',
+    description: 'Financial analysis with GPT-5 Mini drafter and GPT-5 verifier',
   },
   [Domain.DATA]: {
-    drafter: 'gpt-4o-mini',
-    verifier: 'gpt-4o',
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good data analysis ($0.25/M)
+    verifier: 'gpt-5', // GPT-5 - excellent data reasoning
     threshold: 0.80,
     validationMethod: 'syntax',
     temperature: 0.3,
-    description: 'Data analysis and SQL with syntax validation',
+    description: 'Data analysis with GPT-5 Mini drafter and GPT-5 syntax validation',
   },
   [Domain.MATH]: {
-    drafter: 'gpt-4o-mini',
-    verifier: 'gpt-4o',
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good math ($0.25/M)
+    verifier: 'claude-opus-4-5-20251101', // Opus 4.5 - best mathematical reasoning
     threshold: 0.90,
     validationMethod: 'syntax',
     temperature: 0.1,
-    description: 'Mathematical reasoning with high precision',
+    description: 'Math with GPT-5 Mini drafter and Opus 4.5 verification',
   },
   [Domain.STRUCTURED]: {
-    drafter: 'gpt-4o-mini',
-    verifier: 'gpt-4o',
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good structured output ($0.25/M)
+    verifier: 'gpt-5', // GPT-5 - excellent JSON/XML
     threshold: 0.75,
     validationMethod: 'syntax',
     temperature: 0.2,
-    description: 'Structured data extraction (JSON/XML)',
+    description: 'Structured extraction with GPT-5 Mini and syntax validation',
   },
   [Domain.CREATIVE]: {
-    drafter: 'claude-3-haiku',
-    verifier: 'claude-3-sonnet',
+    drafter: 'claude-3-5-haiku-20241022', // Claude Haiku - fast creative
+    verifier: 'claude-sonnet-4-5-20250929', // Sonnet 4.5 - quality creative
     threshold: 0.60,
     validationMethod: 'quality',
     temperature: 0.9,
-    description: 'Creative writing with higher temperature',
+    description: 'Creative writing with Claude Haiku and Sonnet 4.5 verification',
   },
   [Domain.GENERAL]: {
-    drafter: 'groq/llama-3.1-70b',
-    verifier: 'gpt-4o',
+    drafter: 'claude-3-5-haiku-20241022', // Claude Haiku - fast general ($0.25/$1.25/M)
+    verifier: 'claude-sonnet-4-5-20250929', // Sonnet 4.5 - quality verification
     threshold: 0.70,
     validationMethod: 'quality',
     temperature: 0.7,
-    description: 'Fast general-purpose queries',
+    description: 'General queries with Claude Haiku and Sonnet 4.5 verification',
+  },
+  [Domain.CONVERSATION]: {
+    drafter: 'claude-3-5-haiku-20241022', // Claude Haiku - natural conversation
+    verifier: 'gpt-5', // GPT-5 - excellent conversation
+    threshold: 0.65,
+    validationMethod: 'quality',
+    temperature: 0.8,
+    description: 'Conversational with Claude Haiku and GPT-5 verification',
+  },
+  [Domain.TOOL]: {
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good tool calling ($0.25/M)
+    verifier: 'gpt-5', // GPT-5 - excellent function calling
+    threshold: 0.75,
+    validationMethod: 'syntax',
+    temperature: 0.2,
+    description: 'Tool calling with GPT-5 Mini and GPT-5 verification',
+  },
+  [Domain.RAG]: {
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good context handling ($0.25/M)
+    verifier: 'claude-opus-4-5-20251101', // Opus 4.5 - best context synthesis
+    threshold: 0.80,
+    validationMethod: 'quality',
+    temperature: 0.3,
+    description: 'RAG with GPT-5 Mini and Opus 4.5 context verification',
+  },
+  [Domain.SUMMARY]: {
+    drafter: 'claude-3-5-haiku-20241022', // Claude Haiku - fast summarization
+    verifier: 'claude-sonnet-4-5-20250929', // Sonnet 4.5 - quality summaries
+    threshold: 0.70,
+    validationMethod: 'quality',
+    temperature: 0.5,
+    description: 'Summarization with Claude Haiku and Sonnet 4.5 verification',
+  },
+  [Domain.TRANSLATION]: {
+    drafter: 'gpt-5-mini', // GPT-5 Mini - good multilingual ($0.25/M)
+    verifier: 'gpt-5', // GPT-5 - excellent translation
+    threshold: 0.80,
+    validationMethod: 'quality',
+    temperature: 0.3,
+    description: 'Translation with GPT-5 Mini and GPT-5 verification',
+  },
+  [Domain.MULTIMODAL]: {
+    drafter: 'gpt-5-mini', // GPT-5 Mini - vision capable ($0.25/M)
+    verifier: 'claude-opus-4-5-20251101', // Opus 4.5 - best multimodal reasoning
+    threshold: 0.75,
+    validationMethod: 'quality',
+    temperature: 0.4,
+    description: 'Multimodal with GPT-5 Mini and Opus 4.5 verification',
   },
 };
 
