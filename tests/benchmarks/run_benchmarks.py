@@ -147,7 +147,9 @@ def print_results_table(results: list[dict[str, Any]], targets: BenchmarkTargets
     print("=" * 80)
 
     # Header
-    print(f"\n{'Benchmark':<12} {'Mode':<15} {'Accuracy':<10} {'Cost Red.':<12} {'Drafter %':<10} {'Target Met':<12}")
+    print(
+        f"\n{'Benchmark':<12} {'Mode':<15} {'Accuracy':<10} {'Cost Red.':<12} {'Drafter %':<10} {'Target Met':<12}"
+    )
     print("-" * 80)
 
     for result in results:
@@ -159,13 +161,22 @@ def print_results_table(results: list[dict[str, Any]], targets: BenchmarkTargets
 
         # Check target
         if benchmark == "MT-Bench":
-            target_met = cost_reduction >= targets.mt_bench_cost_reduction and accuracy >= targets.quality_retention
+            target_met = (
+                cost_reduction >= targets.mt_bench_cost_reduction
+                and accuracy >= targets.quality_retention
+            )
             target_str = f"≥{targets.mt_bench_cost_reduction}%"
         elif benchmark == "MMLU":
-            target_met = cost_reduction >= targets.mmlu_cost_reduction and accuracy >= targets.quality_retention
+            target_met = (
+                cost_reduction >= targets.mmlu_cost_reduction
+                and accuracy >= targets.quality_retention
+            )
             target_str = f"≥{targets.mmlu_cost_reduction}%"
         elif benchmark == "GSM8K":
-            target_met = cost_reduction >= targets.gsm8k_cost_reduction and accuracy >= targets.quality_retention
+            target_met = (
+                cost_reduction >= targets.gsm8k_cost_reduction
+                and accuracy >= targets.quality_retention
+            )
             target_str = f"≥{targets.gsm8k_cost_reduction}%"
         else:
             target_met = False
@@ -173,7 +184,9 @@ def print_results_table(results: list[dict[str, Any]], targets: BenchmarkTargets
 
         status = "✅ PASS" if target_met else "❌ FAIL"
 
-        print(f"{benchmark:<12} {mode:<15} {accuracy:>7.1f}% {cost_reduction:>9.1f}% {drafter_rate:>9.1f}% {status:<12}")
+        print(
+            f"{benchmark:<12} {mode:<15} {accuracy:>7.1f}% {cost_reduction:>9.1f}% {drafter_rate:>9.1f}% {status:<12}"
+        )
 
     print("-" * 80)
 
@@ -254,7 +267,9 @@ async def run_all_benchmarks(
         try:
             gsm8k_result = await run_gsm8k_benchmark(config, gsm8k_samples)
             results["benchmarks"].append(gsm8k_result)
-            print(f"\nGSM8K Complete: {gsm8k_result['accuracy']:.1f}% accuracy, {gsm8k_result['cost_reduction_pct']:.1f}% cost reduction")
+            print(
+                f"\nGSM8K Complete: {gsm8k_result['accuracy']:.1f}% accuracy, {gsm8k_result['cost_reduction_pct']:.1f}% cost reduction"
+            )
         except Exception as e:
             print(f"GSM8K Error: {e}")
             results["benchmarks"].append({"benchmark": "GSM8K", "error": str(e)})
@@ -267,7 +282,9 @@ async def run_all_benchmarks(
             mmlu_config = BenchmarkConfig.for_mmlu(mode)
             mmlu_result = await run_mmlu_benchmark(mmlu_config, mmlu_samples)
             results["benchmarks"].append(mmlu_result)
-            print(f"\nMMLU Complete: {mmlu_result['accuracy']:.1f}% accuracy, {mmlu_result['cost_reduction_pct']:.1f}% cost reduction")
+            print(
+                f"\nMMLU Complete: {mmlu_result['accuracy']:.1f}% accuracy, {mmlu_result['cost_reduction_pct']:.1f}% cost reduction"
+            )
         except Exception as e:
             print(f"MMLU Error: {e}")
             results["benchmarks"].append({"benchmark": "MMLU", "error": str(e)})
@@ -280,7 +297,9 @@ async def run_all_benchmarks(
             mtbench_config = BenchmarkConfig.for_mtbench(mode)
             mtbench_result = await run_mtbench_benchmark(mtbench_config, mtbench_samples)
             results["benchmarks"].append(mtbench_result)
-            print(f"\nMT-Bench Complete: {mtbench_result['accuracy']:.1f}% accuracy, {mtbench_result['cost_reduction_pct']:.1f}% cost reduction")
+            print(
+                f"\nMT-Bench Complete: {mtbench_result['accuracy']:.1f}% accuracy, {mtbench_result['cost_reduction_pct']:.1f}% cost reduction"
+            )
         except Exception as e:
             print(f"MT-Bench Error: {e}")
             results["benchmarks"].append({"benchmark": "MT-Bench", "error": str(e)})
@@ -310,7 +329,9 @@ async def run_all_benchmarks(
     return results
 
 
-async def run_comparison(benchmarks: Optional[list[str]] = None, quick: bool = False) -> dict[str, Any]:
+async def run_comparison(
+    benchmarks: Optional[list[str]] = None, quick: bool = False
+) -> dict[str, Any]:
     """
     Run all benchmarks in all modes for comparison.
 
@@ -395,33 +416,38 @@ Examples:
     )
 
     parser.add_argument(
-        "--benchmark", "-b",
+        "--benchmark",
+        "-b",
         choices=["gsm8k", "mmlu", "mtbench"],
         nargs="+",
         help="Specific benchmark(s) to run",
     )
 
     parser.add_argument(
-        "--mode", "-m",
+        "--mode",
+        "-m",
         choices=["baseline", "semantic_only", "domain_only", "full"],
         default="full",
         help="Configuration mode (default: full)",
     )
 
     parser.add_argument(
-        "--compare", "-c",
+        "--compare",
+        "-c",
         action="store_true",
         help="Run all benchmarks in all modes for comparison",
     )
 
     parser.add_argument(
-        "--quick", "-q",
+        "--quick",
+        "-q",
         action="store_true",
         help="Quick mode with reduced sample sizes",
     )
 
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Output file for results (JSON)",
     )
 
@@ -437,11 +463,13 @@ Examples:
         results = asyncio.run(run_comparison(benchmarks=args.benchmark, quick=args.quick))
     else:
         mode = BenchmarkMode(args.mode)
-        results = asyncio.run(run_all_benchmarks(
-            mode=mode,
-            benchmarks=args.benchmark,
-            quick=args.quick,
-        ))
+        results = asyncio.run(
+            run_all_benchmarks(
+                mode=mode,
+                benchmarks=args.benchmark,
+                quick=args.quick,
+            )
+        )
 
     # Save results if output specified
     if args.output:

@@ -313,7 +313,9 @@ class GSM8KBenchmark(Benchmark):
             drafter_cost = total_cost
             verifier_cost = 0.0
             # Baseline: what verifier would have cost
-            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (completion_tokens * gpt4o_output_rate)
+            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (
+                completion_tokens * gpt4o_output_rate
+            )
         elif is_direct:
             # Direct routing - only verifier cost
             drafter_cost = 0.0
@@ -323,10 +325,14 @@ class GSM8KBenchmark(Benchmark):
         else:
             # Cascade rejection - drafter tried, then verifier called
             # Estimate split based on token ratios
-            drafter_cost = (prompt_tokens * gpt4o_mini_input_rate) + (completion_tokens * gpt4o_mini_output_rate)
+            drafter_cost = (prompt_tokens * gpt4o_mini_input_rate) + (
+                completion_tokens * gpt4o_mini_output_rate
+            )
             verifier_cost = total_cost - drafter_cost
             # Baseline: what verifier alone would have cost
-            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (completion_tokens * gpt4o_output_rate)
+            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (
+                completion_tokens * gpt4o_output_rate
+            )
 
         # Store for accurate baseline calculation
         self._last_verifier_cost = baseline_cost
@@ -385,7 +391,9 @@ async def run_gsm8k_benchmark():
     print("=" * 80 + "\n")
 
     # Calculate correct solutions from accuracy
-    correct_count = int(summary.accuracy / 100 * summary.successful_tests) if summary.successful_tests else 0
+    correct_count = (
+        int(summary.accuracy / 100 * summary.successful_tests) if summary.successful_tests else 0
+    )
     print(f"Total Problems:      {summary.total_tests}")
     print(f"Correct Solutions:   {correct_count} ({summary.accuracy:.1f}%)")
     print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)")

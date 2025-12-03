@@ -210,7 +210,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "law",
                 "category": MMLUCategory.HUMANITIES,
                 "question": "What is the principle of 'innocent until proven guilty' called?",
-                "choices": ["A. Due process", "B. Presumption of innocence", "C. Habeas corpus", "D. Double jeopardy"],
+                "choices": [
+                    "A. Due process",
+                    "B. Presumption of innocence",
+                    "C. Habeas corpus",
+                    "D. Double jeopardy",
+                ],
                 "answer": "B",
             },
             {
@@ -218,7 +223,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "ethics",
                 "category": MMLUCategory.HUMANITIES,
                 "question": "What ethical theory judges actions by their consequences?",
-                "choices": ["A. Deontology", "B. Virtue ethics", "C. Consequentialism", "D. Divine command theory"],
+                "choices": [
+                    "A. Deontology",
+                    "B. Virtue ethics",
+                    "C. Consequentialism",
+                    "D. Divine command theory",
+                ],
                 "answer": "C",
             },
             {
@@ -234,7 +244,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "history",
                 "category": MMLUCategory.HUMANITIES,
                 "question": "Who was the first President of the United States?",
-                "choices": ["A. Thomas Jefferson", "B. John Adams", "C. George Washington", "D. Benjamin Franklin"],
+                "choices": [
+                    "A. Thomas Jefferson",
+                    "B. John Adams",
+                    "C. George Washington",
+                    "D. Benjamin Franklin",
+                ],
                 "answer": "C",
             },
             {
@@ -242,7 +257,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "philosophy",
                 "category": MMLUCategory.HUMANITIES,
                 "question": "What is Descartes' famous philosophical statement?",
-                "choices": ["A. 'Knowledge is power'", "B. 'I think, therefore I am'", "C. 'God is dead'", "D. 'The unexamined life is not worth living'"],
+                "choices": [
+                    "A. 'Knowledge is power'",
+                    "B. 'I think, therefore I am'",
+                    "C. 'God is dead'",
+                    "D. 'The unexamined life is not worth living'",
+                ],
                 "answer": "B",
             },
             {
@@ -250,7 +270,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "law",
                 "category": MMLUCategory.HUMANITIES,
                 "question": "What does 'habeas corpus' protect against?",
-                "choices": ["A. Self-incrimination", "B. Unlawful detention", "C. Double jeopardy", "D. Unreasonable search"],
+                "choices": [
+                    "A. Self-incrimination",
+                    "B. Unlawful detention",
+                    "C. Double jeopardy",
+                    "D. Unreasonable search",
+                ],
                 "answer": "B",
             },
             {
@@ -258,7 +283,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "ethics",
                 "category": MMLUCategory.HUMANITIES,
                 "question": "According to Kant, what should guide moral actions?",
-                "choices": ["A. Consequences", "B. Emotions", "C. Duty and universal laws", "D. Self-interest"],
+                "choices": [
+                    "A. Consequences",
+                    "B. Emotions",
+                    "C. Duty and universal laws",
+                    "D. Self-interest",
+                ],
                 "answer": "C",
             },
             {
@@ -277,7 +307,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "economics",
                 "category": MMLUCategory.SOCIAL_SCIENCES,
                 "question": "What does GDP stand for?",
-                "choices": ["A. Gross Domestic Product", "B. General Domestic Production", "C. Gross Development Plan", "D. Global Domestic Product"],
+                "choices": [
+                    "A. Gross Domestic Product",
+                    "B. General Domestic Production",
+                    "C. Gross Development Plan",
+                    "D. Global Domestic Product",
+                ],
                 "answer": "A",
             },
             {
@@ -285,7 +320,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "psychology",
                 "category": MMLUCategory.SOCIAL_SCIENCES,
                 "question": "Who is known as the father of psychoanalysis?",
-                "choices": ["A. Carl Jung", "B. B.F. Skinner", "C. Sigmund Freud", "D. Ivan Pavlov"],
+                "choices": [
+                    "A. Carl Jung",
+                    "B. B.F. Skinner",
+                    "C. Sigmund Freud",
+                    "D. Ivan Pavlov",
+                ],
                 "answer": "C",
             },
             {
@@ -293,7 +333,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "sociology",
                 "category": MMLUCategory.SOCIAL_SCIENCES,
                 "question": "What term describes the process of learning cultural norms?",
-                "choices": ["A. Assimilation", "B. Socialization", "C. Acculturation", "D. Modernization"],
+                "choices": [
+                    "A. Assimilation",
+                    "B. Socialization",
+                    "C. Acculturation",
+                    "D. Modernization",
+                ],
                 "answer": "B",
             },
             {
@@ -317,7 +362,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "economics",
                 "category": MMLUCategory.SOCIAL_SCIENCES,
                 "question": "What is inflation?",
-                "choices": ["A. Decrease in prices", "B. Increase in unemployment", "C. General increase in prices", "D. Decrease in GDP"],
+                "choices": [
+                    "A. Decrease in prices",
+                    "B. Increase in unemployment",
+                    "C. General increase in prices",
+                    "D. Decrease in GDP",
+                ],
                 "answer": "C",
             },
             {
@@ -333,7 +383,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "sociology",
                 "category": MMLUCategory.SOCIAL_SCIENCES,
                 "question": "Who wrote 'The Protestant Ethic and the Spirit of Capitalism'?",
-                "choices": ["A. Karl Marx", "B. Emile Durkheim", "C. Max Weber", "D. Auguste Comte"],
+                "choices": [
+                    "A. Karl Marx",
+                    "B. Emile Durkheim",
+                    "C. Max Weber",
+                    "D. Auguste Comte",
+                ],
                 "answer": "C",
             },
             {
@@ -341,7 +396,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "political_science",
                 "category": MMLUCategory.SOCIAL_SCIENCES,
                 "question": "What principle divides government into branches?",
-                "choices": ["A. Federalism", "B. Separation of powers", "C. Pluralism", "D. Sovereignty"],
+                "choices": [
+                    "A. Federalism",
+                    "B. Separation of powers",
+                    "C. Pluralism",
+                    "D. Sovereignty",
+                ],
                 "answer": "B",
             },
             {
@@ -360,7 +420,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "business",
                 "category": MMLUCategory.OTHER,
                 "question": "What does ROI stand for?",
-                "choices": ["A. Rate of Interest", "B. Return on Investment", "C. Revenue of Industry", "D. Risk of Investment"],
+                "choices": [
+                    "A. Rate of Interest",
+                    "B. Return on Investment",
+                    "C. Revenue of Industry",
+                    "D. Risk of Investment",
+                ],
                 "answer": "B",
             },
             {
@@ -376,7 +441,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "marketing",
                 "category": MMLUCategory.OTHER,
                 "question": "What are the 4 P's of marketing?",
-                "choices": ["A. Price, Product, Place, Promotion", "B. People, Process, Place, Product", "C. Plan, Price, Promote, Place", "D. Product, People, Process, Promotion"],
+                "choices": [
+                    "A. Price, Product, Place, Promotion",
+                    "B. People, Process, Place, Product",
+                    "C. Plan, Price, Promote, Place",
+                    "D. Product, People, Process, Promotion",
+                ],
                 "answer": "A",
             },
             {
@@ -384,7 +454,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "management",
                 "category": MMLUCategory.OTHER,
                 "question": "What management theory emphasizes employee motivation?",
-                "choices": ["A. Scientific Management", "B. Human Relations Theory", "C. Bureaucratic Theory", "D. Systems Theory"],
+                "choices": [
+                    "A. Scientific Management",
+                    "B. Human Relations Theory",
+                    "C. Bureaucratic Theory",
+                    "D. Systems Theory",
+                ],
                 "answer": "B",
             },
             {
@@ -392,7 +467,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "business",
                 "category": MMLUCategory.OTHER,
                 "question": "What is a company's market capitalization?",
-                "choices": ["A. Total revenue", "B. Total debt", "C. Share price × Outstanding shares", "D. Net profit"],
+                "choices": [
+                    "A. Total revenue",
+                    "B. Total debt",
+                    "C. Share price × Outstanding shares",
+                    "D. Net profit",
+                ],
                 "answer": "C",
             },
             {
@@ -408,7 +488,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "marketing",
                 "category": MMLUCategory.OTHER,
                 "question": "What is market segmentation?",
-                "choices": ["A. Combining markets", "B. Dividing market into distinct groups", "C. Pricing strategy", "D. Distribution channel"],
+                "choices": [
+                    "A. Combining markets",
+                    "B. Dividing market into distinct groups",
+                    "C. Pricing strategy",
+                    "D. Distribution channel",
+                ],
                 "answer": "B",
             },
             {
@@ -416,7 +501,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "management",
                 "category": MMLUCategory.OTHER,
                 "question": "What is SWOT analysis used for?",
-                "choices": ["A. Financial planning", "B. Strategic planning", "C. Employee evaluation", "D. Product design"],
+                "choices": [
+                    "A. Financial planning",
+                    "B. Strategic planning",
+                    "C. Employee evaluation",
+                    "D. Product design",
+                ],
                 "answer": "B",
             },
             {
@@ -424,7 +514,12 @@ class MMLUBenchmark(Benchmark):
                 "subject": "business",
                 "category": MMLUCategory.OTHER,
                 "question": "What is a balance sheet?",
-                "choices": ["A. Cash flow statement", "B. Income statement", "C. Statement of assets, liabilities, and equity", "D. Budget forecast"],
+                "choices": [
+                    "A. Cash flow statement",
+                    "B. Income statement",
+                    "C. Statement of assets, liabilities, and equity",
+                    "D. Budget forecast",
+                ],
                 "answer": "C",
             },
             {
@@ -588,8 +683,12 @@ Answer:"""
         """Get accuracy breakdown by category."""
         summary = {}
 
-        for category in [MMLUCategory.STEM, MMLUCategory.HUMANITIES,
-                        MMLUCategory.SOCIAL_SCIENCES, MMLUCategory.OTHER]:
+        for category in [
+            MMLUCategory.STEM,
+            MMLUCategory.HUMANITIES,
+            MMLUCategory.SOCIAL_SCIENCES,
+            MMLUCategory.OTHER,
+        ]:
             cat_results = self.category_results.get(category, [])
             if cat_results:
                 correct = sum(1 for r in cat_results if r.is_correct)
