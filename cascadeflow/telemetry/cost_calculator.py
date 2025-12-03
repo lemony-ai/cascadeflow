@@ -703,7 +703,7 @@ class CostCalculator:
         """
         # Try LiteLLM for accurate input/output pricing
         try:
-            from cascadeflow.integrations.litellm import LiteLLMCostProvider, LITELLM_AVAILABLE
+            from cascadeflow.integrations.litellm import LITELLM_AVAILABLE, LiteLLMCostProvider
 
             if LITELLM_AVAILABLE and (input_tokens > 0 or output_tokens > 0):
                 provider = LiteLLMCostProvider()

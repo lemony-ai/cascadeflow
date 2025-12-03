@@ -23,8 +23,7 @@ import logging
 import os
 import threading
 import time
-from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 

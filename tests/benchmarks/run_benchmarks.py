@@ -28,18 +28,18 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Optional
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from tests.benchmarks.benchmark_config import (
+    DEFAULT_TARGETS,
     BenchmarkConfig,
     BenchmarkMode,
     BenchmarkTargets,
-    DEFAULT_TARGETS,
     print_config,
 )
 

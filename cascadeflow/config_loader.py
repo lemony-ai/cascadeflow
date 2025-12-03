@@ -44,11 +44,10 @@ Usage:
 """
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from .schema import DomainConfig, ModelConfig, DomainValidationMethod
+from .schema import DomainConfig, DomainValidationMethod, ModelConfig
 
 
 def load_yaml(path: Union[str, Path]) -> dict[str, Any]:
@@ -60,13 +59,13 @@ def load_yaml(path: Union[str, Path]) -> dict[str, Any]:
             "PyYAML is required for YAML config loading. " "Install it with: pip install pyyaml"
         )
 
-    with open(path, "r") as f:
+    with open(path) as f:
         return yaml.safe_load(f)
 
 
 def load_json(path: Union[str, Path]) -> dict[str, Any]:
     """Load a JSON file."""
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 

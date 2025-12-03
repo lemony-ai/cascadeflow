@@ -74,10 +74,13 @@ from .quality import QualityConfig
 
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
-from .routing import PreRouter, ToolRouter
-
 # Phase 3.2: Domain detection (NEW)
-from .routing import Domain, DomainDetector, DomainDetectionResult, SemanticDomainDetector
+from .routing import (
+    DomainDetector,
+    PreRouter,
+    SemanticDomainDetector,
+    ToolRouter,
+)
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError

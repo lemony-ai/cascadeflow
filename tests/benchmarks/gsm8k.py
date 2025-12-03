@@ -230,7 +230,7 @@ class GSM8KBenchmark(Benchmark):
         # Add instruction for clear answer format
         enhanced_query = f"{query}\n\nPlease show your step-by-step reasoning and clearly state your final answer."
 
-        from cascadeflow import CascadeAgent, ModelConfig, QualityConfig, DomainConfig
+        from cascadeflow import CascadeAgent, DomainConfig, ModelConfig, QualityConfig
 
         # Configure domain-specific models for math domain
         # Using specified drafter model for cost-effective math reasoning

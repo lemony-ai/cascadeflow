@@ -49,9 +49,8 @@ from typing import Any, Optional
 
 import httpx
 
-from ..schema.exceptions import ModelError, ProviderError
+from ..schema.exceptions import ProviderError
 from .base import BaseProvider, ModelResponse, RetryConfig
-
 
 # OpenRouter pricing per 1M tokens (sample of popular models as of 2025)
 # Note: OpenRouter has 400+ models with dynamic pricing.
@@ -455,7 +454,7 @@ class OpenRouterProvider(BaseProvider):
 
             return models
 
-        except Exception as e:
+        except Exception:
             # If fetch fails, return empty list (don't break the provider)
             return []
 

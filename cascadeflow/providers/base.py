@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from cascadeflow.resilience import CircuitBreaker
@@ -225,7 +225,7 @@ class BaseProvider(ABC):
 
         # Circuit breaker integration
         self._enable_circuit_breaker = enable_circuit_breaker
-        self._circuit_breaker: Optional["CircuitBreaker"] = None
+        self._circuit_breaker: Optional[CircuitBreaker] = None
         if enable_circuit_breaker:
             self._init_circuit_breaker()
 
