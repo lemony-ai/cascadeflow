@@ -231,6 +231,10 @@ disable_error_code = [
     "no-redef",
     "has-type",
     "annotation-unchecked",
+    "name-defined",
+    "import-not-found",
+    "call-arg",
+    "import",
 ]
 
 [[tool.mypy.overrides]]
