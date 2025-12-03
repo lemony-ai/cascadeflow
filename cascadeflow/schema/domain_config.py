@@ -151,9 +151,7 @@ class DomainConfig:
             )
 
         if self.max_tokens <= 0:
-            raise ValueError(
-                f"DomainConfig: max_tokens must be positive, got {self.max_tokens}"
-            )
+            raise ValueError(f"DomainConfig: max_tokens must be positive, got {self.max_tokens}")
 
         # Convert string validation method to enum
         if isinstance(self.validation_method, str):
@@ -367,7 +365,7 @@ def get_builtin_domain_config(domain: str) -> Optional[DomainConfig]:
         >>> print(config.drafter)  # "deepseek-coder"
     """
     # Handle both string and Domain enum
-    domain_str = domain.value if hasattr(domain, 'value') else domain
+    domain_str = domain.value if hasattr(domain, "value") else domain
     return BUILTIN_DOMAIN_CONFIGS.get(domain_str)
 
 

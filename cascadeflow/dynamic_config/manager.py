@@ -273,10 +273,7 @@ class ConfigManager:
         """
         prefix = section.value if isinstance(section, ConfigSection) else section
         with self._lock:
-            return {
-                k: v for k, v in self._config.items()
-                if k.startswith(prefix)
-            }
+            return {k: v for k, v in self._config.items() if k.startswith(prefix)}
 
     # ========================================================================
     # CHANGE CALLBACKS
@@ -390,11 +387,13 @@ class ConfigManager:
                 old_value = self._config.get(key)
                 if old_value != new_value:
                     self._config[key] = new_value
-                    self._fire_callbacks(ConfigChangeEvent(
-                        key=key,
-                        old_value=old_value,
-                        new_value=new_value,
-                    ))
+                    self._fire_callbacks(
+                        ConfigChangeEvent(
+                            key=key,
+                            old_value=old_value,
+                            new_value=new_value,
+                        )
+                    )
 
             # Remove keys not in snapshot
             for key in list(self._config.keys()):
@@ -431,11 +430,13 @@ class ConfigManager:
             for key, new_value in self._config.items():
                 old_value = old_config.get(key)
                 if old_value != new_value:
-                    self._fire_callbacks(ConfigChangeEvent(
-                        key=key,
-                        old_value=old_value,
-                        new_value=new_value,
-                    ))
+                    self._fire_callbacks(
+                        ConfigChangeEvent(
+                            key=key,
+                            old_value=old_value,
+                            new_value=new_value,
+                        )
+                    )
 
             logger.info(f"Configuration reloaded from {self._config_path}")
             return True
@@ -466,7 +467,7 @@ class ConfigManager:
             # Unflatten config
             config = self._unflatten_config(self._config)
 
-            with open(save_path, 'w') as f:
+            with open(save_path, "w") as f:
                 yaml.dump(config, f, default_flow_style=False)
 
             logger.info(f"Configuration saved to {save_path}")

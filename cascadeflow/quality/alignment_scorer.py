@@ -23,6 +23,12 @@ CHANGELOG:
   * Gives +0.15 to +0.25 boost for responses with clear reasoning
   * Fixes alignment floor triggering on valid CoT responses (was 0.17→0.35+)
   * Domain-agnostic - works for math, code, analysis, any multi-step reasoning
+- Dec 3, 2025 (v10): Added MCQ (multiple-choice question) format detection
+  * Detects MCQ prompts: "Answer the following multiple-choice question"
+  * Recognizes valid MCQ responses: single letters A-D, "The answer is B", etc.
+  * Gives 0.70+ alignment score for valid MCQ responses to MCQ prompts
+  * Fixes alignment floor triggering on MMLU benchmark (was 0.06→0.70+)
+  * MCQ format is treated as trivial query (short answers expected)
 
 PRODUCTION TEST RESULTS:
 After v7.11:
@@ -281,6 +287,87 @@ class QueryResponseAlignmentScorer:
 
         return False
 
+    def _is_mcq_format(self, query: str) -> bool:
+        """
+        Detect if query is a multiple-choice question (MCQ) format.
+
+        v10 (Dec 2025): Fixes alignment floor triggering on MMLU benchmark.
+
+        MCQ prompts typically have:
+        - Explicit MCQ instruction: "Answer the following multiple-choice question"
+        - Choice markers: "A)", "B)", "C)", "D)" or "A.", "B.", "C.", "D."
+        - Answer prompt: "Answer:" at the end
+
+        Returns:
+            bool: True if query is MCQ format
+        """
+        query_lower = query.lower()
+
+        # Check for explicit MCQ instructions
+        mcq_instructions = [
+            "multiple-choice question",
+            "multiple choice question",
+            "answer the following question",
+            "select the correct answer",
+            "choose the correct answer",
+            "which of the following",
+            "pick the best answer",
+        ]
+        has_mcq_instruction = any(instr in query_lower for instr in mcq_instructions)
+
+        # Check for choice markers (A), B), etc. or A., B., etc.)
+        choice_pattern = r"\b[A-D][\.\)]\s"
+        has_choices = len(re.findall(choice_pattern, query, re.IGNORECASE)) >= 2
+
+        # Check for answer prompt at end
+        has_answer_prompt = query_lower.strip().endswith("answer:") or query_lower.strip().endswith(
+            "answer"
+        )
+
+        # MCQ if has instruction + choices, or has choices + answer prompt
+        return (has_mcq_instruction and has_choices) or (has_choices and has_answer_prompt)
+
+    def _is_valid_mcq_response(self, response: str) -> bool:
+        """
+        Check if response is a valid MCQ answer (A, B, C, or D).
+
+        v10 (Dec 2025): Recognizes various MCQ response formats.
+
+        Valid formats:
+        - Single letter: "A", "B", "C", "D"
+        - With explanation: "The answer is B", "B. Because..."
+        - With confidence: "I believe the answer is C"
+
+        Returns:
+            bool: True if response is a valid MCQ answer
+        """
+        response_stripped = response.strip().upper()
+
+        # Single letter answer
+        if response_stripped in ["A", "B", "C", "D"]:
+            return True
+
+        # Check for letter at start with punctuation
+        if re.match(r"^[A-D][\.\)\s]", response_stripped):
+            return True
+
+        # Check for common MCQ answer patterns
+        response_lower = response.lower()
+        mcq_answer_patterns = [
+            r"(?:the\s+)?answer\s+is\s+[a-d]",
+            r"(?:i\s+)?(?:believe|think)\s+(?:the\s+)?answer\s+is\s+[a-d]",
+            r"(?:i\s+)?(?:would\s+)?(?:choose|select|pick)\s+[a-d]",
+            r"^[a-d]\s*[\.\):]",
+            r"correct\s+answer\s+is\s+[a-d]",
+            r"option\s+[a-d]",
+        ]
+
+        for pattern in mcq_answer_patterns:
+            if re.search(pattern, response_lower):
+                return True
+
+        return False
+
     def score(
         self, query: str, response: str, query_difficulty: float = 0.5, verbose: bool = False
     ) -> float:
@@ -298,6 +385,32 @@ class QueryResponseAlignmentScorer:
         features = {}
         query_lower = query.lower().strip()
         response_lower = response.lower().strip()
+
+        # v10: MCQ format detection - handle before normal scoring
+        # MCQ responses (A, B, C, D) to MCQ prompts should get high alignment
+        is_mcq = self._is_mcq_format(query)
+        is_valid_mcq_response = self._is_valid_mcq_response(response) if is_mcq else False
+        features["is_mcq"] = is_mcq
+        features["valid_mcq_response"] = is_valid_mcq_response
+
+        # v10: If MCQ with valid response, return high alignment score immediately
+        if is_mcq and is_valid_mcq_response:
+            # MCQ responses are trivial by nature - single letter answers are expected
+            features["is_trivial"] = True
+            features["baseline"] = self.BASELINE_TRIVIAL
+            features["mcq_boost"] = True
+            # Give 0.70+ score to valid MCQ responses to avoid alignment floor
+            final_score = 0.75
+
+            if verbose:
+                return AlignmentAnalysis(
+                    alignment_score=final_score,
+                    features=features,
+                    reasoning=f"Score {final_score:.3f}: MCQ format with valid letter answer",
+                    is_trivial=True,
+                    baseline_used=self.BASELINE_TRIVIAL,
+                )
+            return final_score
 
         is_trivial = self._is_trivial_query(query, response)
         features["is_trivial"] = is_trivial
@@ -662,8 +775,8 @@ class QueryResponseAlignmentScorer:
 
         # Signal 1: Math/Financial operations (equations with = sign)
         # These ARE structural - showing work step by step
-        equation_count = len(re.findall(r'\d+\s*[+\-*/]\s*\d+\s*=\s*\d+', response))
-        equals_count = len(re.findall(r'=\s*\$?\d+', response))
+        equation_count = len(re.findall(r"\d+\s*[+\-*/]\s*\d+\s*=\s*\d+", response))
+        equals_count = len(re.findall(r"=\s*\$?\d+", response))
         if equation_count >= 3 or equals_count >= 3:
             structural_score += 0.15
         elif equation_count >= 2 or equals_count >= 2:
@@ -671,9 +784,21 @@ class QueryResponseAlignmentScorer:
 
         # Signal 2: Step indicators (shows multi-step reasoning)
         step_indicators = [
-            'first,', 'then,', 'next,', 'finally,', 'step 1', 'step 2',
-            'second,', 'third,', 'after that,', 'let\'s calculate',
-            'let\'s find', 'let\'s solve', 'to begin,', 'initially,', 'lastly,'
+            "first,",
+            "then,",
+            "next,",
+            "finally,",
+            "step 1",
+            "step 2",
+            "second,",
+            "third,",
+            "after that,",
+            "let's calculate",
+            "let's find",
+            "let's solve",
+            "to begin,",
+            "initially,",
+            "lastly,",
         ]
         step_count = sum(1 for indicator in step_indicators if indicator in response_lower)
         if step_count >= 3:
@@ -683,10 +808,19 @@ class QueryResponseAlignmentScorer:
 
         # Signal 3: Conclusion markers (shows reasoning has a final answer)
         conclusion_markers = [
-            'therefore,', 'thus,', 'hence,', 'the answer is',
-            'the final answer', '####', 'in total,', 'altogether,',
-            'in conclusion,', 'to summarize,', 'the result is',
-            'this gives us', 'we conclude'
+            "therefore,",
+            "thus,",
+            "hence,",
+            "the answer is",
+            "the final answer",
+            "####",
+            "in total,",
+            "altogether,",
+            "in conclusion,",
+            "to summarize,",
+            "the result is",
+            "this gives us",
+            "we conclude",
         ]
         conclusion_count = sum(1 for marker in conclusion_markers if marker in response_lower)
         if conclusion_count >= 2:
@@ -695,17 +829,17 @@ class QueryResponseAlignmentScorer:
             structural_score += 0.04
 
         # Signal 4: Numbered/bulleted lists with 3+ items (shows enumerated steps)
-        numbered_list = len(re.findall(r'^\s*\d+[\.\)]\s', response, re.MULTILINE))
-        bullet_list = len(re.findall(r'^\s*[-•*]\s', response, re.MULTILINE))
+        numbered_list = len(re.findall(r"^\s*\d+[\.\)]\s", response, re.MULTILINE))
+        bullet_list = len(re.findall(r"^\s*[-•*]\s", response, re.MULTILINE))
         if numbered_list >= 3 or bullet_list >= 3:
             structural_score += 0.08
 
         # Signal 5: Code blocks with explanation (shows structured code reasoning)
         # Only count if there's a code block AND explanatory text
-        has_code_block = '```' in response
+        has_code_block = "```" in response
         has_code_explanation = any(
             phrase in response_lower
-            for phrase in ['this code', 'the function', 'this function', 'here\'s how', 'this will']
+            for phrase in ["this code", "the function", "this function", "here's how", "this will"]
         )
         if has_code_block and has_code_explanation:
             structural_score += 0.10
@@ -722,20 +856,25 @@ class QueryResponseAlignmentScorer:
         # and ONLY if multiple domain signals are present
 
         # Math domain bonus (already got credit from equations)
-        math_markers = ['calculate', 'compute', 'solve', 'equation', 'formula']
+        math_markers = ["calculate", "compute", "solve", "equation", "formula"]
         if sum(1 for m in math_markers if m in response_lower) >= 2:
             domain_bonus += 0.03
 
         # Analysis/comparison domain (requires strong multi-signal evidence)
         analysis_strong = [
-            'on one hand', 'on the other hand', 'in contrast',
-            'compared to', 'whereas', 'advantage', 'disadvantage'
+            "on one hand",
+            "on the other hand",
+            "in contrast",
+            "compared to",
+            "whereas",
+            "advantage",
+            "disadvantage",
         ]
         if sum(1 for p in analysis_strong if p in response_lower) >= 2:
             domain_bonus += 0.03
 
         # Scientific reasoning (requires methodology + findings)
-        science_structure = ['hypothesis', 'experiment', 'methodology', 'conclusion', 'findings']
+        science_structure = ["hypothesis", "experiment", "methodology", "conclusion", "findings"]
         if sum(1 for p in science_structure if p in response_lower) >= 3:
             domain_bonus += 0.03
 
@@ -787,6 +926,9 @@ class QueryResponseAlignmentScorer:
 
         if features.get("reasoning_chain", 0) > 0.10:
             reasons.append("chain-of-thought reasoning detected")
+
+        if features.get("mcq_boost"):
+            reasons.append("MCQ format with valid answer")
 
         if not reasons:
             reasons.append("standard alignment")

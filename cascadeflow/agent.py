@@ -75,6 +75,7 @@ from .quality import QualityConfig
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
 from .routing import PreRouter, ToolRouter
+
 # Phase 3.2: Domain detection (NEW)
 from .routing import Domain, DomainDetector, DomainDetectionResult, SemanticDomainDetector
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
@@ -573,12 +574,11 @@ class CascadeAgent:
         """
         return {
             "models": [
-                {"name": m.name, "provider": m.provider, "cost": m.cost}
-                for m in self.models
+                {"name": m.name, "provider": m.provider, "cost": m.cost} for m in self.models
             ],
             "enable_cascade": self.enable_cascade,
             "enable_domain_detection": self.enable_domain_detection,
-            "use_semantic_domains": getattr(self, 'use_semantic_domains', False),
+            "use_semantic_domains": getattr(self, "use_semantic_domains", False),
             "domain_configs": {
                 domain: {
                     "drafter": cfg.drafter,
@@ -588,10 +588,7 @@ class CascadeAgent:
                 }
                 for domain, cfg in self.domain_configs.items()
             },
-            "quality_threshold": (
-                self.cascade.confidence_threshold
-                if self.cascade else None
-            ),
+            "quality_threshold": (self.cascade.confidence_threshold if self.cascade else None),
             "verbose": self.verbose,
         }
 
@@ -766,9 +763,7 @@ class CascadeAgent:
                         f"verifier={domain_config.verifier}, threshold={domain_config.threshold}]"
                     )
 
-            logger.info(
-                f"Query domain: {detected_domain} (confidence: {domain_confidence:.2f})"
-            )
+            logger.info(f"Query domain: {detected_domain} (confidence: {domain_confidence:.2f})")
 
         # Filter models by tool capability
         available_models = self.models
@@ -864,7 +859,9 @@ class CascadeAgent:
             effective_max_tokens = domain_config.max_tokens or max_tokens
             effective_threshold = domain_config.threshold
             if self.verbose:
-                print(f"[Applying domain config: temp={effective_temperature}, threshold={effective_threshold}]")
+                print(
+                    f"[Applying domain config: temp={effective_temperature}, threshold={effective_threshold}]"
+                )
 
         if use_cascade:
             result, exec_timing = await self._execute_cascade_with_timing(
@@ -1160,9 +1157,13 @@ class CascadeAgent:
                 complexity = QueryComplexity(complexity_hint.lower())
                 complexity_confidence = 1.0
             except ValueError:
-                complexity, complexity_confidence = self.complexity_detector.detect(query, return_metadata=False)
+                complexity, complexity_confidence = self.complexity_detector.detect(
+                    query, return_metadata=False
+                )
         else:
-            complexity, complexity_confidence = self.complexity_detector.detect(query, return_metadata=False)
+            complexity, complexity_confidence = self.complexity_detector.detect(
+                query, return_metadata=False
+            )
 
         # 🆕 v2.7: Detect domain and get domain-specific config for stream_events
         detected_domain: Optional[str] = None
@@ -1421,14 +1422,16 @@ class CascadeAgent:
         if domain_config and domain_config.enabled:
             # Try to find domain-specific drafter model
             domain_drafter_name = (
-                domain_config.drafter if isinstance(domain_config.drafter, str)
-                else domain_config.drafter.name if hasattr(domain_config.drafter, 'name')
-                else None
+                domain_config.drafter
+                if isinstance(domain_config.drafter, str)
+                else domain_config.drafter.name if hasattr(domain_config.drafter, "name") else None
             )
             domain_verifier_name = (
-                domain_config.verifier if isinstance(domain_config.verifier, str)
-                else domain_config.verifier.name if hasattr(domain_config.verifier, 'name')
-                else None
+                domain_config.verifier
+                if isinstance(domain_config.verifier, str)
+                else (
+                    domain_config.verifier.name if hasattr(domain_config.verifier, "name") else None
+                )
             )
 
             # Find matching models from available models
@@ -1455,7 +1458,7 @@ class CascadeAgent:
         # 🆕 v2.6: Pass domain-specific quality threshold if configured
         cascade_kwargs = dict(kwargs)
         if domain_config and domain_config.threshold:
-            cascade_kwargs['quality_threshold'] = domain_config.threshold
+            cascade_kwargs["quality_threshold"] = domain_config.threshold
             if self.verbose:
                 logger.info(f"Using domain-specific quality threshold: {domain_config.threshold}")
 

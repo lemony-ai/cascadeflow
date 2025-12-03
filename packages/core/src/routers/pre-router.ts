@@ -340,7 +340,7 @@ export class PreRouter extends Router {
       strategy = RoutingStrategy.CASCADE;
       reason = `${complexity} query suitable for cascade optimization`;
       confidence = complexityConfidence;
-      routerType = 'complexity_cascade';
+      routerType = 'complexity_based';
     } else {
       // Complex query without domain config → direct for quality
       strategy = RoutingStrategy.DIRECT_BEST;

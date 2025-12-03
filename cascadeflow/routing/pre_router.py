@@ -159,9 +159,8 @@ class PreRouter(Router):
         domain_confidence = context.get("domain_confidence", 0.0)
 
         # Check if domain config is user-provided and enabled
-        domain_routing_active = (
-            domain_config is not None
-            and getattr(domain_config, "enabled", True)
+        domain_routing_active = domain_config is not None and getattr(
+            domain_config, "enabled", True
         )
 
         # === STEP 3: Make Routing Decision ===
@@ -196,7 +195,9 @@ class PreRouter(Router):
         elif domain_routing_active:
             # === DOMAIN-AWARE ROUTING (takes precedence) ===
             # User has configured this domain - use domain-specific logic
-            self.stats["by_strategy"]["domain_routed"] = self.stats["by_strategy"].get("domain_routed", 0) + 1
+            self.stats["by_strategy"]["domain_routed"] = (
+                self.stats["by_strategy"].get("domain_routed", 0) + 1
+            )
 
             # Get domain's cascade complexities (which complexity levels should try drafter)
             domain_cascade_complexities = getattr(domain_config, "cascade_complexities", None)
@@ -238,7 +239,9 @@ class PreRouter(Router):
                 # No per-domain complexity config - default: cascade all complexities
                 # This enables cost savings via specialized cheap models (e.g., deepseek for math)
                 strategy = RoutingStrategy.CASCADE
-                reason = f"Domain '{detected_domain}' configured → cascade with domain-specific models"
+                reason = (
+                    f"Domain '{detected_domain}' configured → cascade with domain-specific models"
+                )
                 confidence = domain_confidence
                 metadata["router_type"] = "domain_cascade_all"
 
@@ -254,7 +257,7 @@ class PreRouter(Router):
             strategy = RoutingStrategy.CASCADE
             reason = f"{complexity.value} query suitable for cascade optimization"
             confidence = complexity_confidence
-            metadata["router_type"] = "complexity_cascade"
+            metadata["router_type"] = "complexity_based"
 
         else:
             # Complex query without domain config → direct for quality

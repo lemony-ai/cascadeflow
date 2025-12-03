@@ -415,21 +415,15 @@ class ModelRegistry:
 
     def list_by_provider(self, provider: str) -> list[str]:
         """List models by provider."""
-        return [
-            name for name, config in self.models.items() if config.provider == provider
-        ]
+        return [name for name, config in self.models.items() if config.provider == provider]
 
     def list_by_domain(self, domain: str) -> list[str]:
         """List models that support a specific domain."""
-        return [
-            name for name, config in self.models.items() if domain in config.domains
-        ]
+        return [name for name, config in self.models.items() if domain in config.domains]
 
     def list_with_tool_support(self) -> list[str]:
         """List models that support function calling."""
-        return [
-            name for name, config in self.models.items() if config.supports_tools
-        ]
+        return [name for name, config in self.models.items() if config.supports_tools]
 
     def get_cheapest(
         self,
@@ -466,9 +460,7 @@ class ModelRegistry:
 
         return min(candidates, key=lambda m: m.cost)
 
-    def resolve(
-        self, name_or_config: Union[str, ModelRegistryEntry]
-    ) -> ModelRegistryEntry:
+    def resolve(self, name_or_config: Union[str, ModelRegistryEntry]) -> ModelRegistryEntry:
         """
         Convert a model name to a full ModelRegistryEntry.
 

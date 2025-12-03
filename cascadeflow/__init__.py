@@ -100,6 +100,7 @@ from .schema.config import (
     UserTier,
     WorkflowProfile,
 )
+
 # Domain configuration (v0.7.0)
 from .schema.domain_config import (
     DomainConfig,
@@ -115,6 +116,7 @@ from .schema.domain_config import (
     DOMAIN_MATH,
     DOMAIN_STRUCTURED,
 )
+
 # Model registry (v0.7.0)
 from .schema.model_registry import (
     ModelRegistry,

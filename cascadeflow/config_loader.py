@@ -57,24 +57,20 @@ def load_yaml(path: Union[str, Path]) -> dict[str, Any]:
         import yaml
     except ImportError:
         raise ImportError(
-            "PyYAML is required for YAML config loading. "
-            "Install it with: pip install pyyaml"
+            "PyYAML is required for YAML config loading. " "Install it with: pip install pyyaml"
         )
 
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         return yaml.safe_load(f)
 
 
 def load_json(path: Union[str, Path]) -> dict[str, Any]:
     """Load a JSON file."""
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         return json.load(f)
 
 
-def load_config(
-    path: Union[str, Path],
-    format: Optional[str] = None
-) -> dict[str, Any]:
+def load_config(path: Union[str, Path], format: Optional[str] = None) -> dict[str, Any]:
     """
     Load configuration from a file.
 
@@ -97,19 +93,19 @@ def load_config(
     # Infer format from extension if not specified
     if format is None:
         suffix = path.suffix.lower()
-        if suffix in ('.yaml', '.yml'):
-            format = 'yaml'
-        elif suffix == '.json':
-            format = 'json'
+        if suffix in (".yaml", ".yml"):
+            format = "yaml"
+        elif suffix == ".json":
+            format = "json"
         else:
             raise ValueError(
                 f"Unknown config file format: {suffix}. "
                 "Use .yaml, .yml, or .json extension, or specify format explicitly."
             )
 
-    if format == 'yaml':
+    if format == "yaml":
         return load_yaml(path)
-    elif format == 'json':
+    elif format == "json":
         return load_json(path)
     else:
         raise ValueError(f"Unknown format: {format}. Use 'yaml' or 'json'.")
@@ -127,22 +123,22 @@ def parse_model_config(config: dict[str, Any]) -> ModelConfig:
     """
     # Only include fields that are actually provided
     model_kwargs = {
-        'name': config['name'],
-        'provider': config['provider'],
-        'cost': config.get('cost', 0.001),
+        "name": config["name"],
+        "provider": config["provider"],
+        "cost": config.get("cost", 0.001),
     }
 
     # Add optional fields only if provided
-    if 'supports_tools' in config:
-        model_kwargs['supports_tools'] = config['supports_tools']
-    if 'max_tokens' in config:
-        model_kwargs['max_tokens'] = config['max_tokens']
-    if 'temperature' in config:
-        model_kwargs['temperature'] = config['temperature']
-    if 'base_url' in config:
-        model_kwargs['base_url'] = config['base_url']
-    if 'api_key' in config:
-        model_kwargs['api_key'] = config['api_key']
+    if "supports_tools" in config:
+        model_kwargs["supports_tools"] = config["supports_tools"]
+    if "max_tokens" in config:
+        model_kwargs["max_tokens"] = config["max_tokens"]
+    if "temperature" in config:
+        model_kwargs["temperature"] = config["temperature"]
+    if "base_url" in config:
+        model_kwargs["base_url"] = config["base_url"]
+    if "api_key" in config:
+        model_kwargs["api_key"] = config["api_key"]
 
     return ModelConfig(**model_kwargs)
 
@@ -158,23 +154,23 @@ def parse_domain_config(config: dict[str, Any]) -> DomainConfig:
         DomainConfig object
     """
     # Handle validation_method as string or enum
-    validation_method = config.get('validation_method', 'quality')
+    validation_method = config.get("validation_method", "quality")
     if isinstance(validation_method, str):
         validation_method = DomainValidationMethod(validation_method)
 
     return DomainConfig(
-        drafter=config['drafter'],
-        verifier=config['verifier'],
-        threshold=config.get('threshold', 0.70),
+        drafter=config["drafter"],
+        verifier=config["verifier"],
+        threshold=config.get("threshold", 0.70),
         validation_method=validation_method,
-        temperature=config.get('temperature', 0.7),
-        max_tokens=config.get('max_tokens', 1000),
-        fallback_models=config.get('fallback_models', []),
-        require_verifier=config.get('require_verifier', False),
-        adaptive_threshold=config.get('adaptive_threshold', True),
-        skip_on_simple=config.get('skip_on_simple', True),
-        enabled=config.get('enabled', True),
-        description=config.get('description', ''),
+        temperature=config.get("temperature", 0.7),
+        max_tokens=config.get("max_tokens", 1000),
+        fallback_models=config.get("fallback_models", []),
+        require_verifier=config.get("require_verifier", False),
+        adaptive_threshold=config.get("adaptive_threshold", True),
+        skip_on_simple=config.get("skip_on_simple", True),
+        enabled=config.get("enabled", True),
+        description=config.get("description", ""),
     )
 
 
@@ -185,16 +181,10 @@ def parse_models(models_config: list[dict[str, Any]]) -> list[ModelConfig]:
 
 def parse_domains(domains_config: dict[str, dict[str, Any]]) -> dict[str, DomainConfig]:
     """Parse domain configurations."""
-    return {
-        domain: parse_domain_config(config)
-        for domain, config in domains_config.items()
-    }
+    return {domain: parse_domain_config(config) for domain, config in domains_config.items()}
 
 
-def create_agent_from_config(
-    config: dict[str, Any],
-    **overrides
-) -> "CascadeAgent":
+def create_agent_from_config(config: dict[str, Any], **overrides) -> "CascadeAgent":
     """
     Create a CascadeAgent from a configuration dictionary.
 
@@ -213,32 +203,30 @@ def create_agent_from_config(
     from .agent import CascadeAgent
 
     # Parse models (required)
-    if 'models' not in config:
+    if "models" not in config:
         raise ValueError("Config must include 'models' list")
 
-    models = parse_models(config['models'])
+    models = parse_models(config["models"])
 
     # Parse domains (optional)
     domain_configs = None
-    if 'domains' in config:
-        domain_configs = parse_domains(config['domains'])
+    if "domains" in config:
+        domain_configs = parse_domains(config["domains"])
 
     # Get settings
-    settings = config.get('settings', {})
+    settings = config.get("settings", {})
 
     # Build agent kwargs
     agent_kwargs = {
-        'models': models,
-        'enable_cascade': settings.get('enable_cascade', True),
-        'verbose': settings.get('verbose', False),
+        "models": models,
+        "enable_cascade": settings.get("enable_cascade", True),
+        "verbose": settings.get("verbose", False),
     }
 
     # Add domain config if present
     if domain_configs:
-        agent_kwargs['domain_configs'] = domain_configs
-        agent_kwargs['enable_domain_detection'] = settings.get(
-            'enable_domain_detection', True
-        )
+        agent_kwargs["domain_configs"] = domain_configs
+        agent_kwargs["enable_domain_detection"] = settings.get("enable_domain_detection", True)
 
     # Apply overrides
     agent_kwargs.update(overrides)
@@ -246,10 +234,7 @@ def create_agent_from_config(
     return CascadeAgent(**agent_kwargs)
 
 
-def load_agent(
-    config_path: Union[str, Path],
-    **overrides
-) -> "CascadeAgent":
+def load_agent(config_path: Union[str, Path], **overrides) -> "CascadeAgent":
     """
     Convenience function to load config and create agent in one step.
 
@@ -270,15 +255,15 @@ def load_agent(
 
 # Default config search paths
 DEFAULT_CONFIG_PATHS = [
-    'cascadeflow.yaml',
-    'cascadeflow.yml',
-    'cascadeflow.json',
-    '.cascadeflow.yaml',
-    '.cascadeflow.yml',
-    '.cascadeflow.json',
-    'config/cascadeflow.yaml',
-    'config/cascadeflow.yml',
-    'config/cascadeflow.json',
+    "cascadeflow.yaml",
+    "cascadeflow.yml",
+    "cascadeflow.json",
+    ".cascadeflow.yaml",
+    ".cascadeflow.yml",
+    ".cascadeflow.json",
+    "config/cascadeflow.yaml",
+    "config/cascadeflow.yml",
+    "config/cascadeflow.json",
 ]
 
 

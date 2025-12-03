@@ -42,10 +42,10 @@ class ToolRiskLevel(IntEnum):
     Example: if risk >= ToolRiskLevel.HIGH: use_verifier()
     """
 
-    LOW = 1        # Read-only, safe operations
-    MEDIUM = 2     # Reversible modifications
-    HIGH = 3       # Significant impact, hard to reverse
-    CRITICAL = 4   # Irreversible, high-impact operations
+    LOW = 1  # Read-only, safe operations
+    MEDIUM = 2  # Reversible modifications
+    HIGH = 3  # Significant impact, hard to reverse
+    CRITICAL = 4  # Irreversible, high-impact operations
 
 
 @dataclass
@@ -66,78 +66,170 @@ RISK_INDICATORS = {
     # CRITICAL: Irreversible, high-impact
     "critical": {
         "keywords": [
-            "delete_all", "drop_table", "truncate", "destroy",
-            "financial_transaction", "payment", "charge",
-            "transfer_funds", "withdraw", "deploy_production",
-            "publish_live", "send_mass", "broadcast",
+            "delete_all",
+            "drop_table",
+            "truncate",
+            "destroy",
+            "financial_transaction",
+            "payment",
+            "charge",
+            "transfer_funds",
+            "withdraw",
+            "deploy_production",
+            "publish_live",
+            "send_mass",
+            "broadcast",
         ],
         "patterns": [
-            r"delete.*all", r"remove.*all", r"drop.*table",
+            r"delete.*all",
+            r"remove.*all",
+            r"drop.*table",
             r"financial|payment|transaction|charge|withdraw",
-            r"deploy.*prod", r"publish.*live", r"broadcast",
+            r"deploy.*prod",
+            r"publish.*live",
+            r"broadcast",
         ],
         "descriptions": [
-            "permanently", "irreversible", "cannot be undone",
-            "financial", "payment", "production", "mass",
+            "permanently",
+            "irreversible",
+            "cannot be undone",
+            "financial",
+            "payment",
+            "production",
+            "mass",
         ],
     },
-
     # HIGH: Significant impact
     "high": {
         "keywords": [
-            "delete", "remove", "send_email", "send_message",
-            "post", "publish", "submit", "execute_query",
-            "modify_permissions", "change_role", "revoke",
-            "disable", "suspend", "ban", "terminate",
+            "delete",
+            "remove",
+            "send_email",
+            "send_message",
+            "post",
+            "publish",
+            "submit",
+            "execute_query",
+            "modify_permissions",
+            "change_role",
+            "revoke",
+            "disable",
+            "suspend",
+            "ban",
+            "terminate",
         ],
         "patterns": [
-            r"delete_\w+", r"remove_\w+", r"send_\w+",
-            r"post_\w+", r"publish_\w+", r"submit_\w+",
-            r"execute.*query", r"modify.*permission",
+            r"delete_\w+",
+            r"remove_\w+",
+            r"send_\w+",
+            r"post_\w+",
+            r"publish_\w+",
+            r"submit_\w+",
+            r"execute.*query",
+            r"modify.*permission",
             r"disable|suspend|ban|terminate",
         ],
         "descriptions": [
-            "delete", "remove", "send", "email", "message",
-            "post", "publish", "execute", "permission",
-            "disable", "suspend", "terminate",
+            "delete",
+            "remove",
+            "send",
+            "email",
+            "message",
+            "post",
+            "publish",
+            "execute",
+            "permission",
+            "disable",
+            "suspend",
+            "terminate",
         ],
     },
-
     # MEDIUM: Reversible modifications
     "medium": {
         "keywords": [
-            "update", "edit", "modify", "create", "add",
-            "set", "change", "write", "save", "upload",
-            "insert", "append", "replace",
+            "update",
+            "edit",
+            "modify",
+            "create",
+            "add",
+            "set",
+            "change",
+            "write",
+            "save",
+            "upload",
+            "insert",
+            "append",
+            "replace",
         ],
         "patterns": [
-            r"update_\w+", r"edit_\w+", r"modify_\w+",
-            r"create_\w+", r"add_\w+", r"set_\w+",
-            r"write_\w+", r"save_\w+", r"upload_\w+",
+            r"update_\w+",
+            r"edit_\w+",
+            r"modify_\w+",
+            r"create_\w+",
+            r"add_\w+",
+            r"set_\w+",
+            r"write_\w+",
+            r"save_\w+",
+            r"upload_\w+",
         ],
         "descriptions": [
-            "update", "edit", "modify", "create", "add",
-            "change", "write", "save", "upload",
+            "update",
+            "edit",
+            "modify",
+            "create",
+            "add",
+            "change",
+            "write",
+            "save",
+            "upload",
         ],
     },
-
     # LOW: Read-only, safe operations
     "low": {
         "keywords": [
-            "get", "read", "list", "search", "query",
-            "fetch", "retrieve", "find", "lookup",
-            "check", "verify", "validate", "count",
-            "calculate", "analyze", "preview",
+            "get",
+            "read",
+            "list",
+            "search",
+            "query",
+            "fetch",
+            "retrieve",
+            "find",
+            "lookup",
+            "check",
+            "verify",
+            "validate",
+            "count",
+            "calculate",
+            "analyze",
+            "preview",
         ],
         "patterns": [
-            r"get_\w+", r"read_\w+", r"list_\w+",
-            r"search_\w+", r"query_\w+", r"fetch_\w+",
-            r"find_\w+", r"lookup_\w+", r"check_\w+",
+            r"get_\w+",
+            r"read_\w+",
+            r"list_\w+",
+            r"search_\w+",
+            r"query_\w+",
+            r"fetch_\w+",
+            r"find_\w+",
+            r"lookup_\w+",
+            r"check_\w+",
         ],
         "descriptions": [
-            "get", "read", "list", "search", "query",
-            "fetch", "find", "lookup", "check", "verify",
-            "calculate", "analyze", "preview", "retrieve",
+            "get",
+            "read",
+            "list",
+            "search",
+            "query",
+            "fetch",
+            "find",
+            "lookup",
+            "check",
+            "verify",
+            "calculate",
+            "analyze",
+            "preview",
+            "retrieve",
         ],
     },
 }
@@ -283,8 +375,7 @@ class ToolRiskClassifier:
             Dict mapping tool names to classifications
         """
         return {
-            tool.get("name", f"tool_{i}"): self.classify_tool(tool)
-            for i, tool in enumerate(tools)
+            tool.get("name", f"tool_{i}"): self.classify_tool(tool) for i, tool in enumerate(tools)
         }
 
     def get_max_risk(
@@ -323,8 +414,12 @@ class ToolRiskClassifier:
         """
         classifications = self.classify_tools(tools)
         return [
-            tool for tool in tools
-            if classifications.get(tool.get("name", ""), ToolRiskClassification(ToolRiskLevel.HIGH, 0, [])).level <= max_level
+            tool
+            for tool in tools
+            if classifications.get(
+                tool.get("name", ""), ToolRiskClassification(ToolRiskLevel.HIGH, 0, [])
+            ).level
+            <= max_level
         ]
 
     def requires_verifier(
@@ -382,12 +477,11 @@ def get_tool_risk_routing(
     classifier = classifier or ToolRiskClassifier()
 
     classifications = classifier.classify_tools(tools)
-    max_risk = max(c.level for c in classifications.values()) if classifications else ToolRiskLevel.LOW
+    max_risk = (
+        max(c.level for c in classifications.values()) if classifications else ToolRiskLevel.LOW
+    )
 
-    high_risk_tools = [
-        name for name, c in classifications.items()
-        if c.level >= ToolRiskLevel.HIGH
-    ]
+    high_risk_tools = [name for name, c in classifications.items() if c.level >= ToolRiskLevel.HIGH]
 
     return {
         "max_risk": max_risk,

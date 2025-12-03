@@ -304,13 +304,16 @@ class CostCalculator:
 
         # Calculate individual costs with SEPARATE input and output for LiteLLM accuracy
         draft_cost = self._calculate_model_cost(
-            self.drafter, draft_total_tokens,
-            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+            self.drafter,
+            draft_total_tokens,
+            input_tokens=query_input_tokens,
+            output_tokens=draft_output_tokens,
         )
         verifier_cost = self._calculate_model_cost(
-            self.verifier, verifier_total_tokens,
+            self.verifier,
+            verifier_total_tokens,
             input_tokens=query_input_tokens if not draft_accepted else 0,
-            output_tokens=verifier_output_tokens
+            output_tokens=verifier_output_tokens,
         )
 
         # Total cost
@@ -321,8 +324,10 @@ class CostCalculator:
             # Saved by using draft instead of verifier
             # Verifier would have used same input + similar output
             bigonly_cost = self._calculate_model_cost(
-                self.verifier, bigonly_tokens,
-                input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+                self.verifier,
+                bigonly_tokens,
+                input_tokens=query_input_tokens,
+                output_tokens=draft_output_tokens,
             )
             cost_saved = bigonly_cost - draft_cost
         else:
@@ -395,8 +400,10 @@ class CostCalculator:
 
         # Calculate draft cost with SEPARATE input/output for LiteLLM accuracy
         draft_cost = self._calculate_model_cost(
-            self.drafter, draft_total_tokens,
-            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+            self.drafter,
+            draft_total_tokens,
+            input_tokens=query_input_tokens,
+            output_tokens=draft_output_tokens,
         )
 
         # 🔧 CRITICAL FIX: Verifier was NOT called, so 0 tokens and $0 cost
@@ -407,8 +414,10 @@ class CostCalculator:
         # 🆕 Include input tokens in bigonly calculation
         verifier_total_tokens_estimate = query_input_tokens + draft_output_tokens
         bigonly_cost = self._calculate_model_cost(
-            self.verifier, verifier_total_tokens_estimate,
-            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+            self.verifier,
+            verifier_total_tokens_estimate,
+            input_tokens=query_input_tokens,
+            output_tokens=draft_output_tokens,
         )
 
         # Savings = avoided verifier cost - draft cost
@@ -473,12 +482,16 @@ class CostCalculator:
 
         # Calculate costs with SEPARATE input/output for LiteLLM accuracy
         draft_cost = self._calculate_model_cost(
-            self.drafter, draft_total_tokens,
-            input_tokens=query_input_tokens, output_tokens=draft_output_tokens
+            self.drafter,
+            draft_total_tokens,
+            input_tokens=query_input_tokens,
+            output_tokens=draft_output_tokens,
         )
         verifier_cost = self._calculate_model_cost(
-            self.verifier, verifier_total_tokens,
-            input_tokens=query_input_tokens, output_tokens=verifier_output_tokens
+            self.verifier,
+            verifier_total_tokens,
+            input_tokens=query_input_tokens,
+            output_tokens=verifier_output_tokens,
         )
 
         # Total cost = both models (THIS IS THE KEY FIX!)
@@ -670,7 +683,9 @@ class CostCalculator:
     # UTILITY METHODS
     # ========================================================================
 
-    def _calculate_model_cost(self, model, tokens: int, input_tokens: int = 0, output_tokens: int = 0) -> float:
+    def _calculate_model_cost(
+        self, model, tokens: int, input_tokens: int = 0, output_tokens: int = 0
+    ) -> float:
         """
         Calculate cost for a model given token count.
 
@@ -698,11 +713,15 @@ class CostCalculator:
                     output_tokens=output_tokens,
                 )
                 if self.verbose:
-                    logger.debug(f"LiteLLM cost for {model.name}: ${cost:.6f} ({input_tokens} in, {output_tokens} out)")
+                    logger.debug(
+                        f"LiteLLM cost for {model.name}: ${cost:.6f} ({input_tokens} in, {output_tokens} out)"
+                    )
                 return cost
         except Exception as e:
             if self.verbose:
-                logger.debug(f"LiteLLM cost calculation failed for {model.name}: {e}, using fallback")
+                logger.debug(
+                    f"LiteLLM cost calculation failed for {model.name}: {e}, using fallback"
+                )
 
         # Fallback: model.cost is cost per 1K tokens
         return (tokens / 1000) * model.cost

@@ -514,8 +514,12 @@ class OpenRouterProvider(BaseProvider):
                 "type": "function",
                 "function": {
                     "name": tool.get("name", tool.get("function", {}).get("name", "")),
-                    "description": tool.get("description", tool.get("function", {}).get("description", "")),
-                    "parameters": tool.get("parameters", tool.get("function", {}).get("parameters", {})),
+                    "description": tool.get(
+                        "description", tool.get("function", {}).get("description", "")
+                    ),
+                    "parameters": tool.get(
+                        "parameters", tool.get("function", {}).get("parameters", {})
+                    ),
                 },
             }
             openai_tools.append(openai_tool)
@@ -541,11 +545,13 @@ class OpenRouterProvider(BaseProvider):
         tool_calls = []
         for tc in raw_tool_calls:
             func = tc.get("function", {})
-            tool_calls.append({
-                "id": tc.get("id", ""),
-                "name": func.get("name", ""),
-                "arguments": func.get("arguments", "{}"),
-            })
+            tool_calls.append(
+                {
+                    "id": tc.get("id", ""),
+                    "name": func.get("name", ""),
+                    "arguments": func.get("arguments", "{}"),
+                }
+            )
 
         return tool_calls if tool_calls else None
 

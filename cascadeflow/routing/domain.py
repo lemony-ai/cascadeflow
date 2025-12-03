@@ -404,6 +404,13 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "calculus",
             "trigonometry",
             "logarithm",
+            # Word problem math indicators (GSM8K style)
+            "how many did",
+            "how much does",
+            "how much in dollars",
+            "how much money",
+            "what is the total",
+            "what percentage",
         ],
         strong=[
             "calculate",
@@ -419,6 +426,16 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "matrix",
             "optimization",
             "polynomial",
+            # Word problem math (GSM8K style)
+            "how much",
+            "how many",
+            "per day",
+            "per hour",
+            "per week",
+            "each day",
+            "remainder",
+            "in total",
+            "altogether",
         ],
         moderate=[
             "compute",
@@ -433,12 +450,29 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "exponent",
             "factorial",
             "summation",
+            # Word problem (grade school)
+            "left over",
+            "start with",
+            "end up with",
+            "divided equally",
+            "split evenly",
         ],
         weak=[
-            "add", "subtract", "multiply", "divide", "number", "math",
+            "add",
+            "subtract",
+            "multiply",
+            "divide",
+            "number",
+            "math",
             # Common math instruction phrases
-            "show your work", "step by step", "calculate", "equals",
-            "what is", "how much", "how many", "times", "plus", "minus",
+            "show your work",
+            "step by step",
+            "calculate",
+            "equals",
+            "what is",
+            "times",
+            "plus",
+            "minus",
         ],
     ),
     Domain.MEDICAL: DomainKeywords(
@@ -636,6 +670,60 @@ class DomainDetector:
         confidence_threshold: Minimum confidence for detection
     """
 
+    # MCQ detection patterns
+    MCQ_PATTERNS = [
+        # Standard MCQ formats
+        r"(?:answer|choose|select)\s+(?:the\s+)?(?:following\s+)?(?:multiple[- ]choice|mcq)",
+        r"provide\s+your\s+answer\s+as\s+(?:a\s+)?(?:single\s+)?letter",
+        r"^(?:question|q)\s*(?:\d+)?[:.]\s*",
+        # Choice indicators (A. B. C. D. or A) B) C) D))
+        r"(?:^|\n)\s*[ABCD]\s*[\.\)]\s+",
+        # MMLU-style format
+        r"answer:\s*$",
+    ]
+
+    # Subject-to-domain mapping for MCQ (MMLU categories)
+    SUBJECT_DOMAIN_MAP = {
+        # STEM subjects
+        "math": Domain.MATH,
+        "algebra": Domain.MATH,
+        "calculus": Domain.MATH,
+        "geometry": Domain.MATH,
+        "statistics": Domain.MATH,
+        "arithmetic": Domain.MATH,
+        "mathematics": Domain.MATH,
+        # Science subjects
+        "physics": Domain.GENERAL,  # General knowledge for physics
+        "chemistry": Domain.GENERAL,
+        "biology": Domain.GENERAL,
+        "astronomy": Domain.GENERAL,
+        "science": Domain.GENERAL,
+        # Medical subjects
+        "medicine": Domain.MEDICAL,
+        "medical": Domain.MEDICAL,
+        "anatomy": Domain.MEDICAL,
+        "clinical": Domain.MEDICAL,
+        "nutrition": Domain.MEDICAL,
+        "health": Domain.MEDICAL,
+        "virology": Domain.MEDICAL,
+        # Legal subjects
+        "law": Domain.LEGAL,
+        "legal": Domain.LEGAL,
+        "jurisprudence": Domain.LEGAL,
+        # Financial subjects
+        "accounting": Domain.FINANCIAL,
+        "economics": Domain.FINANCIAL,
+        "finance": Domain.FINANCIAL,
+        "business": Domain.FINANCIAL,
+        "marketing": Domain.FINANCIAL,
+        "management": Domain.FINANCIAL,
+        # Code/CS subjects
+        "computer": Domain.CODE,
+        "programming": Domain.CODE,
+        "machine_learning": Domain.CODE,
+        "security": Domain.CODE,  # Computer security
+    }
+
     def __init__(
         self,
         confidence_threshold: float = 0.3,
@@ -689,7 +777,12 @@ class DomainDetector:
         Returns:
             DomainDetectionResult with scores for all domains
         """
-        query_lower = query.lower()
+        # Check for MCQ format and preprocess if detected
+        is_mcq, extracted_content, subject_hint = self._detect_mcq_format(query)
+
+        # Use extracted content for keyword matching if MCQ detected
+        query_to_analyze = extracted_content if is_mcq else query
+        query_lower = query_to_analyze.lower()
 
         # Calculate scores for each domain
         scores: dict[Domain, float] = {}
@@ -697,6 +790,16 @@ class DomainDetector:
         for domain, keywords in self.keywords.items():
             score = self._calculate_domain_score(query_lower, keywords)
             scores[domain] = score
+
+        # If MCQ detected, apply subject-based domain hint
+        if is_mcq and subject_hint:
+            # Boost the hinted domain score (capped at 1.0 to prevent confidence overflow)
+            if subject_hint in scores:
+                scores[subject_hint] = min(1.0, max(scores[subject_hint] + 0.5, 0.8))
+
+        # If MCQ detected, penalize CONVERSATION domain (it's not a conversation)
+        if is_mcq:
+            scores[Domain.CONVERSATION] = max(0, scores.get(Domain.CONVERSATION, 0) - 0.5)
 
         # Find domain with highest score
         if not scores or max(scores.values()) < self.confidence_threshold:
@@ -714,8 +817,78 @@ class DomainDetector:
             metadata={
                 "query_length": len(query),
                 "threshold": self.confidence_threshold,
+                "is_mcq": is_mcq,
+                "subject_hint": subject_hint.value if subject_hint else None,
             },
         )
+
+    def _detect_mcq_format(self, query: str) -> tuple[bool, str, Optional[Domain]]:
+        """
+        Detect if query is a multiple-choice question and extract content.
+
+        Args:
+            query: Original query text
+
+        Returns:
+            Tuple of (is_mcq, extracted_content, domain_hint)
+        """
+        query_lower = query.lower()
+
+        # Check MCQ patterns
+        is_mcq = False
+        for pattern in self.MCQ_PATTERNS:
+            if re.search(pattern, query_lower, re.IGNORECASE | re.MULTILINE):
+                is_mcq = True
+                break
+
+        if not is_mcq:
+            return False, query, None
+
+        # Extract the actual question content (strip MCQ wrapper)
+        extracted = query
+
+        # Remove common MCQ instruction prefixes
+        prefixes_to_remove = [
+            r"^answer the following multiple[- ]?choice question[.:]?\s*",
+            r"^provide your answer as a single letter[^.]*[.]\s*",
+            r"^choose the (?:best|correct) answer[.:]?\s*",
+            r"^select (?:one|the correct answer)[.:]?\s*",
+        ]
+
+        for prefix in prefixes_to_remove:
+            extracted = re.sub(prefix, "", extracted, flags=re.IGNORECASE)
+
+        # Extract content after "Question:" if present
+        question_match = re.search(
+            r"question[:\s]+(.+?)(?=\n[ABCD][\.\)]|\Z)", extracted, re.IGNORECASE | re.DOTALL
+        )
+        if question_match:
+            extracted = question_match.group(1).strip()
+
+        # Remove answer choices (A. B. C. D. lines)
+        extracted = re.sub(r"\n[ABCD][\.\)]\s+[^\n]+", "", extracted)
+        # Remove trailing "Answer:" prompt
+        extracted = re.sub(r"\s*answer:\s*$", "", extracted, flags=re.IGNORECASE)
+
+        # Try to detect domain from subject keywords in the question
+        domain_hint = self._detect_subject_domain(query_lower)
+
+        return True, extracted.strip(), domain_hint
+
+    def _detect_subject_domain(self, query_lower: str) -> Optional[Domain]:
+        """
+        Detect domain hint from subject-related keywords in the query.
+
+        Args:
+            query_lower: Lowercase query text
+
+        Returns:
+            Domain hint if detected, None otherwise
+        """
+        for subject_keyword, domain in self.SUBJECT_DOMAIN_MAP.items():
+            if subject_keyword in query_lower:
+                return domain
+        return None
 
     def get_recommended_models(
         self,
@@ -963,9 +1136,14 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Calculate 156 divided by 12",
         "What is 48 + 73?",
         "Multiply 234 by 56",
-        # Word problems
+        # Word problems (grade school / GSM8K style)
         "If I have 45 apples and give away 12, how many remain?",
         "A train travels 120 miles in 2 hours. What's its speed?",
+        "Janet sells eggs at the market for $2 each. How much does she make if she sells 15 eggs?",
+        "Tom has 20 marbles. He gives 5 to each of his 3 friends. How many does he have left?",
+        "A store sells apples at $3 per pound. How much do 4 pounds cost?",
+        "If Mary bakes 24 cookies and eats 3 per day, how many days will they last?",
+        "John has $50. He buys 3 books at $8 each. How much money does he have left?",
         # Advanced math
         "Solve this differential equation: dy/dx = 2x + 3",
         "Calculate the probability of rolling two sixes",

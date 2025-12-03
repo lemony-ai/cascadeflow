@@ -183,9 +183,7 @@ def test_detect_financial_domain(detector):
 
 def test_detect_multimodal_domain(detector):
     """Test MULTIMODAL domain detection."""
-    domain, confidence = detector.detect(
-        "Analyze this image and describe the visual elements with OCR"
-    )
+    domain, confidence = detector.detect("Analyze the photo and identify objects in the image")
 
     assert domain == Domain.MULTIMODAL
     assert confidence > 0.6

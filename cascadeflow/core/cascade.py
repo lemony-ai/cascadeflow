@@ -789,7 +789,7 @@ class WholeResponseCascade:
             self.stats["total_cost_saved"] += costs["cost_saved"]
 
             # 🆕 v2.6: Support domain-specific quality threshold override
-            effective_threshold = kwargs.get('quality_threshold', self.confidence_threshold)
+            effective_threshold = kwargs.get("quality_threshold", self.confidence_threshold)
 
             return self._create_result(
                 content=draft_content,
@@ -862,7 +862,7 @@ class WholeResponseCascade:
             )
 
             # 🆕 v2.6: Support domain-specific quality threshold override
-            effective_threshold = kwargs.get('quality_threshold', self.confidence_threshold)
+            effective_threshold = kwargs.get("quality_threshold", self.confidence_threshold)
 
             return self._create_result(
                 content=verifier_content,
@@ -1036,8 +1036,10 @@ class WholeResponseCascade:
 
         # === PHASE 3: Quality Validation ===
         # 🆕 v2.7: Support domain-specific quality threshold
-        domain_threshold = kwargs.get('quality_threshold', None)
-        quality_threshold = domain_threshold if domain_threshold is not None else self.confidence_threshold
+        domain_threshold = kwargs.get("quality_threshold", None)
+        quality_threshold = (
+            domain_threshold if domain_threshold is not None else self.confidence_threshold
+        )
 
         quality_start = time.time()
         should_accept, validation_result, detected_complexity = self._should_accept_draft(
@@ -1358,13 +1360,17 @@ class WholeResponseCascade:
         else:
             complexity = "simple"
 
-        # Domain threshold takes precedence over default threshold
-        threshold = domain_threshold if domain_threshold is not None else self.confidence_threshold
-
-        if self.quality_config.enable_adaptive and complexity:
-            adaptive_threshold = self.adaptive_threshold.get_threshold(complexity)
-            if adaptive_threshold > threshold:
-                threshold = adaptive_threshold
+        # Domain threshold takes precedence over ALL other thresholds
+        # When domain_threshold is provided, it is the final word - no adaptive override
+        if domain_threshold is not None:
+            threshold = domain_threshold
+        else:
+            # No domain threshold - use adaptive or default
+            threshold = self.confidence_threshold
+            if self.quality_config.enable_adaptive and complexity:
+                adaptive_threshold = self.adaptive_threshold.get_threshold(complexity)
+                if adaptive_threshold > threshold:
+                    threshold = adaptive_threshold
 
         validation_result = self.quality_validator.validate(
             draft_content,

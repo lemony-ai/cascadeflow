@@ -43,9 +43,9 @@ logger = logging.getLogger(__name__)
 class CircuitState(Enum):
     """Circuit breaker states."""
 
-    CLOSED = "closed"       # Normal operation, requests flow through
-    OPEN = "open"           # Blocking requests, provider is unhealthy
-    HALF_OPEN = "half_open" # Testing if provider recovered
+    CLOSED = "closed"  # Normal operation, requests flow through
+    OPEN = "open"  # Blocking requests, provider is unhealthy
+    HALF_OPEN = "half_open"  # Testing if provider recovered
 
 
 class CircuitOpenError(Exception):
@@ -55,8 +55,7 @@ class CircuitOpenError(Exception):
         self.provider = provider
         self.time_until_retry = time_until_retry
         super().__init__(
-            f"Circuit breaker open for {provider}. "
-            f"Retry in {time_until_retry:.1f}s"
+            f"Circuit breaker open for {provider}. " f"Retry in {time_until_retry:.1f}s"
         )
 
 
@@ -96,10 +95,7 @@ class CircuitMetrics:
 
     def get_summary(self) -> dict[str, Any]:
         """Get human-readable summary."""
-        success_rate = (
-            self.successful_calls / self.total_calls
-            if self.total_calls > 0 else 0
-        )
+        success_rate = self.successful_calls / self.total_calls if self.total_calls > 0 else 0
 
         return {
             "total_calls": self.total_calls,
@@ -145,10 +141,7 @@ class CircuitBreaker:
     """
 
     def __init__(
-        self,
-        name: str = "default",
-        config: Optional[CircuitBreakerConfig] = None,
-        **kwargs
+        self, name: str = "default", config: Optional[CircuitBreakerConfig] = None, **kwargs
     ):
         """
         Initialize circuit breaker.
@@ -280,8 +273,7 @@ class CircuitBreaker:
                 self._half_open_calls += 1
                 self._transition_to(CircuitState.OPEN)
                 logger.warning(
-                    f"CircuitBreaker '{self.name}': "
-                    f"Recovery failed, circuit OPEN again"
+                    f"CircuitBreaker '{self.name}': " f"Recovery failed, circuit OPEN again"
                 )
                 return
 
@@ -345,10 +337,7 @@ class CircuitBreaker:
             remaining = self.config.recovery_timeout - elapsed
             return max(0, remaining)
 
-    def on_state_change(
-        self,
-        callback: Callable[[CircuitState, CircuitState], None]
-    ) -> None:
+    def on_state_change(self, callback: Callable[[CircuitState, CircuitState], None]) -> None:
         """
         Register callback for state changes.
 
@@ -430,11 +419,13 @@ class CircuitBreaker:
         self._state = new_state
 
         # Record state change
-        self.metrics.state_changes.append({
-            "from": old_state.value,
-            "to": new_state.value,
-            "timestamp": time.time(),
-        })
+        self.metrics.state_changes.append(
+            {
+                "from": old_state.value,
+                "to": new_state.value,
+                "timestamp": time.time(),
+            }
+        )
 
         # State-specific actions
         if new_state == CircuitState.OPEN:
@@ -508,9 +499,7 @@ class CircuitBreakerRegistry:
         return cls._instance
 
     def get_or_create(
-        self,
-        name: str,
-        config: Optional[CircuitBreakerConfig] = None
+        self, name: str, config: Optional[CircuitBreakerConfig] = None
     ) -> CircuitBreaker:
         """
         Get existing or create new circuit breaker.
@@ -525,8 +514,7 @@ class CircuitBreakerRegistry:
         with self._lock:
             if name not in self._circuits:
                 self._circuits[name] = CircuitBreaker(
-                    name=name,
-                    config=config or self._default_config
+                    name=name, config=config or self._default_config
                 )
                 logger.debug(f"Created new circuit breaker for '{name}'")
             return self._circuits[name]
@@ -558,10 +546,7 @@ class CircuitBreakerRegistry:
 
     def get_available_providers(self) -> list[str]:
         """Get list of providers with closed circuits."""
-        return [
-            name for name, breaker in self._circuits.items()
-            if breaker.can_execute()
-        ]
+        return [name for name, breaker in self._circuits.items() if breaker.can_execute()]
 
     def reset_all(self) -> None:
         """Reset all circuit breakers."""
@@ -582,8 +567,7 @@ class CircuitBreakerRegistry:
 
 
 def get_circuit_breaker(
-    provider: str,
-    config: Optional[CircuitBreakerConfig] = None
+    provider: str, config: Optional[CircuitBreakerConfig] = None
 ) -> CircuitBreaker:
     """
     Get circuit breaker for a provider from global registry.
