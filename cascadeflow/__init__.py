@@ -100,6 +100,31 @@ from .schema.config import (
     UserTier,
     WorkflowProfile,
 )
+
+# Domain configuration (v0.7.0)
+from .schema.domain_config import (
+    DomainConfig,
+    DomainValidationMethod,
+    BUILTIN_DOMAIN_CONFIGS,
+    create_domain_config,
+    get_builtin_domain_config,
+    DOMAIN_CODE,
+    DOMAIN_GENERAL,
+    DOMAIN_DATA,
+    DOMAIN_MEDICAL,
+    DOMAIN_LEGAL,
+    DOMAIN_MATH,
+    DOMAIN_STRUCTURED,
+)
+
+# Model registry (v0.7.0)
+from .schema.model_registry import (
+    ModelRegistry,
+    ModelRegistryEntry,
+    get_model,
+    has_model,
+    get_default_registry,
+)
 from .schema.exceptions import (
     BudgetExceededError,
     cascadeflowError,
@@ -169,6 +194,44 @@ from .guardrails import (
     GuardrailViolation,
 )
 
+# NEW: Config File Loading (v0.7.0 - Architecture Alignment)
+from .config_loader import (
+    load_config,
+    load_agent,
+    load_default_agent,
+    create_agent_from_config,
+    find_config,
+    parse_model_config,
+    parse_domain_config,
+    EXAMPLE_YAML_CONFIG,
+    EXAMPLE_JSON_CONFIG,
+)
+
+# NEW: Resilience (v0.8.0 - Circuit Breaker)
+from .resilience import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerRegistry,
+    CircuitState,
+    get_circuit_breaker,
+)
+
+# NEW: Dynamic Configuration (v0.8.0 - Runtime Config Updates)
+from .dynamic_config import (
+    ConfigManager,
+    ConfigChangeEvent,
+    ConfigSection,
+    ConfigWatcher,
+)
+
+# NEW: Tool Risk Classification (v0.8.0 - OSS-3 gap)
+from .routing import (
+    ToolRiskLevel,
+    ToolRiskClassification,
+    ToolRiskClassifier,
+    get_tool_risk_routing,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -203,6 +266,25 @@ __all__ = [
     "OptimizationWeights",
     "DEFAULT_TIERS",
     "EXAMPLE_WORKFLOWS",
+    # ===== DOMAIN CONFIGURATION (v0.7.0) =====
+    "DomainConfig",
+    "DomainValidationMethod",
+    "BUILTIN_DOMAIN_CONFIGS",
+    "create_domain_config",
+    "get_builtin_domain_config",
+    "DOMAIN_CODE",
+    "DOMAIN_GENERAL",
+    "DOMAIN_DATA",
+    "DOMAIN_MEDICAL",
+    "DOMAIN_LEGAL",
+    "DOMAIN_MATH",
+    "DOMAIN_STRUCTURED",
+    # ===== MODEL REGISTRY (v0.7.0) =====
+    "ModelRegistry",
+    "ModelRegistryEntry",
+    "get_model",
+    "has_model",
+    "get_default_registry",
     # ===== MAIN AGENT & RESULT =====
     "CascadeAgent",
     "CascadeResult",
@@ -266,6 +348,32 @@ __all__ = [
     "PIIMatch",  # NEW: v0.2.1 - PII match
     "GuardrailsManager",  # NEW: v0.2.1 - Centralized guardrails
     "GuardrailViolation",  # NEW: v0.2.1 - Guardrail violation exception
+    # Config File Loading (v0.7.0 - Architecture Alignment)
+    "load_config",  # NEW: v0.7.0 - Load YAML/JSON config
+    "load_agent",  # NEW: v0.7.0 - Load config and create agent
+    "load_default_agent",  # NEW: v0.7.0 - Load from default locations
+    "create_agent_from_config",  # NEW: v0.7.0 - Create agent from config dict
+    "find_config",  # NEW: v0.7.0 - Find config in standard locations
+    "parse_model_config",  # NEW: v0.7.0 - Parse model config dict
+    "parse_domain_config",  # NEW: v0.7.0 - Parse domain config dict
+    "EXAMPLE_YAML_CONFIG",  # NEW: v0.7.0 - Example YAML config string
+    "EXAMPLE_JSON_CONFIG",  # NEW: v0.7.0 - Example JSON config string
+    # ===== RESILIENCE (v0.8.0) =====
+    "CircuitBreaker",  # NEW: v0.8.0 - Circuit breaker pattern
+    "CircuitBreakerConfig",  # NEW: v0.8.0 - Circuit breaker configuration
+    "CircuitBreakerRegistry",  # NEW: v0.8.0 - Per-provider circuit tracking
+    "CircuitState",  # NEW: v0.8.0 - Circuit state enum
+    "get_circuit_breaker",  # NEW: v0.8.0 - Get circuit breaker for provider
+    # ===== DYNAMIC CONFIG (v0.8.0) =====
+    "ConfigManager",  # NEW: v0.8.0 - Runtime config management
+    "ConfigChangeEvent",  # NEW: v0.8.0 - Config change event
+    "ConfigSection",  # NEW: v0.8.0 - Config section enum
+    "ConfigWatcher",  # NEW: v0.8.0 - File watcher for auto-reload
+    # ===== TOOL RISK (v0.8.0 - OSS-3 gap) =====
+    "ToolRiskLevel",  # NEW: v0.8.0 - Tool risk level enum
+    "ToolRiskClassification",  # NEW: v0.8.0 - Classification result
+    "ToolRiskClassifier",  # NEW: v0.8.0 - Tool risk classifier
+    "get_tool_risk_routing",  # NEW: v0.8.0 - Routing by risk level
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",

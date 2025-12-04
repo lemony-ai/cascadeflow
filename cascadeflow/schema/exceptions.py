@@ -8,12 +8,15 @@ Exception Hierarchy:
     cascadeflowError (base)
     ├── ConfigError
     ├── ProviderError
+    │   ├── AuthenticationError
+    │   └── TimeoutError
     ├── ModelError
     ├── BudgetExceededError
     ├── RateLimitError
     ├── QualityThresholdError
     ├── RoutingError
-    └── ValidationError
+    ├── ValidationError
+    └── ToolExecutionError
 
 Usage:
     >>> from cascadeflow import cascadeflowError, ProviderError
@@ -50,6 +53,64 @@ class ProviderError(cascadeflowError):
         super().__init__(message)
         self.provider = provider
         self.original_error = original_error
+
+
+class AuthenticationError(ProviderError):
+    """Authentication error - API key missing or invalid.
+
+    Raised when provider authentication fails due to missing or invalid API keys.
+
+    Attributes:
+        message: Error description
+        provider: Provider name (e.g., 'openai', 'anthropic')
+        env_var_name: Environment variable that should contain the API key
+
+    Example:
+        >>> raise AuthenticationError(
+        ...     "OpenAI API key not found",
+        ...     provider="openai",
+        ...     env_var_name="OPENAI_API_KEY"
+        ... )
+    """
+
+    def __init__(
+        self,
+        message: str,
+        provider: str = None,
+        env_var_name: str = None,
+        original_error: Exception = None,
+    ):
+        super().__init__(message, provider, original_error)
+        self.env_var_name = env_var_name
+
+
+class TimeoutError(ProviderError):
+    """Timeout error - API request exceeded time limit.
+
+    Raised when a provider API call times out.
+
+    Attributes:
+        message: Error description
+        provider: Provider name
+        timeout_ms: Timeout duration in milliseconds
+
+    Example:
+        >>> raise TimeoutError(
+        ...     "OpenAI API request timed out after 60s",
+        ...     provider="openai",
+        ...     timeout_ms=60000
+        ... )
+    """
+
+    def __init__(
+        self,
+        message: str,
+        provider: str = None,
+        timeout_ms: int = None,
+        original_error: Exception = None,
+    ):
+        super().__init__(message, provider, original_error)
+        self.timeout_ms = timeout_ms
 
 
 class ModelError(cascadeflowError):
@@ -95,16 +156,48 @@ class ValidationError(cascadeflowError):
     pass
 
 
+class ToolExecutionError(cascadeflowError):
+    """Tool execution error - tool call failed during execution.
+
+    Raised when a tool/function call fails during execution.
+
+    Attributes:
+        message: Error description
+        tool_name: Name of the tool that failed
+        cause: Original exception that caused the failure
+
+    Example:
+        >>> raise ToolExecutionError(
+        ...     "Failed to execute weather tool",
+        ...     tool_name="get_weather",
+        ...     cause=ConnectionError("API unreachable")
+        ... )
+    """
+
+    def __init__(
+        self,
+        message: str,
+        tool_name: str = None,
+        cause: Exception = None,
+    ):
+        super().__init__(message)
+        self.tool_name = tool_name
+        self.cause = cause
+
+
 # ==================== EXPORTS ====================
 
 __all__ = [
     "cascadeflowError",
     "ConfigError",
     "ProviderError",
+    "AuthenticationError",
+    "TimeoutError",
     "ModelError",
     "BudgetExceededError",
     "RateLimitError",
     "QualityThresholdError",
     "RoutingError",
     "ValidationError",
+    "ToolExecutionError",
 ]

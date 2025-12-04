@@ -269,7 +269,8 @@ class ProductionConfidenceEstimator:
             alignment_score = self.alignment_scorer.score(
                 query=query,
                 response=response,
-                query_difficulty=query_difficulty if query_difficulty else 0.5,
+                # FIX: Use 'is not None' instead of truthy check to allow 0.0 difficulty
+                query_difficulty=query_difficulty if query_difficulty is not None else 0.5,
             )
             components["alignment"] = alignment_score
 

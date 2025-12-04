@@ -14,6 +14,7 @@ export type Provider =
   | 'together'
   | 'vllm'
   | 'openrouter'
+  | 'deepseek'
   | 'replicate'
   | 'custom';
 

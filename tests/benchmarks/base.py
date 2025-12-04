@@ -229,8 +229,9 @@ class Benchmark(ABC):
                     cascade_result["prediction"], ground_truth
                 )
 
-                # Calculate baseline cost
-                baseline_cost = self.get_baseline_cost(query)
+                # Use baseline cost from cascade result if available (more accurate)
+                # Otherwise calculate baseline cost
+                baseline_cost = cascade_result.get("baseline_cost") or self.get_baseline_cost(query)
 
                 # Create result
                 result = BenchmarkResult(

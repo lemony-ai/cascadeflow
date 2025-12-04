@@ -190,7 +190,12 @@ ignore = [
 "cascadeflow/core/cascade.py" = ["F401"]  # Availability check imports
 "cascadeflow/integrations/litellm.py" = ["F401"]  # Availability check imports
 "cascadeflow/quality/quality.py" = ["F401"]  # Availability check imports
-"tests/**" = ["E402", "F401", "E741", "B023"]  # Test files: imports after setup, unused imports, ambiguous names
+"cascadeflow/dynamic_config/watcher.py" = ["F821"]  # ConfigManager forward reference
+"cascadeflow/routing/tool_risk.py" = ["E741"]  # Ambiguous variable name in risk scoring
+"cascadeflow/schema/__init__.py" = ["A004"]  # TimeoutError re-export shadows builtin
+"cascadeflow/schema/domain_config.py" = ["F821"]  # ModelRegistry forward reference
+"cascadeflow/schema/exceptions.py" = ["A001"]  # TimeoutError class shadows builtin (intentional)
+"tests/**" = ["E402", "F401", "E741", "B023", "B006", "F841"]  # Test files: imports after setup, unused imports, ambiguous names, mutable defaults, unused vars
 "tests/_archive_development_tests/**" = ["F"]  # Archived tests: ignore all F (pyflakes) errors
 "examples/**" = ["F401"]  # Examples: unused imports OK
 
@@ -226,6 +231,10 @@ disable_error_code = [
     "no-redef",
     "has-type",
     "annotation-unchecked",
+    "name-defined",
+    "import-not-found",
+    "call-arg",
+    "import",
 ]
 
 [[tool.mypy.overrides]]

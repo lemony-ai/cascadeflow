@@ -5,10 +5,12 @@ from typing import Dict, Optional
 
 from .anthropic import AnthropicProvider
 from .base import PROVIDER_CAPABILITIES, BaseProvider, ModelResponse
+from .deepseek import DeepSeekProvider
 from .groq import GroqProvider
 from .huggingface import HuggingFaceProvider
 from .ollama import OllamaProvider
 from .openai import OpenAIProvider
+from .openrouter import OpenRouterProvider
 from .together import TogetherProvider
 from .vllm import VLLMProvider
 
@@ -24,6 +26,8 @@ PROVIDER_REGISTRY = {
     "vllm": VLLMProvider,
     "huggingface": HuggingFaceProvider,
     "together": TogetherProvider,
+    "openrouter": OpenRouterProvider,
+    "deepseek": DeepSeekProvider,
 }
 
 
@@ -92,6 +96,8 @@ __all__ = [
     "VLLMProvider",
     "HuggingFaceProvider",
     "TogetherProvider",
+    "OpenRouterProvider",
+    "DeepSeekProvider",
     "PROVIDER_REGISTRY",
     "get_provider",
     "get_available_providers",

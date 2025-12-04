@@ -752,7 +752,11 @@ class OpenAIProvider(BaseProvider):
                 if confidence_components:
                     print("  Components:")
                     for comp, val in confidence_components.items():
-                        print(f"    • {comp:20s}: {val:.3f}")
+                        # Handle both numeric and non-numeric values
+                        if isinstance(val, (int, float)):
+                            print(f"    • {comp:20s}: {val:.3f}")
+                        else:
+                            print(f"    • {comp:20s}: {val}")
 
             # Build response metadata WITH confidence details
             response_metadata = {

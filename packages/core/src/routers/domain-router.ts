@@ -97,6 +97,60 @@ export interface DomainRouterStats {
   avgConfidence: number;
 }
 
+/** MCQ detection patterns - port from Python domain.py */
+const MCQ_PATTERNS: RegExp[] = [
+  // Standard MCQ formats
+  /(?:answer|choose|select)\s+(?:the\s+)?(?:following\s+)?(?:multiple[- ]choice|mcq)/i,
+  /provide\s+your\s+answer\s+as\s+(?:a\s+)?(?:single\s+)?letter/i,
+  /^(?:question|q)\s*(?:\d+)?[:.]\s*/im,
+  // Choice indicators (A. B. C. D. or A) B) C) D))
+  /(?:^|\n)\s*[ABCD]\s*[.)]\s+/m,
+  // MMLU-style format
+  /answer:\s*$/im,
+];
+
+/** Subject-to-domain mapping for MCQ (MMLU categories) */
+const SUBJECT_DOMAIN_MAP: Record<string, Domain> = {
+  // STEM subjects - Math
+  math: Domain.MATH,
+  algebra: Domain.MATH,
+  calculus: Domain.MATH,
+  geometry: Domain.MATH,
+  statistics: Domain.MATH,
+  arithmetic: Domain.MATH,
+  mathematics: Domain.MATH,
+  // Science subjects
+  physics: Domain.GENERAL,
+  chemistry: Domain.GENERAL,
+  biology: Domain.GENERAL,
+  astronomy: Domain.GENERAL,
+  science: Domain.GENERAL,
+  // Medical subjects
+  medicine: Domain.MEDICAL,
+  medical: Domain.MEDICAL,
+  anatomy: Domain.MEDICAL,
+  clinical: Domain.MEDICAL,
+  nutrition: Domain.MEDICAL,
+  health: Domain.MEDICAL,
+  virology: Domain.MEDICAL,
+  // Legal subjects
+  law: Domain.LEGAL,
+  legal: Domain.LEGAL,
+  jurisprudence: Domain.LEGAL,
+  // Financial subjects
+  accounting: Domain.FINANCIAL,
+  economics: Domain.FINANCIAL,
+  finance: Domain.FINANCIAL,
+  business: Domain.FINANCIAL,
+  marketing: Domain.FINANCIAL,
+  management: Domain.FINANCIAL,
+  // Code/CS subjects
+  computer: Domain.CODE,
+  programming: Domain.CODE,
+  machine_learning: Domain.CODE,
+  security: Domain.CODE,
+};
+
 /** Built-in domain keyword mappings */
 const DOMAIN_KEYWORDS: Record<Domain, DomainKeywords> = {
   [Domain.CODE]: {
@@ -248,7 +302,12 @@ export class DomainRouter {
    * ```
    */
   detect(query: string): DomainDetectionResult {
-    const queryLower = query.toLowerCase();
+    // Check for MCQ format and preprocess if detected
+    const { isMcq, extractedContent, subjectHint } = this.detectMcqFormat(query);
+
+    // Use extracted content for keyword matching if MCQ detected
+    const queryToAnalyze = isMcq ? extractedContent : query;
+    const queryLower = queryToAnalyze.toLowerCase();
     const scores: Record<string, number> = {};
 
     // Calculate scores for each domain
@@ -286,6 +345,17 @@ export class DomainRouter {
       scores[domain] = score;
     }
 
+    // If MCQ detected, apply subject-based domain hint
+    if (isMcq && subjectHint) {
+      // Boost the hinted domain score
+      scores[subjectHint] = Math.max((scores[subjectHint] || 0) + 0.5, 0.8);
+    }
+
+    // If MCQ detected, penalize CONVERSATION domain (it's not a conversation)
+    if (isMcq) {
+      scores[Domain.CONVERSATION] = Math.max(0, (scores[Domain.CONVERSATION] || 0) - 0.5);
+    }
+
     // Find domain with highest score
     let maxScore = 0;
     let detectedDomain = Domain.GENERAL;
@@ -306,7 +376,7 @@ export class DomainRouter {
     this.stats.confidenceSum += confidence;
 
     if (this.verbose) {
-      console.log(`Domain detected: ${detectedDomain} (confidence: ${confidence.toFixed(2)})`);
+      console.log(`Domain detected: ${detectedDomain} (confidence: ${confidence.toFixed(2)})${isMcq ? ' [MCQ detected]' : ''}`);
       console.log(`Top scores: ${JSON.stringify(
         Object.entries(scores)
           .sort(([, a], [, b]) => b - a)
@@ -320,6 +390,79 @@ export class DomainRouter {
       confidence,
       scores,
     };
+  }
+
+  /**
+   * Detect if query is a multiple-choice question and extract content.
+   *
+   * @param query - Original query text
+   * @returns Object with isMcq flag, extracted content, and domain hint
+   */
+  private detectMcqFormat(query: string): {
+    isMcq: boolean;
+    extractedContent: string;
+    subjectHint: Domain | null;
+  } {
+    const queryLower = query.toLowerCase();
+
+    // Check MCQ patterns
+    let isMcq = false;
+    for (const pattern of MCQ_PATTERNS) {
+      if (pattern.test(query)) {
+        isMcq = true;
+        break;
+      }
+    }
+
+    if (!isMcq) {
+      return { isMcq: false, extractedContent: query, subjectHint: null };
+    }
+
+    // Extract the actual question content (strip MCQ wrapper)
+    let extracted = query;
+
+    // Remove common MCQ instruction prefixes
+    const prefixesToRemove = [
+      /^answer the following multiple[- ]?choice question[.:]?\s*/i,
+      /^provide your answer as a single letter[^.]*[.]\s*/i,
+      /^choose the (?:best|correct) answer[.:]?\s*/i,
+      /^select (?:one|the correct answer)[.:]?\s*/i,
+    ];
+
+    for (const prefix of prefixesToRemove) {
+      extracted = extracted.replace(prefix, '');
+    }
+
+    // Extract content after "Question:" if present
+    const questionMatch = extracted.match(/question[:\s]+(.+?)(?=\n[ABCD][.)]\s|\Z)/is);
+    if (questionMatch) {
+      extracted = questionMatch[1].trim();
+    }
+
+    // Remove answer choices (A. B. C. D. lines)
+    extracted = extracted.replace(/\n[ABCD][.)]\s+[^\n]+/g, '');
+    // Remove trailing "Answer:" prompt
+    extracted = extracted.replace(/\s*answer:\s*$/i, '');
+
+    // Try to detect domain from subject keywords in the question
+    const subjectHint = this.detectSubjectDomain(queryLower);
+
+    return { isMcq: true, extractedContent: extracted.trim(), subjectHint };
+  }
+
+  /**
+   * Detect domain hint from subject-related keywords in the query.
+   *
+   * @param queryLower - Lowercase query text
+   * @returns Domain hint if detected, null otherwise
+   */
+  private detectSubjectDomain(queryLower: string): Domain | null {
+    for (const [subjectKeyword, domain] of Object.entries(SUBJECT_DOMAIN_MAP)) {
+      if (queryLower.includes(subjectKeyword)) {
+        return domain;
+      }
+    }
+    return null;
   }
 
   /**

@@ -266,6 +266,17 @@ export type {
   CostCalculationOptions,
 } from './integrations/litellm';
 
+// OpenTelemetry Integration (v0.7.0+)
+export {
+  OpenTelemetryExporter,
+  createExporterFromEnv,
+} from './integrations/otel';
+export type {
+  MetricDimensions,
+  CascadeflowMetrics,
+  OpenTelemetryExporterConfig,
+} from './integrations/otel';
+
 // Cost Calculator (Telemetry)
 export {
   CostCalculator,
@@ -349,6 +360,33 @@ export type {
   DomainRouterStats,
 } from './routers/domain-router';
 
+// Cascade Pipeline (v0.7.0+)
+export {
+  ValidationMethod,
+  StepStatus,
+  createCascadeStep,
+  getStepByName,
+  getFallbackSteps,
+  getStepResult,
+  getCostBreakdown,
+  getSuccessfulSteps,
+  getCodeStrategy,
+  getMedicalStrategy,
+  getGeneralStrategy,
+  getDataStrategy,
+  getMathStrategy,
+  getStructuredStrategy,
+  BUILT_IN_STRATEGIES,
+  getStrategyForDomain,
+  listAvailableStrategies,
+} from './routers/cascade-pipeline';
+export type {
+  CascadeStep,
+  StepResult,
+  DomainCascadeStrategy,
+  CascadeExecutionResult,
+} from './routers/cascade-pipeline';
+
 // Tools (v1.1.0+)
 export {
   ToolConfig,
@@ -377,6 +415,29 @@ export type {
   ToolQualityScore,
   ComplexityLevel,
 } from './tools';
+
+// Domain Configuration (v0.7.0+)
+export {
+  type DomainConfig,
+  type DomainConfigMap,
+  type DomainValidationMethod,
+  DEFAULT_DOMAIN_CONFIG,
+  BUILTIN_DOMAIN_CONFIGS,
+  createDomainConfig,
+  validateDomainConfig,
+  getBuiltinDomainConfig,
+  validationMethodToDomain,
+  domainValidationToMethod,
+} from './config/domain-config';
+
+// Model Registry (v0.7.0+)
+export {
+  type ModelRegistryEntry,
+  ModelRegistry,
+  defaultModelRegistry,
+  getModel,
+  hasModel,
+} from './config/model-registry';
 
 // Version
 export const VERSION = '1.0.0';

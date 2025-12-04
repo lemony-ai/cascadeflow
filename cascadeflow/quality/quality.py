@@ -356,8 +356,15 @@ class ResponseAnalyzer:
         }
 
     @staticmethod
-    def detect_hedging(content: str) -> dict[str, Any]:
-        """Detect hedging language that indicates uncertainty."""
+    def detect_hedging(content: str, is_math_content: bool = False) -> dict[str, Any]:
+        """Detect hedging language that indicates uncertainty.
+
+        Args:
+            content: The response text to analyze
+            is_math_content: If True, apply more lenient hedging rules
+                (math responses often contain calculation language that
+                looks like hedging but isn't uncertain)
+        """
         content_lower = content.lower()
         sentences = [s.strip() for s in re.split(r"[.!?]+", content) if s.strip()]
 
@@ -371,6 +378,26 @@ class ResponseAnalyzer:
         has_severe = any(marker in content_lower for marker in ResponseAnalyzer.UNCERTAINTY_MARKERS)
 
         hedging_ratio = hedging_count / len(sentences)
+
+        # For math content with numbers, be more lenient on hedging
+        # Math responses often use phrases like "so we have" or "let me solve"
+        # which aren't real uncertainty indicators
+        if is_math_content:
+            # Check if response contains calculations (numbers and math symbols)
+            has_calculations = bool(re.search(r"\d+\s*[+\-*/×÷=]\s*\d+", content))
+            has_final_answer = bool(re.search(r"(answer|total|result|=)\s*\$?\d+", content_lower))
+
+            if has_calculations or has_final_answer:
+                # More lenient thresholds for mathematical content
+                # Allow up to 50% hedging ratio (vs 30% default)
+                # Only reject on severe markers if they appear with no numbers
+                return {
+                    "ratio": hedging_ratio,
+                    "count": hedging_count,
+                    "severe": has_severe and not has_final_answer,
+                    "acceptable": hedging_ratio <= 0.5 and (not has_severe or has_final_answer),
+                    "math_leniency_applied": True,
+                }
 
         return {
             "ratio": hedging_ratio,
@@ -603,7 +630,11 @@ class QualityValidator:
             ) >= self.config.min_length_thresholds.get(complexity, 10)
 
             # 4. Hedging detection
-            hedging_analysis = self.analyzer.detect_hedging(draft_content)
+            # Check if this is math content - apply more lenient hedging rules
+            is_math_content = self._is_math_query(query) or self._has_math_response(draft_content)
+            hedging_analysis = self.analyzer.detect_hedging(
+                draft_content, is_math_content=is_math_content
+            )
             checks["acceptable_hedging"] = hedging_analysis["acceptable"]
             details["hedging"] = hedging_analysis
 
@@ -665,6 +696,58 @@ class QualityValidator:
         return ValidationResult(
             passed=passed, score=score, reason=reason, checks=checks, details=details
         )
+
+    @staticmethod
+    def _is_math_query(query: str) -> bool:
+        """Check if query is math-related (word problems, calculations)."""
+        query_lower = query.lower()
+        # Math word problem indicators
+        math_indicators = [
+            "how much",
+            "how many",
+            "calculate",
+            "solve",
+            "compute",
+            "what is",
+            "equals",
+            "total",
+            "sum",
+            "difference",
+            "per day",
+            "per hour",
+            "each day",
+            "per week",
+            "remainder",
+            "left over",
+            "altogether",
+            "in total",
+            # Math operation words
+            "add",
+            "subtract",
+            "multiply",
+            "divide",
+            "times",
+            "plus",
+            "minus",
+            "divided by",
+            "multiplied by",
+        ]
+        # Also check for currency/number patterns
+        has_currency = bool(re.search(r"\$\d+|\d+\s*dollars?|\d+\s*cents?", query_lower))
+        has_math_question = any(indicator in query_lower for indicator in math_indicators)
+        return has_currency or has_math_question
+
+    @staticmethod
+    def _has_math_response(content: str) -> bool:
+        """Check if response contains mathematical calculations."""
+        # Check for calculation patterns
+        has_calculations = bool(re.search(r"\d+\s*[+\-*/×÷=]\s*\d+", content))
+        has_answer = bool(
+            re.search(r"(answer|total|result|therefore)\s*[=:]?\s*\$?\d+", content.lower())
+        )
+        # Check for step-by-step math
+        has_steps = bool(re.search(r"step\s*\d|first.*then|=\s*\d+", content.lower()))
+        return has_calculations or has_answer or has_steps
 
 
 class ComparativeValidator:

@@ -92,6 +92,15 @@ from .domain import (
     DomainDetectionResult,
     DomainDetector,
     DomainKeywords,
+    SemanticDomainDetector,  # 🆕 ML-based hybrid detection
+)
+
+# Phase 5: Tool Risk Classification (OSS-3 gap)
+from .tool_risk import (
+    ToolRiskLevel,
+    ToolRiskClassification,
+    ToolRiskClassifier,
+    get_tool_risk_routing,
 )
 
 # Phase 4: Multi-Step Cascade Pipelines (NEW)
@@ -146,6 +155,14 @@ __all__ = [
     "DomainDetector",  # Domain detection with 4-tier keyword weighting
     "DomainDetectionResult",  # Detection result with confidence scores
     "DomainKeywords",  # Keyword weighting configuration
+    "SemanticDomainDetector",  # 🆕 ML-based hybrid detection (embeddings)
+    # ═══════════════════════════════════════════════════
+    # Phase 5: Tool Risk Classification (OSS-3 gap)
+    # ═══════════════════════════════════════════════════
+    "ToolRiskLevel",  # Risk level enum (LOW, MEDIUM, HIGH, CRITICAL)
+    "ToolRiskClassification",  # Classification result
+    "ToolRiskClassifier",  # Tool risk classifier
+    "get_tool_risk_routing",  # Get routing recommendation by risk
     # ═══════════════════════════════════════════════════
     # Phase 4: Multi-Step Cascade Pipelines (NEW)
     # ═══════════════════════════════════════════════════
