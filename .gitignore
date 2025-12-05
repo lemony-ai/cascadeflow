@@ -285,3 +285,17 @@ test_all_*.py
 test_semantic_*.py
 test_milestone*.py
 comprehensive_test.py
+
+# ============================================================================
+# BENCHMARK FILES (Development testing only)
+# ============================================================================
+# Benchmark results
+*_results/
+mtbench_results/
+
+# Benchmark cache files
+tests/benchmarks/*_cache.json
+tests/benchmarks/*_cache/
+
+# Full benchmark scripts (development only)
+tests/benchmarks/*_full_benchmark.py
