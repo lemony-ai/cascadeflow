@@ -82,9 +82,7 @@ class ModelConfig(BaseModel):
 
     # Enterprise HTTP configuration (SSL, proxy)
     # Type is Any to avoid circular import with providers.base.HttpConfig
-    http_config: Optional[Any] = Field(
-        None, description="HTTP config for SSL/proxy (enterprise)"
-    )
+    http_config: Optional[Any] = Field(None, description="HTTP config for SSL/proxy (enterprise)")
 
     def __init__(self, name: Optional[str] = None, **kwargs):
         """
