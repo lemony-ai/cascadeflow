@@ -2,9 +2,129 @@
  * Base provider interface and utilities
  */
 
-import type { Message, Tool, ProviderResponse } from '../types';
+import type { Message, Tool, ProviderResponse, HttpConfig } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
+
+// Lazy-loaded Node.js modules for enterprise HTTP config
+let https: any;
+let http: any;
+let HttpsProxyAgent: any;
+let fs: any;
+
+/**
+ * Create HTTP agent options from HttpConfig for SDK clients
+ *
+ * Supports proxy configuration using https-proxy-agent and custom CA certificates.
+ * Auto-detects from environment variables if not explicitly configured:
+ * - HTTPS_PROXY, HTTP_PROXY for proxy
+ * - SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE for CA bundle
+ *
+ * @param httpConfig - Optional HttpConfig settings
+ * @returns SDK client options including httpAgent if configured
+ */
+export function getHttpAgentOptions(httpConfig?: HttpConfig): Record<string, any> {
+  // Only run in Node.js environment
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (typeof (globalThis as any).window !== 'undefined') {
+    return {}; // Browser - no httpAgent support
+  }
+
+  const options: Record<string, any> = {};
+
+  // Get proxy URL from config or environment
+  const proxyUrl =
+    httpConfig?.proxy ||
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy;
+
+  // Get CA cert path from config or environment
+  const caCertPath =
+    httpConfig?.caCertPath ||
+    process.env.SSL_CERT_FILE ||
+    process.env.REQUESTS_CA_BUNDLE ||
+    process.env.CURL_CA_BUNDLE;
+
+  // Determine SSL verification setting
+  const verifySsl = httpConfig?.verifySsl !== false;
+
+  // Build agent options
+  try {
+    if (proxyUrl) {
+      // Try to load https-proxy-agent for proxy support
+      try {
+        if (!HttpsProxyAgent) {
+          HttpsProxyAgent = require('https-proxy-agent').HttpsProxyAgent;
+        }
+
+        const agentOptions: Record<string, any> = {};
+
+        // Add CA certificate if specified
+        if (caCertPath) {
+          if (!fs) {
+            fs = require('fs');
+          }
+          try {
+            agentOptions.ca = fs.readFileSync(caCertPath);
+          } catch (e) {
+            console.warn(`CascadeFlow: Unable to read CA certificate from ${caCertPath}`);
+          }
+        }
+
+        // Disable SSL verification if requested
+        if (!verifySsl) {
+          agentOptions.rejectUnauthorized = false;
+        }
+
+        options.httpAgent = new HttpsProxyAgent(proxyUrl, agentOptions);
+      } catch (e) {
+        console.warn(
+          'CascadeFlow: https-proxy-agent not installed. Run `npm install https-proxy-agent` for proxy support.'
+        );
+      }
+    } else if (caCertPath || !verifySsl) {
+      // No proxy, but custom CA or SSL settings
+      if (!https) {
+        https = require('https');
+      }
+
+      const agentOptions: Record<string, any> = {};
+
+      if (caCertPath) {
+        if (!fs) {
+          fs = require('fs');
+        }
+        try {
+          agentOptions.ca = fs.readFileSync(caCertPath);
+        } catch (e) {
+          console.warn(`CascadeFlow: Unable to read CA certificate from ${caCertPath}`);
+        }
+      }
+
+      if (!verifySsl) {
+        agentOptions.rejectUnauthorized = false;
+      }
+
+      options.httpAgent = new https.Agent(agentOptions);
+    }
+  } catch (e) {
+    // Silently ignore errors in browser or when modules not available
+  }
+
+  // Add timeout if specified
+  if (httpConfig?.timeout) {
+    options.timeout = httpConfig.timeout;
+  }
+
+  // Add max retries if specified
+  if (httpConfig?.maxRetries !== undefined) {
+    options.maxRetries = httpConfig.maxRetries;
+  }
+
+  return options;
+}
 
 /**
  * Request options for provider calls

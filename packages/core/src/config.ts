@@ -2,7 +2,7 @@
  * Configuration types for cascadeflow
  */
 
-import type { Provider, RoutingStrategy } from './types';
+import type { Provider, RoutingStrategy, HttpConfig } from './types';
 import type { QualityConfig as QualityValidatorConfig } from './quality';
 import type { DomainConfigMap } from './config/domain-config';
 
@@ -67,6 +67,29 @@ export interface ModelConfig {
 
   /** Per-model quality threshold for cascade acceptance (0-1, overrides global threshold) */
   qualityThreshold?: number;
+
+  /**
+   * Enterprise HTTP configuration for proxy, SSL, and timeout settings
+   *
+   * Provides zero-config support for enterprise environments with:
+   * - Custom CA certificates (corporate PKI)
+   * - Proxy servers (HTTPS_PROXY, HTTP_PROXY)
+   * - SSL/TLS verification control
+   *
+   * @example Corporate proxy
+   * ```typescript
+   * const config: ModelConfig = {
+   *   name: 'gpt-4o',
+   *   provider: 'openai',
+   *   cost: 0.00625,
+   *   httpConfig: {
+   *     proxy: 'http://proxy.corp.example.com:8080',
+   *     caCertPath: '/path/to/corporate-ca.pem'
+   *   }
+   * };
+   * ```
+   */
+  httpConfig?: HttpConfig;
 }
 
 /**

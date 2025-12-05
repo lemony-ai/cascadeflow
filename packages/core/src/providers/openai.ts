@@ -5,7 +5,7 @@
  * Automatically detects the runtime environment and uses the appropriate method.
  */
 
-import { BaseProvider, type ProviderRequest } from './base';
+import { BaseProvider, type ProviderRequest, getHttpAgentOptions } from './base';
 import type { ProviderResponse, Tool, Message, ReasoningModelInfo } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
@@ -180,8 +180,12 @@ export class OpenAIProvider extends BaseProvider {
     this.baseUrl = config.baseUrl || 'https://api.openai.com/v1';
 
     if (this.useSDK) {
-      // Node.js: Use SDK
-      this.client = new OpenAI({ apiKey });
+      // Node.js: Use SDK with enterprise HTTP config
+      const httpOptions = getHttpAgentOptions(config.httpConfig);
+      this.client = new OpenAI({
+        apiKey,
+        ...httpOptions,
+      });
     }
     // Browser: Will use fetch in generate()
   }

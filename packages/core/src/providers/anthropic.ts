@@ -9,7 +9,7 @@
  * Note: Anthropic does not support logprobs natively
  */
 
-import { BaseProvider, type ProviderRequest } from './base';
+import { BaseProvider, type ProviderRequest, getHttpAgentOptions } from './base';
 import type { ProviderResponse, Tool, Message, ReasoningModelInfo } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
@@ -111,8 +111,12 @@ export class AnthropicProvider extends BaseProvider {
     this.baseUrl = config.baseUrl || 'https://api.anthropic.com/v1';
 
     if (this.useSDK) {
-      // Node.js: Use SDK
-      this.client = new Anthropic({ apiKey: this.getApiKey() });
+      // Node.js: Use SDK with enterprise HTTP config
+      const httpOptions = getHttpAgentOptions(config.httpConfig);
+      this.client = new Anthropic({
+        apiKey: this.getApiKey(),
+        ...httpOptions,
+      });
     }
     // Browser: Will use fetch in generate()
   }

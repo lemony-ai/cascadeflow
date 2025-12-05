@@ -9,7 +9,7 @@
  * Note: Groq uses OpenAI-compatible API but does NOT support logprobs
  */
 
-import { BaseProvider, type ProviderRequest } from './base';
+import { BaseProvider, type ProviderRequest, getHttpAgentOptions } from './base';
 import type { ProviderResponse, Tool, Message } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
@@ -91,8 +91,12 @@ export class GroqProvider extends BaseProvider {
     this.baseUrl = config.baseUrl || 'https://api.groq.com/openai/v1';
 
     if (this.useSDK) {
-      // Node.js: Use SDK
-      this.client = new Groq({ apiKey: this.getApiKey() });
+      // Node.js: Use SDK with enterprise HTTP config
+      const httpOptions = getHttpAgentOptions(config.httpConfig);
+      this.client = new Groq({
+        apiKey: this.getApiKey(),
+        ...httpOptions,
+      });
     }
     // Browser: Will use fetch in generate()
   }

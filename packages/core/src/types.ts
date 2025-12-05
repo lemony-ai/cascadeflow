@@ -476,3 +476,89 @@ export interface BatchItemResult {
   timingMs: number;
   cost: number;
 }
+
+/**
+ * Enterprise HTTP configuration for proxy, SSL, and timeout settings
+ *
+ * Provides zero-config support for enterprise environments with:
+ * - Custom CA certificates (corporate PKI)
+ * - Proxy servers (HTTPS_PROXY, HTTP_PROXY)
+ * - SSL/TLS verification control
+ * - Custom timeouts
+ *
+ * Environment variable auto-detection:
+ * - SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE for CA bundles
+ * - HTTPS_PROXY, HTTP_PROXY, NO_PROXY for proxy configuration
+ *
+ * @example Zero-config (auto-detects from environment)
+ * ```typescript
+ * const config: HttpConfig = {};
+ * // Automatically uses HTTPS_PROXY and SSL_CERT_FILE if set
+ * ```
+ *
+ * @example Custom CA certificate
+ * ```typescript
+ * const config: HttpConfig = {
+ *   caCertPath: '/path/to/corporate-ca.pem'
+ * };
+ * ```
+ *
+ * @example Proxy configuration
+ * ```typescript
+ * const config: HttpConfig = {
+ *   proxy: 'http://proxy.corp.example.com:8080'
+ * };
+ * ```
+ *
+ * @example Disable SSL verification (development only)
+ * ```typescript
+ * const config: HttpConfig = {
+ *   verifySsl: false  // NOT recommended for production
+ * };
+ * ```
+ */
+export interface HttpConfig {
+  /**
+   * Enable/disable SSL certificate verification
+   *
+   * @default true
+   *
+   * WARNING: Setting to false disables all certificate validation.
+   * Only use in development/testing environments.
+   */
+  verifySsl?: boolean;
+
+  /**
+   * Path to custom CA certificate bundle
+   *
+   * Supports PEM format certificate files.
+   * Auto-detects from SSL_CERT_FILE, REQUESTS_CA_BUNDLE, or CURL_CA_BUNDLE
+   * environment variables if not specified.
+   */
+  caCertPath?: string;
+
+  /**
+   * Proxy server URL
+   *
+   * Supports HTTP and HTTPS proxies.
+   * Auto-detects from HTTPS_PROXY or HTTP_PROXY environment variables.
+   *
+   * @example 'http://proxy.example.com:8080'
+   * @example 'https://user:pass@proxy.example.com:8443'
+   */
+  proxy?: string;
+
+  /**
+   * Request timeout in milliseconds
+   *
+   * @default 30000 (30 seconds)
+   */
+  timeout?: number;
+
+  /**
+   * Maximum number of retry attempts
+   *
+   * @default 2
+   */
+  maxRetries?: number;
+}
