@@ -9,7 +9,7 @@ from typing import Any, Optional
 import httpx
 
 from ..exceptions import ModelError, ProviderError
-from .base import BaseProvider, ModelResponse, RetryConfig
+from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
 
 class ReasoningModelInfo:
@@ -161,11 +161,12 @@ class OllamaProvider(BaseProvider):
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        http_config: Optional[HttpConfig] = None,
         timeout: float = 300.0,  # 5 minutes (generous for slow CPU inference)
         keep_alive: str = "5m",  # Model keep-alive duration
     ):
         """
-        Initialize Ollama provider with automatic retry logic.
+        Initialize Ollama provider with automatic retry logic and enterprise HTTP support.
 
         Args:
             api_key: Optional API key for remote Ollama servers with authentication.
@@ -180,11 +181,29 @@ class OllamaProvider(BaseProvider):
                 - max_attempts: 3
                 - initial_delay: 1.0s (longer delays work better for Ollama)
                 - rate_limit_backoff: N/A (Ollama has no rate limits)
+            http_config: HTTP configuration for SSL/proxy (default: auto-detect from env).
+                Supports:
+                - Custom CA bundles (SSL_CERT_FILE, REQUESTS_CA_BUNDLE)
+                - Proxy servers (HTTPS_PROXY, HTTP_PROXY)
+                - SSL verification control
             timeout: Request timeout in seconds (default: 300s for slow inference)
             keep_alive: How long to keep model loaded (e.g., "5m", "10m", "-1" for always)
+
+        Example:
+            # Local Ollama (default)
+            provider = OllamaProvider()
+
+            # Remote Ollama with corporate proxy
+            provider = OllamaProvider(
+                base_url="https://ollama.corp.internal:11434",
+                http_config=HttpConfig(
+                    verify="/path/to/corporate-ca.pem",
+                    proxy="http://proxy.corp.com:8080"
+                )
+            )
         """
-        # Call parent init to load API key, check logprobs support, and setup retry
-        super().__init__(api_key=api_key, retry_config=retry_config)
+        # Call parent init to load API key, check logprobs support, setup retry, and http_config
+        super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
         # Support both OLLAMA_BASE_URL (standard) and OLLAMA_HOST (legacy)
         self.base_url = (
@@ -195,14 +214,19 @@ class OllamaProvider(BaseProvider):
         self.timeout = timeout
         self.keep_alive = keep_alive
 
-        # Initialize HTTP client with optional auth for remote Ollama
+        # Initialize HTTP client with optional auth for remote Ollama and enterprise config
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             # Support custom auth for remote/network Ollama servers
             headers["Authorization"] = f"Bearer {self.api_key}"
 
+        # Get httpx kwargs from http_config (includes verify, proxy)
+        httpx_kwargs = self.http_config.get_httpx_kwargs()
+        httpx_kwargs["timeout"] = self.timeout  # Use Ollama-specific timeout
+
         self.client = httpx.AsyncClient(
-            headers=headers, timeout=self.timeout  # Generous timeout for local inference
+            headers=headers,
+            **httpx_kwargs,
         )
 
     def _load_api_key(self) -> Optional[str]:

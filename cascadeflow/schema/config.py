@@ -80,6 +80,12 @@ class ModelConfig(BaseModel):
     # Phase 3: Tool calling support
     supports_tools: bool = Field(True, description="Whether model supports tool/function calling")
 
+    # Enterprise HTTP configuration (SSL, proxy)
+    # Type is Any to avoid circular import with providers.base.HttpConfig
+    http_config: Optional[Any] = Field(
+        None, description="HTTP config for SSL/proxy (enterprise)"
+    )
+
     def __init__(self, name: Optional[str] = None, **kwargs):
         """
         Initialize ModelConfig with support for positional name argument.

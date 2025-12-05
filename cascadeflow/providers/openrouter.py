@@ -50,7 +50,7 @@ from typing import Any, Optional
 import httpx
 
 from ..schema.exceptions import ProviderError
-from .base import BaseProvider, ModelResponse, RetryConfig
+from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
 # OpenRouter pricing per 1M tokens (sample of popular models as of 2025)
 # Note: OpenRouter has 400+ models with dynamic pricing.
@@ -110,16 +110,23 @@ class OpenRouterProvider(BaseProvider):
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        http_config: Optional[HttpConfig] = None,
     ):
         """
-        Initialize OpenRouter provider.
+        Initialize OpenRouter provider with enterprise HTTP support.
 
         Args:
             api_key: OpenRouter API key. If None, reads from OPENROUTER_API_KEY env var.
             base_url: Base URL for OpenRouter API. Defaults to https://openrouter.ai/api/v1
             retry_config: Custom retry configuration (optional).
+            http_config: Enterprise HTTP configuration (optional). Supports:
+                - Custom SSL/TLS certificate verification
+                - Corporate proxy configuration (HTTPS_PROXY, HTTP_PROXY)
+                - Custom CA bundles (SSL_CERT_FILE, REQUESTS_CA_BUNDLE)
+                - Connection timeouts
+                If None, auto-detects from environment variables.
         """
-        super().__init__(api_key=api_key, retry_config=retry_config)
+        super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
         if not self.api_key:
             raise ValueError(
@@ -128,6 +135,11 @@ class OpenRouterProvider(BaseProvider):
             )
 
         self.base_url = base_url or "https://openrouter.ai/api/v1"
+
+        # Get httpx kwargs from http_config (includes verify, proxy, timeout)
+        httpx_kwargs = self.http_config.get_httpx_kwargs()
+        httpx_kwargs["timeout"] = 120.0  # OpenRouter-specific timeout
+
         self.client = httpx.AsyncClient(
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -136,7 +148,7 @@ class OpenRouterProvider(BaseProvider):
                 "HTTP-Referer": "https://github.com/lemony-ai/cascadeflow",
                 "X-Title": "CascadeFlow",
             },
-            timeout=120.0,
+            **httpx_kwargs,
         )
 
         # Model cache for dynamic discovery

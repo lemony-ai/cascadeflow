@@ -9,7 +9,7 @@ from typing import Any, Optional
 import httpx
 
 from ..exceptions import ModelError, ProviderError
-from .base import BaseProvider, ModelResponse, RetryConfig
+from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
 
 class ReasoningModelInfo:
@@ -157,10 +157,11 @@ class VLLMProvider(BaseProvider):
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        http_config: Optional[HttpConfig] = None,
         timeout: float = 300.0,
     ):
         """
-        Initialize vLLM provider with tool calling support.
+        Initialize vLLM provider with tool calling support and enterprise HTTP configuration.
 
         Args:
             api_key: Optional API key for remote vLLM servers with authentication.
@@ -172,9 +173,15 @@ class VLLMProvider(BaseProvider):
                         - Network: http://192.168.1.200:8000/v1
                         - Remote: https://vllm.yourdomain.com/v1
             retry_config: Custom retry configuration (optional)
+            http_config: Enterprise HTTP configuration (optional). Supports:
+                - Custom SSL/TLS certificate verification
+                - Corporate proxy configuration (HTTPS_PROXY, HTTP_PROXY)
+                - Custom CA bundles (SSL_CERT_FILE, REQUESTS_CA_BUNDLE)
+                - Connection timeouts
+                If None, auto-detects from environment variables.
             timeout: Request timeout in seconds (default: 300s for large models, reasoning models need more time)
         """
-        super().__init__(api_key=api_key, retry_config=retry_config)
+        super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
         self.base_url = base_url or os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
         self.timeout = timeout
@@ -183,7 +190,11 @@ class VLLMProvider(BaseProvider):
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        self.client = httpx.AsyncClient(headers=headers, timeout=self.timeout)
+        # Get httpx kwargs from http_config (includes verify, proxy)
+        httpx_kwargs = self.http_config.get_httpx_kwargs()
+        httpx_kwargs["timeout"] = self.timeout  # Use vLLM-specific timeout
+
+        self.client = httpx.AsyncClient(headers=headers, **httpx_kwargs)
 
     def _load_api_key(self) -> Optional[str]:
         """Load API key from environment (optional for vLLM)."""

@@ -21,7 +21,7 @@ from typing import Any, Optional
 import httpx
 
 from ..exceptions import ModelError, ProviderError
-from .base import BaseProvider, ModelResponse, RetryConfig
+from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
 
 class HuggingFaceEndpointType(Enum):
@@ -146,10 +146,11 @@ class HuggingFaceProvider(BaseProvider):
         base_url: Optional[str] = None,
         endpoint_type: Optional[HuggingFaceEndpointType] = None,
         retry_config: Optional[RetryConfig] = None,
+        http_config: Optional[HttpConfig] = None,
         verbose: bool = False,
     ):
         """
-        Initialize HuggingFace provider with automatic retry logic.
+        Initialize HuggingFace provider with automatic retry logic and enterprise HTTP support.
 
         Args:
             api_key: HuggingFace API token (reads from HF_TOKEN if None)
@@ -159,10 +160,16 @@ class HuggingFaceProvider(BaseProvider):
                 - max_attempts: 3
                 - initial_delay: 1.0s
                 - rate_limit_backoff: 30.0s
+            http_config: Enterprise HTTP configuration (optional). Supports:
+                - Custom SSL/TLS certificate verification
+                - Corporate proxy configuration (HTTPS_PROXY, HTTP_PROXY)
+                - Custom CA bundles (SSL_CERT_FILE, REQUESTS_CA_BUNDLE)
+                - Connection timeouts
+                If None, auto-detects from environment variables.
             verbose: Print debug information
         """
-        # Call parent init to load API key, check logprobs support, and setup retry
-        super().__init__(api_key=api_key, retry_config=retry_config)
+        # Call parent init to load API key, check logprobs support, setup retry, and http_config
+        super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
         self.verbose = verbose
 
@@ -188,8 +195,12 @@ class HuggingFaceProvider(BaseProvider):
         else:
             self.base_url = self._get_default_base_url(endpoint_type)
 
-        # Initialize HTTP client
-        self.client = httpx.AsyncClient(headers=self._get_headers(), timeout=60.0)
+        # Get httpx kwargs from http_config (includes verify, proxy, timeout)
+        httpx_kwargs = self.http_config.get_httpx_kwargs()
+        httpx_kwargs["timeout"] = 60.0  # HuggingFace-specific timeout
+
+        # Initialize HTTP client with enterprise HTTP support
+        self.client = httpx.AsyncClient(headers=self._get_headers(), **httpx_kwargs)
 
     def _load_api_key(self) -> Optional[str]:
         """Load API key from environment."""

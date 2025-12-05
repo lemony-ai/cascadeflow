@@ -9,7 +9,7 @@ from typing import Any, Optional
 import httpx
 
 from ..exceptions import ModelError, ProviderError
-from .base import BaseProvider, ModelResponse, RetryConfig
+from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
 
 class GroqProvider(BaseProvider):
@@ -90,9 +90,14 @@ class GroqProvider(BaseProvider):
         ... )
     """
 
-    def __init__(self, api_key: Optional[str] = None, retry_config: Optional[RetryConfig] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+        http_config: Optional[HttpConfig] = None,
+    ):
         """
-        Initialize Groq provider with automatic retry logic.
+        Initialize Groq provider with automatic retry logic and enterprise HTTP support.
 
         Args:
             api_key: Groq API key. If None, reads from GROQ_API_KEY env var.
@@ -100,9 +105,23 @@ class GroqProvider(BaseProvider):
                 - max_attempts: 3
                 - initial_delay: 1.0s
                 - rate_limit_backoff: 30.0s
+            http_config: HTTP configuration for SSL/proxy (default: auto-detect from env).
+                Supports:
+                - Custom CA bundles (SSL_CERT_FILE, REQUESTS_CA_BUNDLE)
+                - Proxy servers (HTTPS_PROXY, HTTP_PROXY)
+                - SSL verification control
+
+        Example:
+            # Auto-detect from environment (default)
+            provider = GroqProvider()
+
+            # Corporate environment with custom CA bundle
+            provider = GroqProvider(
+                http_config=HttpConfig(verify="/path/to/corporate-ca.pem")
+            )
         """
-        # Call parent init to load API key, check logprobs support, and setup retry
-        super().__init__(api_key=api_key, retry_config=retry_config)
+        # Call parent init to load API key, check logprobs support, setup retry, and http_config
+        super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
         # Verify API key is set
         if not self.api_key:
@@ -112,11 +131,16 @@ class GroqProvider(BaseProvider):
                 "https://console.groq.com"
             )
 
-        # Initialize HTTP client
+        # Initialize HTTP client with enterprise HTTP config
         self.base_url = "https://api.groq.com/openai/v1"
+
+        # Get httpx kwargs from http_config (includes verify, proxy, timeout)
+        httpx_kwargs = self.http_config.get_httpx_kwargs()
+        httpx_kwargs["timeout"] = 60.0  # Groq-specific timeout
+
         self.client = httpx.AsyncClient(
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-            timeout=60.0,
+            **httpx_kwargs,
         )
 
     def _load_api_key(self) -> Optional[str]:

@@ -9,7 +9,7 @@ from typing import Any, Optional
 import httpx
 
 from ..exceptions import ModelError, ProviderError
-from .base import BaseProvider, ModelResponse, RetryConfig
+from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
 # ==============================================================================
 # REASONING MODEL SUPPORT
@@ -198,9 +198,14 @@ class OpenAIProvider(BaseProvider):
         >>> print(provider.get_retry_metrics())
     """
 
-    def __init__(self, api_key: Optional[str] = None, retry_config: Optional[RetryConfig] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+        http_config: Optional[HttpConfig] = None,
+    ):
         """
-        Initialize OpenAI provider with automatic retry logic.
+        Initialize OpenAI provider with automatic retry logic and enterprise HTTP support.
 
         Args:
             api_key: OpenAI API key. If None, reads from OPENAI_API_KEY env var.
@@ -208,9 +213,28 @@ class OpenAIProvider(BaseProvider):
                 - max_attempts: 3
                 - initial_delay: 1.0s
                 - rate_limit_backoff: 30.0s
+            http_config: HTTP configuration for SSL/proxy (default: auto-detect from env).
+                Supports:
+                - Custom CA bundles (SSL_CERT_FILE, REQUESTS_CA_BUNDLE)
+                - Proxy servers (HTTPS_PROXY, HTTP_PROXY)
+                - SSL verification control
+
+        Example:
+            # Auto-detect from environment (default)
+            provider = OpenAIProvider()
+
+            # Corporate environment with custom CA bundle
+            provider = OpenAIProvider(
+                http_config=HttpConfig(verify="/path/to/corporate-ca.pem")
+            )
+
+            # With proxy
+            provider = OpenAIProvider(
+                http_config=HttpConfig(proxy="http://proxy.corp.com:8080")
+            )
         """
-        # Call parent init to load API key, check logprobs support, and setup retry
-        super().__init__(api_key=api_key, retry_config=retry_config)
+        # Call parent init to load API key, check logprobs support, setup retry, and http_config
+        super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
         # Verify API key is set
         if not self.api_key:
@@ -219,12 +243,17 @@ class OpenAIProvider(BaseProvider):
                 "variable or pass api_key parameter."
             )
 
-        # Initialize HTTP client with the loaded API key
+        # Initialize HTTP client with the loaded API key and HTTP config
         self.base_url = "https://api.openai.com/v1"
-        # Increased timeout for reasoning models (GPT-5, o1, o3) which can take 60-120+ seconds
+
+        # Get httpx kwargs from http_config (includes verify, proxy, timeout)
+        httpx_kwargs = self.http_config.get_httpx_kwargs()
+        # Override timeout for reasoning models (GPT-5, o1, o3) which can take 60-120+ seconds
+        httpx_kwargs["timeout"] = 180.0  # 3 minutes for reasoning models
+
         self.client = httpx.AsyncClient(
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-            timeout=180.0,  # 3 minutes for reasoning models
+            **httpx_kwargs,
         )
 
     def _load_api_key(self) -> Optional[str]:

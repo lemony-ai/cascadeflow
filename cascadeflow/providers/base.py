@@ -11,17 +11,24 @@ NEW in v2.6 (Nov 28, 2025):
     - Circuit Breaker integration for provider resilience
     - Per-provider health tracking
     - Automatic failure detection and recovery
+
+NEW in v2.7 (Dec 5, 2025):
+    - HttpConfig for enterprise SSL/proxy support
+    - Auto-detect HTTPS_PROXY, HTTP_PROXY, SSL_CERT_FILE from environment
+    - Custom CA bundle support for corporate environments
 """
 
 import asyncio
 import logging
 import math
+import os
 import random
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from cascadeflow.resilience import CircuitBreaker
@@ -108,6 +115,155 @@ class RetryMetrics:
             "total_retry_delay_sec": round(self.total_retry_delay, 2),
             "retries_by_error": dict(self.retries_by_error),
         }
+
+
+# ============================================================================
+# HTTP CONFIGURATION FOR ENTERPRISE (SSL, PROXY)
+# ============================================================================
+
+
+@dataclass
+class HttpConfig:
+    """
+    HTTP configuration for enterprise environments.
+
+    Supports SSL certificate verification, custom CA bundles, and proxy settings.
+    Auto-detects from standard environment variables when using from_env().
+
+    Environment Variables (auto-detected):
+        - HTTPS_PROXY, HTTP_PROXY: Proxy URL
+        - NO_PROXY: Comma-separated list of hosts to bypass proxy
+        - SSL_CERT_FILE, REQUESTS_CA_BUNDLE: Path to CA bundle file
+        - CURL_CA_BUNDLE: Alternative CA bundle path
+
+    Attributes:
+        verify: SSL verification setting:
+            - True (default): Use system CA bundle
+            - False: Disable SSL verification (WARNING: insecure!)
+            - str: Path to custom CA bundle file
+        proxy: Proxy URL (e.g., "http://proxy.corp.com:8080")
+        timeout: Request timeout in seconds
+        no_proxy: Comma-separated list of hosts to bypass proxy
+
+    Examples:
+        # Default: Auto-detect from environment
+        config = HttpConfig.from_env()
+
+        # Custom CA bundle (enterprise)
+        config = HttpConfig(verify="/path/to/corporate-ca.pem")
+
+        # Explicit proxy
+        config = HttpConfig(
+            verify=True,
+            proxy="http://proxy.corp.com:8080"
+        )
+
+        # Disable SSL verification (development only!)
+        config = HttpConfig(verify=False)  # Emits warning
+    """
+
+    verify: Union[bool, str] = True
+    proxy: Optional[str] = None
+    timeout: float = 60.0
+    no_proxy: Optional[str] = None
+
+    def __post_init__(self):
+        """Emit warning if SSL verification is disabled."""
+        if self.verify is False:
+            warnings.warn(
+                "SSL verification is DISABLED. This is insecure and should only be used "
+                "for development/testing. Set verify=True or provide a CA bundle path "
+                "for production use.",
+                UserWarning,
+                stacklevel=3,
+            )
+            logger.warning(
+                "HttpConfig: SSL verification disabled. This is insecure! "
+                "Only use for development/testing."
+            )
+
+    @classmethod
+    def from_env(cls) -> "HttpConfig":
+        """
+        Create HttpConfig from environment variables.
+
+        Auto-detects:
+            - HTTPS_PROXY or HTTP_PROXY for proxy settings
+            - NO_PROXY for proxy bypass
+            - SSL_CERT_FILE, REQUESTS_CA_BUNDLE, or CURL_CA_BUNDLE for CA bundle
+
+        Returns:
+            HttpConfig with settings from environment
+
+        Example:
+            # In shell:
+            export HTTPS_PROXY=http://proxy.corp.com:8080
+            export SSL_CERT_FILE=/path/to/ca-bundle.crt
+
+            # In Python:
+            config = HttpConfig.from_env()
+            # config.proxy = "http://proxy.corp.com:8080"
+            # config.verify = "/path/to/ca-bundle.crt"
+        """
+        # Detect proxy from environment (HTTPS_PROXY takes priority)
+        proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+        if not proxy:
+            # Also check lowercase variants
+            proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+
+        # Detect no_proxy
+        no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy")
+
+        # Detect CA bundle from environment
+        # Check multiple environment variables in priority order
+        ca_bundle = (
+            os.environ.get("SSL_CERT_FILE")
+            or os.environ.get("REQUESTS_CA_BUNDLE")
+            or os.environ.get("CURL_CA_BUNDLE")
+        )
+
+        # If CA bundle specified and file exists, use it; otherwise use system default
+        verify: Union[bool, str] = True
+        if ca_bundle:
+            if os.path.isfile(ca_bundle):
+                verify = ca_bundle
+                logger.info(f"HttpConfig: Using CA bundle from environment: {ca_bundle}")
+            else:
+                logger.warning(
+                    f"HttpConfig: CA bundle path from environment does not exist: {ca_bundle}. "
+                    f"Using system default."
+                )
+
+        if proxy:
+            logger.info(f"HttpConfig: Using proxy from environment: {proxy}")
+
+        return cls(
+            verify=verify,
+            proxy=proxy,
+            no_proxy=no_proxy,
+        )
+
+    def get_httpx_kwargs(self) -> dict[str, Any]:
+        """
+        Get kwargs for httpx.AsyncClient initialization.
+
+        Returns:
+            Dictionary of kwargs for httpx.AsyncClient
+
+        Example:
+            config = HttpConfig.from_env()
+            client = httpx.AsyncClient(**config.get_httpx_kwargs())
+        """
+        kwargs: dict[str, Any] = {
+            "verify": self.verify,
+            "timeout": self.timeout,
+        }
+
+        if self.proxy:
+            # httpx uses 'proxy' for single proxy URL
+            kwargs["proxy"] = self.proxy
+
+        return kwargs
 
 
 # ============================================================================
@@ -208,20 +364,43 @@ class BaseProvider(ABC):
         api_key: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
         enable_circuit_breaker: bool = True,
+        http_config: Optional[HttpConfig] = None,
     ):
         """
-        Initialize provider with retry logic and circuit breaker.
+        Initialize provider with retry logic, circuit breaker, and HTTP config.
 
         Args:
             api_key: API key for the provider (if needed)
             retry_config: Custom retry configuration (optional)
             enable_circuit_breaker: Enable circuit breaker for resilience (default: True)
+            http_config: HTTP configuration for SSL/proxy (default: auto-detect from env)
+
+        Example:
+            # Auto-detect proxy and SSL from environment
+            provider = OpenAIProvider()  # Uses HttpConfig.from_env()
+
+            # Custom CA bundle for corporate environment
+            provider = OpenAIProvider(
+                http_config=HttpConfig(verify="/path/to/corp-ca.pem")
+            )
+
+            # Explicit proxy configuration
+            provider = OpenAIProvider(
+                http_config=HttpConfig(
+                    proxy="http://proxy.corp.com:8080",
+                    verify=True
+                )
+            )
         """
         # Load API key from parameter or environment
         if api_key:
             self.api_key = api_key
         else:
             self.api_key = self._load_api_key()
+
+        # HTTP configuration for enterprise (SSL/proxy)
+        # Auto-detect from environment if not provided
+        self.http_config = http_config or HttpConfig.from_env()
 
         # Circuit breaker integration
         self._enable_circuit_breaker = enable_circuit_breaker

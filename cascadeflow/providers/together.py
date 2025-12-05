@@ -9,7 +9,7 @@ from typing import Any, Optional
 import httpx
 
 from ..exceptions import ModelError, ProviderError
-from .base import BaseProvider, ModelResponse, RetryConfig
+from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
 
 class TogetherProvider(BaseProvider):
@@ -77,9 +77,14 @@ class TogetherProvider(BaseProvider):
         ...         print(f"Args: {tool_call['arguments']}")
     """
 
-    def __init__(self, api_key: Optional[str] = None, retry_config: Optional[RetryConfig] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+        http_config: Optional[HttpConfig] = None,
+    ):
         """
-        Initialize Together.ai provider with automatic retry logic.
+        Initialize Together.ai provider with automatic retry logic and enterprise HTTP support.
 
         Args:
             api_key: Together.ai API key. If None, reads from TOGETHER_API_KEY env var.
@@ -87,9 +92,15 @@ class TogetherProvider(BaseProvider):
                 - max_attempts: 3
                 - initial_delay: 1.0s
                 - rate_limit_backoff: 30.0s
+            http_config: Enterprise HTTP configuration (optional). Supports:
+                - Custom SSL/TLS certificate verification
+                - Corporate proxy configuration (HTTPS_PROXY, HTTP_PROXY)
+                - Custom CA bundles (SSL_CERT_FILE, REQUESTS_CA_BUNDLE)
+                - Connection timeouts
+                If None, auto-detects from environment variables.
         """
-        # Call parent init to load API key, check logprobs support, and setup retry
-        super().__init__(api_key=api_key, retry_config=retry_config)
+        # Call parent init to load API key, check logprobs support, setup retry, and http_config
+        super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
         # Verify API key is set
         if not self.api_key:
@@ -98,11 +109,15 @@ class TogetherProvider(BaseProvider):
                 "variable or pass api_key parameter."
             )
 
-        # Now initialize HTTP client with the loaded API key
+        # Get httpx kwargs from http_config (includes verify, proxy, timeout)
+        httpx_kwargs = self.http_config.get_httpx_kwargs()
+        httpx_kwargs["timeout"] = 30.0  # Together.ai-specific timeout
+
+        # Now initialize HTTP client with the loaded API key and enterprise HTTP support
         self.base_url = "https://api.together.xyz/v1"
         self.client = httpx.AsyncClient(
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-            timeout=30.0,  # 30 second default timeout
+            **httpx_kwargs,
         )
 
     def _load_api_key(self) -> Optional[str]:
