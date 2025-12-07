@@ -1079,69 +1079,51 @@ export class LmChatCascadeFlow implements INodeType {
       },
     },
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
-    inputs: [
-      {
-        displayName: 'Verifier',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: true,
-      },
-      {
-        displayName: 'Drafter',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: true,
-      },
-      // Domain-specific model inputs (optional, up to 16)
-      {
-        displayName: 'Code Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-      {
-        displayName: 'Math Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-      {
-        displayName: 'Data Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-      {
-        displayName: 'Creative Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-      {
-        displayName: 'Legal Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-      {
-        displayName: 'Medical Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-      {
-        displayName: 'Financial Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-      {
-        displayName: 'Science Model',
-        type: 'ai_languageModel' as any,
-        maxConnections: 1,
-        required: false,
-      },
-    ],
+    inputs: `={{ ((params) => {
+      // Always include Verifier and Drafter
+      const inputs = [
+        {
+          displayName: 'Verifier',
+          type: 'ai_languageModel',
+          maxConnections: 1,
+          required: true,
+        },
+        {
+          displayName: 'Drafter',
+          type: 'ai_languageModel',
+          maxConnections: 1,
+          required: true,
+        },
+      ];
+
+      // Only add domain model inputs if domain routing is enabled
+      if (params?.enableDomainRouting) {
+        const enabledDomains = params?.enabledDomains || [];
+        const domainInputs = {
+          code: 'Code Model',
+          math: 'Math Model',
+          data: 'Data Model',
+          creative: 'Creative Model',
+          legal: 'Legal Model',
+          medical: 'Medical Model',
+          financial: 'Financial Model',
+          science: 'Science Model',
+        };
+
+        for (const [domain, displayName] of Object.entries(domainInputs)) {
+          if (enabledDomains.includes(domain)) {
+            inputs.push({
+              displayName,
+              type: 'ai_languageModel',
+              maxConnections: 1,
+              required: false,
+            });
+          }
+        }
+      }
+
+      return inputs;
+    })($parameter) }}`,
     // eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
     outputs: ['ai_languageModel' as any],
     outputNames: ['Model'],
@@ -1245,36 +1227,33 @@ export class LmChatCascadeFlow implements INodeType {
       return verifierModel;
     };
 
-    // Map domain inputs to their index positions (starting at index 2)
-    const domainInputMap: Record<DomainType, number> = {
-      code: 2,
-      math: 3,
-      data: 4,
-      creative: 5,
-      legal: 6,
-      medical: 7,
-      financial: 8,
-      science: 9,
-      // Additional domains use drafter as fallback
-      structured: -1,
-      rag: -1,
-      conversation: -1,
-      tool: -1,
-      summary: -1,
-      translation: -1,
-      multimodal: -1,
-      general: -1,
-    };
+    // Domain input order (same as dynamic inputs template)
+    // Only domains in this list can have dedicated model inputs
+    const domainInputOrder: DomainType[] = [
+      'code', 'math', 'data', 'creative', 'legal', 'medical', 'financial', 'science'
+    ];
+
+    // Build dynamic index mapping based on which domains are actually enabled
+    // Inputs: 0=Verifier, 1=Drafter, then enabled domains in order
+    const domainInputMap = new Map<DomainType, number>();
+    let inputIndex = 2; // Start after Verifier (0) and Drafter (1)
+
+    for (const domain of domainInputOrder) {
+      if (enabledDomains.includes(domain)) {
+        domainInputMap.set(domain, inputIndex);
+        inputIndex++;
+      }
+    }
 
     // Create domain model getters for enabled domains
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
 
     for (const domain of enabledDomains) {
-      const inputIndex = domainInputMap[domain];
-      if (inputIndex >= 0) {
+      const domainIndex = domainInputMap.get(domain);
+      if (domainIndex !== undefined) {
         domainModelGetters.set(domain, async () => {
           try {
-            const domainData = await this.getInputConnectionData('ai_languageModel' as any, inputIndex);
+            const domainData = await this.getInputConnectionData('ai_languageModel' as any, domainIndex);
             const domainModel = (Array.isArray(domainData) ? domainData[0] : domainData) as BaseChatModel;
             if (domainModel) {
               // Store in domain config
