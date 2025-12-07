@@ -1198,8 +1198,8 @@ export class LmChatCascadeFlow implements INodeType {
         displayName: 'Enable Semantic Validation',
         name: 'useSemanticValidation',
         type: 'boolean',
-        default: true,
-        description: 'Whether to use ML-based semantic similarity validation for better quality detection',
+        default: false,
+        description: 'Whether to use ML-based semantic similarity validation. WARNING: Loads ~40MB embedding model - may cause memory issues in constrained environments.',
       },
       {
         displayName: 'Enable Alignment Scoring',
