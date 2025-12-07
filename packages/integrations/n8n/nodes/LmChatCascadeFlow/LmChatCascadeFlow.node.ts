@@ -12,12 +12,79 @@ import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 
-// Quality validation, cost tracking, and routing - optional import, fallback if unavailable
+// =============================================================================
+// DOMAIN CONSTANTS - All 16 supported domains
+// =============================================================================
+const DOMAINS = {
+  CODE: 'code',
+  DATA: 'data',
+  STRUCTURED: 'structured',
+  RAG: 'rag',
+  CONVERSATION: 'conversation',
+  TOOL: 'tool',
+  CREATIVE: 'creative',
+  SUMMARY: 'summary',
+  TRANSLATION: 'translation',
+  MATH: 'math',
+  SCIENCE: 'science',
+  MEDICAL: 'medical',
+  LEGAL: 'legal',
+  FINANCIAL: 'financial',
+  MULTIMODAL: 'multimodal',
+  GENERAL: 'general',
+} as const;
+
+type DomainType = typeof DOMAINS[keyof typeof DOMAINS];
+
+// Domain display names for n8n UI
+const DOMAIN_DISPLAY_NAMES: Record<DomainType, string> = {
+  code: 'Code',
+  data: 'Data Analysis',
+  structured: 'Structured Output',
+  rag: 'RAG (Retrieval)',
+  conversation: 'Conversation',
+  tool: 'Tool Calling',
+  creative: 'Creative Writing',
+  summary: 'Summarization',
+  translation: 'Translation',
+  math: 'Mathematics',
+  science: 'Science',
+  medical: 'Medical',
+  legal: 'Legal',
+  financial: 'Financial',
+  multimodal: 'Multimodal',
+  general: 'General',
+};
+
+// Domain descriptions for n8n UI
+const DOMAIN_DESCRIPTIONS: Record<DomainType, string> = {
+  code: 'Programming, debugging, code generation',
+  data: 'Data analysis, statistics, pandas/SQL',
+  structured: 'JSON, XML, structured data extraction',
+  rag: 'Retrieval-augmented generation, document Q&A',
+  conversation: 'Chat, dialogue, multi-turn conversations',
+  tool: 'Function calling, tool use, API interactions',
+  creative: 'Creative writing, stories, poetry',
+  summary: 'Text summarization, condensing content',
+  translation: 'Language translation, multilingual',
+  math: 'Mathematical reasoning, calculations, proofs',
+  science: 'Scientific knowledge, research, experiments',
+  medical: 'Healthcare, medical knowledge, clinical',
+  legal: 'Legal documents, contracts, regulations',
+  financial: 'Finance, accounting, investment analysis',
+  multimodal: 'Images, audio, video understanding',
+  general: 'General purpose, fallback domain',
+};
+
+// Quality validation, cost tracking, routing, and circuit breaker - optional import
 let QualityValidator: any;
 let CASCADE_QUALITY_CONFIG: any;
 let CostCalculator: any;
 let ComplexityDetector: any;
 let PreRouter: any;
+let DomainDetector: any;
+let CircuitBreaker: any;
+
 try {
   const cascadeCore = require('@cascadeflow/core');
   QualityValidator = cascadeCore.QualityValidator;
@@ -25,25 +92,44 @@ try {
   CostCalculator = cascadeCore.CostCalculator;
   ComplexityDetector = cascadeCore.ComplexityDetector;
   PreRouter = cascadeCore.PreRouter;
+  DomainDetector = cascadeCore.DomainDetector;
+  CircuitBreaker = cascadeCore.CircuitBreaker;
 } catch (e) {
   // @cascadeflow/core not available - use simple validation and estimates
   console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
 }
 
+// =============================================================================
+// Domain configuration for each enabled domain
+// =============================================================================
+interface DomainConfig {
+  enabled: boolean;
+  threshold: number;
+  temperature: number;
+  model?: BaseChatModel;
+}
+
 /**
- * Custom CascadeChatModel that wraps two models (drafter and verifier)
- * and implements cascading logic with cost tracking
+ * Custom CascadeChatModel that wraps multiple models (drafter, verifier, and domain-specific)
+ * and implements intelligent domain-aware cascading logic with cost tracking
  */
 class CascadeChatModel extends BaseChatModel {
   drafterModel: BaseChatModel;
   verifierModelGetter: () => Promise<BaseChatModel>;
   qualityThreshold: number;
 
+  // Domain-specific models and configurations
+  private domainModels: Map<DomainType, BaseChatModel | undefined> = new Map();
+  private domainConfigs: Map<DomainType, DomainConfig> = new Map();
+  private enabledDomains: DomainType[] = [];
+
   // Cost tracking
   private drafterCost: number = 0;
   private verifierCost: number = 0;
+  private domainCosts: Map<DomainType, number> = new Map();
   private drafterCount: number = 0;
   private verifierCount: number = 0;
+  private domainCounts: Map<DomainType, number> = new Map();
 
   // Lazy-loaded verifier
   private verifierModel?: BaseChatModel;
@@ -57,8 +143,14 @@ class CascadeChatModel extends BaseChatModel {
   // Complexity detector for intelligent routing
   private complexityDetector: any;
 
+  // Domain detector for semantic domain routing
+  private domainDetector: any;
+
   // PreRouter for complexity-based direct routing
   private preRouter: any;
+
+  // Circuit breaker for fault tolerance
+  private circuitBreaker: any;
 
   constructor(
     drafterModel: BaseChatModel,
@@ -66,12 +158,25 @@ class CascadeChatModel extends BaseChatModel {
     qualityThreshold: number = 0.7,
     useSemanticValidation: boolean = true,
     useAlignmentScoring: boolean = true,
-    useComplexityRouting: boolean = true
+    useComplexityRouting: boolean = true,
+    useDomainRouting: boolean = false,
+    enabledDomains: DomainType[] = [],
+    domainModelGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map(),
+    domainConfigs: Map<DomainType, DomainConfig> = new Map(),
+    useCircuitBreaker: boolean = true
   ) {
     super({});
     this.drafterModel = drafterModel;
     this.verifierModelGetter = verifierModelGetter;
     this.qualityThreshold = qualityThreshold;
+    this.enabledDomains = enabledDomains;
+    this.domainConfigs = domainConfigs;
+
+    // Store domain model getters for lazy loading
+    for (const [domain, getter] of domainModelGetters.entries()) {
+      // Lazy load domain models
+      this.domainModels.set(domain, undefined);
+    }
 
     // Initialize quality validator with CASCADE-optimized config + semantic validation
     if (QualityValidator && CASCADE_QUALITY_CONFIG) {
@@ -79,9 +184,9 @@ class CascadeChatModel extends BaseChatModel {
         this.qualityValidator = new QualityValidator({
           ...CASCADE_QUALITY_CONFIG,
           minConfidence: qualityThreshold,
-          useSemanticValidation,    // Enable semantic ML-based validation
-          useAlignmentScoring,       // Enable query-response alignment scoring
-          semanticThreshold: 0.5,    // Semantic similarity threshold
+          useSemanticValidation,
+          useAlignmentScoring,
+          semanticThreshold: 0.5,
         });
         console.log('✅ CascadeFlow quality validator initialized');
         if (useSemanticValidation) {
@@ -111,22 +216,47 @@ class CascadeChatModel extends BaseChatModel {
       this.costCalculator = null;
     }
 
-    // Initialize complexity detector and PreRouter if enabled
-    if (useComplexityRouting && ComplexityDetector && PreRouter) {
+    // Initialize complexity detector and domain detector
+    if (useComplexityRouting && ComplexityDetector) {
       try {
         this.complexityDetector = new ComplexityDetector();
-        // Note: PreRouter needs model configs, but we only have 2 models in n8n (drafter/verifier)
-        // We'll use complexity detection to decide: trivial/simple → drafter, hard/expert → direct verifier
-        this.preRouter = null; // Not using full PreRouter since we only have 2 models
         console.log('🧠 CascadeFlow complexity-based routing enabled');
       } catch (e) {
         console.warn('⚠️  Complexity detector initialization failed');
         this.complexityDetector = null;
-        this.preRouter = null;
       }
     } else {
       this.complexityDetector = null;
-      this.preRouter = null;
+    }
+
+    // Initialize domain detector if domain routing is enabled
+    if (useDomainRouting && DomainDetector && enabledDomains.length > 0) {
+      try {
+        this.domainDetector = new DomainDetector({ enabledDomains });
+        console.log(`🎯 CascadeFlow domain routing enabled for: ${enabledDomains.join(', ')}`);
+      } catch (e) {
+        console.warn('⚠️  Domain detector initialization failed');
+        this.domainDetector = null;
+      }
+    } else {
+      this.domainDetector = null;
+    }
+
+    // Initialize circuit breaker for fault tolerance
+    if (useCircuitBreaker && CircuitBreaker) {
+      try {
+        this.circuitBreaker = new CircuitBreaker({
+          failureThreshold: 3,
+          recoveryTimeout: 30000, // 30 seconds
+          halfOpenMaxCalls: 2,
+        });
+        console.log('🛡️  CascadeFlow circuit breaker enabled');
+      } catch (e) {
+        console.warn('⚠️  Circuit breaker initialization failed');
+        this.circuitBreaker = null;
+      }
+    } else {
+      this.circuitBreaker = null;
     }
   }
 
@@ -141,6 +271,18 @@ class CascadeChatModel extends BaseChatModel {
   }
 
   /**
+   * Get domain-specific model if available, falls back to drafter
+   */
+  private async getDomainModel(domain: DomainType): Promise<BaseChatModel> {
+    const existingModel = this.domainModels.get(domain);
+    if (existingModel) {
+      return existingModel;
+    }
+    // Fallback to drafter if no domain-specific model
+    return this.drafterModel;
+  }
+
+  /**
    * Helper to get model info string (type and name)
    */
   private getModelInfo(model: BaseChatModel): string {
@@ -150,23 +292,39 @@ class CascadeChatModel extends BaseChatModel {
   }
 
   /**
+   * Detect the domain of a query using semantic detection
+   */
+  private async detectDomain(queryText: string): Promise<DomainType | null> {
+    if (!this.domainDetector || this.enabledDomains.length === 0) {
+      return null;
+    }
+
+    try {
+      const result = await this.domainDetector.detect(queryText);
+      if (result && result.domain && this.enabledDomains.includes(result.domain)) {
+        console.log(`🎯 Domain detected: ${result.domain} (confidence: ${result.confidence?.toFixed(2) || 'N/A'})`);
+        return result.domain;
+      }
+    } catch (e) {
+      console.warn('Domain detection failed, using default routing');
+    }
+    return null;
+  }
+
+  /**
    * Check if message contains tool calls
-   * Tool calls can be in additional_kwargs.tool_calls or additional_kwargs.function_call
    */
   private hasToolCalls(message: BaseMessage): boolean {
     const additionalKwargs = (message as any).additional_kwargs || {};
 
-    // Check for tool_calls array (OpenAI format)
     if (additionalKwargs.tool_calls && Array.isArray(additionalKwargs.tool_calls) && additionalKwargs.tool_calls.length > 0) {
       return true;
     }
 
-    // Check for function_call object (legacy format)
     if (additionalKwargs.function_call && typeof additionalKwargs.function_call === 'object') {
       return true;
     }
 
-    // Check for tool_calls in response_metadata (Anthropic format)
     const responseMetadata = (message as any).response_metadata || {};
     if (responseMetadata.tool_calls && Array.isArray(responseMetadata.tool_calls) && responseMetadata.tool_calls.length > 0) {
       return true;
@@ -182,17 +340,14 @@ class CascadeChatModel extends BaseChatModel {
     const additionalKwargs = (message as any).additional_kwargs || {};
     const responseMetadata = (message as any).response_metadata || {};
 
-    // Count tool_calls array
     if (additionalKwargs.tool_calls && Array.isArray(additionalKwargs.tool_calls)) {
       return additionalKwargs.tool_calls.length;
     }
 
-    // Count function_call (legacy - counts as 1)
     if (additionalKwargs.function_call) {
       return 1;
     }
 
-    // Count Anthropic format tool_calls
     if (responseMetadata.tool_calls && Array.isArray(responseMetadata.tool_calls)) {
       return responseMetadata.tool_calls.length;
     }
@@ -202,23 +357,19 @@ class CascadeChatModel extends BaseChatModel {
 
   /**
    * Calculate accurate cost from message token usage
-   * Falls back to rough estimates if cost calculator unavailable
    */
   private async calculateMessageCost(
     message: BaseMessage,
     model: BaseChatModel
   ): Promise<number> {
-    // Extract token usage from response metadata
     const responseMetadata = (message as any).response_metadata || {};
     const tokenUsage = responseMetadata.tokenUsage || responseMetadata.usage || {};
 
     const inputTokens = tokenUsage.promptTokens || tokenUsage.prompt_tokens || 0;
     const outputTokens = tokenUsage.completionTokens || tokenUsage.completion_tokens || 0;
 
-    // Get model name
     const modelName = (model as any).modelName || (model as any).model || 'unknown';
 
-    // Use cost calculator if available
     if (this.costCalculator && inputTokens > 0) {
       try {
         const cost = await this.costCalculator.calculateCost({
@@ -244,7 +395,6 @@ class CascadeChatModel extends BaseChatModel {
       default: { input: 1.0, output: 2.0 },
     };
 
-    // Find matching estimate
     let estimate = estimatesPerMillion.default;
     for (const [key, value] of Object.entries(estimatesPerMillion)) {
       if (modelName.includes(key)) {
@@ -266,10 +416,8 @@ class CascadeChatModel extends BaseChatModel {
   private simpleQualityCheck(responseText: string): { passed: boolean; confidence: number; score: number; reason: string } {
     const wordCount = responseText.split(/\s+/).length;
 
-    // Base confidence on response length and structure
     let confidence = 0.75;
 
-    // Very short responses get lower confidence
     if (wordCount < 5) {
       confidence = 0.50;
     } else if (wordCount < 15) {
@@ -278,7 +426,6 @@ class CascadeChatModel extends BaseChatModel {
       confidence = 0.85;
     }
 
-    // Check for uncertainty markers
     const uncertaintyMarkers = ['i don\'t know', 'i\'m not sure', 'unclear', 'uncertain'];
     const hasUncertainty = uncertaintyMarkers.some(marker => responseText.toLowerCase().includes(marker));
     if (hasUncertainty) {
@@ -303,8 +450,24 @@ class CascadeChatModel extends BaseChatModel {
     runManager?: CallbackManagerForLLMRun
   ): Promise<ChatResult> {
     try {
-      // Step 1: Detect query complexity (if enabled)
       const queryText = messages.map(m => m.content.toString()).join(' ');
+
+      // Step 1: Detect domain if domain routing is enabled
+      let detectedDomain: DomainType | null = null;
+      let domainModel: BaseChatModel | null = null;
+
+      if (this.enabledDomains.length > 0) {
+        detectedDomain = await this.detectDomain(queryText);
+        if (detectedDomain) {
+          const domainConfig = this.domainConfigs.get(detectedDomain);
+          if (domainConfig?.model) {
+            domainModel = domainConfig.model;
+            await runManager?.handleText(`🎯 Domain: ${DOMAIN_DISPLAY_NAMES[detectedDomain]} → Using domain-specific model\n`);
+          }
+        }
+      }
+
+      // Step 2: Detect query complexity
       let complexity: string | undefined;
       let shouldSkipDrafter = false;
 
@@ -313,7 +476,6 @@ class CascadeChatModel extends BaseChatModel {
           const complexityResult = await this.complexityDetector.detectComplexity(queryText);
           complexity = complexityResult.level;
 
-          // Skip drafter for hard/expert queries - go directly to verifier
           if (complexity === 'hard' || complexity === 'expert') {
             shouldSkipDrafter = true;
             await runManager?.handleText(`🧠 Complexity: ${complexity} → Routing directly to verifier (skip drafter)\n`);
@@ -327,7 +489,18 @@ class CascadeChatModel extends BaseChatModel {
         }
       }
 
-      // Step 1a: If complexity routing says skip drafter, go directly to verifier
+      // Step 3: Execute with circuit breaker protection if available
+      const executeWithProtection = async (model: BaseChatModel, modelType: string) => {
+        if (this.circuitBreaker) {
+          return await this.circuitBreaker.execute(
+            modelType,
+            async () => await model.invoke(messages, options)
+          );
+        }
+        return await model.invoke(messages, options);
+      };
+
+      // Step 3a: If complexity routing says skip drafter, go directly to verifier
       if (shouldSkipDrafter) {
         const verifierModel = await this.getVerifierModel();
         const verifierInfo = this.getModelInfo(verifierModel);
@@ -335,14 +508,24 @@ class CascadeChatModel extends BaseChatModel {
         await runManager?.handleText(`⚡ Direct route: Using verifier for ${complexity} query\n`);
 
         const verifierStartTime = Date.now();
-        const verifierMessage = await verifierModel.invoke(messages, options);
+        const verifierMessage = await executeWithProtection(verifierModel, 'verifier');
         const verifierLatency = Date.now() - verifierStartTime;
 
         this.verifierCount++;
 
         const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
 
-        const flowLog = `\n┌────────────────────────────────────────────┐\n│  ⚡ FLOW: DIRECT VERIFIER (SMART ROUTE)  │\n└────────────────────────────────────────────┘\n   Query → Complexity Check (${complexity}) → Verifier → Response\n   🧠 Smart routing: Skipped drafter for complex query\n   Model used: ${verifierInfo}\n   Latency: ${verifierLatency}ms\n   💰 Cost: $${verifierCost.toFixed(6)}\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+        const flowLog = `
+┌────────────────────────────────────────────┐
+│  ⚡ FLOW: DIRECT VERIFIER (SMART ROUTE)  │
+└────────────────────────────────────────────┘
+   Query → Complexity Check (${complexity}) → Verifier → Response
+   🧠 Smart routing: Skipped drafter for complex query
+   Model used: ${verifierInfo}
+   Latency: ${verifierLatency}ms
+   💰 Cost: $${verifierCost.toFixed(6)}
+   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier
+`;
 
         await runManager?.handleText(flowLog);
         console.log(flowLog);
@@ -353,6 +536,7 @@ class CascadeChatModel extends BaseChatModel {
         (verifierMessage as any).response_metadata.cascadeflow = {
           flow: 'direct_verifier',
           complexity,
+          domain: detectedDomain,
           latency_ms: verifierLatency,
           cost_usd: verifierCost,
           model_used: 'verifier',
@@ -367,18 +551,25 @@ class CascadeChatModel extends BaseChatModel {
         };
       }
 
-      // Step 2: Try the drafter model (normal flow)
-      const drafterInfo = this.getModelInfo(this.drafterModel);
-      await runManager?.handleText(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}\n`);
-      console.log(`🎯 CascadeFlow: Trying drafter model (from BOTTOM port): ${drafterInfo}`);
+      // Step 4: Try domain-specific model first if available
+      const modelToUse = domainModel || this.drafterModel;
+      const modelType = domainModel ? `domain:${detectedDomain}` : 'drafter';
+      const modelInfo = this.getModelInfo(modelToUse);
+
+      await runManager?.handleText(`🎯 CascadeFlow: Trying ${modelType} model: ${modelInfo}\n`);
+      console.log(`🎯 CascadeFlow: Trying ${modelType} model: ${modelInfo}`);
+
       const drafterStartTime = Date.now();
-      const drafterMessage = await this.drafterModel.invoke(messages, options);
+      const drafterMessage = await executeWithProtection(modelToUse, modelType);
       const drafterLatency = Date.now() - drafterStartTime;
 
-      this.drafterCount++;
+      if (domainModel && detectedDomain) {
+        this.domainCounts.set(detectedDomain, (this.domainCounts.get(detectedDomain) || 0) + 1);
+      } else {
+        this.drafterCount++;
+      }
 
-      // Step 2: Check if response contains tool calls
-      // Tool calls skip quality validation and pass through directly
+      // Step 5: Check if response contains tool calls
       const hasToolCalls = this.hasToolCalls(drafterMessage);
 
       if (hasToolCalls) {
@@ -387,12 +578,21 @@ class CascadeChatModel extends BaseChatModel {
         await runManager?.handleText(toolLog);
         console.log(toolLog);
 
-        const flowLog = `\n┌──────────────────────────────────────────┐\n│  🔧 FLOW: TOOL CALLS (DIRECT PASS)      │\n└──────────────────────────────────────────┘\n   Query → Drafter → Tool Calls (${toolCallsCount}) → Response\n   ⚡ Tool calling: Drafter generated tool calls\n   Model used: ${drafterInfo}\n   Latency: ${drafterLatency}ms\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+        const flowLog = `
+┌──────────────────────────────────────────┐
+│  🔧 FLOW: TOOL CALLS (DIRECT PASS)      │
+└──────────────────────────────────────────┘
+   Query → ${modelType} → Tool Calls (${toolCallsCount}) → Response
+   ⚡ Tool calling: ${modelType} generated tool calls
+   Model used: ${modelInfo}
+   ${detectedDomain ? `Domain: ${DOMAIN_DISPLAY_NAMES[detectedDomain]}` : ''}
+   Latency: ${drafterLatency}ms
+   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier
+`;
 
         await runManager?.handleText(flowLog);
         console.log(flowLog);
 
-        // Add tool call metadata
         if (!drafterMessage.response_metadata) {
           (drafterMessage as any).response_metadata = {};
         }
@@ -400,8 +600,9 @@ class CascadeChatModel extends BaseChatModel {
           flow: 'tool_calls_direct',
           has_tool_calls: true,
           tool_calls_count: toolCallsCount,
+          domain: detectedDomain,
           latency_ms: drafterLatency,
-          model_used: 'drafter'
+          model_used: modelType
         };
 
         return {
@@ -412,17 +613,19 @@ class CascadeChatModel extends BaseChatModel {
         };
       }
 
-      // Step 3: Quality check using CascadeFlow validator (or simple fallback)
+      // Step 6: Quality check with domain-aware threshold
       const responseText = drafterMessage.content.toString();
+      const effectiveThreshold = detectedDomain
+        ? (this.domainConfigs.get(detectedDomain)?.threshold ?? this.qualityThreshold)
+        : this.qualityThreshold;
 
       let validationResult: any;
 
       if (this.qualityValidator) {
-        // Use full CascadeFlow quality validator
-        const queryText = messages.map(m => m.content.toString()).join(' ');
         try {
           validationResult = await this.qualityValidator.validate(responseText, queryText);
-          const qualityLog = `   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, method=${validationResult.method}\n`;
+          validationResult.passed = validationResult.confidence >= effectiveThreshold;
+          const qualityLog = `   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, threshold=${effectiveThreshold}, method=${validationResult.method}\n`;
           await runManager?.handleText(qualityLog);
           console.log(qualityLog);
 
@@ -436,36 +639,49 @@ class CascadeChatModel extends BaseChatModel {
           await runManager?.handleText(errorLog);
           console.warn(errorLog);
           validationResult = this.simpleQualityCheck(responseText);
+          validationResult.passed = validationResult.confidence >= effectiveThreshold;
         }
       } else {
-        // Use simple quality check (fallback)
         validationResult = this.simpleQualityCheck(responseText);
+        validationResult.passed = validationResult.confidence >= effectiveThreshold;
         const simpleLog = `   📊 Simple quality check: confidence=${validationResult.confidence.toFixed(2)}\n`;
         await runManager?.handleText(simpleLog);
         console.log(simpleLog);
       }
 
-      // Step 4: If quality is sufficient, return drafter response
+      // Step 7: If quality is sufficient, return response
       if (validationResult.passed) {
-        // Calculate actual cost
-        const drafterCost = await this.calculateMessageCost(drafterMessage, this.drafterModel);
+        const drafterCost = await this.calculateMessageCost(drafterMessage, modelToUse);
 
-        const flowLog = `\n┌─────────────────────────────────────────┐\n│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │\n└─────────────────────────────────────────┘\n   Query → Drafter → Quality Check ✅ → Response\n   ⚡ Fast & Cheap: Used drafter model only\n   Model used: ${drafterInfo}\n   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n   Quality score: ${validationResult.score.toFixed(2)}\n   Latency: ${drafterLatency}ms\n   💰 Cost: $${drafterCost.toFixed(6)} (drafter only)\n   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier\n`;
+        const flowLog = `
+┌─────────────────────────────────────────┐
+│  ✅ FLOW: ${modelType.toUpperCase()} ACCEPTED (FAST PATH) │
+└─────────────────────────────────────────┘
+   Query → ${detectedDomain ? `Domain(${detectedDomain}) → ` : ''}${modelType} → Quality Check ✅ → Response
+   ⚡ Fast & Cheap: Used ${modelType} model only
+   Model used: ${modelInfo}
+   ${detectedDomain ? `Domain: ${DOMAIN_DISPLAY_NAMES[detectedDomain]}` : ''}
+   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${effectiveThreshold})
+   Quality score: ${validationResult.score.toFixed(2)}
+   Latency: ${drafterLatency}ms
+   💰 Cost: $${drafterCost.toFixed(6)} (${modelType} only)
+   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier, domains: ${JSON.stringify(Object.fromEntries(this.domainCounts))}
+`;
 
         await runManager?.handleText(flowLog);
         console.log(flowLog);
 
-        // Add flow metadata to message for n8n UI visibility (logs only, not in response text)
         if (!drafterMessage.response_metadata) {
           (drafterMessage as any).response_metadata = {};
         }
         (drafterMessage as any).response_metadata.cascadeflow = {
-          flow: 'drafter_accepted',
+          flow: `${modelType}_accepted`,
           confidence: validationResult.confidence,
           quality_score: validationResult.score,
+          domain: detectedDomain,
           latency_ms: drafterLatency,
           cost_usd: drafterCost,
-          model_used: 'drafter'
+          model_used: modelType
         };
 
         return {
@@ -476,8 +692,18 @@ class CascadeChatModel extends BaseChatModel {
         };
       }
 
-      // Step 5: Otherwise, escalate to verifier
-      const escalateLog = `\n┌────────────────────────────────────────────────┐\n│  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │\n└────────────────────────────────────────────────┘\n   Query → Drafter → Quality Check ❌ → Verifier → Response\n   🔄 Escalating: Drafter quality too low, using verifier\n   Confidence: ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold} (threshold)\n   Reason: ${validationResult.reason}\n   Drafter latency: ${drafterLatency}ms\n   🔄 Loading verifier model...\n`;
+      // Step 8: Otherwise, escalate to verifier
+      const escalateLog = `
+┌────────────────────────────────────────────────┐
+│  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │
+└────────────────────────────────────────────────┘
+   Query → ${detectedDomain ? `Domain(${detectedDomain}) → ` : ''}${modelType} → Quality Check ❌ → Verifier → Response
+   🔄 Escalating: ${modelType} quality too low, using verifier
+   Confidence: ${validationResult.confidence.toFixed(2)} < ${effectiveThreshold} (threshold)
+   Reason: ${validationResult.reason}
+   ${modelType} latency: ${drafterLatency}ms
+   🔄 Loading verifier model...
+`;
 
       await runManager?.handleText(escalateLog);
       console.log(escalateLog);
@@ -485,30 +711,35 @@ class CascadeChatModel extends BaseChatModel {
       const verifierStartTime = Date.now();
       const verifierModel = await this.getVerifierModel();
       const verifierInfo = this.getModelInfo(verifierModel);
-      const verifierMessage = await verifierModel.invoke(messages, options);
+      const verifierMessage = await executeWithProtection(verifierModel, 'verifier');
       const verifierLatency = Date.now() - verifierStartTime;
 
       this.verifierCount++;
 
-      // Calculate costs
       const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
-      const totalCost = verifierCost; // Drafter cost is wasted in this path
+      const totalCost = verifierCost;
 
       const totalLatency = drafterLatency + verifierLatency;
       const acceptanceRate = (this.drafterCount / (this.drafterCount + this.verifierCount) * 100).toFixed(1);
 
-      const completionLog = `   ✅ Verifier completed successfully\n   Model used: ${verifierInfo}\n   Verifier latency: ${verifierLatency}ms\n   Total latency: ${totalLatency}ms (drafter: ${drafterLatency}ms + verifier: ${verifierLatency}ms)\n   💰 Cost: $${totalCost.toFixed(6)} (verifier only, drafter attempt wasted)\n   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier\n`;
+      const completionLog = `   ✅ Verifier completed successfully
+   Model used: ${verifierInfo}
+   Verifier latency: ${verifierLatency}ms
+   Total latency: ${totalLatency}ms (${modelType}: ${drafterLatency}ms + verifier: ${verifierLatency}ms)
+   💰 Cost: $${totalCost.toFixed(6)} (verifier only, ${modelType} attempt wasted)
+   📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier
+`;
 
       await runManager?.handleText(completionLog);
       console.log(completionLog);
 
-      // Add flow metadata to message for n8n UI visibility (logs only, not in response text)
       if (!verifierMessage.response_metadata) {
         (verifierMessage as any).response_metadata = {};
       }
       (verifierMessage as any).response_metadata.cascadeflow = {
         flow: 'escalated_to_verifier',
         confidence: validationResult.confidence,
+        domain: detectedDomain,
         drafter_latency_ms: drafterLatency,
         verifier_latency_ms: verifierLatency,
         total_latency_ms: totalLatency,
@@ -524,9 +755,19 @@ class CascadeChatModel extends BaseChatModel {
         }],
       };
     } catch (error) {
-      // Fallback to verifier on error
+      // Handle circuit breaker open state
       const errorMsg = error instanceof Error ? error.message : String(error);
-      const errorLog = `\n┌─────────────────────────────────────────────┐\n│  ❌ FLOW: DRAFTER ERROR - FALLBACK PATH    │\n└─────────────────────────────────────────────┘\n   Query → Drafter ❌ ERROR → Verifier → Response\n   🔄 Fallback: Drafter failed, using verifier as backup\n   Error: ${errorMsg}\n   🔄 Loading verifier model...\n`;
+      const isCircuitOpen = errorMsg.includes('Circuit breaker') || errorMsg.includes('circuit is open');
+
+      const errorLog = `
+┌─────────────────────────────────────────────┐
+│  ❌ FLOW: ${isCircuitOpen ? 'CIRCUIT OPEN' : 'DRAFTER ERROR'} - FALLBACK PATH    │
+└─────────────────────────────────────────────┘
+   Query → Drafter ❌ ${isCircuitOpen ? 'CIRCUIT OPEN' : 'ERROR'} → Verifier → Response
+   🔄 Fallback: ${isCircuitOpen ? 'Circuit breaker open' : 'Drafter failed'}, using verifier as backup
+   Error: ${errorMsg}
+   🔄 Loading verifier model...
+`;
 
       await runManager?.handleText(errorLog);
       console.log(errorLog);
@@ -536,17 +777,19 @@ class CascadeChatModel extends BaseChatModel {
       const verifierMessage = await verifierModel.invoke(messages, options);
       this.verifierCount++;
 
-      const fallbackCompleteLog = `   ✅ Verifier fallback completed successfully\n   Model used: ${verifierInfo}\n   💰 Cost: Full verifier cost (fallback due to error)\n`;
+      const fallbackCompleteLog = `   ✅ Verifier fallback completed successfully
+   Model used: ${verifierInfo}
+   💰 Cost: Full verifier cost (fallback due to ${isCircuitOpen ? 'circuit open' : 'error'})
+`;
 
       await runManager?.handleText(fallbackCompleteLog);
       console.log(fallbackCompleteLog);
 
-      // Add flow metadata to message for n8n UI visibility (logs only, not in response text)
       if (!verifierMessage.response_metadata) {
         (verifierMessage as any).response_metadata = {};
       }
       (verifierMessage as any).response_metadata.cascadeflow = {
-        flow: 'error_fallback',
+        flow: isCircuitOpen ? 'circuit_breaker_fallback' : 'error_fallback',
         error: errorMsg,
         cost_savings_percent: 0,
         model_used: 'verifier'
@@ -563,7 +806,6 @@ class CascadeChatModel extends BaseChatModel {
 
   /**
    * Streaming implementation for real-time cascade feedback
-   * Streams drafter response, then quality checks, then optionally streams verifier
    */
   async *_streamResponseChunks(
     messages: BaseMessage[],
@@ -571,68 +813,84 @@ class CascadeChatModel extends BaseChatModel {
     runManager?: CallbackManagerForLLMRun
   ): AsyncGenerator<ChatGenerationChunk> {
     try {
-      // Step 1: Stream drafter response
-      const drafterInfo = this.getModelInfo(this.drafterModel);
-      await runManager?.handleText(`🎯 CascadeFlow (Streaming): Trying drafter model: ${drafterInfo}\n`);
-      console.log(`🎯 CascadeFlow (Streaming): Trying drafter model: ${drafterInfo}`);
+      const queryText = messages.map(m => m.content.toString()).join(' ');
+
+      // Detect domain for streaming
+      let detectedDomain: DomainType | null = null;
+      let modelToUse = this.drafterModel;
+
+      if (this.enabledDomains.length > 0) {
+        detectedDomain = await this.detectDomain(queryText);
+        if (detectedDomain) {
+          const domainConfig = this.domainConfigs.get(detectedDomain);
+          if (domainConfig?.model) {
+            modelToUse = domainConfig.model;
+          }
+        }
+      }
+
+      const modelInfo = this.getModelInfo(modelToUse);
+      const modelType = detectedDomain ? `domain:${detectedDomain}` : 'drafter';
+
+      await runManager?.handleText(`🎯 CascadeFlow (Streaming): Trying ${modelType} model: ${modelInfo}\n`);
+      console.log(`🎯 CascadeFlow (Streaming): Trying ${modelType} model: ${modelInfo}`);
 
       const drafterStartTime = Date.now();
       let fullDrafterContent = '';
       let lastChunk: ChatGenerationChunk | null = null;
 
-      // Stream all drafter chunks to user in real-time
-      const drafterStream = await this.drafterModel.stream(messages, options);
+      const drafterStream = await modelToUse.stream(messages, options);
 
       for await (const chunk of drafterStream) {
         fullDrafterContent += chunk.content;
-        // Convert AIMessageChunk to ChatGenerationChunk
         const generationChunk = new ChatGenerationChunk({
           text: chunk.content.toString(),
           message: chunk,
         });
         lastChunk = generationChunk;
-        yield generationChunk; // Stream to user immediately
+        yield generationChunk;
       }
 
       const drafterLatency = Date.now() - drafterStartTime;
       this.drafterCount++;
 
-      // Step 2: Check for tool calls (after streaming complete)
       if (lastChunk && this.hasToolCalls(lastChunk.message)) {
         const toolCallsCount = this.getToolCallsCount(lastChunk.message);
         const toolLog = `\n🔧 Tool calls detected (${toolCallsCount}) - cascade complete\n`;
         await runManager?.handleText(toolLog);
         console.log(toolLog);
-        return; // Done streaming
+        return;
       }
 
-      // Step 3: Quality check (after streaming complete)
-      const queryText = messages.map(m => m.content.toString()).join(' ');
-
       await runManager?.handleText(`\n📊 Running quality check...\n`);
+
+      const effectiveThreshold = detectedDomain
+        ? (this.domainConfigs.get(detectedDomain)?.threshold ?? this.qualityThreshold)
+        : this.qualityThreshold;
 
       let validationResult: any;
       if (this.qualityValidator) {
         try {
           validationResult = await this.qualityValidator.validate(fullDrafterContent, queryText);
-          await runManager?.handleText(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${this.qualityThreshold})\n`);
+          validationResult.passed = validationResult.confidence >= effectiveThreshold;
+          await runManager?.handleText(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${effectiveThreshold})\n`);
         } catch (e) {
           validationResult = this.simpleQualityCheck(fullDrafterContent);
+          validationResult.passed = validationResult.confidence >= effectiveThreshold;
         }
       } else {
         validationResult = this.simpleQualityCheck(fullDrafterContent);
+        validationResult.passed = validationResult.confidence >= effectiveThreshold;
       }
 
-      // Step 4: If quality sufficient, we're done
       if (validationResult.passed) {
-        await runManager?.handleText(`✅ Quality check passed - cascade complete (drafter accepted)\n`);
-        console.log(`✅ Streaming: Drafter accepted (${drafterLatency}ms)`);
-        return; // Done streaming
+        await runManager?.handleText(`✅ Quality check passed - cascade complete (${modelType} accepted)\n`);
+        console.log(`✅ Streaming: ${modelType} accepted (${drafterLatency}ms)`);
+        return;
       }
 
-      // Step 5: Quality insufficient - escalate to verifier and stream its response
       await runManager?.handleText(`\n⚠️  Quality check failed - escalating to verifier...\n`);
-      console.log(`⚠️  Streaming: Escalating to verifier (confidence ${validationResult.confidence.toFixed(2)} < ${this.qualityThreshold})`);
+      console.log(`⚠️  Streaming: Escalating to verifier (confidence ${validationResult.confidence.toFixed(2)} < ${effectiveThreshold})`);
 
       const verifierModel = await this.getVerifierModel();
       const verifierInfo = this.getModelInfo(verifierModel);
@@ -644,9 +902,7 @@ class CascadeChatModel extends BaseChatModel {
 
       this.verifierCount++;
 
-      // Stream verifier response
       for await (const chunk of verifierStream) {
-        // Convert AIMessageChunk to ChatGenerationChunk
         yield new ChatGenerationChunk({
           text: chunk.content.toString(),
           message: chunk,
@@ -658,7 +914,6 @@ class CascadeChatModel extends BaseChatModel {
       console.log(`✅ Streaming: Verifier complete (${verifierLatency}ms)`);
 
     } catch (error) {
-      // Fallback to verifier on error
       const errorMsg = error instanceof Error ? error.message : String(error);
       await runManager?.handleText(`\n❌ Drafter error - falling back to verifier: ${errorMsg}\n`);
       console.log(`❌ Streaming: Drafter error, using verifier fallback`);
@@ -669,7 +924,6 @@ class CascadeChatModel extends BaseChatModel {
       this.verifierCount++;
 
       for await (const chunk of verifierStream) {
-        // Convert AIMessageChunk to ChatGenerationChunk
         yield new ChatGenerationChunk({
           text: chunk.content.toString(),
           message: chunk,
@@ -679,14 +933,135 @@ class CascadeChatModel extends BaseChatModel {
   }
 }
 
+// =============================================================================
+// Generate dynamic inputs based on enabled domains
+// =============================================================================
+function generateDomainInputs(enabledDomains: DomainType[]): any[] {
+  const baseInputs = [
+    {
+      displayName: 'Verifier',
+      type: 'ai_languageModel' as any,
+      maxConnections: 1,
+      required: true,
+    },
+    {
+      displayName: 'Drafter',
+      type: 'ai_languageModel' as any,
+      maxConnections: 1,
+      required: true,
+    },
+  ];
+
+  // Add domain-specific model inputs for each enabled domain
+  for (const domain of enabledDomains) {
+    baseInputs.push({
+      displayName: `${DOMAIN_DISPLAY_NAMES[domain]} Model`,
+      type: 'ai_languageModel' as any,
+      maxConnections: 1,
+      required: false,
+    });
+  }
+
+  return baseInputs;
+}
+
+// =============================================================================
+// Generate domain toggle properties for n8n UI
+// =============================================================================
+function generateDomainProperties(): any[] {
+  const domainOptions = Object.entries(DOMAINS).map(([key, value]) => ({
+    name: DOMAIN_DISPLAY_NAMES[value],
+    value: value,
+    description: DOMAIN_DESCRIPTIONS[value],
+  }));
+
+  return [
+    {
+      displayName: 'Enable Domain Routing',
+      name: 'enableDomainRouting',
+      type: 'boolean',
+      default: false,
+      description: 'Enable intelligent routing based on detected query domain (math, code, legal, etc.)',
+    },
+    {
+      displayName: 'Enabled Domains',
+      name: 'enabledDomains',
+      type: 'multiOptions',
+      options: domainOptions,
+      default: [],
+      displayOptions: {
+        show: {
+          enableDomainRouting: [true],
+        },
+      },
+      description: 'Select which domains to enable for intelligent routing. Connect domain-specific models for each.',
+    },
+    {
+      displayName: 'Domain-Specific Settings',
+      name: 'domainSettings',
+      type: 'fixedCollection',
+      typeOptions: {
+        multipleValues: true,
+      },
+      displayOptions: {
+        show: {
+          enableDomainRouting: [true],
+        },
+      },
+      default: {},
+      options: [
+        {
+          name: 'domainConfig',
+          displayName: 'Domain Configuration',
+          values: [
+            {
+              displayName: 'Domain',
+              name: 'domain',
+              type: 'options',
+              options: domainOptions,
+              default: 'general',
+              description: 'Select the domain to configure',
+            },
+            {
+              displayName: 'Quality Threshold',
+              name: 'threshold',
+              type: 'number',
+              default: 0.64,
+              typeOptions: {
+                minValue: 0,
+                maxValue: 1,
+                numberPrecision: 2,
+              },
+              description: 'Quality threshold for this domain (overrides global threshold)',
+            },
+            {
+              displayName: 'Temperature',
+              name: 'temperature',
+              type: 'number',
+              default: 0.7,
+              typeOptions: {
+                minValue: 0,
+                maxValue: 2,
+                numberPrecision: 1,
+              },
+              description: 'Temperature setting for this domain',
+            },
+          ],
+        },
+      ],
+      description: 'Configure per-domain quality thresholds and temperatures',
+    },
+  ];
+}
+
 export class LmChatCascadeFlow implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'CascadeFlow',
     name: 'lmChatCascadeFlow',
     icon: 'file:cascadeflow.svg',
     group: ['transform'],
-    version: 1,
-    description: 'Smart AI model cascading with 40-85% cost savings. Connect two AI models (drafter and verifier) and intelligently cascade between them.',
+    version: 2,
+    description: 'Smart AI model cascading with 40-85% cost savings. Supports 16 domains with domain-specific model routing.',
     defaults: {
       name: 'CascadeFlow',
     },
@@ -703,10 +1078,6 @@ export class LmChatCascadeFlow implements INodeType {
         ],
       },
     },
-    // Sub-node: accepts AI model connections
-    // Visual layout: Index 0 = "Verifier" label (top), Index 1 = "Drafter" label (bottom)
-    // Actual logic: Index 0 = VERIFIER model (only if needed), Index 1 = DRAFTER model (tried first)
-    // User connects: TOP port = verifier model, BOTTOM port = drafter model
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: [
       {
@@ -721,8 +1092,56 @@ export class LmChatCascadeFlow implements INodeType {
         maxConnections: 1,
         required: true,
       },
+      // Domain-specific model inputs (optional, up to 16)
+      {
+        displayName: 'Code Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
+      {
+        displayName: 'Math Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
+      {
+        displayName: 'Data Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
+      {
+        displayName: 'Creative Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
+      {
+        displayName: 'Legal Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
+      {
+        displayName: 'Medical Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
+      {
+        displayName: 'Financial Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
+      {
+        displayName: 'Science Model',
+        type: 'ai_languageModel' as any,
+        maxConnections: 1,
+        required: false,
+      },
     ],
-    // Outputs an AI model that can be connected to Chain nodes
     // eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
     outputs: ['ai_languageModel' as any],
     outputNames: ['Model'],
@@ -760,17 +1179,47 @@ export class LmChatCascadeFlow implements INodeType {
         default: true,
         description: 'Whether to route queries directly to the verifier based on detected complexity',
       },
+      {
+        displayName: 'Enable Circuit Breaker',
+        name: 'useCircuitBreaker',
+        type: 'boolean',
+        default: true,
+        description: 'Whether to use circuit breaker for fault tolerance (auto-fallback on repeated failures)',
+      },
+      // Domain routing settings
+      ...generateDomainProperties(),
     ],
   };
 
   async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
-    // Get parameters
+    // Get core parameters
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.64) as number;
     const useSemanticValidation = this.getNodeParameter('useSemanticValidation', 0, true) as boolean;
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
+    const useCircuitBreaker = this.getNodeParameter('useCircuitBreaker', 0, true) as boolean;
 
-    // Get the drafter model immediately (at index 1 - bottom port, labeled "Drafter")
+    // Get domain routing parameters
+    const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
+    const enabledDomains = enableDomainRouting
+      ? (this.getNodeParameter('enabledDomains', 0, []) as DomainType[])
+      : [];
+
+    // Get domain-specific settings
+    const domainSettingsRaw = this.getNodeParameter('domainSettings', 0, { domainConfig: [] }) as any;
+    const domainConfigs = new Map<DomainType, DomainConfig>();
+
+    if (domainSettingsRaw?.domainConfig) {
+      for (const config of domainSettingsRaw.domainConfig) {
+        domainConfigs.set(config.domain, {
+          enabled: enabledDomains.includes(config.domain),
+          threshold: config.threshold || qualityThreshold,
+          temperature: config.temperature || 0.7,
+        });
+      }
+    }
+
+    // Get the drafter model (index 1 - bottom port, labeled "Drafter")
     const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
     const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
 
@@ -781,7 +1230,7 @@ export class LmChatCascadeFlow implements INodeType {
       );
     }
 
-    // Create a lazy loader for the verifier model (only fetched when needed) (at index 0 - top port, labeled "Verifier")
+    // Create lazy loader for verifier (index 0 - top port, labeled "Verifier")
     const verifierModelGetter = async () => {
       const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
       const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
@@ -796,30 +1245,95 @@ export class LmChatCascadeFlow implements INodeType {
       return verifierModel;
     };
 
-    // Debug: Get detailed model info
+    // Map domain inputs to their index positions (starting at index 2)
+    const domainInputMap: Record<DomainType, number> = {
+      code: 2,
+      math: 3,
+      data: 4,
+      creative: 5,
+      legal: 6,
+      medical: 7,
+      financial: 8,
+      science: 9,
+      // Additional domains use drafter as fallback
+      structured: -1,
+      rag: -1,
+      conversation: -1,
+      tool: -1,
+      summary: -1,
+      translation: -1,
+      multimodal: -1,
+      general: -1,
+    };
+
+    // Create domain model getters for enabled domains
+    const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
+
+    for (const domain of enabledDomains) {
+      const inputIndex = domainInputMap[domain];
+      if (inputIndex >= 0) {
+        domainModelGetters.set(domain, async () => {
+          try {
+            const domainData = await this.getInputConnectionData('ai_languageModel' as any, inputIndex);
+            const domainModel = (Array.isArray(domainData) ? domainData[0] : domainData) as BaseChatModel;
+            if (domainModel) {
+              // Store in domain config
+              const config = domainConfigs.get(domain) || {
+                enabled: true,
+                threshold: qualityThreshold,
+                temperature: 0.7,
+              };
+              config.model = domainModel;
+              domainConfigs.set(domain, config);
+              return domainModel;
+            }
+          } catch (e) {
+            console.log(`No ${domain} model connected, using drafter as fallback`);
+          }
+          return undefined;
+        });
+      }
+    }
+
+    // Eagerly load domain models
+    for (const [domain, getter] of domainModelGetters.entries()) {
+      await getter();
+    }
+
+    // Debug info
     const getDrafterInfo = () => {
       const type = typeof drafterModel._llmType === 'function' ? drafterModel._llmType() : 'unknown';
       const modelName = (drafterModel as any).modelName || (drafterModel as any).model || 'unknown';
       return `${type} (${modelName})`;
     };
 
-    console.log('🚀 CascadeFlow initialized');
+    console.log('🚀 CascadeFlow v2 initialized');
     console.log(`   PORT MAPPING:`);
-    console.log(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: lazy-loaded (will fetch only if needed)`);
+    console.log(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: lazy-loaded`);
     console.log(`   └─ BOTTOM port (labeled "Drafter") → DRAFTER model: ${getDrafterInfo()}`);
     console.log(`   Quality threshold: ${qualityThreshold}`);
     console.log(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
     console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
     console.log(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
+    console.log(`   Circuit breaker: ${useCircuitBreaker ? 'enabled' : 'disabled'}`);
+    console.log(`   Domain routing: ${enableDomainRouting ? 'enabled' : 'disabled'}`);
+    if (enabledDomains.length > 0) {
+      console.log(`   Enabled domains: ${enabledDomains.join(', ')}`);
+    }
 
-    // Create and return the cascade model with lazy verifier and advanced features
+    // Create and return the cascade model
     const cascadeModel = new CascadeChatModel(
       drafterModel,
       verifierModelGetter,
       qualityThreshold,
       useSemanticValidation,
       useAlignmentScoring,
-      useComplexityRouting
+      useComplexityRouting,
+      enableDomainRouting,
+      enabledDomains,
+      domainModelGetters,
+      domainConfigs,
+      useCircuitBreaker
     );
 
     return {
