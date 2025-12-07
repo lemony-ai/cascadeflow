@@ -16,18 +16,6 @@
 
 </div>
 
-> **⚠️ IMPORTANT: Version Migration (v5.0.x → v0.5.0)**
->
-> If you previously installed versions **5.0.1** through **5.0.7**, you need to **manually reinstall** to get v0.5.0:
->
-> 1. Go to **Settings** > **Community Nodes** in n8n
-> 2. **Uninstall** `@cascadeflow/n8n-nodes-cascadeflow`
-> 3. **Reinstall** by searching for `@cascadeflow/n8n-nodes-cascadeflow`
->
-> **Why?** Versions 5.0.x were published with incorrect version numbering. We've corrected this to align with the main cascadeflow release (v0.5.0). npm will not auto-upgrade from 5.0.x to 0.5.0 as it treats it as a downgrade.
-
----
-
 **Intelligent AI model cascading for n8n workflows.**
 
 This is an n8n community node that brings cascadeflow's intelligent AI model cascading to n8n workflows.
@@ -416,27 +404,32 @@ The logs provide complete visibility into the cascade decision-making process, s
 
 ## Version History
 
-### v0.5.0 (Latest)
+### v0.6.5 (Latest)
 
-**Major Release - Aligned with cascadeflow v0.5.0**
+- **Removed semantic validation**: Disabled ML-based semantic validation to prevent out-of-memory crashes in n8n environments
+- **Shorter domain labels**: Domain input labels simplified (Code, Math, Data, etc.) for better readability
 
-- **Flow visualization in n8n Logs tab**: Added detailed cascade flow logging with visual boxes showing drafter acceptance, verifier escalation, and error fallback paths
-- **Real-time quality metrics**: Logs show confidence scores, alignment scores, latency breakdown, and cost savings for each request
-- **Running statistics**: Track acceptance rates across multiple executions
-- **Fixed UI visualization**: Swapped input order to match n8n's highlighting convention (Drafter now highlights as active)
-- **Auto-dependency installation**: Moved @cascadeflow/core from optionalDependencies to regular dependencies
-- **Crash fix**: Fixed n8n crashes caused by @cascadeflow/core static imports loading ML dependencies
-- **Dynamic imports**: SemanticQualityChecker now uses dynamic imports to avoid loading @xenova/transformers at module initialization
-- **Quality validator integration**: Integrated QualityValidator from @cascadeflow/core for improved quality scoring
-- **Better cascade decisions**: Replaced naive length-based quality check with proper complexity-aware validation
-- **Graceful degradation**: Added CASCADE_QUALITY_CONFIG with useSemanticValidation: false for stable operation
+### v0.6.4
 
-> **Note:** Versions 5.0.1 through 5.0.7 were deprecated due to incorrect version numbering. If upgrading from 5.0.x, please uninstall and reinstall.
+- **Individual domain toggles**: Replaced multi-select with individual boolean toggles for each domain
+- **Dynamic input ports**: Domain model inputs appear dynamically as each domain is enabled
 
-### v0.4.19 and earlier
+### v0.6.3
+
+- **16-domain routing**: Support for intelligent routing across 16 specialized domains (code, math, data, creative, legal, medical, financial, science, and more)
+- **Circuit breaker**: Added circuit breaker pattern for improved reliability
+- **Domain-specific models**: Connect specialized models for different query types
+
+### v0.5.0
+
+- **Flow visualization in n8n Logs tab**: Detailed cascade flow logging with visual boxes
+- **Real-time quality metrics**: Confidence scores, alignment scores, latency breakdown, and cost savings
+- **Quality validator integration**: Integrated QualityValidator from @cascadeflow/core
+- **Better cascade decisions**: Complexity-aware validation replacing naive length-based checks
+
+### v0.4.x and earlier
 
 - Initial releases as LangChain sub-node
 - Support for any AI Chat Model in n8n
-- Lazy verifier loading (only fetches when needed)
+- Lazy verifier loading
 - Quality threshold configuration
-- Console logging for cascade flow
