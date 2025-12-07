@@ -699,7 +699,7 @@ Questions? Feedback?
 
 ---
 
-**Version:** v0.4.0
+**Version:** v0.6.0
 **Status:** Production Ready
 
 **Presets 2.0: One line. Production ready. Cost optimized.** 🚀
