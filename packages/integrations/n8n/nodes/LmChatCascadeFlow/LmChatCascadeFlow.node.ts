@@ -981,7 +981,7 @@ function generateDomainProperties(): any[] {
       name: 'enableDomainRouting',
       type: 'boolean',
       default: false,
-      description: 'Enable intelligent routing based on detected query domain (math, code, legal, etc.)',
+      description: 'Whether to enable intelligent routing based on detected query domain (math, code, legal, etc.)',
     },
     {
       displayName: 'Enabled Domains',
