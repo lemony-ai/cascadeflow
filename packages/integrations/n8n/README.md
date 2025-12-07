@@ -404,10 +404,11 @@ The logs provide complete visibility into the cascade decision-making process, s
 
 ## Version History
 
-### v0.6.5 (Latest)
+### v0.6.6 (Latest)
 
 - **Removed semantic validation**: Disabled ML-based semantic validation to prevent out-of-memory crashes in n8n environments
 - **Shorter domain labels**: Domain input labels simplified (Code, Math, Data, etc.) for better readability
+- **Updated documentation**: Cleaned up README and version history
 
 ### v0.6.4
 
