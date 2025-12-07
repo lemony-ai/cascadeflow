@@ -138,6 +138,59 @@ Controls how aggressively to accept drafter responses:
 
 Lower threshold = more cost savings, higher threshold = better quality assurance.
 
+## Multi-Domain Cascading (Optional)
+
+CascadeFlow supports **intelligent domain-specific cascading** - automatically detecting the type of query and routing it to a specialized model for that domain.
+
+### How It Works
+
+1. **Enable Domain Cascading** in the node settings
+2. **Toggle individual domains** you want to support
+3. **Connect domain-specific models** to the new input ports that appear
+
+When a query comes in, CascadeFlow:
+1. Detects the domain (e.g., "Write a Python function" → Code domain)
+2. Routes to the specialized model for that domain (if connected)
+3. Falls back to drafter → verifier cascade if no domain model is available
+
+### Supported Domains
+
+| Domain | Description | Example Queries |
+|--------|-------------|-----------------|
+| **Code** | Programming, debugging, code generation | "Write a Python function...", "Debug this code..." |
+| **Math** | Mathematical reasoning, calculations, proofs | "Solve this equation...", "Prove that..." |
+| **Data** | Data analysis, statistics, pandas/SQL | "Analyze this dataset...", "Write a SQL query..." |
+| **Creative** | Creative writing, stories, poetry | "Write a short story...", "Compose a poem..." |
+| **Legal** | Legal documents, contracts, regulations | "Draft a contract...", "Explain this law..." |
+| **Medical** | Healthcare, medical knowledge, clinical | "What are the symptoms of...", "Explain this diagnosis..." |
+| **Financial** | Finance, accounting, investment analysis | "Analyze this stock...", "Calculate ROI..." |
+| **Science** | Scientific knowledge, research, experiments | "Explain quantum...", "How does photosynthesis..." |
+
+### Setup Example
+
+```
+┌──────────────────┐
+│  Claude Haiku    │──► Drafter (default cheap model)
+└──────────────────┘
+┌──────────────────┐
+│  GPT-4o          │──► Verifier (default powerful model)
+└──────────────────┘
+┌──────────────────┐         ┌──────────────────┐
+│  DeepSeek Coder  │──► Code │                  │
+└──────────────────┘         │                  │
+┌──────────────────┐         │   CascadeFlow    │──► Chain
+│  Qwen Math       │──► Math │      Node        │
+└──────────────────┘         │                  │
+┌──────────────────┐         │                  │
+│  Claude Sonnet   │──► Legal│                  │
+└──────────────────┘         └──────────────────┘
+```
+
+### When to Use Domain Cascading
+
+- **Use it when**: You have domain-specific models that excel in certain areas (e.g., DeepSeek for code, specialized medical models)
+- **Skip it when**: Your drafter/verifier combination handles all domains well enough
+
 ## Flow Visualization
 
 ### Viewing Cascade Decisions in Real-Time
