@@ -1151,28 +1151,28 @@ export class LmChatCascadeFlow implements INodeType {
       // Add domain model inputs based on individual toggles
       if (params?.enableDomainRouting) {
         if (params?.enableCodeDomain) {
-          inputs.push({ displayName: 'Code Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Code', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableMathDomain) {
-          inputs.push({ displayName: 'Math Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Math', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableDataDomain) {
-          inputs.push({ displayName: 'Data Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Data', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableCreativeDomain) {
-          inputs.push({ displayName: 'Creative Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Creative', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableLegalDomain) {
-          inputs.push({ displayName: 'Legal Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Legal', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableMedicalDomain) {
-          inputs.push({ displayName: 'Medical Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Medical', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableFinancialDomain) {
-          inputs.push({ displayName: 'Financial Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Financial', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableScienceDomain) {
-          inputs.push({ displayName: 'Science Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Science', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
       }
 
