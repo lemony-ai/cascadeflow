@@ -903,5 +903,5 @@ pnpm build  # Uses Turborepo to build all packages
 
 ---
 
-**Last Updated:** December 2024
+**Last Updated:** December 2025
 **Version:** v0.6.0
