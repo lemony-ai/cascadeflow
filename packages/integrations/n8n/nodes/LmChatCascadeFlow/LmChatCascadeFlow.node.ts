@@ -983,18 +983,70 @@ function generateDomainProperties(): any[] {
       default: false,
       description: 'Whether to enable intelligent routing based on detected query domain (math, code, legal, etc.)',
     },
+    // Individual domain toggles - each one adds its own model input port
     {
-      displayName: 'Enabled Domains',
-      name: 'enabledDomains',
-      type: 'multiOptions',
-      options: domainOptions,
-      default: [],
-      displayOptions: {
-        show: {
-          enableDomainRouting: [true],
-        },
-      },
-      description: 'Select which domains to enable for intelligent routing. Connect domain-specific models for each.',
+      displayName: 'Enable Code Domain',
+      name: 'enableCodeDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable code domain routing. When enabled, adds a "Code Model" input port.',
+    },
+    {
+      displayName: 'Enable Math Domain',
+      name: 'enableMathDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable math domain routing. When enabled, adds a "Math Model" input port.',
+    },
+    {
+      displayName: 'Enable Data Domain',
+      name: 'enableDataDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable data analysis domain routing. When enabled, adds a "Data Model" input port.',
+    },
+    {
+      displayName: 'Enable Creative Domain',
+      name: 'enableCreativeDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable creative writing domain routing. When enabled, adds a "Creative Model" input port.',
+    },
+    {
+      displayName: 'Enable Legal Domain',
+      name: 'enableLegalDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable legal domain routing. When enabled, adds a "Legal Model" input port.',
+    },
+    {
+      displayName: 'Enable Medical Domain',
+      name: 'enableMedicalDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable medical domain routing. When enabled, adds a "Medical Model" input port.',
+    },
+    {
+      displayName: 'Enable Financial Domain',
+      name: 'enableFinancialDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable financial domain routing. When enabled, adds a "Financial Model" input port.',
+    },
+    {
+      displayName: 'Enable Science Domain',
+      name: 'enableScienceDomain',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to enable science domain routing. When enabled, adds a "Science Model" input port.',
     },
     {
       displayName: 'Domain-Specific Settings',
@@ -1096,29 +1148,31 @@ export class LmChatCascadeFlow implements INodeType {
         },
       ];
 
-      // Only add domain model inputs if domain routing is enabled
+      // Add domain model inputs based on individual toggles
       if (params?.enableDomainRouting) {
-        const enabledDomains = params?.enabledDomains || [];
-        const domainInputs = {
-          code: 'Code Model',
-          math: 'Math Model',
-          data: 'Data Model',
-          creative: 'Creative Model',
-          legal: 'Legal Model',
-          medical: 'Medical Model',
-          financial: 'Financial Model',
-          science: 'Science Model',
-        };
-
-        for (const [domain, displayName] of Object.entries(domainInputs)) {
-          if (enabledDomains.includes(domain)) {
-            inputs.push({
-              displayName,
-              type: 'ai_languageModel',
-              maxConnections: 1,
-              required: false,
-            });
-          }
+        if (params?.enableCodeDomain) {
+          inputs.push({ displayName: 'Code Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableMathDomain) {
+          inputs.push({ displayName: 'Math Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableDataDomain) {
+          inputs.push({ displayName: 'Data Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableCreativeDomain) {
+          inputs.push({ displayName: 'Creative Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableLegalDomain) {
+          inputs.push({ displayName: 'Legal Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableMedicalDomain) {
+          inputs.push({ displayName: 'Medical Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableFinancialDomain) {
+          inputs.push({ displayName: 'Financial Model', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableScienceDomain) {
+          inputs.push({ displayName: 'Science Model', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
       }
 
@@ -1183,9 +1237,36 @@ export class LmChatCascadeFlow implements INodeType {
 
     // Get domain routing parameters
     const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
-    const enabledDomains = enableDomainRouting
-      ? (this.getNodeParameter('enabledDomains', 0, []) as DomainType[])
-      : [];
+
+    // Build enabledDomains array from individual toggle parameters
+    const enabledDomains: DomainType[] = [];
+    if (enableDomainRouting) {
+      // Check each domain toggle and build the array in the same order as the inputs template
+      if (this.getNodeParameter('enableCodeDomain', 0, false) as boolean) {
+        enabledDomains.push('code');
+      }
+      if (this.getNodeParameter('enableMathDomain', 0, false) as boolean) {
+        enabledDomains.push('math');
+      }
+      if (this.getNodeParameter('enableDataDomain', 0, false) as boolean) {
+        enabledDomains.push('data');
+      }
+      if (this.getNodeParameter('enableCreativeDomain', 0, false) as boolean) {
+        enabledDomains.push('creative');
+      }
+      if (this.getNodeParameter('enableLegalDomain', 0, false) as boolean) {
+        enabledDomains.push('legal');
+      }
+      if (this.getNodeParameter('enableMedicalDomain', 0, false) as boolean) {
+        enabledDomains.push('medical');
+      }
+      if (this.getNodeParameter('enableFinancialDomain', 0, false) as boolean) {
+        enabledDomains.push('financial');
+      }
+      if (this.getNodeParameter('enableScienceDomain', 0, false) as boolean) {
+        enabledDomains.push('science');
+      }
+    }
 
     // Get domain-specific settings
     const domainSettingsRaw = this.getNodeParameter('domainSettings', 0, { domainConfig: [] }) as any;
@@ -1227,23 +1308,12 @@ export class LmChatCascadeFlow implements INodeType {
       return verifierModel;
     };
 
-    // Domain input order (same as dynamic inputs template)
-    // Only domains in this list can have dedicated model inputs
-    const domainInputOrder: DomainType[] = [
-      'code', 'math', 'data', 'creative', 'legal', 'medical', 'financial', 'science'
-    ];
-
-    // Build dynamic index mapping based on which domains are actually enabled
-    // Inputs: 0=Verifier, 1=Drafter, then enabled domains in order
+    // Dynamic domain input indices based on which domains are enabled
+    // Inputs: 0=Verifier, 1=Drafter, then domain models in order they appear in enabledDomains
     const domainInputMap = new Map<DomainType, number>();
-    let inputIndex = 2; // Start after Verifier (0) and Drafter (1)
-
-    for (const domain of domainInputOrder) {
-      if (enabledDomains.includes(domain)) {
-        domainInputMap.set(domain, inputIndex);
-        inputIndex++;
-      }
-    }
+    enabledDomains.forEach((domain, index) => {
+      domainInputMap.set(domain, 2 + index); // Start at index 2 (after Verifier and Drafter)
+    });
 
     // Create domain model getters for enabled domains
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
