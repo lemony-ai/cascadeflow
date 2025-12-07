@@ -1195,13 +1195,6 @@ export class LmChatCascadeFlow implements INodeType {
         description: 'Minimum quality score (0-1) to accept drafter response. Lower = more cost savings, higher = better quality.',
       },
       {
-        displayName: 'Enable Semantic Validation',
-        name: 'useSemanticValidation',
-        type: 'boolean',
-        default: false,
-        description: 'Whether to use ML-based semantic similarity validation. WARNING: Loads ~40MB embedding model - may cause memory issues in constrained environments.',
-      },
-      {
         displayName: 'Enable Alignment Scoring',
         name: 'useAlignmentScoring',
         type: 'boolean',
@@ -1230,7 +1223,7 @@ export class LmChatCascadeFlow implements INodeType {
   async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
     // Get core parameters
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.64) as number;
-    const useSemanticValidation = this.getNodeParameter('useSemanticValidation', 0, true) as boolean;
+    const useSemanticValidation = false; // Disabled - loads heavy ML model causing OOM in n8n
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
     const useCircuitBreaker = this.getNodeParameter('useCircuitBreaker', 0, true) as boolean;
