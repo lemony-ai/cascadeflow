@@ -675,7 +675,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | 👤 **User Profile System**  | Per-user budgets, tier-aware routing, enforcement callbacks                                                                            |
 | ✅ **Quality Validation**  | Automatic checks + semantic similarity (optional ML, ~80MB, CPU)                                                                       |
 | 🎨 **Cascading Policies**  | Domain-specific pipelines, multi-step validation strategies                                                                            |
-| 🧠 **Domain Understanding**  | Auto-detects code/medical/legal/math/structured data, routes to specialists                                                            |
+| 🧠 **Domain Understanding**  | 15 domains auto-detected (code, medical, legal, finance, math, etc.), routes to specialists                                            |
 | 🤖 **Drafter/Validator Pattern** | 20-60% savings for agent/tool systems                                                                                                  |
 | 🔧 **Tool Calling Support**  | Universal format, works across all providers                                                                                           |
 | 📊 **Cost Tracking**  | Built-in analytics + OpenTelemetry export (vendor-neutral)                                                                             |

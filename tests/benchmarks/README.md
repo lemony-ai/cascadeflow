@@ -5,7 +5,7 @@ Professional benchmarks to validate CascadeFlow performance across real-world us
 #### Datasets
 
 1. **HumanEval** - Code generation (164 programming problems)
-2. **Bitext Customer Support** - Customer service Q&A (27,000+ examples) → proves 65% cost savings claim
+2. **Bitext Customer Support** - Customer service Q&A (27,000+ examples)
 3. **Banking77** - Banking intent classification (13,000+ examples)
 4. **GSM8K** - Grade school math reasoning (8,500+ problems)
 
