@@ -26,11 +26,11 @@ import asyncio
 import os
 from typing import Any, Optional
 
-from cascadeflow.agent import CascadeAgent
 from cascadeflow.config import ModelConfig
 
-from .base import Benchmark, BenchmarkResult, BenchmarkSummary
+from cascadeflow.agent import CascadeAgent
 
+from .base import Benchmark, BenchmarkResult, BenchmarkSummary
 
 # Banking77 intent labels (all 77)
 BANKING77_LABELS = [
@@ -176,9 +176,9 @@ class Banking77Benchmark(Benchmark):
         Returns:
             List of (query_id, query_data) tuples
         """
-        import urllib.request
-        import tempfile
         import os as _os
+        import tempfile
+        import urllib.request
 
         print(f"  Loading Banking77 dataset ({self.split} split) from HuggingFace...")
 
@@ -186,7 +186,7 @@ class Banking77Benchmark(Benchmark):
         parquet_url = f"https://huggingface.co/datasets/PolyAI/banking77/resolve/refs%2Fconvert%2Fparquet/default/{self.split}/0000.parquet"
 
         try:
-            print(f"  Downloading parquet from HuggingFace...")
+            print("  Downloading parquet from HuggingFace...")
             # Download to temp file
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".parquet")
             urllib.request.urlretrieve(parquet_url, temp_file.name)
