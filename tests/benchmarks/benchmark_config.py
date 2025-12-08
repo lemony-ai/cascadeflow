@@ -368,7 +368,7 @@ DEFAULT_TARGETS = BenchmarkTargets()
 
 def print_config(config: BenchmarkConfig) -> None:
     """Print benchmark configuration in a readable format."""
-    print(f"\nBenchmark Configuration:")
+    print("\nBenchmark Configuration:")
     print(f"  Mode: {config.mode.value}")
     print(f"  Drafter: {config.default_drafter}")
     print(f"  Verifier: {config.default_verifier}")
@@ -377,6 +377,6 @@ def print_config(config: BenchmarkConfig) -> None:
     print(f"  Semantic Detection: {config.enable_semantic_detection}")
     print(f"  Domain Pipeline: {config.enable_domain_pipeline}")
     if config.enable_domain_pipeline:
-        print(f"  Domain Configs:")
+        print("  Domain Configs:")
         for domain, dc in config.domain_configs.items():
             print(f"    {domain}: threshold={dc.quality_threshold}, temp={dc.temperature}")
