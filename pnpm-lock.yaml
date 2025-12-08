@@ -19,7 +19,7 @@ importers:
   packages/core:
     dependencies:
       '@cascadeflow/ml':
-        specifier: ^0.6.0
+        specifier: ^0.6.5
         version: link:../ml
       '@xenova/transformers':
         specifier: ^2.17.2
