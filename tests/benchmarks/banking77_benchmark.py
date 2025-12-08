@@ -120,7 +120,7 @@ class Banking77Benchmark(Benchmark):
     def __init__(
         self,
         drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "claude-sonnet-4-5-20241022",
+        verifier_model: str = "claude-sonnet-4-5-20250929",
         drafter_provider: str = "openai",
         verifier_provider: str = "anthropic",
         quality_threshold: float = 0.7,
@@ -149,6 +149,26 @@ class Banking77Benchmark(Benchmark):
             max_samples=max_samples,
         )
 
+    def get_baseline_cost(self, query: str) -> float:
+        """
+        Calculate baseline cost using actual verifier model pricing.
+
+        Claude Sonnet 4.5: $3.00 per 1M input, $15.00 per 1M output
+
+        Args:
+            query: Input query (used to estimate token count)
+
+        Returns:
+            Estimated cost in USD
+        """
+        # Estimate tokens: ~1000 input (prompt + 77 intents), ~100 output
+        input_tokens = 1000
+        output_tokens = 100
+        # Claude Sonnet 4.5 pricing
+        input_cost = (input_tokens / 1_000_000) * 3.00
+        output_cost = (output_tokens / 1_000_000) * 15.00
+        return input_cost + output_cost
+
     def load_dataset(self) -> list[tuple[str, Any]]:
         """
         Load Banking77 dataset from HuggingFace.
@@ -168,16 +188,18 @@ class Banking77Benchmark(Benchmark):
         try:
             print(f"  Downloading parquet from HuggingFace...")
             # Download to temp file
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.parquet')
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".parquet")
             urllib.request.urlretrieve(parquet_url, temp_file.name)
 
             # Read parquet file
             try:
                 import pandas as pd
+
                 df = pd.read_parquet(temp_file.name)
             except ImportError:
                 # Try pyarrow directly
                 import pyarrow.parquet as pq
+
                 table = pq.read_table(temp_file.name)
                 df = table.to_pandas()
 
@@ -186,8 +208,8 @@ class Banking77Benchmark(Benchmark):
 
             queries = []
             for idx, row in df.iterrows():
-                label = int(row['label'])
-                text = row['text']
+                label = int(row["label"])
+                text = row["text"]
                 query_data = {
                     "query_id": f"B77/{self.split}/{idx}",
                     "text": text,
@@ -200,13 +222,14 @@ class Banking77Benchmark(Benchmark):
             print(f"  Loaded {len(queries)} queries")
 
             if self.max_samples:
-                queries = queries[:self.max_samples]
+                queries = queries[: self.max_samples]
                 print(f"  Limited to {len(queries)} samples")
 
             return queries
 
         except Exception as e:
             import traceback
+
             print(f"  Error loading parquet: {e}")
             traceback.print_exc()
             return []
@@ -255,7 +278,8 @@ class Banking77Benchmark(Benchmark):
             else:
                 # Check if any other intent is strongly present
                 other_intents_found = sum(
-                    1 for intent in BANKING77_LABELS
+                    1
+                    for intent in BANKING77_LABELS
                     if intent.lower().replace("_", " ") in prediction_lower
                     and intent != ground_truth["intent"]
                 )
@@ -335,8 +359,7 @@ Intent: [exact_intent_name]"""
 
 
 async def run_banking77_benchmark(
-    max_samples: Optional[int] = None,
-    split: str = "test"
+    max_samples: Optional[int] = None, split: str = "test"
 ) -> BenchmarkSummary:
     """Run Banking77 benchmark and generate report.
 
@@ -359,14 +382,14 @@ async def run_banking77_benchmark(
     print(f"  Dataset:         Banking77 ({sample_desc})")
     print(f"  Split:           {split}")
     print("  Drafter:         gpt-4o-mini (OpenAI)")
-    print("  Verifier:        claude-sonnet-4-5-20241022 (Anthropic)")
+    print("  Verifier:        claude-sonnet-4-5-20250929 (Anthropic)")
     print("  Quality Thresh:  0.7")
     print("  Task:            77-way intent classification")
     print()
 
     benchmark = Banking77Benchmark(
         drafter_model="gpt-4o-mini",
-        verifier_model="claude-sonnet-4-5-20241022",
+        verifier_model="claude-sonnet-4-5-20250929",
         drafter_provider="openai",
         verifier_provider="anthropic",
         quality_threshold=0.7,
@@ -392,8 +415,12 @@ async def run_banking77_benchmark(
     print(f"  Savings: ${summary.total_savings:.4f}")
 
     print("\nRouting Analysis:")
-    print(f"  Drafter Only: {summary.drafter_accepted}/{summary.total_tests} ({summary.acceptance_rate_pct:.1f}%)")
-    print(f"  Verifier Used: {summary.escalated_to_verifier}/{summary.total_tests} ({summary.escalation_rate_pct:.1f}%)")
+    print(
+        f"  Drafter Only: {summary.drafter_accepted}/{summary.total_tests} ({summary.acceptance_rate_pct:.1f}%)"
+    )
+    print(
+        f"  Verifier Used: {summary.escalated_to_verifier}/{summary.total_tests} ({summary.escalation_rate_pct:.1f}%)"
+    )
 
     # Analyze accuracy by model used
     print("\nAccuracy by Model:")
@@ -408,8 +435,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run Banking77 benchmark")
     parser.add_argument("--max", type=int, default=None, help="Max samples (default: all)")
-    parser.add_argument("--split", type=str, default="test", choices=["train", "test"],
-                       help="Dataset split (default: test)")
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="test",
+        choices=["train", "test"],
+        help="Dataset split (default: test)",
+    )
     parser.add_argument("--full", action="store_true", help="Run full test set (3,080 samples)")
 
     args = parser.parse_args()

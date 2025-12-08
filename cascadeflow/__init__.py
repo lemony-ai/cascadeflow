@@ -27,7 +27,7 @@ Example:
     >>> print(f"Used {result.model_used} - Cost: ${result.cost:.6f}")
 """
 
-__version__ = "0.4.0"
+__version__ = "0.6.5"
 __author__ = "Sascha Buehrle"
 __license__ = "MIT"
 
