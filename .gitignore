@@ -81,7 +81,7 @@ coverage.xml
 dmypy.json
 
 # ============================================================================
-# TEST ARTIFACTS (CascadeFlow-specific)
+# TEST ARTIFACTS (cascadeflow-specific)
 # ============================================================================
 # Test-generated configuration files
 tuned_configs/
@@ -230,7 +230,7 @@ README.*.backup*
 *.iml
 
 # ============================================================================
-# PROJECT SPECIFIC (CascadeFlow)
+# PROJECT SPECIFIC (cascadeflow)
 # ============================================================================
 # Logs
 logs/

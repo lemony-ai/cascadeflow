@@ -1,4 +1,4 @@
-# CascadeFlow Development Requirements
+# cascadeflow Development Requirements
 # Everything needed for development, testing, and contributing
 
 # ============================================================================
