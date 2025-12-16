@@ -16,7 +16,9 @@
 
 </div>
 
-**Intelligent AI model cascading for n8n workflows.**
+**Intelligent AI model cascading for n8n workflows with domain understanding.**
+
+![cascadeflow Domain Routing](../../../.github/assets/n8n-CF-domains.jpg)
 
 This is an n8n community node that brings cascadeflow's intelligent AI model cascading to n8n workflows.
 
@@ -26,9 +28,9 @@ This is an n8n community node that brings cascadeflow's intelligent AI model cas
 
 ## How It Works
 
-The CascadeFlow node is a **Language Model sub-node** that sits between your AI models and downstream n8n nodes (like Basic LLM Chain, Chain, or any node that accepts Language Model inputs):
+The cascadeflow node is a **Language Model sub-node** that sits between your AI models and downstream n8n nodes (like Basic LLM Chain, Chain, or any node that accepts Language Model inputs):
 
-![CascadeFlow n8n Workflow](../../../.github/assets/n8n-CF.png)
+![cascadeflow n8n Workflow](../../../.github/assets/n8n-CF.png)
 
 **Architecture:**
 
@@ -39,7 +41,7 @@ The CascadeFlow node is a **Language Model sub-node** that sits between your AI 
 └──────┬──────┘
        │
        ├──────► ┌──────────────┐
-       │        │  CascadeFlow │
+       │        │  cascadeflow │
        │        │     Node     │ ────► ┌──────────────┐
        │        └──────────────┘       │ Basic Chain  │
        ├──────► Quality checks         │ Chain        │
@@ -53,13 +55,13 @@ The CascadeFlow node is a **Language Model sub-node** that sits between your AI 
 
 **Flow:**
 1. Query goes to cheap drafter model first
-2. CascadeFlow validates the response quality
+2. cascadeflow validates the response quality
 3. If quality passes → return drafter response (fast + cheap ✅)
 4. If quality fails → escalate to verifier model (slower but accurate ⚠️)
 
 **Result:** 70-80% of queries accept the drafter, saving 40-85% on costs.
 
-> **ℹ️ Note:** CascadeFlow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Note:** cascadeflow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
 
 ## Installation
 
@@ -94,13 +96,13 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
    - Configure one as your **drafter** (cheap model like `gpt-4o-mini` or `claude-3-5-haiku-20241022`)
    - Configure one as your **verifier** (powerful model like `gpt-4o` or `claude-3-5-sonnet-20241022`)
 
-2. **Add the CascadeFlow node**
+2. **Add the cascadeflow node**
    - Connect the drafter model to the **Drafter** input
    - Connect the verifier model to the **Verifier** input
    - Adjust the **Quality Threshold** (default: 0.7)
 
 3. **Connect to a Chain node**
-   - The CascadeFlow node outputs a Language Model connection
+   - The cascadeflow node outputs a Language Model connection
    - Connect it to nodes that accept AI models (Basic LLM Chain, Chain, etc.)
    - **Note:** Does not work with AI Agent nodes (n8n limitation)
 
@@ -115,7 +117,7 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
          v
 ┌──────────────────┐       ┌──────────────────┐
 │  OpenAI Model    │──────►│                  │
-│  gpt-4o-mini     │       │  CascadeFlow     │       ┌──────────────────┐
+│  gpt-4o-mini     │       │  cascadeflow     │       ┌──────────────────┐
 └──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
                            │                  │       │                  │
 ┌──────────────────┐       │  Threshold: 0.7  │       └──────────────────┘
@@ -140,7 +142,7 @@ Lower threshold = more cost savings, higher threshold = better quality assurance
 
 ## Multi-Domain Cascading (Optional)
 
-CascadeFlow supports **intelligent domain-specific cascading** - automatically detecting the type of query and routing it to a specialized model for that domain.
+cascadeflow supports **intelligent domain-specific cascading** - automatically detecting the type of query and routing it to a specialized model for that domain.
 
 ### How It Works
 
@@ -148,7 +150,7 @@ CascadeFlow supports **intelligent domain-specific cascading** - automatically d
 2. **Toggle individual domains** you want to support
 3. **Connect domain-specific models** to the new input ports that appear
 
-When a query comes in, CascadeFlow:
+When a query comes in, cascadeflow:
 1. Detects the domain (e.g., "Write a Python function" → Code domain)
 2. Routes to the specialized model for that domain (if connected)
 3. Falls back to drafter → verifier cascade if no domain model is available
@@ -178,7 +180,7 @@ When a query comes in, CascadeFlow:
 ┌──────────────────┐         ┌──────────────────┐
 │  DeepSeek Coder  │──► Code │                  │
 └──────────────────┘         │                  │
-┌──────────────────┐         │   CascadeFlow    │──► Chain
+┌──────────────────┐         │   cascadeflow    │──► Chain
 │  Qwen Math       │──► Math │      Node        │
 └──────────────────┘         │                  │
 ┌──────────────────┐         │                  │
@@ -195,16 +197,16 @@ When a query comes in, CascadeFlow:
 
 ### Viewing Cascade Decisions in Real-Time
 
-CascadeFlow provides detailed logging of every cascade decision in n8n's UI:
+cascadeflow provides detailed logging of every cascade decision in n8n's UI:
 
-1. **Execute your workflow** with the CascadeFlow node
-2. **Click on the downstream Chain node** after execution (the node that receives CascadeFlow output)
+1. **Execute your workflow** with the cascadeflow node
+2. **Click on the downstream Chain node** after execution (the node that receives cascadeflow output)
 3. **Navigate to the "Logs" tab**
 
 You'll see detailed flow information like:
 
 ```
-🎯 CascadeFlow: Trying drafter model...
+🎯 cascadeflow: Trying drafter model...
    📊 Quality validation: confidence=0.85, method=heuristic
    🎯 Alignment: 0.82
 
@@ -223,7 +225,7 @@ You'll see detailed flow information like:
 Or when escalating:
 
 ```
-🎯 CascadeFlow: Trying drafter model...
+🎯 cascadeflow: Trying drafter model...
    📊 Quality validation: confidence=0.62, method=heuristic
 
 ┌────────────────────────────────────────────────┐
@@ -294,7 +296,7 @@ Note: Requires Ollama installed locally
 
 **Example: Claude Haiku + GPT-4o**
 
-| Scenario | Traditional (GPT-4o only) | CascadeFlow (Haiku + GPT-4o) | Savings |
+| Scenario | Traditional (GPT-4o only) | cascadeflow (Haiku + GPT-4o) | Savings |
 |----------|---------------------------|------------------------------|---------|
 | Simple Q&A (75% acceptance) | $0.0025 | $0.0008 | 68% |
 | Complex query (25% escalation) | $0.0025 | $0.0025 | 0% (correctly escalated) |
@@ -302,12 +304,12 @@ Note: Requires Ollama installed locally
 
 **Monthly savings (10,000 queries):**
 - Traditional (GPT-4o only): $25.00
-- CascadeFlow (Haiku + GPT-4o): $11.50
+- cascadeflow (Haiku + GPT-4o): $11.50
 - **You save: $13.50/month** (54% savings)
 
 **Monthly savings (100,000 queries):**
 - Traditional (GPT-4o only): $250.00
-- CascadeFlow (Haiku + GPT-4o): $115.00
+- cascadeflow (Haiku + GPT-4o): $115.00
 - **You save: $135.00/month** (54% savings)
 
 ## Example Workflows
@@ -323,7 +325,7 @@ Note: Requires Ollama installed locally
          v
 ┌─────────────────────────────────────┐
 │  Claude Haiku ────┐                 │
-│                   │  CascadeFlow    │       ┌──────────────────┐
+│                   │  cascadeflow    │       ┌──────────────────┐
 │  Claude Sonnet ───┴─► Node          │──────►│  Basic Chain     │
 └─────────────────────────────────────┘       │  (responds)      │
                                                └──────┬───────────┘
@@ -345,7 +347,7 @@ Note: Requires Ollama installed locally
          v
 ┌────────────────────────────────────────┐
 │  GPT-4o-mini ─────┐                    │
-│                   │  CascadeFlow       │       ┌──────────────────┐
+│                   │  cascadeflow       │       ┌──────────────────┐
 │  GPT-4o ──────────┴─► Node             │──────►│  Basic Chain     │
 └────────────────────────────────────────┘       │  (generates)     │
                                                   └──────┬───────────┘
@@ -367,7 +369,7 @@ Note: Requires Ollama installed locally
          v
 ┌─────────────────────────────────────┐
 │  Ollama qwen2.5 ──┐                 │
-│                   │  CascadeFlow    │       ┌──────────────────┐
+│                   │  cascadeflow    │       ┌──────────────────┐
 │  GPT-4o ──────────┴─► Node          │──────►│  Basic Chain     │
 └─────────────────────────────────────┘       │  (reviews code)  │
                                                └──────┬───────────┘
@@ -387,7 +389,7 @@ Note: Requires Ollama installed locally
 **To see the actual cascade flow and which model was used:**
 
 1. Execute your workflow
-2. Click on the downstream Chain node after execution (the node that receives CascadeFlow output)
+2. Click on the downstream Chain node after execution (the node that receives cascadeflow output)
 3. Navigate to the **"Logs"** tab
 4. You'll see detailed flow information showing:
    - Whether the drafter was accepted or escalated to verifier
@@ -398,7 +400,7 @@ Note: Requires Ollama installed locally
 
 The logs provide complete visibility into the cascade decision-making process, showing exactly which path was taken for each request.
 
-> **ℹ️ Important:** CascadeFlow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Important:** cascadeflow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
 
 ## Compatibility
 
@@ -425,13 +427,13 @@ The logs provide complete visibility into the cascade decision-making process, s
 
 **Solution:**
 1. Make sure your workflow has executed successfully
-2. Click on the **Chain node that receives the CascadeFlow output** (Basic LLM Chain, Chain, etc.)
+2. Click on the **Chain node that receives the cascadeflow output** (Basic LLM Chain, Chain, etc.)
 3. Navigate to the **"Logs"** tab (not the "Output" tab)
-4. The logs appear in the downstream node, not the CascadeFlow node itself
+4. The logs appear in the downstream node, not the cascadeflow node itself
 
 ### Issue: "This node cannot be connected" when connecting to AI Agent
 
-**Solution:** This is expected. CascadeFlow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use CascadeFlow with:
+**Solution:** This is expected. cascadeflow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use cascadeflow with:
 - ✅ Basic LLM Chain
 - ✅ Chain
 - ✅ Other nodes that accept Language Model connections

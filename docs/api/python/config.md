@@ -160,7 +160,7 @@ quality = QualityConfig(
 
 ## LangChain Integration Defaults
 
-When using CascadeFlow with LangChain, **everything works out of the box** with zero configuration:
+When using cascadeflow with LangChain, **everything works out of the box** with zero configuration:
 
 ```python
 from langchain_openai import ChatOpenAI

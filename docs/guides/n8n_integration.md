@@ -1,5 +1,9 @@
 # n8n Integration Guide
 
+**Intelligent AI model cascading for n8n workflows with domain understanding.**
+
+![cascadeflow Domain Routing](../../.github/assets/n8n-CF-domains.jpg)
+
 This guide shows how to use cascadeflow in n8n workflows for intelligent AI model cascading with 40-85% cost savings.
 
 ## Table of Contents
@@ -40,9 +44,9 @@ Result: 50-85% cost savings
 
 ### How It Works as a Sub-Node
 
-CascadeFlow is a **Language Model sub-node** that sits between your AI model nodes and downstream n8n nodes (like Basic LLM Chain, Chain, or any node that accepts Language Model inputs):
+cascadeflow is a **Language Model sub-node** that sits between your AI model nodes and downstream n8n nodes (like Basic LLM Chain, Chain, or any node that accepts Language Model inputs):
 
-![CascadeFlow n8n Workflow](../../.github/assets/n8n-CF.png)
+![cascadeflow n8n Workflow](../../.github/assets/n8n-CF.png)
 
 **Architecture:**
 
@@ -53,7 +57,7 @@ CascadeFlow is a **Language Model sub-node** that sits between your AI model nod
 └──────┬──────┘
        │
        ├──────► ┌──────────────┐
-       │        │  CascadeFlow │
+       │        │  cascadeflow │
        │        │     Node     │ ────► ┌──────────────┐
        │        └──────────────┘       │ Basic Chain  │
        ├──────► Quality checks         │ Chain        │
@@ -74,7 +78,7 @@ CascadeFlow is a **Language Model sub-node** that sits between your AI model nod
 ✅ **Flexible** - Use any combination of models from different providers
 ✅ **Universal** - Compatible with OpenAI, Anthropic, Ollama, Azure, Google, and more
 
-> **ℹ️ Note:** CascadeFlow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Note:** cascadeflow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
 
 ---
 
@@ -124,9 +128,9 @@ First, add and configure two AI Chat Model nodes in your workflow:
    - Set model: `gpt-4o`
    - Don't connect to anything yet
 
-### Step 2: Add CascadeFlow Node
+### Step 2: Add cascadeflow Node
 
-1. Search for **CascadeFlow** in the node menu
+1. Search for cascadeflow in the node menu
 2. Add it to your workflow
 3. **Connect the models**:
    - Connect your cheap model (gpt-4o-mini) to the **Drafter** input (bottom)
@@ -136,7 +140,7 @@ First, add and configure two AI Chat Model nodes in your workflow:
 ### Step 3: Connect to a Chain Node
 
 1. Add a **Basic LLM Chain** or **Chain** node
-2. Connect the **CascadeFlow** node to it (Model input)
+2. Connect the cascadeflow node to it (Model input)
 3. Configure your chain as usual
 4. **Note:** Does not work with AI Agent nodes (n8n limitation)
 
@@ -153,7 +157,7 @@ First, add and configure two AI Chat Model nodes in your workflow:
          v
 ┌──────────────────┐       ┌──────────────────┐
 │  OpenAI Model    │──────►│                  │
-│  gpt-4o-mini     │       │  CascadeFlow     │       ┌──────────────────┐
+│  gpt-4o-mini     │       │  cascadeflow     │       ┌──────────────────┐
 └──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
                            │                  │       │                  │
 ┌──────────────────┐       │  Threshold: 0.7  │       └──────────────────┘
@@ -170,7 +174,7 @@ Click **Execute Workflow** and check the **Logs** tab to see the cascade decisio
 
 ### Node Inputs
 
-The CascadeFlow node has **two inputs** that accept AI Language Model connections:
+The cascadeflow node has **two inputs** that accept AI Language Model connections:
 
 | Input | Position | Purpose | Example |
 |-------|----------|---------|---------|
@@ -191,7 +195,7 @@ Lower threshold = more cost savings, higher threshold = better quality assurance
 
 ### Compatible AI Model Nodes
 
-CascadeFlow works with **any AI Chat Model node** in n8n:
+cascadeflow works with **any AI Chat Model node** in n8n:
 
 - ✅ OpenAI Chat Model
 - ✅ Anthropic Chat Model
@@ -211,12 +215,12 @@ You can even **mix providers**:
 
 ### Viewing Cascade Decisions in Real-Time
 
-CascadeFlow provides detailed logging of every cascade decision directly in n8n's UI.
+cascadeflow provides detailed logging of every cascade decision directly in n8n's UI.
 
 **To view cascade flow logs:**
 
-1. **Execute your workflow** with the CascadeFlow node
-2. **Click on the downstream Chain node** (the node that receives the CascadeFlow output, like Basic LLM Chain)
+1. **Execute your workflow** with the cascadeflow node
+2. **Click on the downstream Chain node** (the node that receives the cascadeflow output, like Basic LLM Chain)
 3. **Navigate to the "Logs" tab** (not the Output tab)
 
 ### What You'll See
@@ -224,7 +228,7 @@ CascadeFlow provides detailed logging of every cascade decision directly in n8n'
 #### When Drafter is Accepted (Fast Path)
 
 ```
-🎯 CascadeFlow: Trying drafter model...
+🎯 cascadeflow: Trying drafter model...
    📊 Quality validation: confidence=0.85, method=heuristic
    🎯 Alignment: 0.82
 
@@ -243,7 +247,7 @@ CascadeFlow provides detailed logging of every cascade decision directly in n8n'
 #### When Escalated to Verifier (Slow Path)
 
 ```
-🎯 CascadeFlow: Trying drafter model...
+🎯 cascadeflow: Trying drafter model...
    📊 Quality validation: confidence=0.62, method=heuristic
 
 ┌────────────────────────────────────────────────┐
@@ -288,7 +292,7 @@ CascadeFlow provides detailed logging of every cascade decision directly in n8n'
 
 The logs provide complete visibility into the cascade decision-making process, showing exactly which path was taken for each request.
 
-> **ℹ️ Important:** CascadeFlow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Important:** cascadeflow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
 
 ---
 
@@ -306,7 +310,7 @@ The logs provide complete visibility into the cascade decision-making process, s
          v
 ┌─────────────────────────────────────┐
 │  Claude Haiku ────┐                 │
-│                   │  CascadeFlow    │       ┌──────────────────┐
+│                   │  cascadeflow    │       ┌──────────────────┐
 │  Claude Sonnet ───┴─► Node          │──────►│  Basic Chain     │
 └─────────────────────────────────────┘       │  (responds)      │
                                                └──────┬───────────┘
@@ -341,7 +345,7 @@ The logs provide complete visibility into the cascade decision-making process, s
          v
 ┌────────────────────────────────────────┐
 │  GPT-4o-mini ─────┐                    │
-│                   │  CascadeFlow       │       ┌──────────────────┐
+│                   │  cascadeflow       │       ┌──────────────────┐
 │  GPT-4o ──────────┴─► Node             │──────►│  Basic Chain     │
 └────────────────────────────────────────┘       │  (generates)     │
                                                   └──────┬───────────┘
@@ -373,7 +377,7 @@ The logs provide complete visibility into the cascade decision-making process, s
          v
 ┌─────────────────────────────────────┐
 │  Ollama qwen2.5 ──┐                 │
-│                   │  CascadeFlow    │       ┌──────────────────┐
+│                   │  cascadeflow    │       ┌──────────────────┐
 │  GPT-4o ──────────┴─► Node          │──────►│  Basic Chain     │
 └─────────────────────────────────────┘       │  (reviews code)  │
                                                └──────┬───────────┘
@@ -414,7 +418,7 @@ The logs provide complete visibility into the cascade decision-making process, s
          v
 ┌─────────────────────────────────────┐
 │  GPT-4o-mini ─────┐                 │
-│                   │  CascadeFlow    │       ┌──────────────────┐
+│                   │  cascadeflow    │       ┌──────────────────┐
 │  GPT-4o ──────────┴─► Node          │──────►│  Basic Chain     │
 └─────────────────────────────────────┘       │  (enriches)      │
                                                └──────┬───────────┘
@@ -488,7 +492,7 @@ You can connect models from different providers:
 └────────┬─────────┘
          │
          ├──────► ┌──────────────┐
-         │        │  CascadeFlow │
+         │        │  cascadeflow │
          │        │     Node     │
          │        └──────────────┘
 ┌────────┴─────────┐
@@ -564,13 +568,13 @@ Note: Requires Ollama installed locally
 
 **Solution:**
 1. Make sure your workflow executed successfully
-2. Click on the **Chain node that receives the CascadeFlow output** (Basic LLM Chain, Chain, etc.)
+2. Click on the **Chain node that receives the cascadeflow output** (Basic LLM Chain, Chain, etc.)
 3. Navigate to the **"Logs"** tab (not the "Output" tab)
-4. The logs appear in the downstream node, not in the CascadeFlow node itself
+4. The logs appear in the downstream node, not in the cascadeflow node itself
 
 ### Issue: "This node cannot be connected" when connecting to AI Agent
 
-**Solution:** This is expected. CascadeFlow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use CascadeFlow with:
+**Solution:** This is expected. cascadeflow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use cascadeflow with:
 - ✅ Basic LLM Chain
 - ✅ Chain
 - ✅ Other nodes that accept Language Model connections
@@ -594,7 +598,7 @@ Note: Requires Ollama installed locally
 
 ### Example: Claude Haiku + GPT-4o
 
-| Scenario | Traditional (GPT-4o only) | CascadeFlow | Savings |
+| Scenario | Traditional (GPT-4o only) | cascadeflow | Savings |
 |----------|---------------------------|-------------|---------|
 | Simple Q&A (75% acceptance) | $0.0025 | $0.0008 | 68% |
 | Complex query (escalated) | $0.0025 | $0.0025 | 0% |
@@ -602,22 +606,22 @@ Note: Requires Ollama installed locally
 
 **Monthly savings (10,000 queries):**
 - Traditional: $25.00
-- CascadeFlow: $11.50
+- cascadeflow: $11.50
 - **You save: $13.50/month**
 
 **Monthly savings (100,000 queries):**
 - Traditional: $250.00
-- CascadeFlow: $115.00
+- cascadeflow: $115.00
 - **You save: $135.00/month**
 
 ---
 
 ## Advanced Tips
 
-### Tip 1: Chain Multiple CascadeFlow Nodes
+### Tip 1: Chain Multiple cascadeflow Nodes
 
 ```
-Input → CascadeFlow (draft) → CascadeFlow (review) → Output
+Input → cascadeflow (draft) → cascadeflow (review) → Output
 ```
 
 Each stage benefits from cascading!
@@ -636,13 +640,13 @@ Stage 2 (Review):
 
 ### Tip 3: Combine with Caching
 
-Some providers (like Anthropic) support prompt caching. Use CascadeFlow with cached prompts for even more savings.
+Some providers (like Anthropic) support prompt caching. Use cascadeflow with cached prompts for even more savings.
 
 ---
 
 ## Learn More
 
-- [CascadeFlow GitHub](https://github.com/lemony-ai/cascadeflow)
+- [cascadeflow GitHub](https://github.com/lemony-ai/cascadeflow)
 - [Package README](../../packages/integrations/n8n/README.md)
 - [n8n Documentation](https://docs.n8n.io/)
 - [n8n Community](https://community.n8n.io/)

@@ -1,6 +1,6 @@
-# CascadeFlow Benchmarking Guide
+# cascadeflow Benchmarking Guide
 
-Comprehensive guide to using and creating benchmarks for CascadeFlow cascade systems.
+Comprehensive guide to using and creating benchmarks for cascadeflow cascade systems.
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@ Comprehensive guide to using and creating benchmarks for CascadeFlow cascade sys
 
 ## Overview
 
-CascadeFlow includes a comprehensive benchmarking suite to evaluate cascade system performance across multiple dimensions:
+cascadeflow includes a comprehensive benchmarking suite to evaluate cascade system performance across multiple dimensions:
 
 - **Code Generation** (HumanEval)
 - **Math Reasoning** (GSM8K)

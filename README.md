@@ -345,12 +345,12 @@ Use cascadeflow in n8n workflows for no-code AI automation with automatic cost o
 
 ### Quick Start
 
-CascadeFlow is a **Language Model sub-node** that connects two AI Chat Model nodes (drafter + verifier) and intelligently cascades between them:
+cascadeflow is a **Language Model sub-node** that connects two AI Chat Model nodes (drafter + verifier) and intelligently cascades between them:
 
 **Setup:**
 1. Add two **AI Chat Model nodes** (cheap drafter + powerful verifier)
-2. Add **CascadeFlow node** and connect both models
-3. Connect CascadeFlow to **Basic LLM Chain** or **Chain** nodes
+2. Add **cascadeflow node** and connect both models
+3. Connect cascadeflow to **Basic LLM Chain** or **Chain** nodes
 4. Check **Logs tab** to see cascade decisions in real-time!
 
 **Result:** 40-85% cost savings in your n8n workflows!

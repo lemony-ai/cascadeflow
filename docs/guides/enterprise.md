@@ -1,10 +1,10 @@
 # Enterprise Configuration Guide
 
-CascadeFlow provides enterprise-grade HTTP configuration for organizations that need custom SSL/TLS settings, proxy support, and corporate PKI integration.
+cascadeflow provides enterprise-grade HTTP configuration for organizations that need custom SSL/TLS settings, proxy support, and corporate PKI integration.
 
 ## Zero-Config Auto-Detection
 
-CascadeFlow automatically detects enterprise configuration from standard environment variables:
+cascadeflow automatically detects enterprise configuration from standard environment variables:
 
 | Environment Variable | Purpose |
 |---------------------|---------|
