@@ -1197,7 +1197,12 @@ class ComplexityDetector:
         return boost
 
     def _has_trivial_concepts(self, query_lower: str) -> bool:
-        """Check for trivial concepts using word boundaries."""
+        """Check for trivial concepts using word boundaries.
+
+        Length-aware: For long documents (>50 words), require higher density
+        of trivial concepts to avoid false positives from incidental words
+        like 'blue' and 'green' in 'blue-green deployments'.
+        """
         trivial_count = 0
 
         for concept in self.TRIVIAL_CONCEPTS:
@@ -1207,10 +1212,24 @@ class ComplexityDetector:
 
         word_count = len(query_lower.split())
 
-        if trivial_count >= 2:
+        # For very short queries (<= 8 words), 1 trivial concept is enough
+        if word_count <= 8 and trivial_count >= 1:
             return True
-        elif trivial_count >= 1 and word_count <= 8:
+
+        # For short queries (9-50 words), 2 trivial concepts required
+        if word_count <= 50 and trivial_count >= 2:
             return True
+
+        # For medium queries (51-200 words), 3 trivial concepts required
+        if word_count <= 200 and trivial_count >= 3:
+            return True
+
+        # For long queries (>200 words), use density-based check
+        # Require >3% trivial concept density OR 5+ absolute count
+        if word_count > 200:
+            trivial_density = (trivial_count / word_count) * 100
+            if trivial_density > 3.0 or trivial_count >= 5:
+                return True
 
         return False
 
