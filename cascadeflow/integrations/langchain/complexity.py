@@ -506,11 +506,13 @@ class ComplexityDetector:
         word_count = len(words)
 
         has_multiple_questions = query.count("?") > 1
+        # Use word boundary matching to avoid false positives like "if" in "different"
         has_conditionals = any(
-            w in query_lower for w in ["if", "when", "unless", "provided", "assuming", "given that"]
+            re.search(rf"\b{re.escape(w)}\b", query_lower)
+            for w in ["if", "when", "unless", "provided", "assuming", "given that"]
         )
         has_requirements = any(
-            w in query_lower
+            re.search(rf"\b{re.escape(w)}\b", query_lower)
             for w in ["must", "should", "need to", "required", "ensure", "guarantee"]
         )
         has_multiple_parts = any(sep in query for sep in [";", "\n", "1.", "2."])
@@ -573,10 +575,13 @@ class ComplexityDetector:
             if word_count <= 8:
                 final_complexity = "simple"
                 final_confidence = 0.6
-            elif word_count <= 20:
+            elif word_count <= 2000:  # Allow up to ~8 pages without technical terms
                 final_complexity = "moderate"
                 final_confidence = 0.6
             else:
+                # Only mark as HARD for very long prompts (2000+ words) without
+                # any complexity indicators. This ensures pages-long but simple
+                # questions still go through cascade for cost savings.
                 final_complexity = "hard"
                 final_confidence = 0.6
 
@@ -604,10 +609,15 @@ class ComplexityDetector:
                 final_confidence = min(0.95, final_confidence + 0.05)
 
         # 11. Apply structure boost
+        # For very long prompts (> 500 words), don't upgrade MODERATE → HARD
+        # based on structure alone, as long prompts naturally contain more
+        # incidental conditionals ("when", "if") and requirements ("should", "must")
+        # that don't indicate analytical complexity.
         if structure_score >= 2:
             if final_complexity == "simple":
                 final_complexity = "moderate"
-            elif final_complexity == "moderate":
+            elif final_complexity == "moderate" and word_count <= 500:
+                # Only upgrade MODERATE → HARD for shorter analytical queries
                 final_complexity = "hard"
             final_confidence = min(0.95, final_confidence + 0.05)
 
@@ -615,7 +625,10 @@ class ComplexityDetector:
         if word_count < 10 and final_complexity == "expert" and tech_boost < 2.0:
             final_complexity = "hard"
 
-        if word_count > 50 and final_complexity in ("simple", "moderate"):
+        # Only upgrade to hard for extremely long prompts (5000+ words = ~20 pages)
+        # This allows pages-long but semantically simple prompts to cascade
+        # Most documents are under 5000 words, so this is very permissive
+        if word_count > 5000 and final_complexity in ("simple", "moderate"):
             final_complexity = "hard"
 
         result = {

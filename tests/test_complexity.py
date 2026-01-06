@@ -103,10 +103,28 @@ class TestComplexityDetector:
         assert complexity in [QueryComplexity.HARD, QueryComplexity.EXPERT]
 
     def test_long_simple_query(self):
-        """Test that long queries without expert keywords get upgraded."""
+        """Test that long simple queries stay at lower complexity for cost savings.
+
+        With length-aware complexity detection, long prompts without technical
+        keywords should remain at MODERATE or lower to enable CASCADE routing
+        and cost savings. Length alone should not escalate complexity.
+        """
         query = "What is a dog? " * 15  # 60 words but trivial content
         complexity, _ = self.detector.detect(query)
-        # Should be at least HARD due to length
+        # Should NOT be HARD/EXPERT - length alone shouldn't escalate trivial content
+        assert complexity in [QueryComplexity.SIMPLE, QueryComplexity.MODERATE]
+
+    def test_long_technical_query_escalates(self):
+        """Test that long queries WITH technical keywords get upgraded properly."""
+        # Long prompt with technical terms should escalate
+        query = """
+        We need to implement a production-ready microservices architecture
+        with OAuth2 authentication, PostgreSQL database optimization,
+        Kubernetes deployment, and comprehensive error handling.
+        The system should scale horizontally with load balancing.
+        """ * 3  # ~90 words with many expert keywords
+        complexity, _ = self.detector.detect(query)
+        # Should be HARD or EXPERT due to technical keyword density
         assert complexity in [QueryComplexity.HARD, QueryComplexity.EXPERT]
 
     def test_keyword_density(self):

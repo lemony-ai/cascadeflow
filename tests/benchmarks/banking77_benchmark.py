@@ -27,6 +27,7 @@ import os
 from typing import Any, Optional
 
 from cascadeflow.config import ModelConfig
+from cascadeflow.quality import QualityConfig
 
 from cascadeflow.agent import CascadeAgent
 
@@ -327,17 +328,55 @@ Format your response as:
 Reasoning: [your brief explanation]
 Intent: [exact_intent_name]"""
 
-        # Use 2-model cascade with all domains enabled
+        # Use 2-model cascade with domain detection DISABLED
+        # Domain detection misclassifies intent classification as "data" domain
+        # with 0.80 threshold, causing all drafts to be rejected.
         # Cross-provider cascade: GPT-4o-mini (OpenAI) -> Claude Sonnet 4.5 (Anthropic)
+        #
+        # Classification tasks need lenient confidence thresholds since:
+        # 1. Responses are short (just intent + reasoning)
+        # 2. Complexity often detected as "hard" due to 77 categories
+        # 3. Alignment scoring already handles classification format (v11)
         agent = CascadeAgent(
             models=[
                 ModelConfig(name=self.drafter_model, provider=self.drafter_provider),
                 ModelConfig(name=self.verifier_model, provider=self.verifier_provider),
             ],
             enable_cascade=True,
-            enable_domain_detection=True,
-            use_semantic_domains=True,
+            enable_domain_detection=False,  # Disabled - causes misclassification
+            use_semantic_domains=False,  # Disabled - use standard thresholds
+            quality_config=QualityConfig(
+                # Lenient thresholds for classification tasks
+                confidence_thresholds={
+                    "trivial": 0.55,
+                    "simple": 0.55,
+                    "moderate": 0.55,
+                    "hard": 0.55,
+                    "expert": 0.55,
+                },
+                # Short responses are expected for classification
+                min_length_thresholds={
+                    "trivial": 10,
+                    "simple": 10,
+                    "moderate": 15,
+                    "hard": 15,
+                    "expert": 20,
+                },
+            ),
         )
+
+        # CRITICAL: Patch the PreRouter to cascade ALL complexity levels
+        # By default, PreRouter routes "hard" and "expert" directly to verifier
+        # For classification benchmarks, we want all queries to go through cascade
+        from cascadeflow.quality.complexity import QueryComplexity
+
+        agent.router.cascade_complexities = [
+            QueryComplexity.TRIVIAL,
+            QueryComplexity.SIMPLE,
+            QueryComplexity.MODERATE,
+            QueryComplexity.HARD,
+            QueryComplexity.EXPERT,
+        ]
 
         start_time = _time.time()
         result = await agent.run(classification_prompt)

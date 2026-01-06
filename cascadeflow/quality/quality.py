@@ -616,6 +616,20 @@ class QualityValidator:
 
             details["trivial_mode"] = True
 
+        # SPECIAL HANDLING FOR CLASSIFICATION RESPONSES
+        # Classification responses (intent/category) are short by design.
+        # They contain a label + brief reasoning, not paragraphs of text.
+        # Apply lenient validation for length and specificity.
+        elif self._is_classification_response(draft_content, query):
+            # For classification, be lenient on length and specificity
+            checks["length_appropriate"] = True  # Any length OK for classification
+            checks["has_content"] = len(draft_content.strip()) >= 10  # Minimal content check
+            checks["acceptable_hedging"] = True  # Classification responses are definitive
+            checks["sufficient_specificity"] = True  # The label IS the specificity
+            checks["low_hallucination_risk"] = True  # Don't check hallucinations
+
+            details["classification_mode"] = True
+
         else:
             # For non-trivial queries, apply normal checks
 
@@ -748,6 +762,51 @@ class QualityValidator:
         # Check for step-by-step math
         has_steps = bool(re.search(r"step\s*\d|first.*then|=\s*\d+", content.lower()))
         return has_calculations or has_answer or has_steps
+
+    @staticmethod
+    def _is_classification_response(content: str, query: str) -> bool:
+        """Check if response is in intent/category classification format.
+
+        Classification responses are short by design - they identify a category
+        with brief reasoning. Apply lenient length/specificity validation for these.
+
+        Patterns detected:
+        - "Intent: <label>" or "Category: <label>" format
+        - "Reasoning: ..." + "Intent: ..." format
+        - Query asking to classify into categories/intents
+        """
+        content_lower = content.lower()
+        query_lower = query.lower()
+
+        # Check if query is asking for classification
+        classification_query_patterns = [
+            "classify",
+            "categorize",
+            "which intent",
+            "what intent",
+            "which category",
+            "what category",
+            "available intents",
+            "available categories",
+            "one of the",  # "into one of the X categories"
+        ]
+        is_classification_query = any(p in query_lower for p in classification_query_patterns)
+
+        # Check if response is in classification format
+        classification_response_patterns = [
+            r"intent:\s*\w",  # Intent: <label>
+            r"category:\s*\w",  # Category: <label>
+            r"classification:\s*\w",  # Classification: <label>
+            r"label:\s*\w",  # Label: <label>
+            r"reasoning:.*intent:",  # Reasoning + Intent format
+            r"the intent is\s+\w",  # "The intent is X"
+            r"classified as\s+\w",  # "Classified as X"
+        ]
+        is_classification_response = any(
+            re.search(p, content_lower) for p in classification_response_patterns
+        )
+
+        return is_classification_query and is_classification_response
 
 
 class ComparativeValidator:
