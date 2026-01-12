@@ -659,12 +659,15 @@ class QueryResponseAlignmentScorer:
         Detect if query is a function call/tool use prompt.
 
         v13 (Jan 2026): Fixes alignment floor triggering on BFCL benchmark.
+        v13.1 (Jan 2026): Enhanced detection for plain-text tool listings.
         Does NOT require 300+ word context like v12 long context QA.
 
         Function calling prompts typically have:
         - Function/tool definitions: "function", "tool", "api"
         - JSON schema patterns: "parameters", "properties", "type"
-        - Call instructions: "call the function", "use the tool"
+        - Plain-text tool listings: "- tool_name: description"
+        - Call instructions: "call the function", "use the tool", "should be used"
+        - Output format specs: "Tool:", "Parameters:"
 
         Returns:
             bool: True if query is a function call format
@@ -695,7 +698,22 @@ class QueryResponseAlignmentScorer:
         ]
         has_schema_pattern = any(pattern in query.lower() for pattern in schema_patterns)
 
-        # Check for function calling instructions
+        # v13.1: Check for plain-text tool listing patterns (BFCL format)
+        # Matches "- tool_name: description" style listings
+        import re
+
+        plain_text_tool_patterns = [
+            r"^- \w+:",  # "- tool_name:" at start of line
+            r"\n- \w+:",  # "- tool_name:" after newline
+            r"access to the following tools",  # Common preamble
+            r"available tools:",  # Common header
+            r"you have access to",  # Tool access statement
+        ]
+        has_plain_text_tools = any(
+            re.search(pattern, query_lower) for pattern in plain_text_tool_patterns
+        )
+
+        # Check for function calling instructions (expanded for BFCL)
         instruction_patterns = [
             "call the function",
             "use the tool",
@@ -705,11 +723,36 @@ class QueryResponseAlignmentScorer:
             "generate a function call",
             "return a function call",
             "output a function call",
+            # v13.1: Additional patterns for BFCL-style prompts
+            "should be used",
+            "which tool",
+            "determine which tool",
+            "select the appropriate",
+            "choose the right tool",
+            "respond with",
+            "if a tool should",
         ]
         has_instruction = any(pattern in query_lower for pattern in instruction_patterns)
 
-        # Function call format if has markers + schema OR markers + instruction
-        return has_function_marker and (has_schema_pattern or has_instruction)
+        # v13.1: Check for expected output format specification
+        # BFCL prompts often specify "Tool: <name>\nParameters: <json>"
+        output_format_patterns = [
+            "tool:",
+            "parameters:",
+            "tool_name:",
+            "arguments:",
+        ]
+        has_output_format = sum(
+            1 for p in output_format_patterns if p in query_lower
+        ) >= 2  # At least 2 format markers
+
+        # Function call format detection logic:
+        # 1. Original: has markers + (schema OR instruction)
+        # 2. v13.1: has markers + plain_text_tools
+        # 3. v13.1: has markers + output_format specification
+        return has_function_marker and (
+            has_schema_pattern or has_instruction or has_plain_text_tools or has_output_format
+        )
 
     def _is_valid_function_call_response(self, response: str) -> bool:
         """
