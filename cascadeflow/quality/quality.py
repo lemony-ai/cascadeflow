@@ -553,6 +553,7 @@ class QualityValidator:
         # Initialize checks and details
         checks = {}
         details = {}
+        alignment = None  # Initialize for v13.3 confidence boost check
 
         # === CRITICAL FIX: Calculate alignment score ===
         if self.alignment_scorer:
@@ -596,8 +597,28 @@ class QualityValidator:
             checks["alignment"] = True
             details["alignment"] = None
 
+        # === v13.3: Function call confidence boost ===
+        # When alignment scorer returns 0.72 (v13 special boost for function calls,
+        # long context QA, or tool use), use alignment score as effective confidence.
+        # This allows valid function call responses to pass even when model API
+        # confidence is low (common for structured/tool outputs).
+        V13_FUNCTION_CALL_BOOST = 0.72
+        effective_confidence = confidence
+
+        if alignment is not None and abs(alignment - V13_FUNCTION_CALL_BOOST) < 0.001:
+            # v13 boost detected - use alignment as effective confidence
+            effective_confidence = alignment
+            details["v13_confidence_boost"] = True
+            details["original_confidence"] = confidence
+            details["effective_confidence"] = effective_confidence
+            if self.config.log_decisions:
+                logger.info(
+                    f"✓ v13.3: Function call boost applied. "
+                    f"Original confidence: {confidence:.3f} → Effective: {effective_confidence:.3f}"
+                )
+
         # 1. Confidence check
-        checks["confidence"] = confidence >= threshold
+        checks["confidence"] = effective_confidence >= threshold
         details["confidence"] = {
             "value": confidence,
             "threshold": threshold,
@@ -629,6 +650,21 @@ class QualityValidator:
             checks["low_hallucination_risk"] = True  # Don't check hallucinations
 
             details["classification_mode"] = True
+
+        # === v13.5: SPECIAL HANDLING FOR FUNCTION CALL RESPONSES ===
+        # Function call responses (detected by v13 alignment boost signal 0.72)
+        # are structured outputs like "Tool: X\nParameters: {...}"
+        # These are short by design and may use phrases like "I would use..."
+        # Apply lenient validation similar to classification responses.
+        elif details.get("v13_confidence_boost", False):
+            # For function call responses, be lenient on all quality checks
+            checks["length_appropriate"] = True  # Tool responses can be short
+            checks["has_content"] = len(draft_content.strip()) >= 10  # Minimal content check
+            checks["acceptable_hedging"] = True  # "I would use..." is OK for tool selection
+            checks["sufficient_specificity"] = True  # Tool name + params IS specific
+            checks["low_hallucination_risk"] = True  # Don't check hallucinations
+
+            details["function_call_mode"] = True
 
         else:
             # For non-trivial queries, apply normal checks
