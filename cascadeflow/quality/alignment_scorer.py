@@ -759,16 +759,49 @@ class QueryResponseAlignmentScorer:
         Check if response is a valid function call answer.
 
         v13 (Jan 2026): Recognizes function call response formats.
+        v13.2 (Jan 2026): Recognizes "no tool needed" responses as valid.
 
         Valid formats:
         - JSON function calls: {"name": "func", "parameters": {...}}
         - Code blocks with function calls
         - Structured tool use format
+        - "No tool needed" explanations (v13.2)
 
         Returns:
             bool: True if response is a valid function call answer
         """
-        response_stripped = response.strip()
+        response_lower = response.lower()
+
+        # v13.2: Check for "no tool needed" responses first
+        # These are valid responses when the query asks about tools but no tool is required
+        no_tool_patterns = [
+            "no tool is needed",
+            "no tool needed",
+            "no tool is required",
+            "no tool required",
+            "doesn't require a tool",
+            "does not require a tool",
+            "doesn't require any tool",
+            "does not require any tool",
+            "none of the tools",
+            "none of the available tools",
+            "no function is needed",
+            "no function needed",
+            "no function call",
+            "no api call",
+            "without using any tool",
+            "without any tool",
+            "can be answered directly",
+            "can be answered without",
+            "don't need to use",
+            "do not need to use",
+            "not necessary to use",
+            "not necessary to call",
+            "no need to call",
+            "no need to use",
+        ]
+        if any(pattern in response_lower for pattern in no_tool_patterns):
+            return True
 
         # Check for JSON function call patterns
         json_patterns = [
@@ -792,7 +825,7 @@ class QueryResponseAlignmentScorer:
             "tool:",
             "call:",
         ]
-        if any(pattern in response.lower() for pattern in structured_patterns):
+        if any(pattern in response_lower for pattern in structured_patterns):
             return True
 
         return False
