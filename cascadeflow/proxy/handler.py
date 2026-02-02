@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Optional
 
 import httpx
 
@@ -21,9 +20,9 @@ class ProxyHandler:
 
     def __init__(
         self,
-        cost_tracker: Optional[CostTracker] = None,
-        registry: Optional[ModelRegistry] = None,
-        client: Optional[httpx.AsyncClient] = None,
+        cost_tracker: CostTracker | None = None,
+        registry: ModelRegistry | None = None,
+        client: httpx.AsyncClient | None = None,
     ) -> None:
         self.cost_tracker = cost_tracker
         self.registry = registry or ModelRegistry()

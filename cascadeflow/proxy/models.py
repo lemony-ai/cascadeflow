@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -16,8 +16,8 @@ class ProxyRoute:
     models: set[str] = field(default_factory=set)
     default_headers: dict[str, str] = field(default_factory=dict)
     timeout: float = 60.0
-    api_key: Optional[str] = None
-    cost_per_1k_tokens: Optional[float] = None
+    api_key: str | None = None
+    cost_per_1k_tokens: float | None = None
 
 
 @dataclass
@@ -60,5 +60,5 @@ class ProxyResult:
     provider: str
     model: str
     latency_ms: float
-    usage: Optional[ProxyUsage] = None
-    cost: Optional[float] = None
+    usage: ProxyUsage | None = None
+    cost: float | None = None

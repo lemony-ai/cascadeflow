@@ -15,7 +15,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Optional
+from typing import Any
 
 from cascadeflow.telemetry.cost_tracker import CostTracker
 
@@ -42,13 +42,13 @@ class RoutingProxy:
 
     def __init__(
         self,
-        config: Optional[ProxyConfig] = None,
-        cost_tracker: Optional[CostTracker] = None,
+        config: ProxyConfig | None = None,
+        cost_tracker: CostTracker | None = None,
     ) -> None:
         self.config = config or ProxyConfig()
         self.cost_tracker = cost_tracker or CostTracker()
-        self._server: Optional[ThreadingHTTPServer] = None
-        self._thread: Optional[threading.Thread] = None
+        self._server: ThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
 
     def start(self) -> int:
         """Start the proxy server. Returns the bound port."""
@@ -83,7 +83,7 @@ class RoutingProxy:
             return self.config.port
         return self._server.server_address[1]
 
-    def resolve_model(self, model: str) -> Optional[str]:
+    def resolve_model(self, model: str) -> str | None:
         """Resolve virtual model names to concrete ones."""
         if model in self.config.virtual_models:
             return self.config.virtual_models[model]
@@ -364,7 +364,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self._send_json(payload, status=status)
 
     def _send_json(self, payload: dict[str, Any], status: int = 200) -> None:
-        data = json.dumps(payload).encode("utf-8")
+        data = json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))

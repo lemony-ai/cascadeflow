@@ -8,7 +8,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -18,7 +18,7 @@ class TestResult:
     name: str
     status: str
     detail: str
-    response_status: Optional[int] = None
+    response_status: int | None = None
 
 
 def wait_for_port(port: int, timeout: float = 10.0) -> bool:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from cascadeflow.schema.model_registry import ModelRegistry
 
@@ -18,7 +18,7 @@ def _coerce_int(value: Any) -> int:
         return 0
 
 
-def extract_usage(payload: Any) -> Optional[ProxyUsage]:
+def extract_usage(payload: Any) -> ProxyUsage | None:
     """Extract token usage from a provider response payload."""
     if not isinstance(payload, dict):
         return None
@@ -50,10 +50,10 @@ def extract_usage(payload: Any) -> Optional[ProxyUsage]:
 
 def calculate_cost(
     model: str,
-    usage: Optional[ProxyUsage],
+    usage: ProxyUsage | None,
     route: ProxyRoute,
-    registry: Optional[ModelRegistry] = None,
-) -> Optional[float]:
+    registry: ModelRegistry | None = None,
+) -> float | None:
     """Calculate cost for a proxy response."""
     if usage is None:
         return None

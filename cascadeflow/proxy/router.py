@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable
 
 from cascadeflow.schema.model_registry import ModelRegistry
 
@@ -16,8 +16,8 @@ class ProxyRouter:
     def __init__(
         self,
         routes: Iterable[ProxyRoute],
-        default_provider: Optional[str] = None,
-        registry: Optional[ModelRegistry] = None,
+        default_provider: str | None = None,
+        registry: ModelRegistry | None = None,
     ) -> None:
         self.routes = list(routes)
         self.default_provider = default_provider
@@ -52,7 +52,7 @@ class ProxyRouter:
             metadata={"original_model": model},
         )
 
-    def _parse_model(self, model: str) -> tuple[Optional[str], str]:
+    def _parse_model(self, model: str) -> tuple[str | None, str]:
         """Parse provider/model prefixes if present."""
         for separator in (":", "/"):
             if separator in model:
@@ -66,7 +66,7 @@ class ProxyRouter:
 
         return self.default_provider, model
 
-    def _resolve_route(self, provider: Optional[str], model: str) -> Optional[ProxyRoute]:
+    def _resolve_route(self, provider: str | None, model: str) -> ProxyRoute | None:
         if provider and provider in self._routes_by_provider:
             route = self._routes_by_provider[provider]
             if route.models and model not in route.models:

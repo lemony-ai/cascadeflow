@@ -2,7 +2,6 @@ import json
 import os
 import subprocess
 import sys
-from typing import List
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess:
