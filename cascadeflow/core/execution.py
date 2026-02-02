@@ -41,6 +41,7 @@ See Also:
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
@@ -101,9 +102,6 @@ class DomainDetector:
             "script",
             "variable",
             "loop",
-            "if",
-            "else",
-            "return",
             "import",
             "react",
             "node",
@@ -238,8 +236,22 @@ class DomainDetector:
             "balance sheet",
             "income statement",
             "valuation",
+            "interest rate",
+            "yield",
+            "coupon",
+            "fixed income",
+            "risk-return",
+            "equities",
+            "bonds",
+            "yield curve",
         ],
     }
+
+    @staticmethod
+    def _keyword_matches(text: str, keyword: str) -> bool:
+        if " " in keyword or "-" in keyword:
+            return keyword in text
+        return bool(re.search(rf"\\b{re.escape(keyword)}\\b", text))
 
     def detect(self, query: str) -> list[str]:
         """Detect domains present in query."""
@@ -247,7 +259,7 @@ class DomainDetector:
         detected = []
 
         for domain, keywords in self.DOMAIN_KEYWORDS.items():
-            matches = sum(1 for kw in keywords if kw in query_lower)
+            matches = sum(1 for kw in keywords if self._keyword_matches(query_lower, kw))
             if matches > 0:
                 detected.append(domain)
                 logger.debug(f"Detected domain '{domain}': {matches} keywords")

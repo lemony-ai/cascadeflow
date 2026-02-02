@@ -109,7 +109,7 @@ class SpeculativeResult:
 
     Core Fields:
         content: Generated response text
-        model_used: Combined model name
+        model_used: Name of model that produced final response
         drafter_model: Name of draft model
         verifier_model: Name of verifier model
         draft_accepted: Whether draft was accepted
@@ -1548,7 +1548,9 @@ class WholeResponseCascade:
 
         return SpeculativeResult(
             content=content,
-            model_used=f"{self.drafter.name}+{self.verifier.name}",
+            model_used=self.drafter.name
+            if draft_accepted
+            else f"{self.drafter.name}+{self.verifier.name}",
             drafter_model=self.drafter.name,
             verifier_model=self.verifier.name,
             draft_accepted=draft_accepted,

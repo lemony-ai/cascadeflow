@@ -1705,6 +1705,14 @@ class CascadeAgent:
 
         # 🆕 v2.5: Determine cost breakdown using CostCalculator
         use_cascade = routing_strategy == "cascade"
+        draft_accepted_value = spec_result.draft_accepted if use_cascade else False
+        if use_cascade and quality_check_passed is not None:
+            if draft_accepted_value != quality_check_passed:
+                logger.warning(
+                    "Draft acceptance mismatch detected; "
+                    "aligning draft_accepted with quality_check_passed."
+                )
+            draft_accepted_value = quality_check_passed
 
         if use_cascade:
             # Use CostCalculator for accurate breakdown
@@ -1746,7 +1754,7 @@ class CascadeAgent:
                 cost_saved = baseline_cost - total_cost
 
             # Extract latencies from metadata
-            if spec_result.draft_accepted:
+            if draft_accepted_value:
                 draft_latency_ms = spec_result.latency_ms
                 verifier_latency_ms = 0.0
             else:
@@ -1819,7 +1827,7 @@ class CascadeAgent:
 
         if use_cascade:
             metadata["cascade_used"] = True
-            metadata["draft_accepted"] = spec_result.draft_accepted
+            metadata["draft_accepted"] = draft_accepted_value
             metadata["draft_model"] = self.models[0].name
             metadata["verifier_model"] = self.models[-1].name
         else:
@@ -1833,7 +1841,7 @@ class CascadeAgent:
             latency_ms=total_latency_ms,
             complexity=complexity,
             cascaded=use_cascade,
-            draft_accepted=spec_result.draft_accepted if use_cascade else False,
+            draft_accepted=draft_accepted_value,
             routing_strategy=routing_strategy,
             reason=routing_reason,
             tool_calls=tool_calls,
