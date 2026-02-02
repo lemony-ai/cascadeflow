@@ -63,19 +63,14 @@
     "@anthropic-ai/sdk": "^0.30.0",
     "@ai-sdk/anthropic": "^1.0.0",
     "@ai-sdk/azure": "^1.0.0",
-    "@ai-sdk/bedrock": "^1.0.0",
-    "@ai-sdk/cerebras": "^1.0.0",
+    "@ai-sdk/amazon-bedrock": "^1.0.0",
     "@ai-sdk/cohere": "^1.0.0",
     "@ai-sdk/deepseek": "^1.0.0",
-    "@ai-sdk/fireworks": "^1.0.0",
     "@ai-sdk/google": "^1.0.0",
+    "@ai-sdk/google-vertex": "^1.0.0",
     "@ai-sdk/groq": "^1.0.0",
     "@ai-sdk/mistral": "^1.0.0",
-    "@ai-sdk/ollama": "^1.0.0",
     "@ai-sdk/openai": "^1.0.0",
-    "@ai-sdk/openrouter": "^1.0.0",
-    "@ai-sdk/perplexity": "^1.0.0",
-    "@ai-sdk/replicate": "^1.0.0",
     "@ai-sdk/togetherai": "^1.0.0",
     "@ai-sdk/xai": "^1.0.0",
     "@huggingface/inference": "^2.8.0",
@@ -96,10 +91,7 @@
     "@ai-sdk/azure": {
       "optional": true
     },
-    "@ai-sdk/bedrock": {
-      "optional": true
-    },
-    "@ai-sdk/cerebras": {
+    "@ai-sdk/amazon-bedrock": {
       "optional": true
     },
     "@ai-sdk/cohere": {
@@ -108,10 +100,10 @@
     "@ai-sdk/deepseek": {
       "optional": true
     },
-    "@ai-sdk/fireworks": {
+    "@ai-sdk/google": {
       "optional": true
     },
-    "@ai-sdk/google": {
+    "@ai-sdk/google-vertex": {
       "optional": true
     },
     "@ai-sdk/groq": {
@@ -120,19 +112,7 @@
     "@ai-sdk/mistral": {
       "optional": true
     },
-    "@ai-sdk/ollama": {
-      "optional": true
-    },
     "@ai-sdk/openai": {
-      "optional": true
-    },
-    "@ai-sdk/openrouter": {
-      "optional": true
-    },
-    "@ai-sdk/perplexity": {
-      "optional": true
-    },
-    "@ai-sdk/replicate": {
       "optional": true
     },
     "@ai-sdk/togetherai": {
