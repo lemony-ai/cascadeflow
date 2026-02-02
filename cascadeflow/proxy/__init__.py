@@ -5,9 +5,12 @@ from .errors import ProxyError, ProxyRoutingError, ProxyTransportError, ProxyUps
 from .handler import ProxyHandler
 from .models import ProxyPlan, ProxyRequest, ProxyResult, ProxyRoute, ProxyUsage
 from .router import ProxyRouter
+from .server import ProxyConfig, RoutingProxy
 from .service import ProxyService
 
 __all__ = [
+    "ProxyConfig",
+    "RoutingProxy",
     "ProxyError",
     "ProxyRoutingError",
     "ProxyTransportError",
