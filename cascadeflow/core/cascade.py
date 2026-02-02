@@ -1037,7 +1037,7 @@ class WholeResponseCascade:
         # === PHASE 3: Quality Validation ===
         # 🆕 v2.7: Support domain-specific quality threshold
         domain_threshold = kwargs.get("quality_threshold", None)
-        quality_threshold = (
+        base_threshold = (
             domain_threshold if domain_threshold is not None else self.confidence_threshold
         )
 
@@ -1048,6 +1048,13 @@ class WholeResponseCascade:
         timing["quality_check_ms"] = (time.time() - quality_start) * 1000
 
         final_complexity = complexity or detected_complexity
+
+        # Use the effective threshold that the validator actually applied.
+        effective_threshold = base_threshold
+        validation_details = getattr(validation_result, "details", {})
+        confidence_details = validation_details.get("confidence", {})
+        if "threshold" in confidence_details:
+            effective_threshold = confidence_details["threshold"]
 
         if self.verbose:
             logger.info(f"Quality check completed in {timing['quality_check_ms']:.1f}ms")
@@ -1060,7 +1067,6 @@ class WholeResponseCascade:
         validation_checks = getattr(validation_result, "checks", {})
 
         # === CRITICAL FIX: Extract alignment score from validation details ===
-        validation_details = getattr(validation_result, "details", {})
         alignment_score = validation_details.get("alignment", 0.0)
 
         if self.verbose and alignment_score < 0.30:
@@ -1143,7 +1149,7 @@ class WholeResponseCascade:
                 complexity=final_complexity,
                 timing=timing,
                 quality_score=quality_score,
-                quality_threshold=quality_threshold,
+                quality_threshold=effective_threshold,
                 rejection_reason=None,
                 draft_method=draft_method,
                 alignment_score=alignment_score,
@@ -1215,7 +1221,7 @@ class WholeResponseCascade:
                 complexity=final_complexity,
                 timing=timing,
                 quality_score=quality_score,
-                quality_threshold=quality_threshold,
+                quality_threshold=effective_threshold,
                 rejection_reason=validation_reason,
                 alignment_score=alignment_score,
                 cost_breakdown=costs,

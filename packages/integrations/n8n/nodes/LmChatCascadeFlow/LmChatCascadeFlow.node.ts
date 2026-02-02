@@ -12,69 +12,17 @@ import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 
-// =============================================================================
-// DOMAIN CONSTANTS - All 16 supported domains
-// =============================================================================
-const DOMAINS = {
-  CODE: 'code',
-  DATA: 'data',
-  STRUCTURED: 'structured',
-  RAG: 'rag',
-  CONVERSATION: 'conversation',
-  TOOL: 'tool',
-  CREATIVE: 'creative',
-  SUMMARY: 'summary',
-  TRANSLATION: 'translation',
-  MATH: 'math',
-  SCIENCE: 'science',
-  MEDICAL: 'medical',
-  LEGAL: 'legal',
-  FINANCIAL: 'financial',
-  MULTIMODAL: 'multimodal',
-  GENERAL: 'general',
-} as const;
-
-type DomainType = typeof DOMAINS[keyof typeof DOMAINS];
-
-// Domain display names for n8n UI
-const DOMAIN_DISPLAY_NAMES: Record<DomainType, string> = {
-  code: 'Code',
-  data: 'Data Analysis',
-  structured: 'Structured Output',
-  rag: 'RAG (Retrieval)',
-  conversation: 'Conversation',
-  tool: 'Tool Calling',
-  creative: 'Creative Writing',
-  summary: 'Summarization',
-  translation: 'Translation',
-  math: 'Mathematics',
-  science: 'Science',
-  medical: 'Medical',
-  legal: 'Legal',
-  financial: 'Financial',
-  multimodal: 'Multimodal',
-  general: 'General',
-};
-
-// Domain descriptions for n8n UI
-const DOMAIN_DESCRIPTIONS: Record<DomainType, string> = {
-  code: 'Programming, debugging, code generation',
-  data: 'Data analysis, statistics, pandas/SQL',
-  structured: 'JSON, XML, structured data extraction',
-  rag: 'Retrieval-augmented generation, document Q&A',
-  conversation: 'Chat, dialogue, multi-turn conversations',
-  tool: 'Function calling, tool use, API interactions',
-  creative: 'Creative writing, stories, poetry',
-  summary: 'Text summarization, condensing content',
-  translation: 'Language translation, multilingual',
-  math: 'Mathematical reasoning, calculations, proofs',
-  science: 'Scientific knowledge, research, experiments',
-  medical: 'Healthcare, medical knowledge, clinical',
-  legal: 'Legal documents, contracts, regulations',
-  financial: 'Finance, accounting, investment analysis',
-  multimodal: 'Images, audio, video understanding',
-  general: 'General purpose, fallback domain',
-};
+import {
+  DEFAULT_COMPLEXITY_THRESHOLDS,
+  DOMAIN_DESCRIPTIONS,
+  DOMAIN_DISPLAY_NAMES,
+  DOMAIN_UI_CONFIGS,
+  DOMAINS,
+  type ComplexityThresholds,
+  type DomainType,
+  getEnabledDomains,
+} from './config';
+import { buildCascadeMetadata } from './cascade-metadata';
 
 // Quality validation, cost tracking, routing, and circuit breaker - optional import
 let QualityValidator: any;
@@ -117,6 +65,9 @@ class CascadeChatModel extends BaseChatModel {
   drafterModel: BaseChatModel;
   verifierModelGetter: () => Promise<BaseChatModel>;
   qualityThreshold: number;
+  confidenceThresholds?: ComplexityThresholds;
+  useComplexityThresholds: boolean;
+  useComplexityRouting: boolean;
 
   // Domain-specific models and configurations
   private domainModels: Map<DomainType, BaseChatModel | undefined> = new Map();
@@ -159,11 +110,13 @@ class CascadeChatModel extends BaseChatModel {
     useSemanticValidation: boolean = true,
     useAlignmentScoring: boolean = true,
     useComplexityRouting: boolean = true,
+    useComplexityThresholds: boolean = true,
     useDomainRouting: boolean = false,
     enabledDomains: DomainType[] = [],
     domainModelGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map(),
     domainConfigs: Map<DomainType, DomainConfig> = new Map(),
-    useCircuitBreaker: boolean = true
+    useCircuitBreaker: boolean = true,
+    confidenceThresholds?: ComplexityThresholds
   ) {
     super({});
     this.drafterModel = drafterModel;
@@ -171,6 +124,9 @@ class CascadeChatModel extends BaseChatModel {
     this.qualityThreshold = qualityThreshold;
     this.enabledDomains = enabledDomains;
     this.domainConfigs = domainConfigs;
+    this.confidenceThresholds = confidenceThresholds;
+    this.useComplexityThresholds = useComplexityThresholds;
+    this.useComplexityRouting = useComplexityRouting;
 
     // Store domain model getters for lazy loading
     for (const [domain, getter] of domainModelGetters.entries()) {
@@ -184,6 +140,7 @@ class CascadeChatModel extends BaseChatModel {
         this.qualityValidator = new QualityValidator({
           ...CASCADE_QUALITY_CONFIG,
           minConfidence: qualityThreshold,
+          confidenceThresholds: useComplexityThresholds ? confidenceThresholds : undefined,
           useSemanticValidation,
           useAlignmentScoring,
           semanticThreshold: 0.5,
@@ -217,10 +174,10 @@ class CascadeChatModel extends BaseChatModel {
     }
 
     // Initialize complexity detector and domain detector
-    if (useComplexityRouting && ComplexityDetector) {
+    if ((useComplexityRouting || useComplexityThresholds) && ComplexityDetector) {
       try {
         this.complexityDetector = new ComplexityDetector();
-        console.log('🧠 CascadeFlow complexity-based routing enabled');
+        console.log('🧠 CascadeFlow complexity detector initialized');
       } catch (e) {
         console.warn('⚠️  Complexity detector initialization failed');
         this.complexityDetector = null;
@@ -289,6 +246,92 @@ class CascadeChatModel extends BaseChatModel {
     const type = typeof model._llmType === 'function' ? model._llmType() : 'unknown';
     const modelName = (model as any).modelName || (model as any).model || 'unknown';
     return `${type} (${modelName})`;
+  }
+
+  /**
+   * Detect query complexity using whichever detector API is available.
+   */
+  private async detectComplexity(
+    queryText: string
+  ): Promise<{ level?: string; confidence?: number }> {
+    if (!this.complexityDetector) {
+      return {};
+    }
+
+    try {
+      if (typeof this.complexityDetector.detectComplexity === 'function') {
+        const result = await this.complexityDetector.detectComplexity(queryText);
+        return {
+          level: result.level ?? result.complexity,
+          confidence: result.confidence,
+        };
+      }
+
+      if (typeof this.complexityDetector.detect === 'function') {
+        const result = await this.complexityDetector.detect(queryText);
+        return {
+          level: result.complexity ?? result.level,
+          confidence: result.confidence,
+        };
+      }
+    } catch (e) {
+      console.warn('Complexity detection failed, using normal flow');
+    }
+
+    return {};
+  }
+
+  /**
+   * Get effective confidence threshold for a given complexity tier.
+   */
+  private getThresholdForComplexity(complexity?: string): number {
+    if (!complexity || !this.useComplexityThresholds || !this.confidenceThresholds) {
+      return this.qualityThreshold;
+    }
+
+    switch (complexity) {
+      case 'trivial':
+        return this.confidenceThresholds.trivial ?? this.qualityThreshold;
+      case 'simple':
+        return this.confidenceThresholds.simple ?? this.qualityThreshold;
+      case 'moderate':
+        return this.confidenceThresholds.moderate ?? this.qualityThreshold;
+      case 'hard':
+        return this.confidenceThresholds.hard ?? this.qualityThreshold;
+      case 'expert':
+        return this.confidenceThresholds.expert ?? this.qualityThreshold;
+      default:
+        return this.qualityThreshold;
+    }
+  }
+
+  /**
+   * Estimate baseline cost for a different model using the same token usage.
+   */
+  private async estimateAlternateModelCost(
+    message: BaseMessage,
+    model?: BaseChatModel
+  ): Promise<number | undefined> {
+    if (!model) {
+      return undefined;
+    }
+
+    try {
+      return await this.calculateMessageCost(message, model);
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  private attachCascadeMetadata(
+    message: BaseMessage,
+    metadata: ReturnType<typeof buildCascadeMetadata>
+  ): void {
+    if (!(message as any).response_metadata) {
+      (message as any).response_metadata = {};
+    }
+
+    (message as any).response_metadata.cf = metadata;
   }
 
   /**
@@ -472,10 +515,10 @@ class CascadeChatModel extends BaseChatModel {
       let shouldSkipDrafter = false;
 
       if (this.complexityDetector) {
-        try {
-          const complexityResult = await this.complexityDetector.detectComplexity(queryText);
-          complexity = complexityResult.level;
+        const complexityResult = await this.detectComplexity(queryText);
+        complexity = complexityResult.level;
 
+        if (complexity && this.useComplexityRouting) {
           if (complexity === 'hard' || complexity === 'expert') {
             shouldSkipDrafter = true;
             await runManager?.handleText(`🧠 Complexity: ${complexity} → Routing directly to verifier (skip drafter)\n`);
@@ -484,8 +527,6 @@ class CascadeChatModel extends BaseChatModel {
             await runManager?.handleText(`🧠 Complexity: ${complexity} → Trying drafter first\n`);
             console.log(`🧠 Complexity: ${complexity} → Drafter route`);
           }
-        } catch (e) {
-          console.warn('Complexity detection failed, using normal flow');
         }
       }
 
@@ -514,6 +555,11 @@ class CascadeChatModel extends BaseChatModel {
         this.verifierCount++;
 
         const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+        const costBreakdown = {
+          drafter: 0,
+          verifier: verifierCost,
+          total: verifierCost,
+        };
 
         const flowLog = `
 ┌────────────────────────────────────────────┐
@@ -542,6 +588,14 @@ class CascadeChatModel extends BaseChatModel {
           model_used: 'verifier',
           reason: `Query complexity (${complexity}) warranted direct verifier routing`
         };
+        this.attachCascadeMetadata(
+          verifierMessage,
+          buildCascadeMetadata({
+            modelUsed: 'verifier',
+            domain: detectedDomain,
+            costs: costBreakdown,
+          })
+        );
 
         return {
           generations: [{
@@ -604,6 +658,26 @@ class CascadeChatModel extends BaseChatModel {
           latency_ms: drafterLatency,
           model_used: modelType
         };
+        const drafterCost = await this.calculateMessageCost(drafterMessage, modelToUse);
+        const baselineCost = await this.estimateAlternateModelCost(
+          drafterMessage,
+          this.verifierModel
+        );
+        const costBreakdown = {
+          drafter: drafterCost,
+          verifier: 0,
+          total: drafterCost,
+          ...(detectedDomain ? { domain: drafterCost } : {}),
+        };
+        this.attachCascadeMetadata(
+          drafterMessage,
+          buildCascadeMetadata({
+            modelUsed: modelType,
+            domain: detectedDomain,
+            costs: costBreakdown,
+            baselineCost,
+          })
+        );
 
         return {
           generations: [{
@@ -615,17 +689,23 @@ class CascadeChatModel extends BaseChatModel {
 
       // Step 6: Quality check with domain-aware threshold
       const responseText = drafterMessage.content.toString();
-      const effectiveThreshold = detectedDomain
-        ? (this.domainConfigs.get(detectedDomain)?.threshold ?? this.qualityThreshold)
-        : this.qualityThreshold;
+      const domainThreshold = detectedDomain
+        ? this.domainConfigs.get(detectedDomain)?.threshold
+        : undefined;
+      const effectiveThreshold = domainThreshold ?? this.getThresholdForComplexity(complexity);
 
       let validationResult: any;
 
       if (this.qualityValidator) {
         try {
-          validationResult = await this.qualityValidator.validate(responseText, queryText);
-          validationResult.passed = validationResult.confidence >= effectiveThreshold;
-          const qualityLog = `   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, threshold=${effectiveThreshold}, method=${validationResult.method}\n`;
+          validationResult = await this.qualityValidator.validate(
+            responseText,
+            queryText,
+            undefined,
+            complexity as any,
+            domainThreshold
+          );
+          const qualityLog = `   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, threshold=${effectiveThreshold}, method=${validationResult.method}${complexity ? `, complexity=${complexity}` : ''}\n`;
           await runManager?.handleText(qualityLog);
           console.log(qualityLog);
 
@@ -652,6 +732,16 @@ class CascadeChatModel extends BaseChatModel {
       // Step 7: If quality is sufficient, return response
       if (validationResult.passed) {
         const drafterCost = await this.calculateMessageCost(drafterMessage, modelToUse);
+        const baselineCost = await this.estimateAlternateModelCost(
+          drafterMessage,
+          this.verifierModel
+        );
+        const costBreakdown = {
+          drafter: drafterCost,
+          verifier: 0,
+          total: drafterCost,
+          ...(detectedDomain ? { domain: drafterCost } : {}),
+        };
 
         const flowLog = `
 ┌─────────────────────────────────────────┐
@@ -683,6 +773,16 @@ class CascadeChatModel extends BaseChatModel {
           cost_usd: drafterCost,
           model_used: modelType
         };
+        this.attachCascadeMetadata(
+          drafterMessage,
+          buildCascadeMetadata({
+            modelUsed: modelType,
+            domain: detectedDomain,
+            confidence: validationResult.confidence,
+            costs: costBreakdown,
+            baselineCost,
+          })
+        );
 
         return {
           generations: [{
@@ -717,7 +817,8 @@ class CascadeChatModel extends BaseChatModel {
       this.verifierCount++;
 
       const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
-      const totalCost = verifierCost;
+      const drafterCost = await this.calculateMessageCost(drafterMessage, modelToUse);
+      const totalCost = drafterCost + verifierCost;
 
       const totalLatency = drafterLatency + verifierLatency;
       const acceptanceRate = (this.drafterCount / (this.drafterCount + this.verifierCount) * 100).toFixed(1);
@@ -726,7 +827,7 @@ class CascadeChatModel extends BaseChatModel {
    Model used: ${verifierInfo}
    Verifier latency: ${verifierLatency}ms
    Total latency: ${totalLatency}ms (${modelType}: ${drafterLatency}ms + verifier: ${verifierLatency}ms)
-   💰 Cost: $${totalCost.toFixed(6)} (verifier only, ${modelType} attempt wasted)
+   💰 Cost: $${totalCost.toFixed(6)} (drafter $${drafterCost.toFixed(6)} + verifier $${verifierCost.toFixed(6)})
    📊 Stats: ${this.drafterCount} drafter (${acceptanceRate}%), ${this.verifierCount} verifier
 `;
 
@@ -747,6 +848,22 @@ class CascadeChatModel extends BaseChatModel {
         model_used: 'verifier',
         reason: validationResult.reason
       };
+      const costBreakdown = {
+        drafter: drafterCost,
+        verifier: verifierCost,
+        total: totalCost,
+        ...(detectedDomain ? { domain: drafterCost } : {}),
+      };
+      this.attachCascadeMetadata(
+        verifierMessage,
+        buildCascadeMetadata({
+          modelUsed: 'verifier',
+          domain: detectedDomain,
+          confidence: validationResult.confidence,
+          costs: costBreakdown,
+          baselineCost: totalCost,
+        })
+      );
 
       return {
         generations: [{
@@ -776,10 +893,11 @@ class CascadeChatModel extends BaseChatModel {
       const verifierInfo = this.getModelInfo(verifierModel);
       const verifierMessage = await verifierModel.invoke(messages, options);
       this.verifierCount++;
+      const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
 
       const fallbackCompleteLog = `   ✅ Verifier fallback completed successfully
    Model used: ${verifierInfo}
-   💰 Cost: Full verifier cost (fallback due to ${isCircuitOpen ? 'circuit open' : 'error'})
+   💰 Cost: $${verifierCost.toFixed(6)} (fallback due to ${isCircuitOpen ? 'circuit open' : 'error'})
 `;
 
       await runManager?.handleText(fallbackCompleteLog);
@@ -792,8 +910,23 @@ class CascadeChatModel extends BaseChatModel {
         flow: isCircuitOpen ? 'circuit_breaker_fallback' : 'error_fallback',
         error: errorMsg,
         cost_savings_percent: 0,
-        model_used: 'verifier'
+        model_used: 'verifier',
+        cost_usd: verifierCost
       };
+      const costBreakdown = {
+        drafter: 0,
+        verifier: verifierCost,
+        total: verifierCost,
+      };
+      this.attachCascadeMetadata(
+        verifierMessage,
+        buildCascadeMetadata({
+          modelUsed: 'verifier',
+          domain: null,
+          costs: costBreakdown,
+          baselineCost: verifierCost,
+        })
+      );
 
       return {
         generations: [{
@@ -817,6 +950,7 @@ class CascadeChatModel extends BaseChatModel {
 
       // Detect domain for streaming
       let detectedDomain: DomainType | null = null;
+      let complexity: string | undefined;
       let modelToUse = this.drafterModel;
 
       if (this.enabledDomains.length > 0) {
@@ -827,6 +961,10 @@ class CascadeChatModel extends BaseChatModel {
             modelToUse = domainConfig.model;
           }
         }
+      }
+      if (this.complexityDetector && this.useComplexityThresholds) {
+        const complexityResult = await this.detectComplexity(queryText);
+        complexity = complexityResult.level;
       }
 
       const modelInfo = this.getModelInfo(modelToUse);
@@ -864,15 +1002,21 @@ class CascadeChatModel extends BaseChatModel {
 
       await runManager?.handleText(`\n📊 Running quality check...\n`);
 
-      const effectiveThreshold = detectedDomain
-        ? (this.domainConfigs.get(detectedDomain)?.threshold ?? this.qualityThreshold)
-        : this.qualityThreshold;
+      const domainThreshold = detectedDomain
+        ? this.domainConfigs.get(detectedDomain)?.threshold
+        : undefined;
+      const effectiveThreshold = domainThreshold ?? this.getThresholdForComplexity(complexity);
 
       let validationResult: any;
       if (this.qualityValidator) {
         try {
-          validationResult = await this.qualityValidator.validate(fullDrafterContent, queryText);
-          validationResult.passed = validationResult.confidence >= effectiveThreshold;
+          validationResult = await this.qualityValidator.validate(
+            fullDrafterContent,
+            queryText,
+            undefined,
+            complexity as any,
+            domainThreshold
+          );
           await runManager?.handleText(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${effectiveThreshold})\n`);
         } catch (e) {
           validationResult = this.simpleQualityCheck(fullDrafterContent);
@@ -974,6 +1118,14 @@ function generateDomainProperties(): any[] {
     value: value,
     description: DOMAIN_DESCRIPTIONS[value],
   }));
+  const domainToggleProperties = DOMAIN_UI_CONFIGS.map(({ domain, toggleName }) => ({
+    displayName: `Enable ${DOMAIN_DISPLAY_NAMES[domain]} Domain`,
+    name: toggleName,
+    type: 'boolean',
+    default: false,
+    displayOptions: { show: { enableDomainRouting: [true] } },
+    description: `Whether to enable ${DOMAIN_DESCRIPTIONS[domain]}. When enabled, adds a "${DOMAIN_DISPLAY_NAMES[domain]} Model" input port.`,
+  }));
 
   return [
     {
@@ -984,70 +1136,7 @@ function generateDomainProperties(): any[] {
       description: 'Whether to enable intelligent routing based on detected query domain (math, code, legal, etc.)',
     },
     // Individual domain toggles - each one adds its own model input port
-    {
-      displayName: 'Enable Code Domain',
-      name: 'enableCodeDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable code domain routing. When enabled, adds a "Code Model" input port.',
-    },
-    {
-      displayName: 'Enable Math Domain',
-      name: 'enableMathDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable math domain routing. When enabled, adds a "Math Model" input port.',
-    },
-    {
-      displayName: 'Enable Data Domain',
-      name: 'enableDataDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable data analysis domain routing. When enabled, adds a "Data Model" input port.',
-    },
-    {
-      displayName: 'Enable Creative Domain',
-      name: 'enableCreativeDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable creative writing domain routing. When enabled, adds a "Creative Model" input port.',
-    },
-    {
-      displayName: 'Enable Legal Domain',
-      name: 'enableLegalDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable legal domain routing. When enabled, adds a "Legal Model" input port.',
-    },
-    {
-      displayName: 'Enable Medical Domain',
-      name: 'enableMedicalDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable medical domain routing. When enabled, adds a "Medical Model" input port.',
-    },
-    {
-      displayName: 'Enable Financial Domain',
-      name: 'enableFinancialDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable financial domain routing. When enabled, adds a "Financial Model" input port.',
-    },
-    {
-      displayName: 'Enable Science Domain',
-      name: 'enableScienceDomain',
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true] } },
-      description: 'Whether to enable science domain routing. When enabled, adds a "Science Model" input port.',
-    },
+    ...domainToggleProperties,
     {
       displayName: 'Domain-Specific Settings',
       name: 'domainSettings',
@@ -1078,7 +1167,7 @@ function generateDomainProperties(): any[] {
               displayName: 'Quality Threshold',
               name: 'threshold',
               type: 'number',
-              default: 0.64,
+              default: DEFAULT_COMPLEXITY_THRESHOLDS.simple,
               typeOptions: {
                 minValue: 0,
                 maxValue: 1,
@@ -1153,26 +1242,50 @@ export class LmChatCascadeFlow implements INodeType {
         if (params?.enableCodeDomain) {
           inputs.push({ displayName: 'Code', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
-        if (params?.enableMathDomain) {
-          inputs.push({ displayName: 'Math', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
         if (params?.enableDataDomain) {
-          inputs.push({ displayName: 'Data', type: 'ai_languageModel', maxConnections: 1, required: false });
+          inputs.push({ displayName: 'Data Analysis', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableStructuredDomain) {
+          inputs.push({ displayName: 'Structured Output', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableRagDomain) {
+          inputs.push({ displayName: 'RAG (Retrieval)', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableConversationDomain) {
+          inputs.push({ displayName: 'Conversation', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableToolDomain) {
+          inputs.push({ displayName: 'Tool Calling', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableCreativeDomain) {
           inputs.push({ displayName: 'Creative', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
-        if (params?.enableLegalDomain) {
-          inputs.push({ displayName: 'Legal', type: 'ai_languageModel', maxConnections: 1, required: false });
+        if (params?.enableSummaryDomain) {
+          inputs.push({ displayName: 'Summary', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableTranslationDomain) {
+          inputs.push({ displayName: 'Translation', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableMathDomain) {
+          inputs.push({ displayName: 'Math', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableScienceDomain) {
+          inputs.push({ displayName: 'Science', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
         if (params?.enableMedicalDomain) {
           inputs.push({ displayName: 'Medical', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
+        if (params?.enableLegalDomain) {
+          inputs.push({ displayName: 'Legal', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
         if (params?.enableFinancialDomain) {
           inputs.push({ displayName: 'Financial', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
-        if (params?.enableScienceDomain) {
-          inputs.push({ displayName: 'Science', type: 'ai_languageModel', maxConnections: 1, required: false });
+        if (params?.enableMultimodalDomain) {
+          inputs.push({ displayName: 'Multimodal', type: 'ai_languageModel', maxConnections: 1, required: false });
+        }
+        if (params?.enableGeneralDomain) {
+          inputs.push({ displayName: 'General', type: 'ai_languageModel', maxConnections: 1, required: false });
         }
       }
 
@@ -1186,13 +1299,85 @@ export class LmChatCascadeFlow implements INodeType {
         displayName: 'Quality Threshold',
         name: 'qualityThreshold',
         type: 'number',
-        default: 0.64,
+        default: DEFAULT_COMPLEXITY_THRESHOLDS.simple,
         typeOptions: {
           minValue: 0,
           maxValue: 1,
           numberPrecision: 2,
         },
-        description: 'Minimum quality score (0-1) to accept drafter response. Lower = more cost savings, higher = better quality.',
+        description: 'Minimum quality score (0-1) to accept drafter response when complexity thresholds are disabled.',
+      },
+      {
+        displayName: 'Use Complexity Thresholds',
+        name: 'useComplexityThresholds',
+        type: 'boolean',
+        default: true,
+        description: 'Whether to use per-complexity confidence thresholds (trivial → expert) to match CascadeFlow Python defaults.',
+      },
+      {
+        displayName: 'Trivial Threshold',
+        name: 'trivialThreshold',
+        type: 'number',
+        default: DEFAULT_COMPLEXITY_THRESHOLDS.trivial,
+        displayOptions: { show: { useComplexityThresholds: [true] } },
+        typeOptions: {
+          minValue: 0,
+          maxValue: 1,
+          numberPrecision: 2,
+        },
+        description: 'Minimum confidence for trivial queries.',
+      },
+      {
+        displayName: 'Simple Threshold',
+        name: 'simpleThreshold',
+        type: 'number',
+        default: DEFAULT_COMPLEXITY_THRESHOLDS.simple,
+        displayOptions: { show: { useComplexityThresholds: [true] } },
+        typeOptions: {
+          minValue: 0,
+          maxValue: 1,
+          numberPrecision: 2,
+        },
+        description: 'Minimum confidence for simple queries.',
+      },
+      {
+        displayName: 'Moderate Threshold',
+        name: 'moderateThreshold',
+        type: 'number',
+        default: DEFAULT_COMPLEXITY_THRESHOLDS.moderate,
+        displayOptions: { show: { useComplexityThresholds: [true] } },
+        typeOptions: {
+          minValue: 0,
+          maxValue: 1,
+          numberPrecision: 2,
+        },
+        description: 'Minimum confidence for moderate queries.',
+      },
+      {
+        displayName: 'Hard Threshold',
+        name: 'hardThreshold',
+        type: 'number',
+        default: DEFAULT_COMPLEXITY_THRESHOLDS.hard,
+        displayOptions: { show: { useComplexityThresholds: [true] } },
+        typeOptions: {
+          minValue: 0,
+          maxValue: 1,
+          numberPrecision: 2,
+        },
+        description: 'Minimum confidence for hard queries.',
+      },
+      {
+        displayName: 'Expert Threshold',
+        name: 'expertThreshold',
+        type: 'number',
+        default: DEFAULT_COMPLEXITY_THRESHOLDS.expert,
+        displayOptions: { show: { useComplexityThresholds: [true] } },
+        typeOptions: {
+          minValue: 0,
+          maxValue: 1,
+          numberPrecision: 2,
+        },
+        description: 'Minimum confidence for expert queries.',
       },
       {
         displayName: 'Enable Alignment Scoring',
@@ -1222,11 +1407,21 @@ export class LmChatCascadeFlow implements INodeType {
 
   async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
     // Get core parameters
-    const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.64) as number;
+    const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.simple) as number;
     const useSemanticValidation = false; // Disabled - loads heavy ML model causing OOM in n8n
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
+    const useComplexityThresholds = this.getNodeParameter('useComplexityThresholds', 0, true) as boolean;
     const useCircuitBreaker = this.getNodeParameter('useCircuitBreaker', 0, true) as boolean;
+    const confidenceThresholds = useComplexityThresholds
+      ? {
+          trivial: this.getNodeParameter('trivialThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.trivial) as number,
+          simple: this.getNodeParameter('simpleThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.simple) as number,
+          moderate: this.getNodeParameter('moderateThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.moderate) as number,
+          hard: this.getNodeParameter('hardThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.hard) as number,
+          expert: this.getNodeParameter('expertThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.expert) as number,
+        }
+      : undefined;
 
     // Get domain routing parameters
     const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
@@ -1234,31 +1429,11 @@ export class LmChatCascadeFlow implements INodeType {
     // Build enabledDomains array from individual toggle parameters
     const enabledDomains: DomainType[] = [];
     if (enableDomainRouting) {
-      // Check each domain toggle and build the array in the same order as the inputs template
-      if (this.getNodeParameter('enableCodeDomain', 0, false) as boolean) {
-        enabledDomains.push('code');
+      const toggleParams: Record<string, boolean> = {};
+      for (const { toggleName } of DOMAIN_UI_CONFIGS) {
+        toggleParams[toggleName] = this.getNodeParameter(toggleName, 0, false) as boolean;
       }
-      if (this.getNodeParameter('enableMathDomain', 0, false) as boolean) {
-        enabledDomains.push('math');
-      }
-      if (this.getNodeParameter('enableDataDomain', 0, false) as boolean) {
-        enabledDomains.push('data');
-      }
-      if (this.getNodeParameter('enableCreativeDomain', 0, false) as boolean) {
-        enabledDomains.push('creative');
-      }
-      if (this.getNodeParameter('enableLegalDomain', 0, false) as boolean) {
-        enabledDomains.push('legal');
-      }
-      if (this.getNodeParameter('enableMedicalDomain', 0, false) as boolean) {
-        enabledDomains.push('medical');
-      }
-      if (this.getNodeParameter('enableFinancialDomain', 0, false) as boolean) {
-        enabledDomains.push('financial');
-      }
-      if (this.getNodeParameter('enableScienceDomain', 0, false) as boolean) {
-        enabledDomains.push('science');
-      }
+      enabledDomains.push(...getEnabledDomains(toggleParams));
     }
 
     // Get domain-specific settings
@@ -1357,10 +1532,14 @@ export class LmChatCascadeFlow implements INodeType {
     console.log(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
     console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
     console.log(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
+    console.log(`   Complexity thresholds: ${useComplexityThresholds ? 'enabled' : 'disabled'}`);
     console.log(`   Circuit breaker: ${useCircuitBreaker ? 'enabled' : 'disabled'}`);
     console.log(`   Domain routing: ${enableDomainRouting ? 'enabled' : 'disabled'}`);
     if (enabledDomains.length > 0) {
       console.log(`   Enabled domains: ${enabledDomains.join(', ')}`);
+    }
+    if (useComplexityThresholds && confidenceThresholds) {
+      console.log(`   Thresholds: ${JSON.stringify(confidenceThresholds)}`);
     }
 
     // Create and return the cascade model
@@ -1371,11 +1550,13 @@ export class LmChatCascadeFlow implements INodeType {
       useSemanticValidation,
       useAlignmentScoring,
       useComplexityRouting,
+      useComplexityThresholds,
       enableDomainRouting,
       enabledDomains,
       domainModelGetters,
       domainConfigs,
-      useCircuitBreaker
+      useCircuitBreaker,
+      confidenceThresholds
     );
 
     return {

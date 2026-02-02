@@ -155,6 +155,24 @@
 | Cost Calculation | ✅ | ✅ | ✅ (multi-format support) |
 | Complexity Routing | ✅ | ✅ | ✅ (lazy loading preserved) |
 
+## 🚀 Release Readiness (Model + Agent)
+
+**Status:** ✅ READY
+
+### Model Validation
+- ✅ `CascadeChatModel` conforms to `BaseChatModel` and emits LangChain-compatible `ChatGeneration` outputs.
+- ✅ Tool calling, streaming, and response metadata validated for n8n workflows.
+- ✅ Optional dependencies handled gracefully (no hard failure when `@cascadeflow/core` is absent).
+
+### Agent Validation
+- ✅ Cascade routing works with n8n's dual-input model graph (drafter + verifier).
+- ✅ Lazy-loading for verifier model remains intact for performance.
+- ✅ Domain routing and noted limitations are documented and stable.
+
+### Conflict Resolution Notes
+- ✅ No merge conflicts detected in the n8n integration tree during validation.
+- ✅ Release checklist updated alongside provider integrations.
+
 ## 🎯 Conclusion
 
 **All implemented features are FULLY COMPATIBLE with n8n's architecture and limitations.**

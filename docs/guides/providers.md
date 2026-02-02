@@ -19,7 +19,7 @@ Complete guide to AI providers supported by cascadeflow and how to mix them effe
 
 ## Overview
 
-cascadeflow supports 7 AI providers, each with unique strengths. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
+cascadeflow supports native providers plus **17+ additional providers** through the Vercel AI SDK integration. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
 
 ### Why Mix Providers?
 
@@ -32,6 +32,33 @@ cascadeflow supports 7 AI providers, each with unique strengths. You can mix any
 ---
 
 ## Supported Providers
+
+### Vercel AI SDK (17+ Providers)
+
+cascadeflow integrates the **Vercel AI SDK** so you can use a wider set of providers with the same cascadeflow API. Supported Vercel SDK providers include:
+
+- OpenAI, Anthropic, Azure OpenAI, Google Gemini, Mistral, Cohere
+- Groq, Together AI, OpenRouter, Perplexity, xAI, Fireworks
+- AWS Bedrock, Replicate, DeepSeek, Ollama, Cerebras
+
+**Setup (TypeScript):**
+```bash
+npm install ai @ai-sdk/openai @ai-sdk/anthropic
+```
+
+```ts
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 },
+    { name: 'sonar-pro', provider: 'perplexity', cost: 0.001 },
+  ],
+});
+```
+
+> **Note:** For Vercel AI SDK providers, install the matching `@ai-sdk/*` package and set the provider-specific API key (for example `PERPLEXITY_API_KEY` for Perplexity).
 
 ### 1. OpenAI
 
