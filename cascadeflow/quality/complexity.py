@@ -686,6 +686,31 @@ class ComplexityDetector:
         r"```",
     ]
 
+    # =====================================================================
+    # FUNCTION CALL FORMAT DETECTION (v14)
+    # =====================================================================
+    # These patterns detect function-calling prompts which should route
+    # through cascade for cost savings (the actual task is usually simple)
+
+    FUNCTION_CALL_INDICATORS = [
+        # Tool definition patterns
+        r"you have access to.*(?:tool|function)s?",
+        r"(?:available|following)\s+(?:tool|function)s?:",
+        r"tool:\s*\w+",
+        r"function:\s*\w+",
+        r"parameters?:\s*[\{\[]",
+        # OpenAI function calling format
+        r'"name"\s*:\s*"[^"]+"\s*,\s*"(?:description|parameters)"',
+        r'"type"\s*:\s*"function"',
+        # Response format instructions
+        r"respond\s+(?:with|in|using)\s+(?:the\s+)?(?:following\s+)?(?:json|format)",
+        r"(?:call|use|invoke)\s+(?:the\s+)?(?:appropriate|correct|right)\s+(?:tool|function)",
+        r"which\s+(?:tool|function)\s+(?:should|to)\s+(?:be\s+)?(?:use|call)",
+        # Parameter patterns
+        r"- \w+\s*\([^)]+\):\s*\w+",  # "- location (string): City name"
+        r"\w+\s*\((?:string|number|boolean|array|object|integer|float)",
+    ]
+
     def __init__(self):
         self.stats = {
             "total_detected": 0,
@@ -767,6 +792,18 @@ class ComplexityDetector:
             if return_metadata:
                 return QueryComplexity.TRIVIAL, 0.85, metadata
             return QueryComplexity.TRIVIAL, 0.85
+
+        # 2.5. Check for function call format (v14 - ensures cascade routing for BFCL)
+        # Function-calling prompts should route through cascade because the actual
+        # user task is simple (tool selection), even though tool definitions inflate
+        # perceived complexity. We track this and cap complexity at MODERATE later.
+        is_function_call = self._is_function_call_format(query)
+        metadata["is_function_call"] = is_function_call
+        if is_function_call:
+            self.stats["function_call_detected"] = (
+                self.stats.get("function_call_detected", 0) + 1
+            )
+            logger.debug(f"v14: Function call format detected in query")
 
         # 3. Detect technical terms
         tech_terms, domain_scores = self._detect_technical_terms(query_lower)
@@ -979,6 +1016,35 @@ class ComplexityDetector:
             QueryComplexity.MODERATE,
         ]:
             final_complexity = QueryComplexity.HARD
+
+        # 14.5. v14 Function call format complexity cap
+        # Cap at MODERATE to ensure cascade routing for BFCL-style prompts
+        # Function calling prompts with tool definitions are semantically simple
+        # (just select the right tool), even though they contain technical keywords
+        if is_function_call and final_complexity in [QueryComplexity.HARD, QueryComplexity.EXPERT]:
+            logger.debug(
+                f"v14: Capping {final_complexity.value} → MODERATE for function call format"
+            )
+            metadata["v14_complexity_capped"] = True
+            metadata["original_complexity"] = final_complexity.value
+            final_complexity = QueryComplexity.MODERATE
+            final_confidence = 0.85
+
+        # 14.6. v15 Long-context QA complexity cap
+        # Long documents with simple questions are semantically easy tasks
+        # (just find and extract info), even though they contain many words
+        # and incidental technical terms that inflate complexity scores.
+        # Pattern: DOCUMENT/CONTEXT/TEXT block + QUESTION marker + short question
+        is_long_context_qa = self._is_long_context_qa_format(query_lower, word_count)
+        metadata["is_long_context_qa"] = is_long_context_qa
+        if is_long_context_qa and final_complexity in [QueryComplexity.HARD, QueryComplexity.EXPERT]:
+            logger.debug(
+                f"v15: Capping {final_complexity.value} → MODERATE for long-context QA format"
+            )
+            metadata["v15_complexity_capped"] = True
+            metadata["original_complexity"] = metadata.get("original_complexity", final_complexity.value)
+            final_complexity = QueryComplexity.MODERATE
+            final_confidence = 0.85
 
         self.stats["by_complexity"][final_complexity] += 1
 
@@ -1229,6 +1295,127 @@ class ComplexityDetector:
         if word_count > 200:
             trivial_density = (trivial_count / word_count) * 100
             if trivial_density > 3.0 or trivial_count >= 5:
+                return True
+
+        return False
+
+    def _is_function_call_format(self, query: str) -> bool:
+        """
+        Detect if query is a function-calling/tool-use prompt (v14).
+
+        Function-calling prompts should route through cascade for cost savings
+        because the actual user task is typically simple (select a tool and
+        fill in parameters). The complexity from tool definitions shouldn't
+        inflate the detected complexity.
+
+        Returns:
+            True if the query appears to be a function-calling prompt
+        """
+        query_lower = query.lower()
+
+        # Count how many indicators match
+        matches = 0
+        for pattern in self.FUNCTION_CALL_INDICATORS:
+            if re.search(pattern, query_lower, re.IGNORECASE):
+                matches += 1
+                # Early exit if we have strong confidence
+                if matches >= 2:
+                    return True
+
+        # Single match with high confidence patterns
+        if matches >= 1:
+            # Additional validation: check for structured tool info
+            # Tool definitions typically have colon-based formatting
+            has_tool_structure = (
+                "parameters:" in query_lower
+                or "- " in query
+                and ("string" in query_lower or "number" in query_lower)
+            )
+            if has_tool_structure:
+                return True
+
+        return False
+
+    def _is_long_context_qa_format(self, query_lower: str, word_count: int) -> bool:
+        """
+        Detect if query is a long-context QA prompt (v15).
+
+        Long-context QA prompts have a large document/passage/text block
+        followed by a simple question about the content. The actual task
+        is semantically simple (find and extract info), even though the
+        input contains many words and incidental technical terms.
+
+        Pattern indicators:
+        - Document/context/text/passage block markers
+        - Question marker with a short question
+        - Long text (200+ words) to qualify as "long context"
+
+        Returns:
+            True if the query appears to be a long-context QA prompt
+        """
+        # Require minimum length to qualify as long context
+        if word_count < 200:
+            return False
+
+        # Document/context markers that indicate a retrieval task
+        context_markers = [
+            r"\bdocument\s*:",
+            r"\bcontext\s*:",
+            r"\btext\s*:",
+            r"\bpassage\s*:",
+            r"\barticle\s*:",
+            r"\bcontent\s*:",
+            r"\bgiven\s+(?:the\s+)?(?:following|above|below)\s+(?:text|document|passage|context)",
+            r"\bread\s+(?:the\s+)?(?:following|above|below)",
+            r"\bbased\s+on\s+(?:the\s+)?(?:following|above|text|document|passage|context)",
+            r"^(?:document|context|passage|text|article)\b",
+            r"\[document\]",
+            r"\[context\]",
+            r"\[passage\]",
+        ]
+
+        # Question markers that indicate the actual task
+        question_markers = [
+            r"\bquestion\s*:",
+            r"\bquery\s*:",
+            r"\bask\s*:",
+            r"\banswer\s+(?:the\s+)?(?:following|this)\s+question",
+            r"\bwhat\s+(?:is|are|was|were|does|do|did)\b",
+            r"\bwho\s+(?:is|are|was|were)\b",
+            r"\bwhen\s+(?:is|was|did|does)\b",
+            r"\bwhere\s+(?:is|was|did|does)\b",
+            r"\bhow\s+(?:many|much|does|did|is|are)\b",
+            r"\bwhich\s+(?:of|one)\b",
+            r"\?\s*$",  # Ends with a question mark
+        ]
+
+        # Count matches for both types
+        context_matches = 0
+        question_matches = 0
+
+        for pattern in context_markers:
+            if re.search(pattern, query_lower, re.IGNORECASE | re.MULTILINE):
+                context_matches += 1
+                if context_matches >= 2:
+                    break  # Early exit
+
+        for pattern in question_markers:
+            if re.search(pattern, query_lower, re.IGNORECASE | re.MULTILINE):
+                question_matches += 1
+                if question_matches >= 1:
+                    break  # Only need one question marker
+
+        # Need at least one context marker AND one question marker
+        # This avoids false positives on pure documents or pure questions
+        if context_matches >= 1 and question_matches >= 1:
+            return True
+
+        # Alternative: Very long text (500+ words) with a question at the end
+        # This catches cases without explicit markers
+        if word_count >= 500:
+            # Check if there's a question in the last 100 characters
+            last_100 = query_lower[-100:] if len(query_lower) > 100 else query_lower
+            if "?" in last_100 or re.search(r"\b(?:what|who|when|where|how|which|why)\b", last_100):
                 return True
 
         return False

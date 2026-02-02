@@ -1,26 +1,29 @@
 """
-Full LongBench-Style Benchmark for CascadeFlow Long Context Understanding.
+Full LongBench Benchmark for CascadeFlow Long Context Understanding.
 
 This script:
-1. Downloads LongBench dataset (multi-task long context benchmark)
+1. Downloads LongBench dataset from HuggingFace (THUDM/LongBench)
 2. Tests documents from 1K to 32K+ words
 3. Measures accuracy and cascade performance on long prompts
 4. Validates CascadeFlow handles long context efficiently
 
-Categories:
-- Single-doc QA (long document + question)
-- Multi-doc QA (multiple documents + question)
-- Summarization (long document summarization)
-- Code understanding (long code + question)
+Categories (from HuggingFace):
+- Single-doc QA: narrativeqa, qasper, multifieldqa_en
+- Multi-doc QA: hotpotqa, 2wikimqa, musique
+- Summarization: gov_report, qmsum, multi_news
+- Few-shot Learning: trec, triviaqa, samsum
+- Code: lcc, repobench-p
 
 Usage:
     python tests/benchmarks/longbench/longbench_full_benchmark.py --sample 20
     python tests/benchmarks/longbench/longbench_full_benchmark.py --full
+    python tests/benchmarks/longbench/longbench_full_benchmark.py --hf  # Use real HuggingFace data
 """
 
 import asyncio
 import json
 import os
+import random
 import sys
 import time
 from dataclasses import dataclass
@@ -30,6 +33,14 @@ from typing import Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+
+# HuggingFace datasets - optional import
+try:
+    from datasets import load_dataset
+    HF_DATASETS_AVAILABLE = True
+except ImportError:
+    HF_DATASETS_AVAILABLE = False
+    print("Warning: datasets not installed. Run 'pip install datasets' for HuggingFace data.")
 
 
 @dataclass
@@ -348,6 +359,112 @@ The capital of France is Paris. Paris is known as the City of Light.
     })
 
 
+# HuggingFace LongBench dataset subsets
+LONGBENCH_SUBSETS = {
+    # Single-document QA
+    "narrativeqa": "single_doc_qa",
+    "qasper": "single_doc_qa",
+    "multifieldqa_en": "single_doc_qa",
+    # Multi-document QA
+    "hotpotqa": "multi_doc_qa",
+    "2wikimqa": "multi_doc_qa",
+    "musique": "multi_doc_qa",
+    # Summarization
+    "gov_report": "summarization",
+    "qmsum": "summarization",
+    "multi_news": "summarization",
+    # Few-shot learning
+    "trec": "few_shot",
+    "triviaqa": "few_shot",
+    "samsum": "few_shot",
+    # Code tasks
+    "lcc": "code",
+    "repobench-p": "code",
+}
+
+
+def load_huggingface_longbench(
+    subsets: Optional[list[str]] = None,
+    max_per_subset: int = 50,
+    cache_dir: Optional[str] = None,
+) -> list[dict]:
+    """
+    Load LongBench data from HuggingFace Hub.
+
+    Args:
+        subsets: List of subset names to load. None = load all.
+        max_per_subset: Max samples per subset.
+        cache_dir: Optional cache directory for datasets.
+
+    Returns:
+        List of task dictionaries compatible with our benchmark format.
+    """
+    if not HF_DATASETS_AVAILABLE:
+        raise ImportError("datasets library not installed. Run: pip install datasets")
+
+    if subsets is None:
+        subsets = list(LONGBENCH_SUBSETS.keys())
+
+    tasks = []
+
+    for subset in subsets:
+        if subset not in LONGBENCH_SUBSETS:
+            print(f"Warning: Unknown subset {subset}, skipping")
+            continue
+
+        task_type = LONGBENCH_SUBSETS[subset]
+
+        try:
+            print(f"Loading {subset}...")
+            dataset = load_dataset(
+                "THUDM/LongBench",
+                subset,
+                split="test",
+                cache_dir=cache_dir,
+            )
+
+            # Sample if needed
+            if len(dataset) > max_per_subset:
+                indices = random.sample(range(len(dataset)), max_per_subset)
+                dataset = dataset.select(indices)
+
+            for i, item in enumerate(dataset):
+                context = item.get("context", "")
+                question = item.get("input", "")
+                answers = item.get("answers", [])
+
+                # Handle different answer formats
+                if isinstance(answers, list):
+                    expected = answers[0] if answers else ""
+                    contains = [a.lower() for a in answers[:3] if a]  # First 3 answers
+                else:
+                    expected = str(answers)
+                    contains = [expected.lower()]
+
+                # Skip if no valid answer
+                if not contains or not contains[0]:
+                    continue
+
+                tasks.append({
+                    "task_id": f"hf_{subset}_{i}",
+                    "task_type": task_type,
+                    "context": context,
+                    "question": question,
+                    "expected_answer": expected,
+                    "answer_contains": contains,
+                    "source": "huggingface",
+                    "subset": subset,
+                })
+
+            print(f"  Loaded {len([t for t in tasks if t.get('subset') == subset])} tasks from {subset}")
+
+        except Exception as e:
+            print(f"Warning: Failed to load {subset}: {e}")
+            continue
+
+    return tasks
+
+
 class LongBenchBenchmark:
     """LongBench-style benchmark for long context understanding."""
 
@@ -437,11 +554,14 @@ Provide a clear, direct answer based only on the information in the document."""
 
     async def run_benchmark(
         self,
+        tasks: Optional[list[dict]] = None,
         max_tasks: Optional[int] = None,
         verbose: bool = True,
     ) -> dict:
         """Run full benchmark."""
-        tasks = LONGBENCH_TASKS[:max_tasks] if max_tasks else LONGBENCH_TASKS
+        if tasks is None:
+            tasks = LONGBENCH_TASKS
+        tasks = tasks[:max_tasks] if max_tasks else tasks
 
         print("=" * 70)
         print("LONGBENCH-STYLE LONG CONTEXT BENCHMARK")
@@ -526,7 +646,8 @@ Provide a clear, direct answer based only on the information in the document."""
         print(f"  Draft Acceptance: {draft_rate:.1%}")
         print(f"  Total Cost:       ${total_cost:.4f}")
         print(f"  Total Words:      {total_words:,}")
-        print(f"  Avg Words/Task:   {total_words//total:,}")
+        avg_words = total_words // total if total > 0 else 0
+        print(f"  Avg Words/Task:   {avg_words:,}")
 
         print("\nBy Task Type:")
         for task_type, data in by_type.items():
@@ -550,13 +671,43 @@ async def main():
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="LongBench-style Benchmark")
+    parser = argparse.ArgumentParser(description="LongBench Benchmark")
     parser.add_argument("--sample", type=int, help="Run N tasks")
     parser.add_argument("--full", action="store_true", help="Run all tasks")
+    parser.add_argument("--hf", action="store_true", help="Use HuggingFace LongBench dataset")
+    parser.add_argument("--hf-subsets", type=str, help="Comma-separated HF subsets (default: all)")
+    parser.add_argument("--hf-per-subset", type=int, default=20, help="Max tasks per HF subset")
     parser.add_argument("--drafter", default="gpt-4o-mini")
     parser.add_argument("--verifier", default="gpt-4o")
 
     args = parser.parse_args()
+
+    # Determine which tasks to use
+    if args.hf:
+        if not HF_DATASETS_AVAILABLE:
+            print("Error: datasets library not installed. Run: pip install datasets")
+            sys.exit(1)
+
+        subsets = None
+        if args.hf_subsets:
+            subsets = [s.strip() for s in args.hf_subsets.split(",")]
+
+        print("Loading LongBench from HuggingFace...")
+        tasks = load_huggingface_longbench(
+            subsets=subsets,
+            max_per_subset=args.hf_per_subset,
+        )
+        data_source = "huggingface"
+
+        # Fallback to synthetic if HuggingFace loading failed
+        if not tasks:
+            print("\nWarning: HuggingFace loading failed. Falling back to synthetic data.")
+            print("Note: THUDM/LongBench may require script-based loading which is deprecated.")
+            tasks = LONGBENCH_TASKS
+            data_source = "synthetic_fallback"
+    else:
+        tasks = LONGBENCH_TASKS
+        data_source = "synthetic"
 
     max_tasks = None
     if args.sample:
@@ -569,17 +720,19 @@ async def main():
         verifier_model=args.verifier,
     )
 
-    results = await benchmark.run_benchmark(max_tasks=max_tasks)
+    results = await benchmark.run_benchmark(tasks=tasks, max_tasks=max_tasks)
 
     # Save results
     output_dir = Path(__file__).parent / "longbench_results"
     output_dir.mkdir(exist_ok=True)
 
-    with open(output_dir / "results.json", "w") as f:
+    results_file = "results_hf.json" if args.hf else "results.json"
+    with open(output_dir / results_file, "w") as f:
         json.dump({
             "config": {
                 "drafter": args.drafter,
                 "verifier": args.verifier,
+                "data_source": data_source,
             },
             "metrics": results,
             "results": [
@@ -597,7 +750,7 @@ async def main():
             ],
         }, f, indent=2)
 
-    print(f"\nResults saved to: {output_dir}/")
+    print(f"\nResults saved to: {output_dir}/{results_file}")
 
 
 if __name__ == "__main__":
