@@ -39,7 +39,9 @@ async def test_proxy_handler_success():
     )
     plan = ProxyPlan(route=route, request=request, model="gpt-4o", provider="openai")
 
-    async with ProxyHandler(client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))) as handler:
+    async with ProxyHandler(
+        client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))
+    ) as handler:
         result = await handler.execute(plan)
 
     assert isinstance(result, ProxyResult)
@@ -66,7 +68,9 @@ async def test_proxy_handler_parses_text_response():
     )
     plan = ProxyPlan(route=route, request=request, model="custom-model", provider="custom")
 
-    async with ProxyHandler(client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))) as handler:
+    async with ProxyHandler(
+        client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))
+    ) as handler:
         result = await handler.execute(plan)
 
     assert result.data == "plain text"

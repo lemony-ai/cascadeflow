@@ -32,7 +32,8 @@ async def test_proxy_service_end_to_end():
     )
     router = ProxyRouter([route])
     handler = ProxyHandler(
-        cost_tracker=tracker, client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))
+        cost_tracker=tracker,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler)),
     )
     service = ProxyService(router, handler)
 

@@ -29,7 +29,9 @@ async def test_proxy_upstream_error():
         provider="openai",
     )
 
-    async with ProxyHandler(client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))) as handler:
+    async with ProxyHandler(
+        client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))
+    ) as handler:
         with pytest.raises(ProxyUpstreamError) as excinfo:
             await handler.execute(plan)
 
@@ -58,6 +60,8 @@ async def test_proxy_transport_error():
         provider="openai",
     )
 
-    async with ProxyHandler(client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))) as handler:
+    async with ProxyHandler(
+        client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))
+    ) as handler:
         with pytest.raises(ProxyTransportError):
             await handler.execute(plan)

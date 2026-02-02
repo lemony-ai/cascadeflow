@@ -79,7 +79,9 @@ def score_python(cases: List[TestCase]) -> Dict[str, Dict[str, Any]]:
     scorer = QueryResponseAlignmentScorer()
     results: Dict[str, Dict[str, Any]] = {}
     for test_case in cases:
-        analysis = scorer.score(test_case.query, test_case.response, query_difficulty=0.5, verbose=True)
+        analysis = scorer.score(
+            test_case.query, test_case.response, query_difficulty=0.5, verbose=True
+        )
         results[test_case.id] = {
             "alignmentScore": analysis.alignment_score,
             "reasoning": analysis.reasoning,

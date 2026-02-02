@@ -37,7 +37,8 @@ async def test_proxy_cost_tracking_updates_tracker():
     )
 
     async with ProxyHandler(
-        cost_tracker=tracker, client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))
+        cost_tracker=tracker,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(transport_handler)),
     ) as handler:
         result = await handler.execute(plan)
 

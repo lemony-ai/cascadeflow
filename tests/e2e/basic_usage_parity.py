@@ -28,7 +28,9 @@ def run_command(cmd: list[str]) -> str:
     return result.stdout
 
 
-def compare_stats(py: Dict[str, float], ts: Dict[str, float]) -> Dict[str, Tuple[float, float, float]]:
+def compare_stats(
+    py: Dict[str, float], ts: Dict[str, float]
+) -> Dict[str, Tuple[float, float, float]]:
     comparisons = {}
     for key in ["draft_accepted", "draft_rejected", "total_cost", "savings_pct"]:
         diff = abs(py[key] - ts[key])
@@ -54,7 +56,9 @@ def main() -> int:
         denom = max(py_val, ts_val, 1.0)
         pct_diff = diff / denom
         if pct_diff > tolerance:
-            failures.append({"metric": key, "python": py_val, "typescript": ts_val, "diff": pct_diff})
+            failures.append(
+                {"metric": key, "python": py_val, "typescript": ts_val, "diff": pct_diff}
+            )
 
     result = {
         "python": py_stats,

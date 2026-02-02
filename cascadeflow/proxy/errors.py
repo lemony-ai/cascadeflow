@@ -1,5 +1,9 @@
 """Proxy error types."""
 
+from __future__ import annotations
+
+from typing import Optional
+
 
 class ProxyError(Exception):
     """Base proxy error."""
@@ -12,7 +16,7 @@ class ProxyRoutingError(ProxyError):
 class ProxyUpstreamError(ProxyError):
     """Raised when upstream provider returns an error."""
 
-    def __init__(self, message: str, status_code: int | None = None, payload: object | None = None):
+    def __init__(self, message: str, status_code: Optional[int] = None, payload: Optional[object] = None):
         super().__init__(message)
         self.status_code = status_code
         self.payload = payload
