@@ -29,7 +29,7 @@ def build_long_context(words: int = 320) -> str:
     return " ".join(repeated)
 
 
-def build_cases() -> List[TestCase]:
+def build_cases() -> list[TestCase]:
     long_context = build_long_context()
     return [
         TestCase(
@@ -75,11 +75,13 @@ def build_cases() -> List[TestCase]:
     ]
 
 
-def score_python(cases: List[TestCase]) -> Dict[str, Dict[str, Any]]:
+def score_python(cases: list[TestCase]) -> dict[str, dict[str, Any]]:
     scorer = QueryResponseAlignmentScorer()
-    results: Dict[str, Dict[str, Any]] = {}
+    results: dict[str, dict[str, Any]] = {}
     for test_case in cases:
-        analysis = scorer.score(test_case.query, test_case.response, query_difficulty=0.5, verbose=True)
+        analysis = scorer.score(
+            test_case.query, test_case.response, query_difficulty=0.5, verbose=True
+        )
         results[test_case.id] = {
             "alignmentScore": analysis.alignment_score,
             "reasoning": analysis.reasoning,
@@ -90,7 +92,7 @@ def score_python(cases: List[TestCase]) -> Dict[str, Dict[str, Any]]:
     return results
 
 
-def score_typescript(cases: List[TestCase]) -> Dict[str, Dict[str, Any]]:
+def score_typescript(cases: list[TestCase]) -> dict[str, dict[str, Any]]:
     input_path = Path("tests/e2e/_alignment_cases.json")
     payload = [
         {"id": test_case.id, "query": test_case.query, "response": test_case.response}
@@ -118,10 +120,10 @@ def score_typescript(cases: List[TestCase]) -> Dict[str, Dict[str, Any]]:
 
 
 def compare_results(
-    python_results: Dict[str, Dict[str, Any]],
-    ts_results: Dict[str, Dict[str, Any]],
+    python_results: dict[str, dict[str, Any]],
+    ts_results: dict[str, dict[str, Any]],
     tolerance: float = 0.05,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     mismatches = []
     for test_id, py_result in python_results.items():
         ts_result = ts_results.get(test_id)

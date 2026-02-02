@@ -325,10 +325,14 @@ describe('createCostMetadata', () => {
 
     expect(metadata.drafterTokens).toEqual({ input: 14, output: 8 });
     expect(metadata.verifierTokens).toBeUndefined();
+    const expectedVerifierCost = calculateCost('gpt-4o', 14, 8);
+    const expectedSavings =
+      ((expectedVerifierCost - metadata.drafterCost) / expectedVerifierCost) * 100;
+
     expect(metadata.drafterCost).toBeCloseTo(0.0000069, 7);
     expect(metadata.verifierCost).toBe(0);
     expect(metadata.totalCost).toBeCloseTo(0.0000069, 7);
-    expect(metadata.savingsPercentage).toBe(0);
+    expect(metadata.savingsPercentage).toBeCloseTo(expectedSavings, 5);
     expect(metadata.modelUsed).toBe('drafter');
     expect(metadata.accepted).toBe(true);
     expect(metadata.drafterQuality).toBe(0.8);

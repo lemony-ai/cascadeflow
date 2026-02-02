@@ -187,7 +187,19 @@ export function createCostMetadata(
   }
 
   const totalCost = drafterCost + verifierCost;
-  const savingsPercentage = calculateSavings(drafterCost, verifierCost);
+  const savingsPercentage =
+    costProvider === 'cascadeflow' && accepted && !verifierResponse
+      ? (() => {
+        const verifierEstimate = calculateCost(
+          verifierModel,
+          drafterTokens.input,
+          drafterTokens.output
+        );
+        return verifierEstimate > 0
+          ? ((verifierEstimate - drafterCost) / verifierEstimate) * 100
+          : 0;
+      })()
+      : calculateSavings(drafterCost, verifierCost);
 
   return {
     drafterTokens,

@@ -1,12 +1,12 @@
+import json
 import os
 import re
 import subprocess
 import sys
-import json
 from typing import Dict, Tuple
 
 
-def parse_stats(output: str) -> Dict[str, float]:
+def parse_stats(output: str) -> dict[str, float]:
     draft_accepted = re.search(r"Draft Accepted:\s+(\d+)", output)
     draft_rejected = re.search(r"Draft Rejected:\s+(\d+)", output)
     total_cost = re.search(r"Total Cost:\s+\$(\d+\.\d+)", output)
@@ -28,7 +28,9 @@ def run_command(cmd: list[str]) -> str:
     return result.stdout
 
 
-def compare_stats(py: Dict[str, float], ts: Dict[str, float]) -> Dict[str, Tuple[float, float, float]]:
+def compare_stats(
+    py: dict[str, float], ts: dict[str, float]
+) -> dict[str, tuple[float, float, float]]:
     comparisons = {}
     for key in ["draft_accepted", "draft_rejected", "total_cost", "savings_pct"]:
         diff = abs(py[key] - ts[key])
@@ -54,7 +56,9 @@ def main() -> int:
         denom = max(py_val, ts_val, 1.0)
         pct_diff = diff / denom
         if pct_diff > tolerance:
-            failures.append({"metric": key, "python": py_val, "typescript": ts_val, "diff": pct_diff})
+            failures.append(
+                {"metric": key, "python": py_val, "typescript": ts_val, "diff": pct_diff}
+            )
 
     result = {
         "python": py_stats,

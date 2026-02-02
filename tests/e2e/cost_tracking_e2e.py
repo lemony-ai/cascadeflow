@@ -5,7 +5,7 @@ import sys
 from typing import List
 
 
-def run(cmd: List[str]) -> subprocess.CompletedProcess:
+def run(cmd: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=True, capture_output=True, text=True)
 
 

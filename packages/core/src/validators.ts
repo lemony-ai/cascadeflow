@@ -7,6 +7,7 @@
 
 import type { ModelConfig, CascadeConfig } from './config';
 import type { Provider } from './types';
+import { VERCEL_AI_PROVIDER_NAMES } from './providers/vercel-ai';
 
 /**
  * Validation error details
@@ -108,13 +109,25 @@ export function validateModel(config: ModelConfig): ValidationResult {
     const validProviders: Provider[] = [
       'openai',
       'anthropic',
+      'azure',
+      'bedrock',
+      'cerebras',
+      'cohere',
+      'deepseek',
+      'fireworks',
+      'google',
       'groq',
+      'mistral',
       'ollama',
+      'openrouter',
+      'perplexity',
+      'replicate',
       'huggingface',
       'together',
       'vllm',
-      'replicate',
+      'xai',
       'custom',
+      ...(VERCEL_AI_PROVIDER_NAMES as Provider[]),
     ];
 
     if (!validProviders.includes(config.provider as Provider)) {
@@ -281,8 +294,20 @@ function getEnvVarForProvider(provider: Provider): string {
   const envVars: Record<string, string> = {
     openai: 'OPENAI_API_KEY',
     anthropic: 'ANTHROPIC_API_KEY',
+    azure: 'AZURE_OPENAI_API_KEY',
+    bedrock: 'AWS_ACCESS_KEY_ID',
+    cerebras: 'CEREBRAS_API_KEY',
+    cohere: 'COHERE_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+    fireworks: 'FIREWORKS_API_KEY',
+    google: 'GOOGLE_API_KEY',
     groq: 'GROQ_API_KEY',
+    mistral: 'MISTRAL_API_KEY',
     ollama: '', // No API key needed
+    openrouter: 'OPENROUTER_API_KEY',
+    perplexity: 'PERPLEXITY_API_KEY',
+    replicate: 'REPLICATE_API_TOKEN',
+    xai: 'XAI_API_KEY',
     huggingface: 'HUGGINGFACE_API_KEY',
     together: 'TOGETHER_API_KEY',
     vllm: '', // No API key for local

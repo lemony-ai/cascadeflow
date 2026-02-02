@@ -6,8 +6,8 @@ import socket
 import subprocess
 import sys
 import time
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -57,12 +57,12 @@ def stop_proxy(process: subprocess.Popen) -> None:
         process.kill()
 
 
-def post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any]) -> requests.Response:
+def post_json(url: str, headers: dict[str, str], payload: dict[str, Any]) -> requests.Response:
     return requests.post(url, headers=headers, json=payload, timeout=30)
 
 
-def run_proxy_tests() -> Dict[str, Any]:
-    results: List[TestResult] = []
+def run_proxy_tests() -> dict[str, Any]:
+    results: list[TestResult] = []
     openai_key = os.getenv("OPENAI_API_KEY")
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
 

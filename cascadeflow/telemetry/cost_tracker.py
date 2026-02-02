@@ -690,8 +690,7 @@ class CostTracker:
         cursor = conn.cursor()
 
         # Create table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS cost_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -702,8 +701,7 @@ class CostTracker:
                 query_id TEXT,
                 metadata TEXT
             )
-        """
-        )
+        """)
 
         # Insert entries
         for entry in self.entries:

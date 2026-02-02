@@ -237,7 +237,17 @@ def create_cost_metadata(
             verifier_cost = 0.0
 
     total_cost = drafter_cost + verifier_cost
-    savings_percentage = calculate_savings(drafter_cost, verifier_cost)
+    if cost_provider == "cascadeflow" and accepted and verifier_response is None:
+        verifier_cost_estimate = calculate_cost(
+            verifier_model, drafter_tokens["input"], drafter_tokens["output"]
+        )
+        savings_percentage = (
+            (verifier_cost_estimate - drafter_cost) / verifier_cost_estimate * 100
+            if verifier_cost_estimate > 0
+            else 0.0
+        )
+    else:
+        savings_percentage = calculate_savings(drafter_cost, verifier_cost)
 
     metadata: CostMetadata = {
         "drafter_tokens": drafter_tokens,
