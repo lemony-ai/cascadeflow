@@ -50,6 +50,7 @@ CLAUDE.md
 # ============================================================================
 docs/OSS_DEVELOPMENT_STAGES.md
 docs/*_PLAN*.md
+!docs/PROXY_INTEGRATION_PLAN.md
 docs/*_ROADMAP*.md
 **/INTERNAL_*.md
 
@@ -278,6 +279,7 @@ packages/core/docs/
 HOW_*.md
 *_ISSUE.md
 *_PLAN.md
+!docs/PROXY_INTEGRATION_PLAN.md
 *_ANALYSIS.md
 test_all_*.py
 test_semantic_*.py
