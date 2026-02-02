@@ -5,7 +5,7 @@ from cascadeflow.proxy import ProxyConfig, RoutingProxy
 from cascadeflow.telemetry.cost_tracker import CostTracker
 
 
-@pytest.fixture()
+@pytest.fixture
 def proxy_server():
     cost_tracker = CostTracker()
     config = ProxyConfig()

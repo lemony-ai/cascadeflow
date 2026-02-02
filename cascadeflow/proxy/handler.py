@@ -30,7 +30,7 @@ class ProxyHandler:
         self._client = client
         self._owns_client = client is None
 
-    async def __aenter__(self) -> "ProxyHandler":
+    async def __aenter__(self) -> ProxyHandler:
         if self._client is None:
             self._client = httpx.AsyncClient()
         return self

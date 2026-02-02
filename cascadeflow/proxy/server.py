@@ -301,7 +301,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         }
 
         data = json.dumps(chunk)
-        self.wfile.write(f"data: {data}\n\n".encode("utf-8"))
+        self.wfile.write(f"data: {data}\n\n".encode())
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 
@@ -345,8 +345,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _send_event(self, event_type: str, payload: dict[str, Any]) -> None:
-        self.wfile.write(f"event: {event_type}\n".encode("utf-8"))
-        self.wfile.write(f"data: {json.dumps(payload)}\n\n".encode("utf-8"))
+        self.wfile.write(f"event: {event_type}\n".encode())
+        self.wfile.write(f"data: {json.dumps(payload)}\n\n".encode())
 
     def _send_openai_error(self, message: str, status: int = 400) -> None:
         payload = {

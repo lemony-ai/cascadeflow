@@ -483,7 +483,7 @@ export type {
   ToolComplexityLevel,
   ToolRoutingDecision,
   ToolRoutingStrategy,
-  ValidationResult,
+  ValidationResult as ToolCascadeValidationResult,
 } from './tool-cascade';
 
 // Domain Configuration (v0.7.0+)
