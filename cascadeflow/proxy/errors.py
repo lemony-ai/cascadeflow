@@ -16,7 +16,9 @@ class ProxyRoutingError(ProxyError):
 class ProxyUpstreamError(ProxyError):
     """Raised when upstream provider returns an error."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None, payload: Optional[object] = None):
+    def __init__(
+        self, message: str, status_code: Optional[int] = None, payload: Optional[object] = None
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.payload = payload
