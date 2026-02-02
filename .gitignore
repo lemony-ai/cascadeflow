@@ -197,6 +197,10 @@ MILESTONE_*.md
 STRATEGIC_*.md
 V0.*.md
 
+# Allow committed test result reports
+!docs/test-results/
+!docs/test-results/*.md
+
 # Feature comparison and analysis (development only)
 docs/PYTHON_VS_TYPESCRIPT_FEATURES.md
 docs/QUICK_COMPARISON_TABLE.md

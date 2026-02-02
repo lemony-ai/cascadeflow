@@ -168,13 +168,15 @@ export class QualityConfigFactory {
    */
   static forProduction(): QualityConfig {
     return {
-      minConfidence: 0.73, // Default fallback
+      minConfidence: 0.55, // Default fallback (synced with Python)
       confidenceThresholds: {
-        trivial: 0.60,
-        simple: 0.68,
-        moderate: 0.73,
-        hard: 0.83,
-        expert: 0.88,
+        // Synced with Python cascadeflow/quality/quality.py defaults
+        // These are cascade-optimized: lenient to maximize draft acceptance
+        trivial: 0.55,  // Very lenient for simple facts
+        simple: 0.50,   // Standard for basic questions
+        moderate: 0.45, // Stricter for comparisons
+        hard: 0.42,     // High bar for analysis
+        expert: 0.40,   // Very strict for expert queries
       },
       minWordCount: 10,
       useLogprobs: true,

@@ -226,6 +226,9 @@ npx tsx basic-usage.ts
 3. **Branch naming:** `feat/[name]` or `fix/[name]`
 4. **Commit often** - traceable progress
 5. **Push often** - visible on GitHub
+6. **NO Co-authored-by** - never add AI attribution trailers
+7. **NO AI mentions** - no "created by Codex" in commits
+8. **Author = saschabuehrle** - all commits are Sascha's
 
 ---
 

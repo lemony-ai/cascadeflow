@@ -96,6 +96,9 @@ cascadeflow/
 6. **Commit often** - Traceable, visible progress
 7. **Push often** - GitHub should always reflect current state
 8. **Max 30 mins uncommitted work** - If it works, commit it
+9. **NO Co-authored-by** - Never add Co-authored-by trailers
+10. **NO AI attribution** - No "created by Codex/Claude/AI" in commits
+11. **Author = saschabuehrle** - All commits appear as Sascha's work only
 
 ## Key Files
 
