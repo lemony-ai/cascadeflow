@@ -11,6 +11,7 @@ import { OllamaProvider } from './providers/ollama';
 import { HuggingFaceProvider } from './providers/huggingface';
 import { VLLMProvider } from './providers/vllm';
 import { OpenRouterProvider } from './providers/openrouter';
+import { VercelAISDKProvider, VERCEL_AI_PROVIDER_NAMES } from './providers/vercel-ai';
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
 import type { Message, Tool, UserProfile, TierLevel } from './types';
@@ -44,6 +45,12 @@ providerRegistry.register('ollama', OllamaProvider);
 providerRegistry.register('huggingface', HuggingFaceProvider);
 providerRegistry.register('vllm', VLLMProvider);
 providerRegistry.register('openrouter', OpenRouterProvider);
+
+for (const providerName of VERCEL_AI_PROVIDER_NAMES) {
+  if (!providerRegistry.has(providerName)) {
+    providerRegistry.register(providerName, VercelAISDKProvider);
+  }
+}
 
 /**
  * Run options for agent

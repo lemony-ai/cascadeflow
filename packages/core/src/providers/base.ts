@@ -304,10 +304,24 @@ export const providerRegistry = new ProviderRegistry();
 export function getAvailableProviders(): string[] {
   const available: string[] = [];
   const providerList = providerRegistry.list();
+  const envVarOverrides: Record<string, string> = {
+    azure: 'AZURE_OPENAI_API_KEY',
+    bedrock: 'AWS_ACCESS_KEY_ID',
+    cerebras: 'CEREBRAS_API_KEY',
+    cohere: 'COHERE_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+    fireworks: 'FIREWORKS_API_KEY',
+    google: 'GOOGLE_API_KEY',
+    openrouter: 'OPENROUTER_API_KEY',
+    perplexity: 'PERPLEXITY_API_KEY',
+    replicate: 'REPLICATE_API_TOKEN',
+    mistral: 'MISTRAL_API_KEY',
+    xai: 'XAI_API_KEY',
+  };
 
   for (const providerName of providerList) {
     // Check if API key is available in environment
-    const envKey = `${providerName.toUpperCase()}_API_KEY`;
+    const envKey = envVarOverrides[providerName] || `${providerName.toUpperCase()}_API_KEY`;
     if (process.env[envKey]) {
       available.push(providerName);
     }

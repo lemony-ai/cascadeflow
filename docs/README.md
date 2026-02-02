@@ -18,6 +18,7 @@ Welcome to cascadeflow documentation! 🌊
 - [Streaming](guides/streaming.md) - Stream responses from cascade agents
 - [Tools](guides/tools.md) - Function calling and tool usage with cascades
 - [Cost Tracking](guides/cost_tracking.md) - Track and analyze API costs across queries
+- [Proxy Routing](guides/proxy.md) - Route requests through provider-aware proxy plans
 
 ## 🏭 Production & Advanced
 

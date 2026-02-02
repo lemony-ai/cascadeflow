@@ -11,8 +11,12 @@
  * - Trivial query detection for edge cases
  * - Bidirectional keyword matching for short answers
  * - MCQ (multiple-choice question) format detection (v10)
+ * - Intent classification format detection (v11)
+ * - Long context QA format detection (v12)
+ * - Function call/tool use format detection (v13)
+ * - Long context single-word answer handling (v14)
  *
- * Based on Python alignment_scorer.py v10
+ * Based on Python alignment_scorer.py v14
  *
  * Key improvements from Python:
  * - Oct 6, 2025 (v1): Word length filter changed from > 3 to > 2 characters
@@ -31,6 +35,18 @@
  *   * Recognizes valid MCQ responses: single letters A-D, "The answer is B", etc.
  *   * Gives 0.75 alignment score for valid MCQ responses to MCQ prompts
  *   * Fixes alignment floor triggering on MMLU benchmark (was 0.06→0.75)
+ * - Dec 7, 2025 (v11): Added intent classification format detection
+ *   * Detects intent/category classification prompts with label lists
+ *   * Recognizes structured intent responses (Intent:, Category:, Label:)
+ *   * Gives 0.72 alignment score for valid classification responses
+ * - Jan 7, 2026 (v12): Added long context QA format detection
+ *   * Detects long prompts (>300 words) with QA markers or code context
+ *   * Gives 0.72 alignment score for valid long context answers
+ * - Jan 12, 2026 (v13): Added function call/tool use format detection
+ *   * Detects tool schemas, function listings, and call instructions
+ *   * Recognizes JSON or structured tool response formats
+ *   * Gives 0.72 alignment score for valid function call responses
+ * - Jan 12, 2026 (v14): Accepts single-word long context answers (YES/NO/QUORUM)
  *
  * @example
  * ```typescript
@@ -88,6 +104,33 @@ export interface AlignmentAnalysis {
 
     /** Whether MCQ boost was applied (v10) */
     mcqBoost?: boolean;
+
+    /** Whether query is intent classification format (v11) */
+    isClassification?: boolean;
+
+    /** Whether response is valid classification answer (v11) */
+    validClassificationResponse?: boolean;
+
+    /** Whether classification boost was applied (v11) */
+    classificationBoost?: boolean;
+
+    /** Whether query is long context QA format (v12) */
+    isLongContextQa?: boolean;
+
+    /** Whether response is valid long context answer (v12) */
+    validLongContextResponse?: boolean;
+
+    /** Whether long context boost was applied (v12) */
+    longContextQaBoost?: boolean;
+
+    /** Whether query is function call format (v13) */
+    isFunctionCall?: boolean;
+
+    /** Whether response is valid function call answer (v13) */
+    validFunctionCallResponse?: boolean;
+
+    /** Whether function call boost was applied (v13) */
+    functionCallBoost?: boolean;
 
     /** Whether query is trivial */
     isTrivial?: boolean;
@@ -432,6 +475,381 @@ export class QueryResponseAlignmentScorer {
     }
 
     return false;
+  }
+
+  /**
+   * Detect if query is an intent classification prompt.
+   *
+   * v11 (Dec 2025): Fixes alignment floor triggering on Banking77 benchmark.
+   */
+  private isIntentClassificationFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+
+    const classificationInstructions = [
+      'classify this',
+      'classify the',
+      'categorize this',
+      'categorize the',
+      'identify the intent',
+      'determine the intent',
+      'what is the intent',
+      'which intent',
+      'which category',
+      'label this',
+    ];
+    const hasInstruction = classificationInstructions.some((instr) =>
+      queryLower.includes(instr)
+    );
+
+    const listMarkers = [
+      'available intents:',
+      'available categories:',
+      'intent labels:',
+      'category labels:',
+      'possible intents:',
+      'possible categories:',
+      'choose from:',
+      'one of the following:',
+      'into one of',
+    ];
+    const hasListMarker = listMarkers.some((marker) => queryLower.includes(marker));
+
+    const outputFormatMarkers = [
+      'intent:',
+      'category:',
+      'label:',
+      'format your response',
+      'output the exact intent',
+      'output the exact category',
+    ];
+    const hasOutputFormat = outputFormatMarkers.some((marker) =>
+      queryLower.includes(marker)
+    );
+
+    return hasInstruction && (hasListMarker || hasOutputFormat);
+  }
+
+  /**
+   * Check if response is a valid intent classification answer.
+   *
+   * v11 (Dec 2025): Recognizes intent classification response formats.
+   */
+  private isValidClassificationResponse(response: string): boolean {
+    const responseLower = response.toLowerCase();
+    const structuredPatterns = [
+      /intent:\s*\w+/,
+      /category:\s*\w+/,
+      /label:\s*\w+/,
+      /classification:\s*\w+/,
+    ];
+    if (structuredPatterns.some((pattern) => pattern.test(responseLower))) {
+      return true;
+    }
+
+    const classificationPatterns = [
+      /(?:the\s+)?intent\s+is\s+\w+/,
+      /(?:the\s+)?category\s+is\s+\w+/,
+      /(?:i\s+)?(?:classify|categorize)\s+(?:this\s+)?as\s+\w+/,
+      /this\s+(?:is|falls\s+under)\s+(?:the\s+)?\w+\s+(?:intent|category)/,
+      /belongs\s+to\s+(?:the\s+)?\w+\s+(?:intent|category)/,
+    ];
+    return classificationPatterns.some((pattern) => pattern.test(responseLower));
+  }
+
+  /**
+   * Detect if query is a long context QA prompt (document + question).
+   *
+   * v12 (Jan 2026): Fixes alignment floor triggering on LongBench/BFCL benchmarks.
+   */
+  private isLongContextQaFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+    const wordCount = query.split(/\s+/).length;
+    if (wordCount < 300) {
+      return false;
+    }
+
+    const qaMarkers = [
+      'question:',
+      'based on the',
+      'according to the',
+      'from the text',
+      'from the passage',
+      'from the document',
+      'from the article',
+      'in the text',
+      'in the passage',
+      'answer the following',
+      'answer this question',
+      'what does the',
+      'what is the',
+      'who is',
+      'who was',
+      'when did',
+      'where did',
+      'how did',
+      'why did',
+      'summarize',
+      'extract',
+    ];
+    const hasQaMarker = qaMarkers.some((marker) => queryLower.includes(marker));
+
+    const functionMarkers = [
+      'function',
+      'functions:',
+      'api',
+      'call the',
+      'invoke',
+      'parameters',
+      'arguments',
+      '{"name":',
+      '"type":',
+      '"description":',
+    ];
+    const hasFunctionMarker = functionMarkers.some((marker) =>
+      queryLower.includes(marker)
+    );
+
+    const codeContextMarkers = ['```', 'def ', 'class ', 'import ', 'function ', 'const ', 'let ', 'var '];
+    const hasCodeContext = codeContextMarkers.some((marker) => query.includes(marker));
+
+    return hasQaMarker || hasFunctionMarker || hasCodeContext;
+  }
+
+  /**
+   * Check if response is a valid long context QA answer.
+   *
+   * v14 (Jan 2026): Accept short factual answers in long context QA tasks.
+   */
+  private isValidLongContextResponse(response: string, query: string): boolean {
+    const responseStripped = response.trim();
+    const responseLower = responseStripped.toLowerCase();
+    const wordCount = responseStripped.split(/\s+/).length;
+
+    if (wordCount === 0) {
+      return false;
+    }
+
+    if (wordCount <= 2) {
+      const stripped = responseStripped.replace(/[ _-]/g, '');
+      if (stripped && /^[a-z0-9]+$/i.test(stripped)) {
+        return true;
+      }
+      if (['yes', 'no', 'true', 'false', 'none', 'unknown', 'n/a'].includes(responseLower)) {
+        return true;
+      }
+      return false;
+    }
+
+    const questionLower = query.toLowerCase();
+    const queryKeywords = this.extractKeywords(questionLower);
+    const responseKeywords = this.extractKeywords(responseLower);
+    let matches = 0;
+    for (const word of queryKeywords) {
+      if (responseKeywords.has(word) || responseLower.includes(word)) {
+        matches += 1;
+      }
+    }
+    if (queryKeywords.size > 0 && matches / queryKeywords.size >= 0.15) {
+      return true;
+    }
+
+    const answerPatterns = [
+      'the answer is',
+      'the response is',
+      'the text says',
+      'the passage mentions',
+      'it says that',
+      'the document indicates',
+      'in summary',
+      'to summarize',
+    ];
+    if (answerPatterns.some((pattern) => responseLower.includes(pattern))) {
+      return true;
+    }
+
+    if (wordCount >= 5) {
+      if (responseStripped.toUpperCase() === responseStripped && responseStripped.length > 20) {
+        return false;
+      }
+
+      const words = responseStripped.split(/\s+/);
+      const realWords = words.filter((word) => word.length > 1 && /^[a-z]+$/i.test(word));
+      if (realWords.length >= 3) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Detect if query is a function call/tool use prompt.
+   *
+   * v13 (Jan 2026): Fixes alignment floor triggering on BFCL benchmark.
+   */
+  private isFunctionCallFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+
+    const functionMarkers = [
+      'function',
+      'functions:',
+      'tool',
+      'tools:',
+      'api',
+      'call the',
+      'invoke',
+      'execute the',
+    ];
+    const hasFunctionMarker = functionMarkers.some((marker) =>
+      queryLower.includes(marker)
+    );
+
+    const schemaPatterns = ['"name":', '"parameters":', '"properties":', '"type":', '"description":', '```json'];
+    const hasSchemaPattern = schemaPatterns.some((pattern) => queryLower.includes(pattern.toLowerCase()));
+
+    const plainTextToolPatterns = [
+      /^- \w+:/m,
+      /\n- \w+:/m,
+      /access to the following tools/,
+      /available tools:/,
+      /you have access to/,
+    ];
+    const hasPlainTextTools = plainTextToolPatterns.some((pattern) => pattern.test(queryLower));
+
+    const instructionPatterns = [
+      'call the function',
+      'use the tool',
+      'invoke the function',
+      'execute the function',
+      'make a function call',
+      'generate a function call',
+      'return a function call',
+      'output a function call',
+      'should be used',
+      'which tool',
+      'determine which tool',
+      'select the appropriate',
+      'choose the right tool',
+      'respond with',
+      'if a tool should',
+    ];
+    const hasInstruction = instructionPatterns.some((pattern) => queryLower.includes(pattern));
+
+    const outputFormatMarkers = ['tool:', 'parameters:', 'tool_name:', 'arguments:'];
+    const outputMarkerCount = outputFormatMarkers.filter((marker) => queryLower.includes(marker)).length;
+    const hasOutputFormat = outputMarkerCount >= 2;
+
+    return hasFunctionMarker && (hasSchemaPattern || hasInstruction || hasPlainTextTools || hasOutputFormat);
+  }
+
+  /**
+   * Check if response is a valid function call answer.
+   *
+   * v13.4 (Jan 2026): Enhanced detection for tool response formats.
+   */
+  private isValidFunctionCallResponse(response: string): boolean {
+    const responseLower = response.toLowerCase();
+
+    const noToolPatterns = [
+      'no tool is needed',
+      'no tool needed',
+      'no tool is required',
+      'no tool required',
+      "doesn't require a tool",
+      'does not require a tool',
+      "doesn't require any tool",
+      'does not require any tool',
+      'none of the tools',
+      'none of the available tools',
+      'no function is needed',
+      'no function needed',
+      'no function call',
+      'no api call',
+      'without using any tool',
+      'without any tool',
+      'can be answered directly',
+      'can be answered without',
+      "don't need to use",
+      'do not need to use',
+      'not necessary to use',
+      'not necessary to call',
+      'no need to call',
+      'no need to use',
+    ];
+    if (noToolPatterns.some((pattern) => responseLower.includes(pattern))) {
+      return true;
+    }
+
+    const jsonPatterns = ['{"name":', '{"function":', '{"tool":', '"name":', '"function_call":', '"tool_call":'];
+    if (jsonPatterns.some((pattern) => response.includes(pattern))) {
+      return true;
+    }
+
+    if (response.includes('```') && (response.includes('(') || response.includes('{'))) {
+      return true;
+    }
+
+    const structuredPatterns = ['function:', 'tool:', 'call:'];
+    if (structuredPatterns.some((pattern) => responseLower.includes(pattern))) {
+      return true;
+    }
+
+    const naturalToolPatterns = [
+      'i would use',
+      'i will use',
+      "i'll use",
+      'use the',
+      'using the',
+      'call the',
+      'calling the',
+      'invoke the',
+      'invoking the',
+      'recommend using',
+      'should use',
+      'we can use',
+      'we should use',
+      'you can use',
+      'appropriate tool',
+      'correct tool',
+      'right tool',
+      'best tool',
+    ];
+    if (naturalToolPatterns.some((pattern) => responseLower.includes(pattern))) {
+      return true;
+    }
+
+    const commonFunctionNames = [
+      'get_weather',
+      'calculate',
+      'search',
+      'create_event',
+      'send_email',
+      'query_database',
+      'get_current_weather',
+      'send_message',
+      'get_stock_price',
+      'book_flight',
+      'set_reminder',
+      'add_task',
+    ];
+    if (commonFunctionNames.some((funcName) => responseLower.includes(funcName))) {
+      return true;
+    }
+
+    const paramPatterns = [
+      'parameters:',
+      'arguments:',
+      'with parameters',
+      'with arguments',
+      'with the following',
+      '"location"',
+      '"query"',
+      '"expression"',
+      '"title"',
+      '"to"',
+      '"subject"',
+    ];
+    return paramPatterns.some((pattern) => responseLower.includes(pattern));
   }
 
   /**
@@ -1089,6 +1507,84 @@ export class QueryResponseAlignmentScorer {
           reasoning: `Score ${finalScore.toFixed(3)}: MCQ format with valid letter answer`,
           isTrivial: true,
           baselineUsed: this.BASELINE_TRIVIAL,
+        };
+      }
+      return finalScore;
+    }
+
+    // v11: Intent classification detection - handle before normal scoring
+    const isClassification = this.isIntentClassificationFormat(query);
+    const validClassificationResponse = isClassification
+      ? this.isValidClassificationResponse(response)
+      : false;
+    features.isClassification = isClassification;
+    features.validClassificationResponse = validClassificationResponse;
+
+    if (isClassification && validClassificationResponse) {
+      features.isTrivial = true;
+      features.baseline = this.BASELINE_TRIVIAL;
+      features.classificationBoost = true;
+      const finalScore = 0.72;
+
+      if (verbose) {
+        return {
+          alignmentScore: finalScore,
+          features,
+          reasoning: `Score ${finalScore.toFixed(3)}: Classification format with valid intent answer`,
+          isTrivial: true,
+          baselineUsed: this.BASELINE_TRIVIAL,
+        };
+      }
+      return finalScore;
+    }
+
+    // v12: Long context QA detection - handle before normal scoring
+    const isLongContextQa = this.isLongContextQaFormat(query);
+    const validLongContextResponse = isLongContextQa
+      ? this.isValidLongContextResponse(response, query)
+      : false;
+    features.isLongContextQa = isLongContextQa;
+    features.validLongContextResponse = validLongContextResponse;
+
+    if (isLongContextQa && validLongContextResponse) {
+      features.isTrivial = false;
+      features.baseline = this.BASELINE_STANDARD;
+      features.longContextQaBoost = true;
+      const finalScore = 0.72;
+
+      if (verbose) {
+        return {
+          alignmentScore: finalScore,
+          features,
+          reasoning: `Score ${finalScore.toFixed(3)}: Long context QA format with valid answer`,
+          isTrivial: false,
+          baselineUsed: this.BASELINE_STANDARD,
+        };
+      }
+      return finalScore;
+    }
+
+    // v13: Function call/tool use detection - handle before normal scoring
+    const isFunctionCall = this.isFunctionCallFormat(query);
+    const validFunctionCallResponse = isFunctionCall
+      ? this.isValidFunctionCallResponse(response)
+      : false;
+    features.isFunctionCall = isFunctionCall;
+    features.validFunctionCallResponse = validFunctionCallResponse;
+
+    if (isFunctionCall && validFunctionCallResponse) {
+      features.isTrivial = false;
+      features.baseline = this.BASELINE_STANDARD;
+      features.functionCallBoost = true;
+      const finalScore = 0.72;
+
+      if (verbose) {
+        return {
+          alignmentScore: finalScore,
+          features,
+          reasoning: `Score ${finalScore.toFixed(3)}: Function call format with valid tool response`,
+          isTrivial: false,
+          baselineUsed: this.BASELINE_STANDARD,
         };
       }
       return finalScore;

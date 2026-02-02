@@ -164,6 +164,52 @@ export { OllamaProvider } from './providers/ollama';
 export { HuggingFaceProvider, HuggingFaceEndpointType } from './providers/huggingface';
 export { VLLMProvider } from './providers/vllm';
 export { OpenRouterProvider } from './providers/openrouter';
+export {
+  VercelAISDKProvider,
+  VERCEL_AI_PROVIDER_NAMES,
+  getVercelAiProviderNames,
+} from './providers/vercel-ai';
+
+// Vercel AI SDK Option B adapters
+export {
+  vercelAIProviderRegistry,
+  VercelAIProviderRegistry,
+  buildCascadePlan,
+  buildFallbackCascade,
+  createDraftVerifierCascade,
+  ProviderRateLimiter,
+  openAIAdapter,
+  anthropicAdapter,
+  googleAdapter,
+  localAdapter,
+  liteLLMAdapter,
+  openRouterAdapter,
+  togetherAdapter,
+  groqAdapter,
+  mistralAdapter,
+  cohereAdapter,
+  fireworksAdapter,
+  perplexityAdapter,
+  deepseekAdapter,
+  xaiAdapter,
+  azureAdapter,
+  bedrockAdapter,
+  vertexAdapter,
+} from './vercel-ai';
+
+export type {
+  VercelAIProviderId,
+  ProviderRole,
+  ProviderCost,
+  ProviderModelSpec,
+  ProviderEndpoint,
+  ProviderRateLimitPolicy,
+  ProviderCapabilities,
+  ProviderAdapter,
+  ProviderAdapterConfig,
+  CascadeStageConfig,
+  CascadePlan,
+} from './vercel-ai';
 
 // Presets
 export {
@@ -415,6 +461,30 @@ export type {
   ToolQualityScore,
   ComplexityLevel,
 } from './tools';
+
+// Tool Cascade Strategy (v1.2.0+)
+export {
+  ToolCallDetector,
+  ToolCascadeRouter,
+  ToolCascadeValidator,
+  ToolCascade,
+} from './tool-cascade';
+export type {
+  DetectionLayer,
+  RiskTier,
+  ToolCascadeContext,
+  ToolCascadeFeedback,
+  ToolCascadeOptions,
+  ToolCascadeResult,
+  ToolCallGenerator,
+  ToolCallIntent,
+  ToolComplexityAnalysis,
+  ToolComplexityAnalyzerLike,
+  ToolComplexityLevel,
+  ToolRoutingDecision,
+  ToolRoutingStrategy,
+  ValidationResult,
+} from './tool-cascade';
 
 // Domain Configuration (v0.7.0+)
 export {
