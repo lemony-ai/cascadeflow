@@ -242,24 +242,34 @@ async def main():
         cost = getattr(result, "total_cost", 0.0)
         print(f"   💰 Cost: ${cost:.6f}")
 
-        # Safely get latency with breakdown
+        # Safely get latency with breakdown - use library-provided fields!
         total_latency = getattr(result, "latency_ms", 0.0)
         draft_latency = getattr(result, "draft_latency_ms", 0.0)
         verifier_latency = getattr(result, "verifier_latency_ms", 0.0)
+        # cascade_overhead_ms is computed by the library:
+        # - Draft accepted: 0ms (we saved verifier time)
+        # - Draft rejected: full draft_latency_ms (wasted drafter attempt)
+        # - Direct route: 0ms (no cascade)
+        cascade_overhead = getattr(result, "cascade_overhead_ms", 0.0)
 
-        # Calculate provider vs cascade latency
-        provider_latency = draft_latency + verifier_latency
-        cascade_latency = max(0, total_latency - provider_latency)
+        is_cascaded = hasattr(result, "cascaded") and result.cascaded
+        is_draft_accepted = getattr(result, "draft_accepted", False)
 
-        if provider_latency > 0:
-            provider_pct = (provider_latency / total_latency * 100) if total_latency > 0 else 0
-            cascade_pct = (cascade_latency / total_latency * 100) if total_latency > 0 else 0
-            print("   ⚡ Latency Breakdown:")
-            print(f"      Total: {total_latency:.0f}ms")
-            print(f"      ├─ Provider API: {provider_latency:.0f}ms ({provider_pct:.1f}%)")
-            print(f"      └─ cascadeflow: {cascade_latency:.0f}ms ({cascade_pct:.1f}%)")
+        print("   ⚡ Latency Breakdown:")
+        print(f"      Total: {total_latency:.0f}ms")
+        if is_cascaded and not is_draft_accepted:
+            # Draft was rejected - drafter time was wasted
+            print(f"      ├─ Drafter (wasted): {draft_latency:.0f}ms")
+            print(f"      └─ Verifier: {verifier_latency:.0f}ms")
+            print(f"      ⚠️  Cascade overhead: +{cascade_overhead:.0f}ms (drafter was rejected)")
+        elif is_cascaded and is_draft_accepted:
+            # Draft was accepted - we saved the verifier time
+            print(f"      └─ Drafter only: {draft_latency:.0f}ms")
+            print("      ✅ Cascade overhead: 0ms (verifier skipped)")
         else:
-            print(f"   ⚡ Latency: {total_latency:.0f}ms")
+            # Direct route - no cascade overhead
+            print(f"      └─ Provider API: {total_latency:.0f}ms (direct route)")
+            print("      ✅ Cascade overhead: 0ms (direct route)")
 
         # Safely get complexity
         complexity = getattr(result, "complexity", "unknown")

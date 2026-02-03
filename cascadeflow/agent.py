@@ -75,11 +75,15 @@ from .quality import QualityConfig
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
 # Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
 from .routing import (
+    ComplexityRouter,
     DomainDetector,
     PreRouter,
     SemanticDomainDetector,
+    ToolComplexityAnalyzer,
     ToolRouter,
+    ToolRoutingDecision,
 )
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
@@ -163,6 +167,10 @@ class CascadeAgent:
         domain_configs: Optional[dict[str, DomainConfig]] = None,  # Per-domain cascade config
         enable_domain_detection: bool = False,  # Auto-detect query domain
         use_semantic_domains: bool = True,  # 🆕 Use ML-based semantic detection (hybrid)
+        # ========================================================================
+        # 🆕 v19: Tool Complexity Routing (Phase 1)
+        # ========================================================================
+        enable_tool_complexity_routing: bool = True,  # 🆕 v19: Route tool calls by complexity
         # ========================================================================
         # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
         # ========================================================================
@@ -305,6 +313,21 @@ class CascadeAgent:
 
         # Initialize tool router
         self.tool_router = ToolRouter(models=self.models, verbose=verbose)
+
+        # 🆕 v19: Initialize tool complexity router for intelligent tool call routing
+        self.enable_tool_complexity_routing = enable_tool_complexity_routing
+        if enable_tool_complexity_routing:
+            self.tool_complexity_analyzer = ToolComplexityAnalyzer()
+            self.tool_complexity_router = ComplexityRouter(
+                analyzer=self.tool_complexity_analyzer,
+                small_model=self.models[0].name,
+                large_model=self.models[-1].name,
+                verbose=verbose,
+            )
+            logger.info("Tool complexity routing: ENABLED (v19)")
+        else:
+            self.tool_complexity_analyzer = None
+            self.tool_complexity_router = None
 
         # 🆕 v2.6: Initialize domain detection
         self.enable_domain_detection = enable_domain_detection
@@ -800,6 +823,35 @@ class CascadeAgent:
                         f"verifier={tool_verifier.name if tool_verifier else 'default'}"
                     )
 
+        # 🆕 v19: Tool Complexity Routing - Analyze tool call complexity
+        tool_complexity_strategy = None
+        tool_complexity_decision = None
+        if tools and self.enable_tool_complexity_routing and self.tool_complexity_router:
+            # Analyze tool call complexity
+            tool_complexity_strategy = self.tool_complexity_router.route_tool_call(
+                query=query,
+                tools=tools,
+                context={"complexity": complexity.value, "has_domain": bool(domain_config)},
+            )
+
+            # Store the routing decision
+            tool_complexity_decision = tool_complexity_strategy.decision
+
+            if self.verbose:
+                print(
+                    f"[Tool Complexity: {tool_complexity_strategy.complexity_level.value} "
+                    f"(score: {tool_complexity_strategy.analysis.score:.1f})]"
+                )
+                print(
+                    f"[Tool Routing: {'CASCADE' if tool_complexity_strategy.use_cascade else 'DIRECT'} "
+                    f"({tool_complexity_strategy.decision.value})]"
+                )
+
+            logger.info(
+                f"Tool complexity routing: {tool_complexity_strategy.complexity_level.value} → "
+                f"{'CASCADE' if tool_complexity_strategy.use_cascade else 'DIRECT'}"
+            )
+
         # 🔄 OPTIONAL: Filter models by user tier (v0.1.x backwards compatibility)
         if user_tier and self.tier_router:
             # Apply tier-based filtering
@@ -839,12 +891,50 @@ class CascadeAgent:
             # 🆕 Phase 5: Domain-specific tool models
             "tool_drafter": tool_drafter,
             "tool_verifier": tool_verifier,
+            # 🆕 v19: Tool complexity routing context
+            "tool_complexity_strategy": tool_complexity_strategy,
+            "tool_complexity_decision": tool_complexity_decision,
         }
 
         decision = await self.router.route(query, routing_context)
         use_cascade = decision.is_cascade()
         routing_strategy = "cascade" if use_cascade else "direct"
         routing_reason = decision.reason
+
+        # 🆕 v19: Tool Complexity Routing Override
+        # For tool calls, tool complexity takes precedence over text complexity
+        # This enables: simple tool calls → cascade, complex tool calls → direct
+        if (
+            tools
+            and tool_complexity_decision is not None
+            and self.enable_tool_complexity_routing
+        ):
+            # TOOL_CASCADE means simple tool call → allow cascade (cheap model can handle)
+            # TOOL_DIRECT_LARGE means complex tool call → force direct (need better model)
+            if tool_complexity_decision == ToolRoutingDecision.TOOL_CASCADE:
+                # Simple tool call - allow cascade (override text complexity if it said direct)
+                if not use_cascade:
+                    use_cascade = True
+                    routing_strategy = "cascade"
+                    routing_reason = (
+                        f"Tool complexity override: {tool_complexity_strategy.complexity_level.value} "
+                        f"tool call → cascade (simple tools can use cheap model)"
+                    )
+                    if self.verbose:
+                        print(f"[Tool Routing Override: DIRECT → CASCADE]")
+                        print(f"[Reason: Simple tool complexity allows cascade]")
+            elif tool_complexity_decision == ToolRoutingDecision.TOOL_DIRECT_LARGE:
+                # Complex tool call - force direct (override text complexity if it said cascade)
+                if use_cascade:
+                    use_cascade = False
+                    routing_strategy = "direct"
+                    routing_reason = (
+                        f"Tool complexity override: {tool_complexity_strategy.complexity_level.value} "
+                        f"tool call → direct (complex tools need better model)"
+                    )
+                    if self.verbose:
+                        print(f"[Tool Routing Override: CASCADE → DIRECT]")
+                        print(f"[Reason: Complex tool complexity requires direct]")
 
         if self.verbose:
             print(f"[Routing: {routing_strategy.upper()}]")

@@ -123,6 +123,13 @@ from .cascade_executor import MultiStepCascadeExecutor
 # Phase 5: Tier-based Routing (OPTIONAL - backwards compatibility)
 from .tier_routing import TierAwareRouter
 
+# v17: Task-aware routing for classification tasks
+from .task_detector import (
+    TaskDetector,
+    TaskDetectionResult,
+    TaskType,
+)
+
 __all__ = [
     # ═══════════════════════════════════════════════════
     # Base Classes
@@ -188,6 +195,12 @@ __all__ = [
     # Phase 5: Tier-based Routing (OPTIONAL)
     # ═══════════════════════════════════════════════════
     "TierAwareRouter",  # User tier-based model filtering (backwards compat)
+    # ═══════════════════════════════════════════════════
+    # v17: Task-Aware Routing (Classification, etc.)
+    # ═══════════════════════════════════════════════════
+    "TaskDetector",  # Detects classification tasks for routing
+    "TaskDetectionResult",  # Detection result with category count
+    "TaskType",  # Task type enum (GENERAL, CLASSIFICATION)
 ]
 
 __version__ = "0.6.0"  # Phase 4 (Multi-Step Cascading)

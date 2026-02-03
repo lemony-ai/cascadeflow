@@ -827,6 +827,10 @@ export class CascadeAgent {
         rejectionReason: !qualityResult.passed ? qualityResult.reason : undefined,
         costSaved,
         savingsPercentage,
+        // Cascade overhead = wasted latency from cascade decisions
+        // - Draft accepted: 0 (we saved verifier time)
+        // - Draft rejected: full drafter latency (wasted attempt)
+        cascadeOverheadMs: cascaded && !draftAccepted ? draftLatency : 0,
       };
     } catch (error) {
       throw new Error(`cascadeflow error: ${error instanceof Error ? error.message : String(error)}`);
@@ -1317,6 +1321,10 @@ export class CascadeAgent {
         verifierLatencyMs: verifierLatency,
         costSaved,
         savingsPercentage,
+        // Cascade overhead = wasted latency from cascade decisions
+        // - Draft accepted: 0 (we saved verifier time)
+        // - Draft rejected: full drafter latency (wasted attempt)
+        cascadeOverheadMs: cascaded && !draftAccepted ? draftLatency : 0,
       };
 
       // Emit COMPLETE event

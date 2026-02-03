@@ -51,12 +51,15 @@ import type { ToolCall } from './types';
  * ```typescript
  * const result = await agent.run(query);
  *
- * const providerLatency = (result.draftLatencyMs || 0) + (result.verifierLatencyMs || 0);
- * const cascadeOverhead = result.latencyMs - providerLatency;
- *
  * console.log(`Total latency: ${result.latencyMs}ms`);
- * console.log(`Provider API: ${providerLatency}ms (${(providerLatency/result.latencyMs*100).toFixed(1)}%)`);
- * console.log(`Cascade overhead: ${cascadeOverhead}ms (${(cascadeOverhead/result.latencyMs*100).toFixed(1)}%)`);
+ * console.log(`Draft latency: ${result.draftLatencyMs}ms`);
+ * console.log(`Verifier latency: ${result.verifierLatencyMs}ms`);
+ *
+ * // cascadeOverheadMs = wasted time from cascade decisions
+ * // - If draft accepted: 0ms (we saved verifier time!)
+ * // - If draft rejected: full drafter latency (wasted attempt)
+ * // - Direct route: 0ms (no cascade)
+ * console.log(`Cascade overhead: ${result.cascadeOverheadMs}ms`);
  * ```
  *
  * @example Quality metrics
@@ -162,7 +165,12 @@ export interface CascadeResult {
   /** Time to generate verifier response */
   verifierGenerationMs?: number;
 
-  /** Additional overhead from cascade system */
+  /**
+   * Wasted latency from cascade decisions (ms).
+   * - Draft accepted: 0 (we saved verifier time)
+   * - Draft rejected: full draftLatencyMs (wasted drafter attempt)
+   * - Direct route: 0 (no cascade)
+   */
   cascadeOverheadMs?: number;
 
   // Cost breakdown

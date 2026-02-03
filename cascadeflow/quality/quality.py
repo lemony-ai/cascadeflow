@@ -656,8 +656,10 @@ class QualityValidator:
         # are structured outputs like "Tool: X\nParameters: {...}"
         # These are short by design and may use phrases like "I would use..."
         # Apply lenient validation similar to classification responses.
+        # v14: Also bypass confidence threshold - the v13 boost IS the validation signal.
         elif details.get("v13_confidence_boost", False):
             # For function call responses, be lenient on all quality checks
+            checks["confidence"] = True  # v14: Bypass confidence threshold for validated function calls
             checks["length_appropriate"] = True  # Tool responses can be short
             checks["has_content"] = len(draft_content.strip()) >= 10  # Minimal content check
             checks["acceptable_hedging"] = True  # "I would use..." is OK for tool selection
