@@ -639,10 +639,16 @@ export class QualityValidator {
       };
     }
 
-    // Step 2: Check content length
+    // Step 2: Check content length (complexity-aware, matches Python behavior)
     const words = content.split(/\s+/);
     const wordCount = words.length;
-    const lengthOk = wordCount >= this.config.minWordCount;
+    // Trivial queries: any length is OK (Python: checks["length_appropriate"] = True)
+    // Simple queries: relaxed minimum (1 word)
+    const effectiveMinWords =
+      complexity === 'trivial' ? 1 :
+      complexity === 'simple' ? 1 :
+      this.config.minWordCount;
+    const lengthOk = wordCount >= effectiveMinWords;
 
     // Step 3: Check for uncertainty markers (for details)
     const contentLower = content.toLowerCase();
@@ -689,8 +695,8 @@ export class QualityValidator {
     // Step 5: Calculate overall quality score
     let score = confidence;
 
-    // Penalize for short content
-    if (!lengthOk) {
+    // Penalize for short content (skip for trivial/simple - matches Python behavior)
+    if (!lengthOk && complexity !== 'trivial' && complexity !== 'simple') {
       score *= 0.8;
     }
 

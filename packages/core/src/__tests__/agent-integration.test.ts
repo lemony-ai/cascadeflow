@@ -227,7 +227,8 @@ describe('CascadeAgent Integration Tests', () => {
       // Verify configs are different
       expect(strictValidator.getConfig().strictMode).toBe(true);
       expect(prodValidator.getConfig().minConfidence).toBeGreaterThan(0);
-      expect(devValidator.getConfig().minConfidence).toBeLessThan(
+      // Dev (0.70) has higher minConfidence than cascade-optimized prod (0.55)
+      expect(devValidator.getConfig().minConfidence).toBeGreaterThan(
         prodValidator.getConfig().minConfidence
       );
     });

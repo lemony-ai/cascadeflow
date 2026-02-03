@@ -333,7 +333,7 @@ export class ComplexityDetector {
     /\bdef\s+\w+/,
     /\bclass\s+\w+/,
     /\bimport\s+\w+/,
-    /\bfunction\s+\w+/,
+    /\bfunction\s+\w+\s*\(/,
     /\bconst\s+\w+\s*=/,
     /=>/,
     /\{[\s\S]*\}/,
@@ -441,15 +441,16 @@ export class ComplexityDetector {
     let finalConfidence: number;
 
     // CRITICAL: Technical terms STRONGLY influence complexity
-    if (techBoost >= 2.0) {
+    // Thresholds aligned with Python SDK (v14+)
+    if (techBoost >= 3.0) {
       // Multiple advanced terms or strong domain specialization
       finalComplexity = 'expert';
       finalConfidence = 0.90;
-    } else if (techBoost >= 1.0) {
+    } else if (techBoost >= 2.0) {
       // Some advanced terms
       finalComplexity = 'hard';
       finalConfidence = 0.85;
-    } else if (techBoost >= 0.5) {
+    } else if (techBoost >= 1.0) {
       // Basic technical terms
       finalComplexity = 'moderate';
       finalConfidence = 0.80;
@@ -480,14 +481,17 @@ export class ComplexityDetector {
       finalComplexity = 'simple';
       finalConfidence = 0.75;
     } else {
-      // Default by word count
+      // Default by word count (aligned with Python SDK)
       if (wordCount <= 8) {
         finalComplexity = 'simple';
         finalConfidence = 0.6;
-      } else if (wordCount <= 20) {
+      } else if (wordCount <= 2000) {
+        // Allow up to ~8 pages without technical terms
         finalComplexity = 'moderate';
         finalConfidence = 0.6;
       } else {
+        // Only mark as HARD for very long prompts (2000+ words) without
+        // any complexity indicators
         finalComplexity = 'hard';
         finalConfidence = 0.6;
       }
@@ -505,42 +509,56 @@ export class ComplexityDetector {
       finalConfidence = Math.min(0.95, finalConfidence + 0.15);
     }
 
-    // 10. Apply code boost (more nuanced)
+    // 10. Apply code boost (aligned with Python SDK - always apply)
     if (hasCode) {
-      // Only boost if query is complex enough (> 12 words) OR has expert keywords
-      // This prevents simple coding tasks like "reverse a string" from being over-classified
-      const isComplexCodeQuery = wordCount > 12 || expertMatches >= 1;
-
-      if (isComplexCodeQuery) {
-        if (finalComplexity === 'simple') {
-          finalComplexity = 'moderate';
-        } else if (finalComplexity === 'moderate') {
-          finalComplexity = 'hard';
-        }
-        finalConfidence = Math.min(0.95, finalConfidence + 0.1);
-      } else {
-        // Simple code query - small confidence boost only
-        finalConfidence = Math.min(0.95, finalConfidence + 0.05);
-      }
-    }
-
-    // 11. Apply structure boost
-    if (structureScore >= 2) {
       if (finalComplexity === 'simple') {
         finalComplexity = 'moderate';
       } else if (finalComplexity === 'moderate') {
+        finalComplexity = 'hard';
+      }
+      finalConfidence = Math.min(0.95, finalConfidence + 0.1);
+    }
+
+    // 11. Apply structure boost
+    // For long prompts (> 200 words), don't upgrade MODERATE → HARD
+    // based on structure alone, as long prompts naturally contain more
+    // incidental conditionals ("when", "if") and requirements ("should", "must")
+    const isLongPrompt = wordCount > 200;
+    if (structureScore >= 2) {
+      if (finalComplexity === 'simple') {
+        finalComplexity = 'moderate';
+      } else if (finalComplexity === 'moderate' && !isLongPrompt) {
+        // Only upgrade MODERATE → HARD for shorter analytical queries
         finalComplexity = 'hard';
       }
       finalConfidence = Math.min(0.95, finalConfidence + 0.05);
     }
 
     // 12. Sanity checks
-    if (wordCount < 10 && finalComplexity === 'expert' && techBoost < 2.0) {
+    if (wordCount < 10 && finalComplexity === 'expert' && techBoost < 3.0) {
       finalComplexity = 'hard';
     }
 
-    if (wordCount > 50 && (finalComplexity === 'simple' || finalComplexity === 'moderate')) {
+    // Only upgrade to HARD for extremely long prompts (5000+ words = ~20 pages)
+    // This allows pages-long but semantically simple prompts to cascade
+    if (wordCount > 5000 && (finalComplexity === 'simple' || finalComplexity === 'moderate')) {
       finalComplexity = 'hard';
+    }
+
+    // 12.5 v14: Function call format complexity cap
+    // Cap at MODERATE to ensure cascade routing for BFCL-style prompts
+    const isFunctionCall = this.isFunctionCallFormat(query);
+    if (isFunctionCall && (finalComplexity === 'hard' || finalComplexity === 'expert')) {
+      finalComplexity = 'moderate';
+      finalConfidence = 0.85;
+    }
+
+    // 12.6 v15: Long-context QA complexity cap
+    // Long documents with simple questions are semantically easy tasks
+    const isLongContextQA = this.isLongContextQAFormat(queryLower, wordCount);
+    if (isLongContextQA && (finalComplexity === 'hard' || finalComplexity === 'expert')) {
+      finalComplexity = 'moderate';
+      finalConfidence = 0.85;
     }
 
     return {
@@ -642,6 +660,118 @@ export class ComplexityDetector {
     }
 
     return boost;
+  }
+
+  // =====================================================================
+  // v14/v15 FORMAT DETECTORS
+  // =====================================================================
+
+  private static readonly FUNCTION_CALL_INDICATORS = [
+    /you have access to.*(?:tool|function)s?/i,
+    /(?:available|following)\s+(?:tool|function)s?:/i,
+    /tool:\s*\w+/i,
+    /function:\s*\w+/i,
+    /parameters?\s*:\s*[\{\[]/i,
+    /"name"\s*:\s*"[^"]+"\s*,\s*"(?:description|parameters)"/i,
+    /"type"\s*:\s*"function"/i,
+    /respond\s+(?:with|in|using)\s+(?:the\s+)?(?:following\s+)?(?:json|format)/i,
+    /(?:call|use|invoke)\s+(?:the\s+)?(?:appropriate|correct|right)\s+(?:tool|function)/i,
+    /which\s+(?:tool|function)\s+(?:should|to)\s+(?:be\s+)?(?:use|call)/i,
+    /- \w+\s*\([^)]+\):\s*\w+/i,
+    /\w+\s*\((?:string|number|boolean|array|object|integer|float)/i,
+  ];
+
+  /**
+   * Detect if query is a function-calling/tool-use prompt (v14).
+   * Ported from Python cascadeflow/quality/complexity.py
+   */
+  private isFunctionCallFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+    let matches = 0;
+
+    for (const pattern of ComplexityDetector.FUNCTION_CALL_INDICATORS) {
+      if (pattern.test(queryLower)) {
+        matches++;
+        if (matches >= 2) return true;
+      }
+    }
+
+    if (matches >= 1) {
+      const hasToolStructure =
+        queryLower.includes('parameters:') ||
+        (query.includes('- ') &&
+          (queryLower.includes('string') || queryLower.includes('number')));
+      if (hasToolStructure) return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Detect if query is a long-context QA prompt (v15).
+   * Ported from Python cascadeflow/quality/complexity.py
+   */
+  private isLongContextQAFormat(queryLower: string, wordCount: number): boolean {
+    if (wordCount < 200) return false;
+
+    const contextMarkers = [
+      /\bdocument\s*:/i,
+      /\bcontext\s*:/i,
+      /\btext\s*:/i,
+      /\bpassage\s*:/i,
+      /\barticle\s*:/i,
+      /\bcontent\s*:/i,
+      /\bgiven\s+(?:the\s+)?(?:following|above|below)\s+(?:text|document|passage|context)/i,
+      /\bread\s+(?:the\s+)?(?:following|above|below)/i,
+      /\bbased\s+on\s+(?:the\s+)?(?:following|above|text|document|passage|context)/i,
+      /^(?:document|context|passage|text|article)\b/im,
+      /\[document\]/i,
+      /\[context\]/i,
+      /\[passage\]/i,
+    ];
+
+    const questionMarkers = [
+      /\bquestion\s*:/i,
+      /\bquery\s*:/i,
+      /\bask\s*:/i,
+      /\banswer\s+(?:the\s+)?(?:following|this)\s+question/i,
+      /\bwhat\s+(?:is|are|was|were|does|do|did)\b/i,
+      /\bwho\s+(?:is|are|was|were)\b/i,
+      /\bwhen\s+(?:is|was|did|does)\b/i,
+      /\bwhere\s+(?:is|was|did|does)\b/i,
+      /\bhow\s+(?:many|much|does|did|is|are)\b/i,
+      /\bwhich\s+(?:of|one)\b/i,
+      /\?\s*$/m,
+    ];
+
+    let contextMatches = 0;
+    let questionMatches = 0;
+
+    for (const pattern of contextMarkers) {
+      if (pattern.test(queryLower)) {
+        contextMatches++;
+        if (contextMatches >= 2) break;
+      }
+    }
+
+    for (const pattern of questionMarkers) {
+      if (pattern.test(queryLower)) {
+        questionMatches++;
+        if (questionMatches >= 1) break;
+      }
+    }
+
+    if (contextMatches >= 1 && questionMatches >= 1) return true;
+
+    // Alternative: Very long text (500+ words) with a question at the end
+    if (wordCount >= 500) {
+      const last100 = queryLower.slice(-100);
+      if (last100.includes('?') || /\b(?:what|who|when|where|how|which|why)\b/.test(last100)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
