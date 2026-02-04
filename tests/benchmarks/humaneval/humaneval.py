@@ -124,12 +124,31 @@ class HumanEvalBenchmark(Benchmark):
 
         if self.max_samples is None:
             try:
+                import gzip
                 import json
                 import urllib.request
 
-                url = "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl"
-                with urllib.request.urlopen(url, timeout=30) as response:
-                    payload = response.read().decode("utf-8")
+                urls = [
+                    "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl",
+                    "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl.gz",
+                ]
+                payload = None
+                last_error = None
+                for url in urls:
+                    try:
+                        with urllib.request.urlopen(url, timeout=30) as response:
+                            raw = response.read()
+                        if url.endswith(".gz"):
+                            payload = gzip.decompress(raw).decode("utf-8")
+                        else:
+                            payload = raw.decode("utf-8")
+                        break
+                    except Exception as exc:
+                        last_error = exc
+
+                if payload is None:
+                    raise RuntimeError(last_error or "Failed to download HumanEval dataset")
+
                 full_problems = [json.loads(line) for line in payload.splitlines() if line.strip()]
                 return [(p["prompt"], p) for p in full_problems]
             except Exception as exc:
