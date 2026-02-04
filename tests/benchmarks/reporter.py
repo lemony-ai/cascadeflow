@@ -52,6 +52,8 @@ class BenchmarkReporter:
                 "escalated_to_verifier": summary.escalated_to_verifier,
                 "acceptance_rate_pct": summary.acceptance_rate_pct,
                 "escalation_rate_pct": summary.escalation_rate_pct,
+                "direct_routed": summary.direct_routed,
+                "direct_routing_pct": summary.direct_routing_pct,
                 "total_cost": summary.total_cost,
                 "total_baseline_cost": summary.total_baseline_cost,
                 "total_savings": summary.total_savings,
@@ -60,9 +62,11 @@ class BenchmarkReporter:
                 "avg_latency_ms": summary.avg_latency_ms,
                 "median_latency_ms": summary.median_latency_ms,
                 "p95_latency_ms": summary.p95_latency_ms,
+                "avg_cascadeflow_latency_ms": summary.avg_cascadeflow_latency_ms,
                 "accuracy": summary.accuracy,
                 "drafter_accuracy": summary.drafter_accuracy,
                 "verifier_accuracy": summary.verifier_accuracy,
+                "direct_accuracy": summary.direct_accuracy,
                 "total_input_tokens": summary.total_input_tokens,
                 "total_output_tokens": summary.total_output_tokens,
             },
@@ -72,11 +76,13 @@ class BenchmarkReporter:
                     "query": r.query[:100] + "..." if len(r.query) > 100 else r.query,
                     "model_used": r.model_used,
                     "accepted": r.accepted,
+                    "routing_strategy": r.routing_strategy,
                     "quality_score": r.quality_score,
                     "total_cost": r.total_cost,
                     "baseline_cost": r.baseline_cost,
                     "cost_savings_pct": r.cost_savings_pct,
                     "latency_ms": r.latency_ms,
+                    "cascadeflow_latency_ms": r.cascadeflow_latency_ms,
                     "is_correct": r.is_correct,
                     "error": r.error,
                 }
@@ -123,6 +129,7 @@ class BenchmarkReporter:
                     "test_id",
                     "model_used",
                     "accepted",
+                    "routing_strategy",
                     "quality_score",
                     "drafter_cost",
                     "verifier_cost",
@@ -131,6 +138,7 @@ class BenchmarkReporter:
                     "cost_savings",
                     "cost_savings_pct",
                     "latency_ms",
+                    "cascadeflow_latency_ms",
                     "tokens_input",
                     "tokens_output",
                     "is_correct",
@@ -145,6 +153,7 @@ class BenchmarkReporter:
                         r.test_id,
                         r.model_used,
                         r.accepted,
+                        r.routing_strategy,
                         f"{r.quality_score:.3f}",
                         f"{r.drafter_cost:.6f}",
                         f"{r.verifier_cost:.6f}",
@@ -153,6 +162,7 @@ class BenchmarkReporter:
                         f"{r.cost_savings:.6f}",
                         f"{r.cost_savings_pct:.1f}",
                         f"{r.latency_ms:.0f}",
+                        f"{r.cascadeflow_latency_ms:.0f}",
                         r.tokens_input,
                         r.tokens_output,
                         r.is_correct,
@@ -196,6 +206,7 @@ class BenchmarkReporter:
 | Failed | {summary.failed_tests} |
 | **Drafter Accepted** | **{summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)** |
 | **Escalated to Verifier** | **{summary.escalated_to_verifier} ({summary.escalation_rate_pct:.1f}%)** |
+| **Direct Routed** | **{summary.direct_routed} ({summary.direct_routing_pct:.1f}%)** |
 
 ## Cost Analysis
 
@@ -217,6 +228,7 @@ class BenchmarkReporter:
 | Average Latency | {summary.avg_latency_ms:.0f}ms |
 | Median Latency | {summary.median_latency_ms:.0f}ms |
 | P95 Latency | {summary.p95_latency_ms:.0f}ms |
+| Average Cascade Overhead | {summary.avg_cascadeflow_latency_ms:.0f}ms |
 
 ## Quality
 
@@ -225,6 +237,7 @@ class BenchmarkReporter:
 | Overall Accuracy | {summary.accuracy:.1f}% |
 | Drafter Accuracy | {summary.drafter_accuracy:.1f}% |
 | Verifier Accuracy | {summary.verifier_accuracy:.1f}% |
+| Direct Accuracy | {summary.direct_accuracy:.1f}% |
 
 ## Token Usage
 

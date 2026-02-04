@@ -656,12 +656,19 @@ class MMLUBenchmark(Benchmark):
             "model_used": "drafter" if accepted else "verifier",
             "accepted": accepted,
             "quality_score": float(result.quality_score or 0.0),
+            "routing_strategy": result.routing_strategy,
             "drafter_cost": float(result.draft_cost or 0.0),
             "verifier_cost": float(result.verifier_cost or 0.0),
             "total_cost": float(result.total_cost or 0.0),
             "cost_saved": result.cost_saved,
             "baseline_cost": result.baseline_cost,
             "latency_ms": latency_ms,
+            "cascadeflow_latency_ms": (
+                (result.complexity_detection_ms or 0)
+                + (result.metadata.get("domain_detection_ms", 0) if result.metadata else 0)
+                + (result.metadata.get("tool_complexity_analysis_ms", 0) if result.metadata else 0)
+                + (result.quality_verification_ms or 0)
+            ),
             "tokens_input": int(result.metadata.get("prompt_tokens", 0) or 0),
             "tokens_output": int(result.metadata.get("completion_tokens", 0) or 0),
         }
