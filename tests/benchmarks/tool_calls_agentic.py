@@ -249,10 +249,17 @@ class ToolCallsAgenticBenchmark(Benchmark):
             "model_used": result.model_used,
             "accepted": result.draft_accepted,
             "quality_score": result.quality_score or 0.0,
+            "routing_strategy": result.routing_strategy,
             "drafter_cost": result.draft_cost or 0.0,
             "verifier_cost": result.verifier_cost or 0.0,
             "total_cost": result.total_cost,
             "latency_ms": result.latency_ms,
+            "cascadeflow_latency_ms": (
+                (result.complexity_detection_ms or 0)
+                + (result.metadata.get("domain_detection_ms", 0) if result.metadata else 0)
+                + (result.metadata.get("tool_complexity_analysis_ms", 0) if result.metadata else 0)
+                + (result.quality_verification_ms or 0)
+            ),
             "tokens_input": result.metadata.get("prompt_tokens", 0),
             "tokens_output": result.metadata.get("completion_tokens", 0),
         }

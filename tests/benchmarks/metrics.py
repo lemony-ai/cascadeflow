@@ -91,12 +91,15 @@ class QualityMetrics:
     overall_accuracy: float
     drafter_accuracy: float
     verifier_accuracy: float
+    direct_accuracy: float
     total_correct: int
     total_incorrect: int
     drafter_correct: int
     drafter_incorrect: int
     verifier_correct: int
     verifier_incorrect: int
+    direct_correct: int
+    direct_incorrect: int
 
     @staticmethod
     def from_results(results: list[BenchmarkResult]) -> "QualityMetrics":
@@ -106,12 +109,15 @@ class QualityMetrics:
                 overall_accuracy=0.0,
                 drafter_accuracy=0.0,
                 verifier_accuracy=0.0,
+                direct_accuracy=0.0,
                 total_correct=0,
                 total_incorrect=0,
                 drafter_correct=0,
                 drafter_incorrect=0,
                 verifier_correct=0,
                 verifier_incorrect=0,
+                direct_correct=0,
+                direct_incorrect=0,
             )
 
         # Overall
@@ -120,7 +126,7 @@ class QualityMetrics:
         overall_accuracy = (total_correct / len(results) * 100) if results else 0.0
 
         # Drafter
-        drafter_results = [r for r in results if r.accepted]
+        drafter_results = [r for r in results if r.routing_strategy == "cascade" and r.accepted]
         drafter_correct = sum(1 for r in drafter_results if r.is_correct)
         drafter_incorrect = len(drafter_results) - drafter_correct
         drafter_accuracy = (
@@ -128,21 +134,32 @@ class QualityMetrics:
         )
 
         # Verifier
-        verifier_results = [r for r in results if r.escalated]
+        verifier_results = [r for r in results if r.verifier_rejected]
         verifier_correct = sum(1 for r in verifier_results if r.is_correct)
         verifier_incorrect = len(verifier_results) - verifier_correct
         verifier_accuracy = (
             (verifier_correct / len(verifier_results) * 100) if verifier_results else 0.0
         )
 
+        # Direct
+        direct_results = [r for r in results if r.direct_routed]
+        direct_correct = sum(1 for r in direct_results if r.is_correct)
+        direct_incorrect = len(direct_results) - direct_correct
+        direct_accuracy = (
+            (direct_correct / len(direct_results) * 100) if direct_results else 0.0
+        )
+
         return QualityMetrics(
             overall_accuracy=overall_accuracy,
             drafter_accuracy=drafter_accuracy,
             verifier_accuracy=verifier_accuracy,
+            direct_accuracy=direct_accuracy,
             total_correct=total_correct,
             total_incorrect=total_incorrect,
             drafter_correct=drafter_correct,
             drafter_incorrect=drafter_incorrect,
             verifier_correct=verifier_correct,
             verifier_incorrect=verifier_incorrect,
+            direct_correct=direct_correct,
+            direct_incorrect=direct_incorrect,
         )

@@ -305,9 +305,11 @@ class MTBenchmark(Benchmark):
         total_draft_cost = 0.0
         total_verifier_cost = 0.0
         total_latency = 0.0
+        total_cascadeflow_latency = 0.0
         total_prompt_tokens = 0
         total_completion_tokens = 0
         drafter_accepted_count = 0
+        direct_turns = 0
 
         # Execute each turn in sequence
         for turn_data in turns:
@@ -337,12 +339,20 @@ class MTBenchmark(Benchmark):
             total_draft_cost += result.draft_cost or 0.0
             total_verifier_cost += result.verifier_cost or 0.0
             total_latency += result.latency_ms
+            total_cascadeflow_latency += (
+                (result.complexity_detection_ms or 0)
+                + (result.metadata.get("domain_detection_ms", 0) if result.metadata else 0)
+                + (result.metadata.get("tool_complexity_analysis_ms", 0) if result.metadata else 0)
+                + (result.quality_verification_ms or 0)
+            )
             total_prompt_tokens += result.metadata.get("prompt_tokens", 0)
             total_completion_tokens += result.metadata.get("completion_tokens", 0)
 
             turn_used_drafter = result.draft_accepted or result.model_used == self.drafter_model
             if turn_used_drafter:
                 drafter_accepted_count += 1
+            if result.routing_strategy == "direct":
+                direct_turns += 1
 
             print(
                 f"    Turn {turn_num}: Quality={quality:.2f}, "
@@ -353,23 +363,27 @@ class MTBenchmark(Benchmark):
         num_turns = len(turns)
         avg_quality = total_quality / num_turns
         avg_latency = total_latency / num_turns
+        avg_cascadeflow_latency = total_cascadeflow_latency / num_turns
 
         # Baseline cost (all turns use verifier)
         baseline_cost = self.calculate_baseline_cost(conversation_data)
 
         accepted = drafter_accepted_count == num_turns
         model_used = self.drafter_model if accepted else self.verifier_model
+        routing_strategy = "direct" if direct_turns == num_turns else "cascade"
 
         return {
             "prediction": responses,
             "model_used": model_used,
             "accepted": accepted,
             "quality_score": avg_quality,
+            "routing_strategy": routing_strategy,
             "drafter_cost": total_draft_cost,
             "verifier_cost": total_verifier_cost,
             "total_cost": total_cost,
             "baseline_cost": baseline_cost,
             "latency_ms": avg_latency,
+            "cascadeflow_latency_ms": avg_cascadeflow_latency,
             "tokens_input": total_prompt_tokens,
             "tokens_output": total_completion_tokens,
         }
