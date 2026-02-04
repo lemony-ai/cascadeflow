@@ -719,8 +719,9 @@ class QualityValidator:
             # Only bypass confidence if the tool call looks sane and non-multi-turn.
             is_function_call = alignment_features.get("is_function_call", False)
             valid_function_call = alignment_features.get("valid_function_call_response", False)
-            is_multi_turn = alignment_features.get("is_multi_turn", False)
-            is_multi_turn = is_multi_turn or self._is_multi_turn_prompt(query)
+            is_multi_turn = alignment_features.get(
+                "is_multi_turn", False
+            ) or self._is_multi_turn_prompt(query)
 
             if not is_function_call:
                 is_function_call = self._is_function_call_prompt(query)
@@ -740,8 +741,12 @@ class QualityValidator:
             details["function_call_sane"] = function_call_sane
             details["valid_function_call_response"] = valid_function_call
 
-            all_valid = is_function_call and valid_function_call and function_call_sane
-            if all_valid and not is_multi_turn:
+            if (
+                is_function_call
+                and valid_function_call
+                and function_call_sane
+                and not is_multi_turn
+            ):
                 checks["confidence"] = True  # Allow bypass for simple, sane tool calls
             else:
                 details["function_call_requires_verifier"] = True

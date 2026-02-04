@@ -28,7 +28,16 @@
  *   }
  */
 
-import type { UnifiedEmbeddingService, EmbeddingCache } from '@cascadeflow/ml';
+type EmbeddingService = {
+  isAvailable(): Promise<boolean>;
+  similarity(text1: string, text2: string): Promise<number | null>;
+};
+
+type EmbeddingCacheInstance = {
+  similarity(text1: string, text2: string): Promise<number | null>;
+  clear(): void;
+  cacheInfo(): { size: number; texts: string[] };
+};
 
 /**
  * Result of semantic quality check
@@ -60,8 +69,8 @@ export interface SemanticQualityResult {
  * The embedding model (~40MB) will auto-download on first use.
  */
 export class SemanticQualityChecker {
-  private embedder?: UnifiedEmbeddingService;
-  private cache?: EmbeddingCache;
+  private embedder?: EmbeddingService;
+  private cache?: EmbeddingCacheInstance;
   private _available: boolean = false;
   private initializeAttempted: boolean = false;
   private initPromise?: Promise<void>;
@@ -75,7 +84,7 @@ export class SemanticQualityChecker {
    */
   constructor(
     private similarityThreshold: number = 0.5,
-    embedder?: UnifiedEmbeddingService,
+    embedder?: EmbeddingService,
     private useCache: boolean = true
   ) {
     // Start initialization immediately but don't block constructor
@@ -89,9 +98,7 @@ export class SemanticQualityChecker {
    * and allows the checker to remain available even if @cascadeflow/ml
    * is not installed.
    */
-  private async initializeEmbedder(
-    embedder?: UnifiedEmbeddingService
-  ): Promise<void> {
+  private async initializeEmbedder(embedder?: EmbeddingService): Promise<void> {
     if (this.initializeAttempted) {
       return;
     }
@@ -100,7 +107,12 @@ export class SemanticQualityChecker {
 
     try {
       // Dynamic import for optional dependency
-      const ml = await import('@cascadeflow/ml');
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - optional dependency may not be installed in standalone builds
+      const ml = (await import('@cascadeflow/ml')) as {
+        UnifiedEmbeddingService: new () => EmbeddingService;
+        EmbeddingCache: new (embedder: EmbeddingService) => EmbeddingCacheInstance;
+      };
       const { UnifiedEmbeddingService, EmbeddingCache } = ml;
 
       // Use provided embedder or create new one

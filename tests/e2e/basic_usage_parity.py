@@ -55,7 +55,9 @@ def main() -> int:
         denom = max(py_val, ts_val, 1.0)
         pct_diff = diff / denom
         if pct_diff > tolerance:
-            failures.append({"metric": key, "python": py_val, "typescript": ts_val, "diff": pct_diff})
+            failures.append(
+                {"metric": key, "python": py_val, "typescript": ts_val, "diff": pct_diff}
+            )
 
     result = {
         "python": py_stats,
