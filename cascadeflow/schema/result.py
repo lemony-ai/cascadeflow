@@ -66,7 +66,10 @@ class CascadeResult:
         draft_generation_ms: Time to generate draft
         quality_verification_ms: Time for quality validation
         verifier_generation_ms: Time to generate verifier response
-        cascade_overhead_ms: Additional overhead from cascade system
+        cascade_overhead_ms: Wasted latency from cascade decisions:
+            - Draft accepted: 0ms (we saved verifier time)
+            - Draft rejected: full draft_latency_ms (wasted attempt)
+            - Direct route: 0ms (no cascade)
 
     Cost Breakdown (v2.5 - FIXED):
         draft_cost: Cost of draft generation

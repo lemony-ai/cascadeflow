@@ -23,8 +23,8 @@ import os
 import re
 from typing import Any, Optional
 
-from .base import Benchmark, BenchmarkResult, BenchmarkSummary
-from .profiler import CascadeProfiler
+from ..base import Benchmark, BenchmarkResult, BenchmarkSummary
+from ..profiler import CascadeProfiler
 
 
 class GSM8KBenchmark(Benchmark):
@@ -32,14 +32,15 @@ class GSM8KBenchmark(Benchmark):
 
     def __init__(
         self,
-        drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "gpt-4o",
+        drafter_model: str = "claude-haiku-4-5-20251001",
+        verifier_model: str = "claude-opus-4-5-20251101",
         quality_threshold: float = 0.7,
-        max_samples: int = 10,
+        max_samples: Optional[int] = 10,
     ):
         """Initialize GSM8K benchmark."""
+        dataset_name = "GSM8K-full" if max_samples is None else f"GSM8K-{max_samples}"
         super().__init__(
-            name="GSM8K-10",
+            name=dataset_name,
             drafter_model=drafter_model,
             verifier_model=verifier_model,
             quality_threshold=quality_threshold,
@@ -50,7 +51,7 @@ class GSM8KBenchmark(Benchmark):
         # Store verifier costs for accurate baseline comparison
         self._last_verifier_cost = 0.0
 
-    def get_baseline_cost(self, query: str) -> float:
+    def get_baseline_cost(self, query: str, prediction: Optional[str] = None) -> float:
         """
         Calculate baseline cost (verifier only).
 
@@ -155,7 +156,45 @@ class GSM8KBenchmark(Benchmark):
             },
         ]
 
-        return [(p["problem_id"], p) for p in problems[: self.max_samples]]
+        if self.max_samples is None:
+            try:
+                import json
+                import urllib.request
+
+                url = (
+                    "https://raw.githubusercontent.com/openai/grade-school-math/master/"
+                    "grade_school_math/data/test.jsonl"
+                )
+                with urllib.request.urlopen(url, timeout=30) as response:
+                    payload = response.read().decode("utf-8")
+                full_problems = []
+                for line in payload.splitlines():
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                    answer_text = entry.get("answer", "")
+                    final_answer = None
+                    if "####" in answer_text:
+                        final_answer = answer_text.split("####")[-1].strip()
+                    else:
+                        match = re.findall(r"[-+]?\d*\.?\d+", answer_text)
+                        final_answer = match[-1] if match else ""
+                    full_problems.append(
+                        {
+                            "problem_id": entry.get("question", "")[:20],
+                            "question": entry.get("question", ""),
+                            "answer": final_answer,
+                            "solution": answer_text,
+                            "difficulty": "unknown",
+                        }
+                    )
+                return [(p["question"], p) for p in full_problems]
+            except Exception as exc:
+                print(f"  Warning: Failed to download full GSM8K dataset: {exc}")
+                print("  Falling back to bundled subset.")
+                return [(p["question"], p) for p in problems]
+
+        return [(p["question"], p) for p in problems[: self.max_samples]]
 
     def evaluate_prediction(self, prediction: str, ground_truth: Any) -> tuple[bool, float]:
         """
@@ -228,7 +267,11 @@ class GSM8KBenchmark(Benchmark):
         import time
 
         # Add instruction for clear answer format
-        enhanced_query = f"{query}\n\nPlease show your step-by-step reasoning and clearly state your final answer."
+        enhanced_query = (
+            f"{query}\n\n"
+            "Solve step-by-step and verify your calculations. "
+            "Finish with: Final answer: <number>."
+        )
 
         from cascadeflow import CascadeAgent, DomainConfig, ModelConfig, QualityConfig
 
@@ -239,7 +282,7 @@ class GSM8KBenchmark(Benchmark):
             drafter=self.drafter_model,
             verifier=self.verifier_model,
             threshold=self.quality_threshold,
-            temperature=0.1,  # Low temperature for precise math
+            temperature=0.0,  # Deterministic for precise math
             validation_method="syntax",  # Validate numeric answers
             # Cascade all complexity levels for math - specialized drafter can handle them
             cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
@@ -250,7 +293,7 @@ class GSM8KBenchmark(Benchmark):
             drafter=self.drafter_model,
             verifier=self.verifier_model,
             threshold=self.quality_threshold,
-            temperature=0.1,
+            temperature=0.0,
             # Cascade all complexity levels for math-related financial queries
             cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
         )
@@ -268,9 +311,9 @@ class GSM8KBenchmark(Benchmark):
         agent = CascadeAgent(
             models=[
                 # Drafter (fast, cheap) - good at math
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
+                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
                 # Verifier (accurate)
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
             ],
             quality_config=QualityConfig(
                 confidence_thresholds=quality_thresholds,
@@ -285,7 +328,7 @@ class GSM8KBenchmark(Benchmark):
 
         start_time = time.time()
         # Use higher max_tokens for math problems that require step-by-step reasoning
-        result = await agent.run(enhanced_query, max_tokens=500)
+        result = await agent.run(enhanced_query, max_tokens=500, temperature=0.0)
         latency_ms = (time.time() - start_time) * 1000
 
         # Convert CascadeResult to expected dict format
@@ -354,7 +397,7 @@ class GSM8KBenchmark(Benchmark):
         }
 
 
-async def run_gsm8k_benchmark():
+async def run_gsm8k_benchmark(max_samples: Optional[int] = 10):
     """Run GSM8K benchmark and generate report."""
 
     print("\n" + "=" * 80)
@@ -362,23 +405,28 @@ async def run_gsm8k_benchmark():
     print("=" * 80 + "\n")
 
     # Verify API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY not set")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("Error: ANTHROPIC_API_KEY not set")
         return
 
     print("Configuration:")
-    print("  Dataset:         GSM8K-10 (10 grade school math problems)")
-    print("  Drafter:         gpt-4o-mini")
-    print("  Verifier:        gpt-4o")
-    print("  Baseline:        gpt-4o (always)")
+    dataset_label = (
+        "GSM8K-full (official test set)"
+        if max_samples is None
+        else f"GSM8K-{max_samples} ({max_samples} grade school math problems)"
+    )
+    print(f"  Dataset:         {dataset_label}")
+    print("  Drafter:         claude-haiku-4-5-20251001")
+    print("  Verifier:        claude-opus-4-5-20251101")
+    print("  Baseline:        claude-opus-4-5-20251101 (always)")
     print("  Quality Threshold: 0.7\n")
 
     # Create benchmark
     benchmark = GSM8KBenchmark(
-        drafter_model="gpt-4o-mini",
-        verifier_model="gpt-4o",
+        drafter_model="claude-haiku-4-5-20251001",
+        verifier_model="claude-opus-4-5-20251101",
         quality_threshold=0.7,
-        max_samples=10,
+        max_samples=max_samples,
     )
 
     # Run benchmark

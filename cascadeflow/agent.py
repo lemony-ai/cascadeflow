@@ -75,16 +75,21 @@ from .quality import QualityConfig
 # Phase 3: Tool routing
 # Phase 2A: Routing module imports
 # Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
 from .routing import (
+    ComplexityRouter,
     DomainDetector,
     PreRouter,
     SemanticDomainDetector,
+    ToolComplexityAnalyzer,
     ToolRouter,
+    ToolRoutingDecision,
 )
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
+from .utils.messages import get_last_user_message, messages_to_prompt, normalize_messages
 
 # Streaming imports - BOTH managers (v2.4 FIX)
 from .streaming import StreamEvent, StreamEventType, StreamManager
@@ -155,6 +160,7 @@ class CascadeAgent:
         self,
         models: list[ModelConfig],
         quality_config: Optional[QualityConfig] = None,
+        quality: Optional[dict[str, Any]] = None,
         enable_cascade: bool = True,
         verbose: bool = False,
         # ========================================================================
@@ -163,6 +169,14 @@ class CascadeAgent:
         domain_configs: Optional[dict[str, DomainConfig]] = None,  # Per-domain cascade config
         enable_domain_detection: bool = False,  # Auto-detect query domain
         use_semantic_domains: bool = True,  # 🆕 Use ML-based semantic detection (hybrid)
+        # ========================================================================
+        # 🆕 v19: Tool Complexity Routing (Phase 1)
+        # ========================================================================
+        enable_tool_complexity_routing: bool = True,  # 🆕 v19: Route tool calls by complexity
+        # ========================================================================
+        # 🆕 v2.7: Factual-Risk Routing (Opt-in safety mode)
+        # ========================================================================
+        enable_factual_risk_routing: bool = False,
         # ========================================================================
         # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
         # ========================================================================
@@ -181,13 +195,15 @@ class CascadeAgent:
         Args:
             models: List of models (will be sorted by cost)
             quality_config: Quality validation config
+            quality: Backwards-compatible quality config dict (e.g., {"threshold": 0.7})
             enable_cascade: Enable cascade system
             verbose: Enable verbose logging
             domain_configs: Optional dict mapping domain strings to DomainConfig
                            (e.g., {"code": DomainConfig(...), "medical": DomainConfig(...)})
             enable_domain_detection: Enable automatic domain detection for queries
-            use_semantic_domains: Use ML-based semantic domain detection (hybrid mode)
-                                 Leverages same embedding model as quality system for better accuracy
+            use_semantic_domains: Use ML-based semantic domain detection (hybrid mode).
+                                 Leverages same embedding model as quality system.
+            enable_factual_risk_routing: Route factual-risk prompts directly to verifier (opt-in)
 
         Deprecated Args (v0.1.x compatibility):
             config: Old CascadeConfig (use quality_config instead)
@@ -199,6 +215,21 @@ class CascadeAgent:
         """
         if not models:
             raise cascadeflowError("At least one model is required")
+
+        if quality_config is None and quality is not None:
+            if isinstance(quality, QualityConfig):
+                quality_config = quality
+            elif isinstance(quality, dict):
+                quality_config = QualityConfig.for_cascade()
+                thresholds = quality.get("confidence_thresholds")
+                threshold_value = quality.get("threshold")
+                if isinstance(thresholds, dict):
+                    quality_config.confidence_thresholds = thresholds
+                elif threshold_value is not None:
+                    quality_config.confidence_thresholds = {
+                        key: float(threshold_value)
+                        for key in quality_config.confidence_thresholds.keys()
+                    }
 
         if len(models) < 2 and enable_cascade:
             logger.warning(
@@ -219,9 +250,9 @@ class CascadeAgent:
                 "   Converting config to quality_config automatically..."
             )
             # Convert CascadeConfig to QualityConfig
-            # QualityConfig takes confidence_thresholds (dict), not confidence_threshold (single value)
+            # QualityConfig takes confidence_thresholds (dict), not single value
             quality_config = QualityConfig.for_cascade()  # Use default cascade config
-            # Note: CascadeConfig quality_threshold is ignored since QualityConfig uses complexity-aware thresholds
+            # Note: CascadeConfig quality_threshold ignored - uses complexity-aware
 
         # Handle old 'tiers' parameter
         if tiers is not None:
@@ -300,11 +331,27 @@ class CascadeAgent:
         self.router = PreRouter(
             enable_cascade=enable_cascade,
             complexity_detector=self.complexity_detector,
+            enable_factual_risk_routing=enable_factual_risk_routing,
             verbose=verbose,
         )
 
         # Initialize tool router
         self.tool_router = ToolRouter(models=self.models, verbose=verbose)
+
+        # 🆕 v19: Initialize tool complexity router for intelligent tool call routing
+        self.enable_tool_complexity_routing = enable_tool_complexity_routing
+        if enable_tool_complexity_routing:
+            self.tool_complexity_analyzer = ToolComplexityAnalyzer()
+            self.tool_complexity_router = ComplexityRouter(
+                analyzer=self.tool_complexity_analyzer,
+                small_model=self.models[0].name,
+                large_model=self.models[-1].name,
+                verbose=verbose,
+            )
+            logger.info("Tool complexity routing: ENABLED (v19)")
+        else:
+            self.tool_complexity_analyzer = None
+            self.tool_complexity_router = None
 
         # 🆕 v2.6: Initialize domain detection
         self.enable_domain_detection = enable_domain_detection
@@ -654,7 +701,8 @@ class CascadeAgent:
                 )
             except Exception as e:
                 logger.warning(
-                    f"Failed to initialize provider '{model.provider}' for model '{model.name}': {e}"
+                    f"Failed to initialize provider '{model.provider}' "
+                    f"for model '{model.name}': {e}"
                 )
 
         if not providers:
@@ -679,6 +727,15 @@ class CascadeAgent:
         # Fallback to provider-type lookup (backwards compatibility)
         return self.providers[model.provider]
 
+    def _normalize_messages(
+        self, query: str, messages: Optional[list[dict[str, Any]]]
+    ) -> tuple[str, Optional[list[dict[str, Any]]]]:
+        if messages:
+            normalized = normalize_messages(messages)
+            query_text = messages_to_prompt(normalized)
+            return query_text, normalized
+        return query, None
+
     # ========================================================================
     # API 1: NON-STREAMING - WITH TOOL SUPPORT
     # ========================================================================
@@ -692,6 +749,7 @@ class CascadeAgent:
         force_direct: bool = False,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
         user_tier: Optional[str] = None,  # 🔄 OPTIONAL: v0.1.x backwards compatibility
         **kwargs,
     ) -> CascadeResult:
@@ -706,6 +764,7 @@ class CascadeAgent:
             force_direct: Force direct routing
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
+            messages: Optional multi-turn messages (role/content)
             user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
             **kwargs: Additional provider parameters
 
@@ -714,21 +773,24 @@ class CascadeAgent:
         """
         overall_start = time.time()
         timing_breakdown = {}
+        query_text, normalized_messages = self._normalize_messages(query, messages)
 
         # Detect complexity
         complexity_start = time.time()
+
+        complexity_metadata = {}
 
         if complexity_hint:
             try:
                 complexity = QueryComplexity(complexity_hint.lower())
                 complexity_confidence = 1.0
             except ValueError:
-                complexity, complexity_confidence = self.complexity_detector.detect(
-                    query, return_metadata=False
+                complexity, complexity_confidence, complexity_metadata = (
+                    self.complexity_detector.detect(query_text, return_metadata=True)
                 )
         else:
-            complexity, complexity_confidence = self.complexity_detector.detect(
-                query, return_metadata=False
+            complexity, complexity_confidence, complexity_metadata = (
+                self.complexity_detector.detect(query_text, return_metadata=True)
             )
 
         timing_breakdown["complexity_detection"] = (time.time() - complexity_start) * 1000
@@ -748,7 +810,7 @@ class CascadeAgent:
 
         if self.domain_detector and self.enable_domain_detection:
             domain_start = time.time()
-            domain_result = self.domain_detector.detect_with_scores(query)
+            domain_result = self.domain_detector.detect_with_scores(query_text)
             detected_domain = domain_result.domain.value
             domain_confidence = domain_result.confidence
             timing_breakdown["domain_detection"] = (time.time() - domain_start) * 1000
@@ -780,9 +842,9 @@ class CascadeAgent:
             available_models = tool_filter_result["models"]
 
             if self.verbose:
-                print(
-                    f"[Tool Filtering: {len(available_models)}/{len(self.models)} models support tools]"
-                )
+                n_avail = len(available_models)
+                n_total = len(self.models)
+                print(f"[Tool Filtering: {n_avail}/{n_total} models support tools]")
 
             logger.info(
                 f"Tool filtering: {len(available_models)}/{len(self.models)} models capable. "
@@ -795,10 +857,48 @@ class CascadeAgent:
                     domain_config=domain_config, available_models=available_models
                 )
                 if tool_drafter or tool_verifier:
-                    logger.info(
-                        f"Domain tool models: drafter={tool_drafter.name if tool_drafter else 'default'}, "
-                        f"verifier={tool_verifier.name if tool_verifier else 'default'}"
-                    )
+                    d_name = tool_drafter.name if tool_drafter else "default"
+                    v_name = tool_verifier.name if tool_verifier else "default"
+                    logger.info(f"Domain tool models: drafter={d_name}, verifier={v_name}")
+
+        # 🆕 v19: Tool Complexity Routing - Analyze tool call complexity
+        tool_complexity_strategy = None
+        tool_complexity_decision = None
+        if tools and self.enable_tool_complexity_routing and self.tool_complexity_router:
+            # Analyze tool call complexity on the latest user turn to avoid inflating
+            # complexity from earlier context.
+            tool_query_text = query_text
+            if normalized_messages:
+                last_user_message = get_last_user_message(normalized_messages)
+                if last_user_message:
+                    tool_query_text = last_user_message
+
+            tool_complexity_strategy = self.tool_complexity_router.route_tool_call(
+                query=tool_query_text,
+                tools=tools,
+                context=(
+                    {"messages": normalized_messages, "has_domain": bool(domain_config)}
+                    if normalized_messages
+                    else None
+                ),
+            )
+
+            # Store the routing decision
+            tool_complexity_decision = tool_complexity_strategy.decision
+
+            if self.verbose:
+                print(
+                    f"[Tool Complexity: {tool_complexity_strategy.complexity_level.value} "
+                    f"(score: {tool_complexity_strategy.analysis.score:.1f})]"
+                )
+                route = "CASCADE" if tool_complexity_strategy.use_cascade else "DIRECT"
+                decision_val = tool_complexity_strategy.decision.value
+                print(f"[Tool Routing: {route} ({decision_val})]")
+
+            logger.info(
+                f"Tool complexity routing: {tool_complexity_strategy.complexity_level.value} → "
+                f"{'CASCADE' if tool_complexity_strategy.use_cascade else 'DIRECT'}"
+            )
 
         # 🔄 OPTIONAL: Filter models by user tier (v0.1.x backwards compatibility)
         if user_tier and self.tier_router:
@@ -806,12 +906,13 @@ class CascadeAgent:
             tier_filtered_models = self.tier_router.filter_models(user_tier, available_models)
 
             if self.verbose:
-                print(
-                    f"[Tier Filtering ('{user_tier}'): {len(tier_filtered_models)}/{len(available_models)} models allowed]"
-                )
+                n_tier = len(tier_filtered_models)
+                n_avail = len(available_models)
+                print(f"[Tier Filtering ('{user_tier}'): {n_tier}/{n_avail} models]")
 
             logger.info(
-                f"Tier '{user_tier}' filtering: {len(available_models)} → {len(tier_filtered_models)} models. "
+                f"Tier '{user_tier}' filtering: {len(available_models)} → "
+                f"{len(tier_filtered_models)} models. "
                 f"Allowed: {[m.name for m in tier_filtered_models]}"
             )
 
@@ -820,18 +921,21 @@ class CascadeAgent:
             # User specified tier but no tier router configured
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
-                f"Ignoring tier parameter. "
-                f"To use tiers, initialize agent with: CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"Ignoring tier parameter. To use tiers, initialize agent with: "
+                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
             )
 
         # Get routing decision (domain-aware)
         # Pass domain context so router can make domain-specific routing decisions
+        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
             "force_direct": force_direct,
             "available_models": available_models,
             "has_tools": bool(tools),
+            "has_code": complexity_metadata.get("has_code", False),
+            "has_multi_turn": has_multi_turn,
             # Domain context for domain-aware routing
             "detected_domain": detected_domain,
             "domain_config": domain_config,
@@ -839,12 +943,48 @@ class CascadeAgent:
             # 🆕 Phase 5: Domain-specific tool models
             "tool_drafter": tool_drafter,
             "tool_verifier": tool_verifier,
+            # 🆕 v19: Tool complexity routing context
+            "tool_complexity_strategy": tool_complexity_strategy,
+            "tool_complexity_decision": tool_complexity_decision,
         }
 
-        decision = await self.router.route(query, routing_context)
+        decision = await self.router.route(query_text, routing_context)
         use_cascade = decision.is_cascade()
         routing_strategy = "cascade" if use_cascade else "direct"
         routing_reason = decision.reason
+
+        # 🆕 v19: Tool Complexity Routing Override
+        # For tool calls, tool complexity takes precedence over text complexity
+        # This enables: simple tool calls → cascade, complex tool calls → direct
+        if tools and tool_complexity_decision is not None and self.enable_tool_complexity_routing:
+            # TOOL_CASCADE means simple tool call → allow cascade (cheap model can handle)
+            # TOOL_DIRECT_LARGE means complex tool call → force direct (need better model)
+            if tool_complexity_decision == ToolRoutingDecision.TOOL_CASCADE:
+                # Simple tool call - allow cascade (override text complexity if it said direct)
+                if not use_cascade:
+                    use_cascade = True
+                    routing_strategy = "cascade"
+                    level = tool_complexity_strategy.complexity_level.value
+                    routing_reason = (
+                        f"Tool complexity override: {level} tool call → cascade "
+                        f"(simple tools can use cheap model)"
+                    )
+                    if self.verbose:
+                        print("[Tool Routing Override: DIRECT → CASCADE]")
+                        print("[Reason: Simple tool complexity allows cascade]")
+            elif tool_complexity_decision == ToolRoutingDecision.TOOL_DIRECT_LARGE:
+                # Complex tool call - force direct (override text complexity if it said cascade)
+                if use_cascade:
+                    use_cascade = False
+                    routing_strategy = "direct"
+                    level = tool_complexity_strategy.complexity_level.value
+                    routing_reason = (
+                        f"Tool complexity override: {level} tool call → direct "
+                        f"(complex tools need better model)"
+                    )
+                    if self.verbose:
+                        print("[Tool Routing Override: CASCADE → DIRECT]")
+                        print("[Reason: Complex tool complexity requires direct]")
 
         if self.verbose:
             print(f"[Routing: {routing_strategy.upper()}]")
@@ -863,12 +1003,13 @@ class CascadeAgent:
             effective_threshold = domain_config.threshold
             if self.verbose:
                 print(
-                    f"[Applying domain config: temp={effective_temperature}, threshold={effective_threshold}]"
+                    f"[Applying domain config: temp={effective_temperature}, "
+                    f"threshold={effective_threshold}]"
                 )
 
         if use_cascade:
             result, exec_timing = await self._execute_cascade_with_timing(
-                query,
+                query_text,
                 effective_max_tokens,
                 effective_temperature,
                 complexity,
@@ -876,12 +1017,13 @@ class CascadeAgent:
                 tools,
                 tool_choice,
                 domain_config=domain_config,  # 🆕 v2.6: Pass domain config
+                messages=normalized_messages,
                 **kwargs,
             )
             timing_breakdown.update(exec_timing)
         else:
             result, exec_timing = await self._execute_direct_with_timing(
-                query,
+                query_text,
                 effective_max_tokens,
                 effective_temperature,
                 complexity,
@@ -889,6 +1031,7 @@ class CascadeAgent:
                 available_models,
                 tools,
                 tool_choice,
+                messages=normalized_messages,
                 **kwargs,
             )
             timing_breakdown.update(exec_timing)
@@ -913,7 +1056,7 @@ class CascadeAgent:
         # Build result
         return self._build_cascade_result(
             spec_result=result,
-            query=query,
+            query=query_text,
             complexity=complexity.value,
             complexity_confidence=complexity_confidence,
             routing_strategy=routing_strategy,
@@ -942,6 +1085,7 @@ class CascadeAgent:
         enable_visual: bool = True,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ) -> CascadeResult:
         """
@@ -960,6 +1104,7 @@ class CascadeAgent:
             enable_visual: Show pulsing dot indicator
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
+            messages: Optional multi-turn messages (role/content)
             **kwargs: Additional provider parameters
 
         Returns:
@@ -967,17 +1112,20 @@ class CascadeAgent:
         """
         start_time = time.time()
         timing_breakdown = {}
+        query_text, normalized_messages = self._normalize_messages(query, messages)
 
         # Detect complexity
         complexity_start = time.time()
+
+        complexity_metadata = {}
 
         if complexity_hint:
             # Use hint if provided
             complexity = complexity_hint
             complexity_confidence = 1.0
         else:
-            complexity, complexity_confidence = self.complexity_detector.detect(
-                query, return_metadata=False
+            complexity, complexity_confidence, complexity_metadata = (
+                self.complexity_detector.detect(query_text, return_metadata=True)
             )
 
         timing_breakdown["complexity_detection"] = (time.time() - complexity_start) * 1000
@@ -989,7 +1137,7 @@ class CascadeAgent:
 
         if self.domain_detector and self.enable_domain_detection:
             domain_start = time.time()
-            domain_result = self.domain_detector.detect_with_scores(query)
+            domain_result = self.domain_detector.detect_with_scores(query_text)
             detected_domain = domain_result.domain.value
             domain_confidence = domain_result.confidence
             timing_breakdown["domain_detection"] = (time.time() - domain_start) * 1000
@@ -1021,12 +1169,15 @@ class CascadeAgent:
                 )
 
         # Get routing decision (domain-aware routing for streaming)
+        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
             "force_direct": force_direct,
             "available_models": available_models,
             "has_tools": bool(tools),
+            "has_code": complexity_metadata.get("has_code", False),
+            "has_multi_turn": has_multi_turn,
             # Domain context for domain-aware routing
             "detected_domain": detected_domain,
             "domain_config": domain_config,
@@ -1036,7 +1187,7 @@ class CascadeAgent:
             "tool_verifier": tool_verifier,
         }
 
-        decision = await self.router.route(query, routing_context)
+        decision = await self.router.route(query_text, routing_context)
         use_cascade = decision.is_cascade()
         routing_strategy = "cascade" if use_cascade else "direct"
         routing_reason = decision.reason
@@ -1049,7 +1200,7 @@ class CascadeAgent:
             consumer = self.visual_consumer if enable_visual else self._get_silent_consumer()
             result_data = await consumer.consume(
                 streaming_manager=streaming_manager,  # ← Uses correct manager!
-                query=query,
+                query=query_text,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 complexity=complexity.value,
@@ -1057,6 +1208,7 @@ class CascadeAgent:
                 is_direct_route=False,
                 tools=tools,
                 tool_choice=tool_choice,
+                messages=normalized_messages,
                 **kwargs,
             )
             result = self._dict_to_result(result_data)
@@ -1067,7 +1219,7 @@ class CascadeAgent:
                 consumer = self.visual_consumer if enable_visual else self._get_silent_consumer()
                 result_data = await consumer.consume(
                     streaming_manager=streaming_manager,  # ← Uses correct manager!
-                    query=query,
+                    query=query_text,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     complexity=complexity.value,
@@ -1075,6 +1227,7 @@ class CascadeAgent:
                     is_direct_route=True,
                     tools=tools,
                     tool_choice=tool_choice,
+                    messages=normalized_messages,
                     **kwargs,
                 )
                 result = self._dict_to_result(result_data)
@@ -1082,7 +1235,7 @@ class CascadeAgent:
                     timing_breakdown.update(result_data["timing"])
             else:
                 result, exec_timing = await self._stream_direct_with_timing(
-                    query,
+                    query_text,
                     max_tokens,
                     temperature,
                     complexity,
@@ -1091,6 +1244,7 @@ class CascadeAgent:
                     available_models,
                     tools,
                     tool_choice,
+                    messages=normalized_messages,
                     **kwargs,
                 )
                 timing_breakdown.update(exec_timing)
@@ -1110,7 +1264,7 @@ class CascadeAgent:
         # Build result
         return self._build_cascade_result(
             spec_result=result,
-            query=query,
+            query=query_text,
             complexity=complexity.value,
             complexity_confidence=complexity_confidence,
             routing_strategy=routing_strategy,
@@ -1134,6 +1288,7 @@ class CascadeAgent:
         force_direct: bool = False,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ) -> AsyncIterator[StreamEvent]:
         """
@@ -1149,23 +1304,26 @@ class CascadeAgent:
             force_direct: Force direct routing
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
+            messages: Optional multi-turn messages (role/content)
             **kwargs: Additional provider parameters
 
         Yields:
             StreamEvent objects with type, content, and data
         """
         # Detect complexity
+        query_text, normalized_messages = self._normalize_messages(query, messages)
+        complexity_metadata = {}
         if complexity_hint:
             try:
                 complexity = QueryComplexity(complexity_hint.lower())
                 complexity_confidence = 1.0
             except ValueError:
-                complexity, complexity_confidence = self.complexity_detector.detect(
-                    query, return_metadata=False
+                complexity, complexity_confidence, complexity_metadata = (
+                    self.complexity_detector.detect(query_text, return_metadata=True)
                 )
         else:
-            complexity, complexity_confidence = self.complexity_detector.detect(
-                query, return_metadata=False
+            complexity, complexity_confidence, complexity_metadata = (
+                self.complexity_detector.detect(query_text, return_metadata=True)
             )
 
         # 🆕 v2.7: Detect domain and get domain-specific config for stream_events
@@ -1174,7 +1332,7 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None
 
         if self.domain_detector and self.enable_domain_detection:
-            domain_result = self.domain_detector.detect_with_scores(query)
+            domain_result = self.domain_detector.detect_with_scores(query_text)
             detected_domain = domain_result.domain.value
             domain_confidence = domain_result.confidence
 
@@ -1184,7 +1342,8 @@ class CascadeAgent:
             )
 
             logger.info(
-                f"[StreamEvents] Query domain: {detected_domain} (confidence: {domain_confidence:.2f})"
+                f"[StreamEvents] Query domain: {detected_domain} "
+                f"(confidence: {domain_confidence:.2f})"
             )
 
         # Filter models by tool capability
@@ -1205,12 +1364,15 @@ class CascadeAgent:
                 )
 
         # Get routing decision (domain-aware routing for stream_events)
+        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
             "force_direct": force_direct,
             "available_models": available_models,
             "has_tools": bool(tools),
+            "has_code": complexity_metadata.get("has_code", False),
+            "has_multi_turn": has_multi_turn,
             # Domain context for domain-aware routing
             "detected_domain": detected_domain,
             "domain_config": domain_config,
@@ -1220,7 +1382,7 @@ class CascadeAgent:
             "tool_verifier": tool_verifier,
         }
 
-        decision = await self.router.route(query, routing_context)
+        decision = await self.router.route(query_text, routing_context)
         use_cascade = decision.is_cascade()
         routing_strategy = "cascade" if use_cascade else "direct"
 
@@ -1230,7 +1392,7 @@ class CascadeAgent:
         # Yield events from selected manager
         if use_cascade and streaming_manager:
             async for event in streaming_manager.stream(
-                query=query,
+                query=query_text,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 complexity=complexity.value,
@@ -1238,13 +1400,14 @@ class CascadeAgent:
                 is_direct_route=False,
                 tools=tools,
                 tool_choice=tool_choice,
+                messages=normalized_messages,
                 **kwargs,
             ):
                 yield event
         else:
             if streaming_manager:
                 async for event in streaming_manager.stream(
-                    query=query,
+                    query=query_text,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     complexity=complexity.value,
@@ -1252,6 +1415,7 @@ class CascadeAgent:
                     is_direct_route=True,
                     tools=tools,
                     tool_choice=tool_choice,
+                    messages=normalized_messages,
                     **kwargs,
                 ):
                     yield event
@@ -1277,7 +1441,7 @@ class CascadeAgent:
                 if hasattr(provider, "stream"):
                     async for chunk in provider.stream(
                         model=best_model.name,
-                        prompt=query,
+                        prompt=query_text,
                         max_tokens=max_tokens,
                         temperature=temperature,
                         tools=tools,
@@ -1293,7 +1457,7 @@ class CascadeAgent:
                 else:
                     response = await provider.complete(
                         model=best_model.name,
-                        prompt=query,
+                        prompt=query_text,
                         max_tokens=max_tokens,
                         temperature=temperature,
                         tools=tools,
@@ -1410,6 +1574,7 @@ class CascadeAgent:
         tools,
         tool_choice,
         domain_config: Optional[DomainConfig] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ):
         """
@@ -1473,6 +1638,7 @@ class CascadeAgent:
             complexity=complexity.value,
             tools=tools,
             tool_choice=tool_choice,
+            messages=messages,
             **cascade_kwargs,
         )
         cascade_total = (time.time() - cascade_start) * 1000
@@ -1507,6 +1673,7 @@ class CascadeAgent:
         available_models,
         tools,
         tool_choice,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ):
         """Execute direct routing with detailed timing and tool support."""
@@ -1523,16 +1690,28 @@ class CascadeAgent:
             logger.info(f"Tool calling enabled with {len(tools)} tools")
 
         direct_start = time.time()
-
-        response = await provider.complete(
-            model=best_model.name,
-            prompt=query,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            tools=tools,
-            tool_choice=tool_choice,
-            **kwargs,
-        )
+        if tools and hasattr(provider, "complete_with_tools"):
+            tool_messages = messages or [{"role": "user", "content": query}]
+            response = await provider.complete_with_tools(
+                messages=tool_messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                model=best_model.name,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                **kwargs,
+            )
+        else:
+            prompt = messages_to_prompt(messages) if messages else query
+            response = await provider.complete(
+                model=best_model.name,
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs,
+            )
         direct_latency = (time.time() - direct_start) * 1000
 
         tokens_used = response.tokens_used if hasattr(response, "tokens_used") else max_tokens
@@ -1568,6 +1747,7 @@ class CascadeAgent:
         available_models,
         tools,
         tool_choice,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ):
         """Stream directly from best model with timing tracking and tool support."""
@@ -1588,12 +1768,36 @@ class CascadeAgent:
         start_time = time.time()
         tool_calls = None
 
-        if hasattr(provider, "stream"):
+        if tools and hasattr(provider, "stream_with_tools"):
             visual.show()
             try:
+                tool_messages = messages or [{"role": "user", "content": query}]
+                async for chunk in provider.stream_with_tools(
+                    messages=tool_messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    model=best_model.name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    **kwargs,
+                ):
+                    print(chunk, end="", flush=True)
+                    chunks.append(chunk)
+                visual.complete()
+                visual.clear()
+                print()
+                content = "".join(chunks)
+            except Exception as e:
+                logger.error(f"Streaming failed: {e}")
+                visual.clear()
+                raise
+        elif hasattr(provider, "stream"):
+            visual.show()
+            try:
+                prompt = messages_to_prompt(messages) if messages else query
                 async for chunk in provider.stream(
                     model=best_model.name,
-                    prompt=query,
+                    prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     tools=tools,
@@ -1611,15 +1815,28 @@ class CascadeAgent:
                 visual.clear()
                 raise
         else:
-            response = await provider.complete(
-                model=best_model.name,
-                prompt=query,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                tools=tools,
-                tool_choice=tool_choice,
-                **kwargs,
-            )
+            if tools and hasattr(provider, "complete_with_tools"):
+                tool_messages = messages or [{"role": "user", "content": query}]
+                response = await provider.complete_with_tools(
+                    messages=tool_messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    model=best_model.name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    **kwargs,
+                )
+            else:
+                prompt = messages_to_prompt(messages) if messages else query
+                response = await provider.complete(
+                    model=best_model.name,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    **kwargs,
+                )
             content = response.content
             tool_calls = getattr(response, "tool_calls", None)
             print(content)
@@ -1705,16 +1922,44 @@ class CascadeAgent:
 
         # 🆕 v2.5: Determine cost breakdown using CostCalculator
         use_cascade = routing_strategy == "cascade"
+        draft_accepted_value = spec_result.draft_accepted if use_cascade else False
+        if use_cascade and quality_check_passed is not None:
+            if draft_accepted_value != quality_check_passed:
+                logger.warning(
+                    "Draft acceptance mismatch detected; "
+                    "aligning draft_accepted with quality_check_passed."
+                )
+            draft_accepted_value = quality_check_passed
 
         if use_cascade:
-            # Use CostCalculator for accurate breakdown
+            metadata_costs = None
+            if hasattr(spec_result, "metadata") and spec_result.metadata:
+                metadata = spec_result.metadata
+                if any(
+                    key in metadata
+                    for key in ("drafter_cost", "draft_cost", "verifier_cost", "cost_saved")
+                ):
+                    metadata_costs = {
+                        "draft_cost": metadata.get("drafter_cost", metadata.get("draft_cost", 0.0)),
+                        "verifier_cost": metadata.get("verifier_cost", 0.0),
+                        "total_cost": metadata.get("total_cost", spec_result.total_cost),
+                        "cost_saved": metadata.get("cost_saved", 0.0),
+                    }
+
+            # Use CostCalculator for accurate breakdown.
             try:
-                cost_breakdown = self.cost_calculator.calculate(spec_result)
+                cost_breakdown = self.cost_calculator.calculate(spec_result, query_text=query)
 
                 draft_cost = cost_breakdown.draft_cost
                 verifier_cost = cost_breakdown.verifier_cost
                 total_cost = cost_breakdown.total_cost  # ✅ PROPERLY AGGREGATED!
                 cost_saved = cost_breakdown.cost_saved
+
+                if metadata_costs and total_cost == 0.0 and metadata_costs["total_cost"] > 0.0:
+                    draft_cost = metadata_costs["draft_cost"]
+                    verifier_cost = metadata_costs["verifier_cost"]
+                    total_cost = metadata_costs["total_cost"]
+                    cost_saved = metadata_costs["cost_saved"]
 
                 if self.verbose:
                     logger.debug(
@@ -1724,29 +1969,35 @@ class CascadeAgent:
                         f"(accepted={spec_result.draft_accepted})"
                     )
             except Exception as e:
-                # Fallback to old method if calculator fails
+                # Fallback to metadata or old method if calculator fails
                 logger.warning(f"CostCalculator failed, using fallback: {e}")
-                if spec_result.draft_accepted:
-                    draft_cost = spec_result.total_cost
-                    verifier_cost = 0.0
-                    total_cost = draft_cost
+                if metadata_costs:
+                    draft_cost = metadata_costs["draft_cost"]
+                    verifier_cost = metadata_costs["verifier_cost"]
+                    total_cost = metadata_costs["total_cost"]
+                    cost_saved = metadata_costs["cost_saved"]
                 else:
-                    draft_cost = (
-                        spec_result.metadata.get("drafter_cost", self.models[0].cost * 0.1)
-                        if hasattr(spec_result, "metadata")
-                        else self.models[0].cost * 0.1
-                    )
-                    verifier_cost = spec_result.total_cost - draft_cost
-                    total_cost = spec_result.total_cost
+                    if spec_result.draft_accepted:
+                        draft_cost = spec_result.total_cost
+                        verifier_cost = 0.0
+                        total_cost = draft_cost
+                    else:
+                        draft_cost = (
+                            spec_result.metadata.get("drafter_cost", self.models[0].cost * 0.1)
+                            if hasattr(spec_result, "metadata")
+                            else self.models[0].cost * 0.1
+                        )
+                        verifier_cost = spec_result.total_cost - draft_cost
+                        total_cost = spec_result.total_cost
 
-                # Calculate cost saved
-                best_model_cost = self.models[-1].cost
-                tokens_used = len(spec_result.content.split()) * 1.3
-                baseline_cost = best_model_cost * (tokens_used / 1000)
-                cost_saved = baseline_cost - total_cost
+                    # Calculate cost saved
+                    best_model_cost = self.models[-1].cost
+                    tokens_used = len(spec_result.content.split()) * 1.3
+                    baseline_cost = best_model_cost * (tokens_used / 1000)
+                    cost_saved = baseline_cost - total_cost
 
             # Extract latencies from metadata
-            if spec_result.draft_accepted:
+            if draft_accepted_value:
                 draft_latency_ms = spec_result.latency_ms
                 verifier_latency_ms = 0.0
             else:
@@ -1816,10 +2067,20 @@ class CascadeAgent:
                 metadata["completion_tokens"] = spec_result.metadata["completion_tokens"]
             if "total_tokens" in spec_result.metadata:
                 metadata["total_tokens"] = spec_result.metadata["total_tokens"]
+            for token_key in (
+                "draft_prompt_tokens",
+                "draft_completion_tokens",
+                "draft_total_tokens",
+                "verifier_prompt_tokens",
+                "verifier_completion_tokens",
+                "verifier_total_tokens",
+            ):
+                if token_key in spec_result.metadata:
+                    metadata[token_key] = spec_result.metadata[token_key]
 
         if use_cascade:
             metadata["cascade_used"] = True
-            metadata["draft_accepted"] = spec_result.draft_accepted
+            metadata["draft_accepted"] = draft_accepted_value
             metadata["draft_model"] = self.models[0].name
             metadata["verifier_model"] = self.models[-1].name
         else:
@@ -1833,7 +2094,7 @@ class CascadeAgent:
             latency_ms=total_latency_ms,
             complexity=complexity,
             cascaded=use_cascade,
-            draft_accepted=spec_result.draft_accepted if use_cascade else False,
+            draft_accepted=draft_accepted_value,
             routing_strategy=routing_strategy,
             reason=routing_reason,
             tool_calls=tool_calls,
@@ -2046,19 +2307,19 @@ class CascadeAgent:
         tool_queries = telemetry_stats.get("tool_queries", 0)
         if tool_queries > 0:
             print("TOOL USAGE:")
-            print(
-                f"  Tool Queries:       {tool_queries} ({tool_queries/telemetry_stats['total_queries']*100:.1f}%)"
-            )
+            total = telemetry_stats["total_queries"]
+            pct = tool_queries / total * 100
+            print(f"  Tool Queries:       {tool_queries} ({pct:.1f}%)")
             print()
 
         print("ROUTING:")
-        print(
-            f"  Cascade Used:       {telemetry_stats['cascade_used']} ({telemetry_stats['cascade_rate']:.1f}%)"
-        )
+        cascade_used = telemetry_stats["cascade_used"]
+        cascade_rate = telemetry_stats["cascade_rate"]
+        print(f"  Cascade Used:       {cascade_used} ({cascade_rate:.1f}%)")
         print(f"  Direct Routed:      {telemetry_stats['direct_routed']}")
-        print(
-            f"  Streaming Used:     {telemetry_stats.get('streaming_used', 0)} ({telemetry_stats['streaming_rate']:.1f}%)"
-        )
+        streaming_used = telemetry_stats.get("streaming_used", 0)
+        streaming_rate = telemetry_stats["streaming_rate"]
+        print(f"  Streaming Used:     {streaming_used} ({streaming_rate:.1f}%)")
         print()
 
         # Router stats

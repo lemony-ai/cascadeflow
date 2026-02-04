@@ -21,12 +21,12 @@ Dataset: Subset of OpenAI HumanEval (10 representative problems)
 import asyncio
 import os
 import sys
-from typing import Any
+from typing import Any, Optional
 
-from cascadeflow.agent import CascadeAgent
+from cascadeflow import CascadeAgent, ModelConfig
 
-from .base import Benchmark, BenchmarkResult, BenchmarkSummary
-from .profiler import CascadeProfiler
+from ..base import Benchmark, BenchmarkResult, BenchmarkSummary
+from ..profiler import CascadeProfiler
 
 
 class HumanEvalBenchmark(Benchmark):
@@ -34,14 +34,15 @@ class HumanEvalBenchmark(Benchmark):
 
     def __init__(
         self,
-        drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "gpt-4o",
+        drafter_model: str = "claude-haiku-4-5-20251001",
+        verifier_model: str = "claude-opus-4-5-20251101",
         quality_threshold: float = 0.7,
-        max_samples: int = 10,
+        max_samples: Optional[int] = 10,
     ):
         """Initialize HumanEval benchmark."""
+        dataset_name = "HumanEval-full" if max_samples is None else f"HumanEval-{max_samples}"
         super().__init__(
-            dataset_name="HumanEval-10",
+            dataset_name=dataset_name,
             drafter_model=drafter_model,
             verifier_model=verifier_model,
             baseline_model=verifier_model,
@@ -121,7 +122,22 @@ class HumanEvalBenchmark(Benchmark):
             },
         ]
 
-        return [(p["task_id"], p) for p in problems[: self.max_samples]]
+        if self.max_samples is None:
+            try:
+                import json
+                import urllib.request
+
+                url = "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl"
+                with urllib.request.urlopen(url, timeout=30) as response:
+                    payload = response.read().decode("utf-8")
+                full_problems = [json.loads(line) for line in payload.splitlines() if line.strip()]
+                return [(p["prompt"], p) for p in full_problems]
+            except Exception as exc:
+                print(f"  Warning: Failed to download full HumanEval dataset: {exc}")
+                print("  Falling back to bundled subset.")
+                return [(p["prompt"], p) for p in problems]
+
+        return [(p["prompt"], p) for p in problems[: self.max_samples]]
 
     def evaluate_prediction(self, prediction: str, ground_truth: Any) -> tuple[bool, float]:
         """
@@ -170,19 +186,37 @@ class HumanEvalBenchmark(Benchmark):
         Returns:
             Cascade result dict
         """
+        enhanced_query = (
+            f"{query}\n\n"
+            "Return only the Python function implementation. "
+            "Do not include markdown, explanations, or triple-quoted strings."
+        )
+
         agent = CascadeAgent(
             models=[
-                {"name": self.drafter_model, "provider": "openai"},
-                {"name": self.verifier_model, "provider": "openai"},
+                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
+                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
             ],
             quality={"threshold": self.quality_threshold},
         )
 
-        result = await agent.arun(query)
-        return result
+        result = await agent.run(enhanced_query, max_tokens=400, temperature=0.0)
+
+        return {
+            "prediction": result.content,
+            "model_used": result.model_used,
+            "accepted": result.draft_accepted,
+            "quality_score": result.quality_score or 0.0,
+            "drafter_cost": result.draft_cost or 0.0,
+            "verifier_cost": result.verifier_cost or 0.0,
+            "total_cost": result.total_cost,
+            "latency_ms": result.latency_ms,
+            "tokens_input": result.metadata.get("prompt_tokens", 0),
+            "tokens_output": result.metadata.get("completion_tokens", 0),
+        }
 
 
-async def run_humaneval_benchmark():
+async def run_humaneval_benchmark(max_samples: Optional[int] = 10):
     """Run HumanEval benchmark and generate report."""
 
     print("\n" + "=" * 80)
@@ -190,23 +224,28 @@ async def run_humaneval_benchmark():
     print("=" * 80 + "\n")
 
     # Verify API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY not set")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("Error: ANTHROPIC_API_KEY not set")
         return
 
     print("Configuration:")
-    print("  Dataset:         HumanEval-10 (10 programming problems)")
-    print("  Drafter:         gpt-4o-mini")
-    print("  Verifier:        gpt-4o")
-    print("  Baseline:        gpt-4o (always)")
+    dataset_label = (
+        "HumanEval-full (164 programming problems)"
+        if max_samples is None
+        else f"HumanEval-{max_samples} ({max_samples} programming problems)"
+    )
+    print(f"  Dataset:         {dataset_label}")
+    print("  Drafter:         claude-haiku-4-5-20251001")
+    print("  Verifier:        claude-opus-4-5-20251101")
+    print("  Baseline:        claude-opus-4-5-20251101 (always)")
     print("  Quality Threshold: 0.7\n")
 
     # Create benchmark
     benchmark = HumanEvalBenchmark(
-        drafter_model="gpt-4o-mini",
-        verifier_model="gpt-4o",
+        drafter_model="claude-haiku-4-5-20251001",
+        verifier_model="claude-opus-4-5-20251101",
         quality_threshold=0.7,
-        max_samples=10,
+        max_samples=max_samples,
     )
 
     # Run benchmark
@@ -218,29 +257,32 @@ async def run_humaneval_benchmark():
     print("HUMANEVAL BENCHMARK RESULTS")
     print("=" * 80 + "\n")
 
+    correct_count = (
+        int(summary.accuracy / 100 * summary.successful_tests) if summary.successful_tests else 0
+    )
+
     print(f"Total Problems:      {summary.total_tests}")
-    print(f"Correct Solutions:   {summary.correct} ({summary.accuracy*100:.1f}%)")
-    print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate*100:.1f}%)")
+    print(f"Correct Solutions:   {correct_count} ({summary.accuracy:.1f}%)")
+    print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)")
     print(
-        f"Verifier Escalated:  {summary.total_tests - summary.drafter_accepted} ({(1-summary.acceptance_rate)*100:.1f}%)"
+        f"Verifier Escalated:  {summary.escalated_to_verifier} ({summary.escalation_rate_pct:.1f}%)"
     )
 
     print("\nCost Analysis:")
     print(f"  Cascade Total Cost:  ${summary.total_cost:.6f}")
-    print(f"  Baseline Total Cost: ${summary.baseline_cost:.6f}")
-    print(f"  Cost Savings:        ${summary.cost_savings:.6f} ({summary.cost_reduction_pct:.1f}%)")
+    print(f"  Baseline Total Cost: ${summary.total_baseline_cost:.6f}")
+    print(f"  Cost Savings:        ${summary.total_savings:.6f} ({summary.avg_savings_pct:.1f}%)")
 
     print("\nPerformance:")
     print(f"  Average Latency:     {summary.avg_latency_ms:.0f}ms")
-    print(f"  Average Quality:     {summary.avg_quality_score:.3f}")
-    print(f"  Drafter Accuracy:    {summary.drafter_accuracy*100:.1f}% (when accepted)")
+    print(f"  Drafter Accuracy:    {summary.drafter_accuracy:.1f}% (when accepted)")
 
     print("\nKey Findings:")
-    if summary.acceptance_rate > 0.6:
-        print(f"  ✅ Drafter handles {summary.acceptance_rate*100:.0f}% of problems independently")
-    if summary.cost_reduction_pct > 50:
-        print(f"  💰 Achieved {summary.cost_reduction_pct:.0f}% cost reduction")
-    if summary.drafter_accuracy < 0.8:
+    if summary.acceptance_rate_pct > 60:
+        print(f"  ✅ Drafter handles {summary.acceptance_rate_pct:.0f}% of problems independently")
+    if summary.avg_savings_pct > 50:
+        print(f"  💰 Achieved {summary.avg_savings_pct:.0f}% cost reduction")
+    if summary.drafter_accuracy < 80:
         print(
             "  ⚠️  Low drafter accuracy - consider raising quality threshold or using stronger drafter"
         )

@@ -686,6 +686,31 @@ class ComplexityDetector:
         r"```",
     ]
 
+    # =====================================================================
+    # FUNCTION CALL FORMAT DETECTION (v14)
+    # =====================================================================
+    # These patterns detect function-calling prompts which should route
+    # through cascade for cost savings (the actual task is usually simple)
+
+    FUNCTION_CALL_INDICATORS = [
+        # Tool definition patterns
+        r"you have access to.*(?:tool|function)s?",
+        r"(?:available|following)\s+(?:tool|function)s?:",
+        r"tool:\s*\w+",
+        r"function:\s*\w+",
+        r"parameters?:\s*[\{\[]",
+        # OpenAI function calling format
+        r'"name"\s*:\s*"[^"]+"\s*,\s*"(?:description|parameters)"',
+        r'"type"\s*:\s*"function"',
+        # Response format instructions
+        r"respond\s+(?:with|in|using)\s+(?:the\s+)?(?:following\s+)?(?:json|format)",
+        r"(?:call|use|invoke)\s+(?:the\s+)?(?:appropriate|correct|right)\s+(?:tool|function)",
+        r"which\s+(?:tool|function)\s+(?:should|to)\s+(?:be\s+)?(?:use|call)",
+        # Parameter patterns
+        r"- \w+\s*\([^)]+\):\s*\w+",  # "- location (string): City name"
+        r"\w+\s*\((?:string|number|boolean|array|object|integer|float)",
+    ]
+
     def __init__(self):
         self.stats = {
             "total_detected": 0,
@@ -768,6 +793,16 @@ class ComplexityDetector:
                 return QueryComplexity.TRIVIAL, 0.85, metadata
             return QueryComplexity.TRIVIAL, 0.85
 
+        # 2.5. Check for function call format (v14 - ensures cascade routing for BFCL)
+        # Function-calling prompts should route through cascade because the actual
+        # user task is simple (tool selection), even though tool definitions inflate
+        # perceived complexity. We track this and cap complexity at MODERATE later.
+        is_function_call = self._is_function_call_format(query)
+        metadata["is_function_call"] = is_function_call
+        if is_function_call:
+            self.stats["function_call_detected"] = self.stats.get("function_call_detected", 0) + 1
+            logger.debug(f"v14: Function call format detected in query")
+
         # 3. Detect technical terms
         tech_terms, domain_scores = self._detect_technical_terms(query_lower)
         metadata["technical_terms"] = tech_terms
@@ -779,23 +814,30 @@ class ComplexityDetector:
         metadata["math_notation"] = math_notation
 
         # 5. Calculate technical complexity boost
+        # Note: word_count calculated below in step 7, but we need it now
+        # Pre-calculate word count for density-aware technical boost
+        words = query.split()
+        word_count = len(words)
+
         tech_boost = self._calculate_technical_boost(
-            len(tech_terms), len(math_notation), domain_scores
+            len(tech_terms), len(math_notation), domain_scores, word_count
         )
 
         # 6. Detect code patterns
         has_code = any(re.search(p, query) for p in self.CODE_PATTERNS)
+        metadata["has_code"] = has_code
 
         # 7. Length and structure analysis
-        words = query.split()
-        word_count = len(words)
+        # Note: words and word_count already calculated in step 5 for density-aware tech_boost
 
         has_multiple_questions = query.count("?") > 1
+        # Use word boundary matching to avoid false positives like "if" in "different"
         has_conditionals = any(
-            w in query_lower for w in ["if", "when", "unless", "provided", "assuming", "given that"]
+            re.search(rf"\b{re.escape(w)}\b", query_lower)
+            for w in ["if", "when", "unless", "provided", "assuming", "given that"]
         )
         has_requirements = any(
-            w in query_lower
+            re.search(rf"\b{re.escape(w)}\b", query_lower)
             for w in ["must", "should", "need to", "required", "ensure", "guarantee"]
         )
         has_multiple_parts = any(sep in query for sep in [";", "\n", "1.", "2."])
@@ -809,10 +851,29 @@ class ComplexityDetector:
         )
 
         # 8. Count keyword matches
-        simple_matches = sum(1 for kw in self.SIMPLE_KEYWORDS if kw in query_lower)
-        moderate_matches = sum(1 for kw in self.MODERATE_KEYWORDS if kw in query_lower)
-        hard_matches = sum(1 for kw in self.HARD_KEYWORDS if kw in query_lower)
-        expert_matches = sum(1 for kw in self.EXPERT_KEYWORDS if kw in query_lower)
+        # For long prompts (> 200 words), use word boundary matching to avoid
+        # false positives like "build" matching "building" in stories
+        if word_count > 200:
+            simple_matches = sum(
+                1 for kw in self.SIMPLE_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
+            )
+            moderate_matches = sum(
+                1
+                for kw in self.MODERATE_KEYWORDS
+                if re.search(rf"\b{re.escape(kw)}\b", query_lower)
+            )
+            hard_matches = sum(
+                1 for kw in self.HARD_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
+            )
+            expert_matches = sum(
+                1 for kw in self.EXPERT_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
+            )
+        else:
+            # For short prompts, use faster substring matching (original behavior)
+            simple_matches = sum(1 for kw in self.SIMPLE_KEYWORDS if kw in query_lower)
+            moderate_matches = sum(1 for kw in self.MODERATE_KEYWORDS if kw in query_lower)
+            hard_matches = sum(1 for kw in self.HARD_KEYWORDS if kw in query_lower)
+            expert_matches = sum(1 for kw in self.EXPERT_KEYWORDS if kw in query_lower)
 
         # Comparison query detection
         is_comparison = any(
@@ -832,6 +893,19 @@ class ComplexityDetector:
 
         # 9. Determine base complexity
         # CRITICAL: Technical terms STRONGLY influence complexity
+        #
+        # For long prompts (> 200 words), use higher thresholds to prevent
+        # incidental keyword matches (like "build" in a story) from
+        # incorrectly elevating simple prompts to EXPERT.
+        is_long_prompt = word_count > 200
+
+        # Calculate effective keyword thresholds based on length
+        # For long prompts, require more matches to escalate complexity
+        expert_threshold_high = 4 if is_long_prompt else 2  # For EXPERT
+        expert_threshold_low = 3 if is_long_prompt else 1  # For HARD from expert kw
+        hard_threshold_high = 4 if is_long_prompt else 2  # For HARD
+        hard_threshold_low = 2 if is_long_prompt else 1  # For HARD with context
+
         if tech_boost >= 3.0:  # Multiple advanced terms
             final_complexity = QueryComplexity.EXPERT
             final_confidence = 0.90
@@ -841,20 +915,24 @@ class ComplexityDetector:
         elif tech_boost >= 1.0:  # Basic technical terms
             final_complexity = QueryComplexity.MODERATE
             final_confidence = 0.80
-        elif expert_matches >= 2:
+        elif expert_matches >= expert_threshold_high:
             final_complexity = QueryComplexity.EXPERT
             final_confidence = 0.85
-        elif expert_matches >= 1:
-            if word_count >= 8:
+        elif expert_matches >= expert_threshold_low:
+            # For long prompts, even 3 expert keywords only escalate to HARD
+            if is_long_prompt:
+                final_complexity = QueryComplexity.HARD
+                final_confidence = 0.75
+            elif word_count >= 8:
                 final_complexity = QueryComplexity.EXPERT
                 final_confidence = 0.80
             else:
                 final_complexity = QueryComplexity.HARD
                 final_confidence = 0.75
-        elif hard_matches >= 2:
+        elif hard_matches >= hard_threshold_high:
             final_complexity = QueryComplexity.HARD
             final_confidence = 0.8
-        elif hard_matches >= 1 and word_count > 6:
+        elif hard_matches >= hard_threshold_low and word_count > 6:
             final_complexity = QueryComplexity.HARD
             final_confidence = 0.7
         elif moderate_matches >= 2:
@@ -870,10 +948,13 @@ class ComplexityDetector:
             if word_count <= 8:
                 final_complexity = QueryComplexity.SIMPLE
                 final_confidence = 0.6
-            elif word_count <= 20:
+            elif word_count <= 2000:  # Allow up to ~8 pages without technical terms
                 final_complexity = QueryComplexity.MODERATE
                 final_confidence = 0.6
             else:
+                # Only mark as HARD for very long prompts (2000+ words) without
+                # any complexity indicators. This ensures pages-long but simple
+                # questions still go through cascade for cost savings.
                 final_complexity = QueryComplexity.HARD
                 final_confidence = 0.6
 
@@ -896,10 +977,15 @@ class ComplexityDetector:
             final_confidence = min(0.95, final_confidence + 0.1)
 
         # 12. Apply structure boost
+        # For long prompts (> 200 words), don't upgrade MODERATE → HARD
+        # based on structure alone, as long prompts naturally contain more
+        # incidental conditionals ("when", "if") and requirements ("should", "must")
+        # that don't indicate analytical complexity.
         if structure_score >= 2:
             if final_complexity == QueryComplexity.SIMPLE:
                 final_complexity = QueryComplexity.MODERATE
-            elif final_complexity == QueryComplexity.MODERATE:
+            elif final_complexity == QueryComplexity.MODERATE and not is_long_prompt:
+                # Only upgrade MODERATE → HARD for shorter analytical queries
                 final_complexity = QueryComplexity.HARD
             final_confidence = min(0.95, final_confidence + 0.05)
 
@@ -913,11 +999,48 @@ class ComplexityDetector:
         if word_count < 10 and final_complexity == QueryComplexity.EXPERT and tech_boost < 2.0:
             final_complexity = QueryComplexity.HARD
 
-        if word_count > 50 and final_complexity in [
+        # Only upgrade to HARD for extremely long prompts (5000+ words = ~20 pages)
+        # This allows pages-long but semantically simple prompts to cascade
+        # Most documents are under 5000 words, so this is very permissive
+        if word_count > 5000 and final_complexity in [
             QueryComplexity.SIMPLE,
             QueryComplexity.MODERATE,
         ]:
             final_complexity = QueryComplexity.HARD
+
+        # 14.5. v14 Function call format complexity cap
+        # Cap at MODERATE to ensure cascade routing for BFCL-style prompts
+        # Function calling prompts with tool definitions are semantically simple
+        # (just select the right tool), even though they contain technical keywords
+        if is_function_call and final_complexity in [QueryComplexity.HARD, QueryComplexity.EXPERT]:
+            logger.debug(
+                f"v14: Capping {final_complexity.value} → MODERATE for function call format"
+            )
+            metadata["v14_complexity_capped"] = True
+            metadata["original_complexity"] = final_complexity.value
+            final_complexity = QueryComplexity.MODERATE
+            final_confidence = 0.85
+
+        # 14.6. v15 Long-context QA complexity cap
+        # Long documents with simple questions are semantically easy tasks
+        # (just find and extract info), even though they contain many words
+        # and incidental technical terms that inflate complexity scores.
+        # Pattern: DOCUMENT/CONTEXT/TEXT block + QUESTION marker + short question
+        is_long_context_qa = self._is_long_context_qa_format(query_lower, word_count)
+        metadata["is_long_context_qa"] = is_long_context_qa
+        if is_long_context_qa and final_complexity in [
+            QueryComplexity.HARD,
+            QueryComplexity.EXPERT,
+        ]:
+            logger.debug(
+                f"v15: Capping {final_complexity.value} → MODERATE for long-context QA format"
+            )
+            metadata["v15_complexity_capped"] = True
+            metadata["original_complexity"] = metadata.get(
+                "original_complexity", final_complexity.value
+            )
+            final_complexity = QueryComplexity.MODERATE
+            final_confidence = 0.85
 
         self.stats["by_complexity"][final_complexity] += 1
 
@@ -1035,37 +1158,113 @@ class ComplexityDetector:
         return list(set(notation))  # Remove duplicates
 
     def _calculate_technical_boost(
-        self, num_tech_terms: int, num_math_notation: int, domain_scores: dict[str, float]
+        self,
+        num_tech_terms: int,
+        num_math_notation: int,
+        domain_scores: dict[str, float],
+        word_count: int = 0,
     ) -> float:
         """
         Calculate complexity boost from technical content.
 
-        Scoring:
+        For long prompts (> 200 words), uses density-based scoring to prevent
+        incidental technical terms from incorrectly elevating simple prompts.
+
+        Scoring (short prompts < 200 words):
         - Each technical term: +0.5
         - Each math notation: +0.3
         - Strong domain presence (score > 2): +1.0
+
+        Scoring (long prompts >= 200 words):
+        - Uses technical density (terms per 100 words)
+        - High density (>= 3%): full boost
+        - Medium density (1-3%): reduced boost
+        - Low density (< 1%): minimal boost
         """
         boost = 0.0
 
-        # Technical terms boost
-        boost += num_tech_terms * 0.5
+        # For short prompts, use absolute scoring (original behavior)
+        if word_count < 200:
+            # Technical terms boost
+            boost += num_tech_terms * 0.5
 
-        # Math notation boost
-        boost += num_math_notation * 0.3
+            # Math notation boost
+            boost += num_math_notation * 0.3
 
-        # Domain specialization boost
+            # Domain specialization boost
+            max_domain_score = max(domain_scores.values()) if domain_scores else 0
+            if max_domain_score >= 3:
+                boost += 1.5  # Strong specialization
+            elif max_domain_score >= 2:
+                boost += 1.0  # Moderate specialization
+            elif max_domain_score >= 1:
+                boost += 0.5  # Some specialization
+
+            return boost
+
+        # For long prompts (>= 200 words), use density-based scoring
+        # This prevents long simple documents with incidental technical terms
+        # from being incorrectly routed to expensive models
+
+        # Calculate technical density (terms per 100 words)
+        tech_density = (num_tech_terms / word_count) * 100 if word_count > 0 else 0
+        math_density = (num_math_notation / word_count) * 100 if word_count > 0 else 0
+
+        # High density: >= 3 terms per 100 words (technical document)
+        # Medium density: 1-3 terms per 100 words (mixed content)
+        # Low density: < 1 term per 100 words (simple with incidental terms)
+
+        if tech_density >= 3.0:
+            # High density - technical document, full boost
+            boost += num_tech_terms * 0.5
+        elif tech_density >= 1.0:
+            # Medium density - some technical content, reduced boost
+            # Scale: 1% density = 0.25 per term, 3% = 0.5 per term
+            scale_factor = 0.25 + (tech_density - 1.0) * 0.125
+            boost += num_tech_terms * scale_factor
+        else:
+            # Low density - incidental terms, minimal boost
+            # Only count if we have at least 2 technical terms
+            if num_tech_terms >= 2:
+                boost += 0.5  # Fixed small boost for any technical presence
+            # Otherwise no boost - single incidental term in long doc
+
+        # Math notation is always significant (rare in non-technical content)
+        if math_density >= 0.5:
+            # Significant math presence
+            boost += num_math_notation * 0.3
+        elif num_math_notation >= 2:
+            # Some math even at low density
+            boost += num_math_notation * 0.15
+
+        # Domain specialization boost (scaled for long prompts)
         max_domain_score = max(domain_scores.values()) if domain_scores else 0
-        if max_domain_score >= 3:
-            boost += 1.5  # Strong specialization
-        elif max_domain_score >= 2:
-            boost += 1.0  # Moderate specialization
-        elif max_domain_score >= 1:
-            boost += 0.5  # Some specialization
+
+        # For long prompts, require higher domain score for boost
+        # A 500-word document might have 5+ incidental domain terms
+        domain_density = (max_domain_score / word_count) * 100 if word_count > 0 else 0
+
+        if domain_density >= 1.0 or max_domain_score >= 5:
+            # Strong domain presence even for long doc
+            if max_domain_score >= 5:
+                boost += 1.5
+            elif max_domain_score >= 3:
+                boost += 1.0
+            elif max_domain_score >= 2:
+                boost += 0.5
+        elif max_domain_score >= 3:
+            # Moderate domain presence, reduced boost for long docs
+            boost += 0.5
 
         return boost
 
     def _has_trivial_concepts(self, query_lower: str) -> bool:
-        """Check for trivial concepts using word boundaries."""
+        """Check for trivial concepts using word boundaries.
+
+        Length-aware: For long documents (>50 words), require higher density
+        of trivial concepts to avoid false positives from incidental words
+        like 'blue' and 'green' in 'blue-green deployments'.
+        """
         trivial_count = 0
 
         for concept in self.TRIVIAL_CONCEPTS:
@@ -1075,10 +1274,145 @@ class ComplexityDetector:
 
         word_count = len(query_lower.split())
 
-        if trivial_count >= 2:
+        # For very short queries (<= 8 words), 1 trivial concept is enough
+        if word_count <= 8 and trivial_count >= 1:
             return True
-        elif trivial_count >= 1 and word_count <= 8:
+
+        # For short queries (9-50 words), 2 trivial concepts required
+        if word_count <= 50 and trivial_count >= 2:
             return True
+
+        # For medium queries (51-200 words), 3 trivial concepts required
+        if word_count <= 200 and trivial_count >= 3:
+            return True
+
+        # For long queries (>200 words), use density-based check
+        # Require >3% trivial concept density OR 5+ absolute count
+        if word_count > 200:
+            trivial_density = (trivial_count / word_count) * 100
+            if trivial_density > 3.0 or trivial_count >= 5:
+                return True
+
+        return False
+
+    def _is_function_call_format(self, query: str) -> bool:
+        """
+        Detect if query is a function-calling/tool-use prompt (v14).
+
+        Function-calling prompts should route through cascade for cost savings
+        because the actual user task is typically simple (select a tool and
+        fill in parameters). The complexity from tool definitions shouldn't
+        inflate the detected complexity.
+
+        Returns:
+            True if the query appears to be a function-calling prompt
+        """
+        query_lower = query.lower()
+
+        # Count how many indicators match
+        matches = 0
+        for pattern in self.FUNCTION_CALL_INDICATORS:
+            if re.search(pattern, query_lower, re.IGNORECASE):
+                matches += 1
+                # Early exit if we have strong confidence
+                if matches >= 2:
+                    return True
+
+        # Single match with high confidence patterns
+        if matches >= 1:
+            # Additional validation: check for structured tool info
+            # Tool definitions typically have colon-based formatting
+            has_tool_structure = (
+                "parameters:" in query_lower
+                or "- " in query
+                and ("string" in query_lower or "number" in query_lower)
+            )
+            if has_tool_structure:
+                return True
+
+        return False
+
+    def _is_long_context_qa_format(self, query_lower: str, word_count: int) -> bool:
+        """
+        Detect if query is a long-context QA prompt (v15).
+
+        Long-context QA prompts have a large document/passage/text block
+        followed by a simple question about the content. The actual task
+        is semantically simple (find and extract info), even though the
+        input contains many words and incidental technical terms.
+
+        Pattern indicators:
+        - Document/context/text/passage block markers
+        - Question marker with a short question
+        - Long text (200+ words) to qualify as "long context"
+
+        Returns:
+            True if the query appears to be a long-context QA prompt
+        """
+        # Require minimum length to qualify as long context
+        if word_count < 200:
+            return False
+
+        # Document/context markers that indicate a retrieval task
+        context_markers = [
+            r"\bdocument\s*:",
+            r"\bcontext\s*:",
+            r"\btext\s*:",
+            r"\bpassage\s*:",
+            r"\barticle\s*:",
+            r"\bcontent\s*:",
+            r"\bgiven\s+(?:the\s+)?(?:following|above|below)\s+(?:text|document|passage|context)",
+            r"\bread\s+(?:the\s+)?(?:following|above|below)",
+            r"\bbased\s+on\s+(?:the\s+)?(?:following|above|text|document|passage|context)",
+            r"^(?:document|context|passage|text|article)\b",
+            r"\[document\]",
+            r"\[context\]",
+            r"\[passage\]",
+        ]
+
+        # Question markers that indicate the actual task
+        question_markers = [
+            r"\bquestion\s*:",
+            r"\bquery\s*:",
+            r"\bask\s*:",
+            r"\banswer\s+(?:the\s+)?(?:following|this)\s+question",
+            r"\bwhat\s+(?:is|are|was|were|does|do|did)\b",
+            r"\bwho\s+(?:is|are|was|were)\b",
+            r"\bwhen\s+(?:is|was|did|does)\b",
+            r"\bwhere\s+(?:is|was|did|does)\b",
+            r"\bhow\s+(?:many|much|does|did|is|are)\b",
+            r"\bwhich\s+(?:of|one)\b",
+            r"\?\s*$",  # Ends with a question mark
+        ]
+
+        # Count matches for both types
+        context_matches = 0
+        question_matches = 0
+
+        for pattern in context_markers:
+            if re.search(pattern, query_lower, re.IGNORECASE | re.MULTILINE):
+                context_matches += 1
+                if context_matches >= 2:
+                    break  # Early exit
+
+        for pattern in question_markers:
+            if re.search(pattern, query_lower, re.IGNORECASE | re.MULTILINE):
+                question_matches += 1
+                if question_matches >= 1:
+                    break  # Only need one question marker
+
+        # Need at least one context marker AND one question marker
+        # This avoids false positives on pure documents or pure questions
+        if context_matches >= 1 and question_matches >= 1:
+            return True
+
+        # Alternative: Very long text (500+ words) with a question at the end
+        # This catches cases without explicit markers
+        if word_count >= 500:
+            # Check if there's a question in the last 100 characters
+            last_100 = query_lower[-100:] if len(query_lower) > 100 else query_lower
+            if "?" in last_100 or re.search(r"\b(?:what|who|when|where|how|which|why)\b", last_100):
+                return True
 
         return False
 

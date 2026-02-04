@@ -50,6 +50,7 @@ CLAUDE.md
 # ============================================================================
 docs/OSS_DEVELOPMENT_STAGES.md
 docs/*_PLAN*.md
+!docs/PROXY_INTEGRATION_PLAN.md
 docs/*_ROADMAP*.md
 **/INTERNAL_*.md
 
@@ -196,6 +197,10 @@ MILESTONE_*.md
 STRATEGIC_*.md
 V0.*.md
 
+# Allow committed test result reports
+!docs/test-results/
+!docs/test-results/*.md
+
 # Feature comparison and analysis (development only)
 docs/PYTHON_VS_TYPESCRIPT_FEATURES.md
 docs/QUICK_COMPARISON_TABLE.md
@@ -278,6 +283,7 @@ packages/core/docs/
 HOW_*.md
 *_ISSUE.md
 *_PLAN.md
+!docs/PROXY_INTEGRATION_PLAN.md
 *_ANALYSIS.md
 !docs/research/N8N_V2_INTEGRATION_PLAN.md
 test_all_*.py

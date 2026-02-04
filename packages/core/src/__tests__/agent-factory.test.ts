@@ -198,6 +198,7 @@ describe('CascadeAgent Factory Methods', () => {
     it('should throw error when no API keys are set', () => {
       delete process.env.OPENAI_API_KEY;
       delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.GROQ_API_KEY;
 
       const profile = createUserProfile('PRO', 'user-123');
 
@@ -318,6 +319,7 @@ describe('CascadeAgent Factory Methods', () => {
     it('should throw error when no API keys are set', () => {
       delete process.env.OPENAI_API_KEY;
       delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.GROQ_API_KEY;
 
       expect(() => CascadeAgent.forTier('PRO')).toThrow(
         'No providers available. Set API keys in environment'

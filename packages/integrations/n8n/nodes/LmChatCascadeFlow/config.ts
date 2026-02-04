@@ -87,7 +87,13 @@ export const DEFAULT_COMPLEXITY_THRESHOLDS = {
   expert: 0.8,
 } as const;
 
-export type ComplexityThresholds = typeof DEFAULT_COMPLEXITY_THRESHOLDS;
+export type ComplexityThresholds = {
+  trivial: number;
+  simple: number;
+  moderate: number;
+  hard: number;
+  expert: number;
+};
 
 export const getEnabledDomains = (params: Record<string, boolean>): DomainType[] => {
   return DOMAIN_UI_CONFIGS.filter(({ toggleName }) => params[toggleName]).map(

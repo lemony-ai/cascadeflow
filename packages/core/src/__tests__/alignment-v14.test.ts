@@ -37,4 +37,16 @@ describe('alignment scorer v14 parity', () => {
     const score = scorer.score('What is AI?', 'Bananas are yellow and grow in bunches.');
     expect(score).toBeLessThan(0.3);
   });
+
+  it('returns multi-turn boost for user/assistant history', () => {
+    const analysis = scorer.score(
+      "User: What's the weather in Paris?\nAssistant: It's sunny.\nUser: And tomorrow?",
+      'Tomorrow in Paris is partly cloudy with a high of 18C.',
+      0.3,
+      true
+    );
+
+    expect(analysis.features.isMultiTurn).toBe(true);
+    expect(analysis.alignmentScore).toBeCloseTo(0.72, 2);
+  });
 });

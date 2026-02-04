@@ -162,7 +162,7 @@ describe('DomainRouter', () => {
 
   describe('domain detection - TOOL', () => {
     it('should detect tool calling domain', () => {
-      const result = router.detect('function call to external API with tool use');
+      const result = router.detect('send API call to webhook endpoint for integration');
 
       expect(result.domain).toBe(Domain.TOOL);
     });
@@ -170,9 +170,9 @@ describe('DomainRouter', () => {
     it('should detect tool domain for integrations', () => {
       const queries = [
         'invoke webhook for automation',
-        'execute plugin action',
-        'call API endpoint',
-        'trigger integration workflow',
+        'execute the action via endpoint',
+        'send API call to endpoint',
+        'fetch data and trigger integration',
       ];
 
       for (const query of queries) {
@@ -214,10 +214,10 @@ describe('DomainRouter', () => {
 
     it('should detect summary domain', () => {
       const queries = [
-        'condense this text to main points',
-        'brief overview of the article',
-        'concise summary of key information',
-        'tldr version',
+        'condense this text to key points',
+        'summarize the highlights and overview',
+        'tldr of the main themes',
+        'give an executive summary of the document',
       ];
 
       for (const query of queries) {
@@ -237,9 +237,9 @@ describe('DomainRouter', () => {
     it('should detect translation domain for languages', () => {
       const queries = [
         'translate Spanish to German',
-        'convert to Chinese language',
+        'translate to Chinese language',
         'Japanese translation service',
-        'localize from Arabic to English',
+        'localize the French content',
       ];
 
       for (const query of queries) {

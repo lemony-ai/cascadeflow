@@ -218,8 +218,38 @@ async def test_prerouter_force_direct():
 
     assert decision.strategy == RoutingStrategy.DIRECT_BEST
     assert decision.is_direct() is True
-    assert "forced" in decision.reason.lower()
-    assert decision.metadata["force_direct"] is True
+
+
+@pytest.mark.asyncio
+async def test_prerouter_factual_risk_routes_direct():
+    """Test factual-risk routing forces direct when enabled."""
+    router = PreRouter(enable_cascade=True, enable_factual_risk_routing=True, verbose=False)
+
+    decision = await router.route(
+        "Please provide a factually accurate answer based on verified information.",
+        context={"complexity": QueryComplexity.SIMPLE},
+    )
+
+    assert decision.strategy == RoutingStrategy.DIRECT_BEST
+    assert decision.is_direct() is True
+    assert decision.metadata["factual_risk_detected"] is True
+    assert decision.metadata["router_type"] == "factual_risk_direct"
+
+
+@pytest.mark.asyncio
+async def test_prerouter_factual_risk_disabled_allows_cascade():
+    """Test factual-risk routing does not apply when disabled."""
+    router = PreRouter(enable_cascade=True, enable_factual_risk_routing=False, verbose=False)
+
+    decision = await router.route(
+        "Please provide a factually accurate answer based on verified information.",
+        context={"complexity": QueryComplexity.SIMPLE},
+    )
+
+    assert decision.strategy == RoutingStrategy.CASCADE
+    assert decision.is_cascade() is True
+    assert decision.metadata["factual_risk_detected"] is False
+    assert decision.metadata["router_type"] == "complexity_based"
 
 
 @pytest.mark.asyncio

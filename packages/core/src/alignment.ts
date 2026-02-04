@@ -15,8 +15,11 @@
  * - Long context QA format detection (v12)
  * - Function call/tool use format detection (v13)
  * - Long context single-word answer handling (v14)
+ * - Roleplay/persona format detection (v15)
+ * - Extraction task format detection (v16)
+ * - Multi-turn conversation format detection (v18)
  *
- * Based on Python alignment_scorer.py v14
+ * Based on Python alignment_scorer.py v18
  *
  * Key improvements from Python:
  * - Oct 6, 2025 (v1): Word length filter changed from > 3 to > 2 characters
@@ -47,6 +50,10 @@
  *   * Recognizes JSON or structured tool response formats
  *   * Gives 0.72 alignment score for valid function call responses
  * - Jan 12, 2026 (v14): Accepts single-word long context answers (YES/NO/QUORUM)
+ * - Jan 12, 2026 (v15): Added roleplay/persona format detection
+ * - Jan 12, 2026 (v16): Added extraction task format detection
+ * - Feb 2, 2026 (v18): Added multi-turn conversation detection
+ * - Feb 4, 2026 (v18.1): Treats User/Assistant histories as multi-turn without explicit markers
  *
  * @example
  * ```typescript
@@ -131,6 +138,33 @@ export interface AlignmentAnalysis {
 
     /** Whether function call boost was applied (v13) */
     functionCallBoost?: boolean;
+
+    /** Whether query is roleplay/persona format (v15) */
+    isRoleplay?: boolean;
+
+    /** Whether response is valid roleplay answer (v15) */
+    validRoleplayResponse?: boolean;
+
+    /** Whether roleplay boost was applied (v15) */
+    roleplayBoost?: boolean;
+
+    /** Whether query is extraction format (v16) */
+    isExtraction?: boolean;
+
+    /** Whether response is valid extraction answer (v16) */
+    validExtractionResponse?: boolean;
+
+    /** Whether extraction boost was applied (v16) */
+    extractionBoost?: boolean;
+
+    /** Whether query is multi-turn conversation format (v18) */
+    isMultiTurn?: boolean;
+
+    /** Whether response is valid multi-turn answer (v18) */
+    validMultiTurnResponse?: boolean;
+
+    /** Whether multi-turn boost was applied (v18) */
+    multiTurnBoost?: boolean;
 
     /** Whether query is trivial */
     isTrivial?: boolean;
@@ -850,6 +884,230 @@ export class QueryResponseAlignmentScorer {
       '"subject"',
     ];
     return paramPatterns.some((pattern) => responseLower.includes(pattern));
+  }
+
+  /**
+   * Detect if query is a roleplay/persona prompt.
+   *
+   * v15 (Jan 2026): Fixes low draft acceptance on roleplay tasks.
+   */
+  private isRoleplayFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+    const roleplayMarkers = [
+      'act as',
+      'acting as',
+      'pretend you are',
+      'pretend to be',
+      'you are a',
+      'you are an',
+      'roleplay as',
+      'role play as',
+      'speak as',
+      'respond as',
+      'answer as',
+      'write as',
+      'imagine you are',
+      'assume the role',
+      'take on the role',
+      'in the style of',
+      'like a',
+      'as if you were',
+      'behave like',
+      'impersonate',
+    ];
+    return roleplayMarkers.some((marker) => queryLower.includes(marker));
+  }
+
+  /**
+   * Check if response is a valid roleplay answer.
+   */
+  private isValidRoleplayResponse(response: string): boolean {
+    const responseLower = response.toLowerCase();
+    const wordCount = response.split(/\s+/).length;
+
+    if (wordCount < 5) {
+      return false;
+    }
+
+    const refusalPatterns = [
+      'i cannot',
+      "i can't",
+      "i'm not able",
+      'as an ai',
+      'as a language model',
+      "i don't have the ability",
+    ];
+    if (refusalPatterns.some((pattern) => responseLower.includes(pattern))) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Detect if query is an extraction task prompt.
+   *
+   * v16 (Jan 2026): Fixes low draft acceptance on extraction tasks.
+   */
+  private isExtractionFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+    const extractionMarkers = [
+      'extract',
+      'list all',
+      'find all',
+      'identify all',
+      'get all',
+      'pull out',
+      'gather all',
+      'collect all',
+      'enumerate',
+      'what are all',
+      'name all',
+      'provide a list',
+      'give me a list',
+      'output a list',
+    ];
+    return extractionMarkers.some((marker) => queryLower.includes(marker));
+  }
+
+  /**
+   * Check if response is a valid extraction answer.
+   */
+  private isValidExtractionResponse(response: string): boolean {
+    const responseStripped = response.trim();
+    const wordCount = responseStripped.split(/\s+/).length;
+
+    if (wordCount < 3) {
+      return false;
+    }
+
+    const listMarkers = [
+      '- ',
+      '* ',
+      '• ',
+      '1.',
+      '2.',
+      '1)',
+      '2)',
+      '\n-',
+      '\n*',
+      '\n•',
+      '\n1',
+      '\n2',
+    ];
+    const hasList = listMarkers.some((marker) => response.includes(marker));
+
+    if (responseStripped.startsWith('[') || responseStripped.includes('["')) {
+      return true;
+    }
+
+    if (responseStripped.includes(',') && wordCount >= 3) {
+      return true;
+    }
+
+    return hasList;
+  }
+
+  /**
+   * Detect if query is a multi-turn conversation prompt.
+   *
+   * v18 (Feb 2026): Fixes multi-turn degradation.
+   */
+  private isMultiTurnConversationFormat(query: string): boolean {
+    const queryLower = query.toLowerCase();
+    const multiTurnMarkers = [
+      'previous conversation:',
+      'conversation history:',
+      'conversation so far:',
+      'prior context:',
+      'chat history:',
+      'dialogue history:',
+      'earlier in the conversation:',
+    ];
+    const hasConversationMarker = multiTurnMarkers.some((marker) =>
+      queryLower.includes(marker)
+    );
+
+    const turnMarkers = [
+      'turn 1:',
+      'turn 2:',
+      '[turn 1]',
+      '[turn 2]',
+      'turn 1\n',
+      'turn 2\n',
+    ];
+    const hasTurnMarker = turnMarkers.some((marker) =>
+      queryLower.includes(marker)
+    );
+
+    const userAssistantPairs: Array<[string, string]> = [
+      ['user:', 'assistant:'],
+      ['human:', 'assistant:'],
+      ['human:', 'ai:'],
+      ['user:', 'ai:'],
+      ['question:', 'answer:'],
+      ['q:', 'a:'],
+    ];
+    const hasUserAssistant = userAssistantPairs.some(
+      ([user, assistant]) => queryLower.includes(user) && queryLower.includes(assistant)
+    );
+
+    const currentTurnMarkers = [
+      'current turn:',
+      'current question:',
+      'now answer:',
+      'now respond:',
+      'your turn:',
+    ];
+    const hasCurrentTurn = currentTurnMarkers.some((marker) =>
+      queryLower.includes(marker)
+    );
+
+    const userMarkers = ['user:', 'human:', 'question:'];
+    const assistantMarkers = ['assistant:', 'ai:', 'answer:'];
+    const userCount = userMarkers.reduce(
+      (total, marker) => total + queryLower.split(marker).length - 1,
+      0
+    );
+    const assistantCount = assistantMarkers.reduce(
+      (total, marker) => total + queryLower.split(marker).length - 1,
+      0
+    );
+    const hasUserAssistantMulti = hasUserAssistant && userCount >= 2 && assistantCount >= 1;
+
+    return (
+      hasConversationMarker ||
+      hasTurnMarker ||
+      hasUserAssistantMulti ||
+      (hasUserAssistant && hasCurrentTurn) ||
+      (hasConversationMarker && hasCurrentTurn)
+    );
+  }
+
+  /**
+   * Check if response is a valid multi-turn answer.
+   */
+  private isValidMultiTurnResponse(response: string): boolean {
+    const responseStripped = response.trim();
+    const wordCount = responseStripped.split(/\s+/).length;
+
+    if (wordCount < 3) {
+      return false;
+    }
+
+    const responseLower = responseStripped.toLowerCase();
+    const garbagePatterns = [
+      'lorem ipsum',
+      'asdf',
+      'qwerty',
+      'null null null',
+      'undefined undefined',
+    ];
+    if (garbagePatterns.some((pattern) => responseLower.includes(pattern))) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -1583,6 +1841,84 @@ export class QueryResponseAlignmentScorer {
           alignmentScore: finalScore,
           features,
           reasoning: `Score ${finalScore.toFixed(3)}: Function call format with valid tool response`,
+          isTrivial: false,
+          baselineUsed: this.BASELINE_STANDARD,
+        };
+      }
+      return finalScore;
+    }
+
+    // v15: Roleplay/persona detection - handle before normal scoring
+    const isRoleplay = this.isRoleplayFormat(query);
+    const validRoleplayResponse = isRoleplay
+      ? this.isValidRoleplayResponse(response)
+      : false;
+    features.isRoleplay = isRoleplay;
+    features.validRoleplayResponse = validRoleplayResponse;
+
+    if (isRoleplay && validRoleplayResponse) {
+      features.isTrivial = false;
+      features.baseline = this.BASELINE_STANDARD;
+      features.roleplayBoost = true;
+      const finalScore = 0.70;
+
+      if (verbose) {
+        return {
+          alignmentScore: finalScore,
+          features,
+          reasoning: `Score ${finalScore.toFixed(3)}: Roleplay format with valid persona response`,
+          isTrivial: false,
+          baselineUsed: this.BASELINE_STANDARD,
+        };
+      }
+      return finalScore;
+    }
+
+    // v16: Extraction task detection - handle before normal scoring
+    const isExtraction = this.isExtractionFormat(query);
+    const validExtractionResponse = isExtraction
+      ? this.isValidExtractionResponse(response)
+      : false;
+    features.isExtraction = isExtraction;
+    features.validExtractionResponse = validExtractionResponse;
+
+    if (isExtraction && validExtractionResponse) {
+      features.isTrivial = false;
+      features.baseline = this.BASELINE_STANDARD;
+      features.extractionBoost = true;
+      const finalScore = 0.70;
+
+      if (verbose) {
+        return {
+          alignmentScore: finalScore,
+          features,
+          reasoning: `Score ${finalScore.toFixed(3)}: Extraction format with valid structured response`,
+          isTrivial: false,
+          baselineUsed: this.BASELINE_STANDARD,
+        };
+      }
+      return finalScore;
+    }
+
+    // v18: Multi-turn conversation detection - handle before normal scoring
+    const isMultiTurn = this.isMultiTurnConversationFormat(query);
+    const validMultiTurnResponse = isMultiTurn
+      ? this.isValidMultiTurnResponse(response)
+      : false;
+    features.isMultiTurn = isMultiTurn;
+    features.validMultiTurnResponse = validMultiTurnResponse;
+
+    if (isMultiTurn && validMultiTurnResponse) {
+      features.isTrivial = false;
+      features.baseline = this.BASELINE_STANDARD;
+      features.multiTurnBoost = true;
+      const finalScore = 0.72;
+
+      if (verbose) {
+        return {
+          alignmentScore: finalScore,
+          features,
+          reasoning: `Score ${finalScore.toFixed(3)}: Multi-turn conversation format with valid response`,
           isTrivial: false,
           baselineUsed: this.BASELINE_STANDARD,
         };

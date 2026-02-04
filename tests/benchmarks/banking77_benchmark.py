@@ -27,6 +27,7 @@ import os
 from typing import Any, Optional
 
 from cascadeflow.config import ModelConfig
+from cascadeflow.quality import QualityConfig
 
 from cascadeflow.agent import CascadeAgent
 
@@ -119,9 +120,9 @@ class Banking77Benchmark(Benchmark):
 
     def __init__(
         self,
-        drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "claude-sonnet-4-5-20250929",
-        drafter_provider: str = "openai",
+        drafter_model: str = "claude-haiku-4-5-20251001",
+        verifier_model: str = "claude-opus-4-5-20251101",
+        drafter_provider: str = "anthropic",
         verifier_provider: str = "anthropic",
         quality_threshold: float = 0.7,
         max_samples: Optional[int] = None,  # None = full dataset
@@ -153,7 +154,7 @@ class Banking77Benchmark(Benchmark):
         """
         Calculate baseline cost using actual verifier model pricing.
 
-        Claude Sonnet 4.5: $3.00 per 1M input, $15.00 per 1M output
+        Claude Opus 4.5: $15.00 per 1M input, $75.00 per 1M output
 
         Args:
             query: Input query (used to estimate token count)
@@ -164,9 +165,9 @@ class Banking77Benchmark(Benchmark):
         # Estimate tokens: ~1000 input (prompt + 77 intents), ~100 output
         input_tokens = 1000
         output_tokens = 100
-        # Claude Sonnet 4.5 pricing
-        input_cost = (input_tokens / 1_000_000) * 3.00
-        output_cost = (output_tokens / 1_000_000) * 15.00
+        # Claude Opus 4.5 pricing
+        input_cost = (input_tokens / 1_000_000) * 15.00
+        output_cost = (output_tokens / 1_000_000) * 75.00
         return input_cost + output_cost
 
     def load_dataset(self) -> list[tuple[str, Any]]:
@@ -327,17 +328,55 @@ Format your response as:
 Reasoning: [your brief explanation]
 Intent: [exact_intent_name]"""
 
-        # Use 2-model cascade with all domains enabled
+        # Use 2-model cascade with domain detection DISABLED
+        # Domain detection misclassifies intent classification as "data" domain
+        # with 0.80 threshold, causing all drafts to be rejected.
         # Cross-provider cascade: GPT-4o-mini (OpenAI) -> Claude Sonnet 4.5 (Anthropic)
+        #
+        # Classification tasks need lenient confidence thresholds since:
+        # 1. Responses are short (just intent + reasoning)
+        # 2. Complexity often detected as "hard" due to 77 categories
+        # 3. Alignment scoring already handles classification format (v11)
         agent = CascadeAgent(
             models=[
                 ModelConfig(name=self.drafter_model, provider=self.drafter_provider),
                 ModelConfig(name=self.verifier_model, provider=self.verifier_provider),
             ],
             enable_cascade=True,
-            enable_domain_detection=True,
-            use_semantic_domains=True,
+            enable_domain_detection=False,  # Disabled - causes misclassification
+            use_semantic_domains=False,  # Disabled - use standard thresholds
+            quality_config=QualityConfig(
+                # Lenient thresholds for classification tasks
+                confidence_thresholds={
+                    "trivial": 0.55,
+                    "simple": 0.55,
+                    "moderate": 0.55,
+                    "hard": 0.55,
+                    "expert": 0.55,
+                },
+                # Short responses are expected for classification
+                min_length_thresholds={
+                    "trivial": 10,
+                    "simple": 10,
+                    "moderate": 15,
+                    "hard": 15,
+                    "expert": 20,
+                },
+            ),
         )
+
+        # CRITICAL: Patch the PreRouter to cascade ALL complexity levels
+        # By default, PreRouter routes "hard" and "expert" directly to verifier
+        # For classification benchmarks, we want all queries to go through cascade
+        from cascadeflow.quality.complexity import QueryComplexity
+
+        agent.router.cascade_complexities = [
+            QueryComplexity.TRIVIAL,
+            QueryComplexity.SIMPLE,
+            QueryComplexity.MODERATE,
+            QueryComplexity.HARD,
+            QueryComplexity.EXPERT,
+        ]
 
         start_time = _time.time()
         result = await agent.run(classification_prompt)
@@ -373,24 +412,24 @@ async def run_banking77_benchmark(
     print("=" * 80 + "\n")
 
     # Verify API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY not set")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("Error: ANTHROPIC_API_KEY not set")
         return None
 
     sample_desc = f"{max_samples} samples" if max_samples else f"full {split} set"
     print("Configuration:")
     print(f"  Dataset:         Banking77 ({sample_desc})")
     print(f"  Split:           {split}")
-    print("  Drafter:         gpt-4o-mini (OpenAI)")
-    print("  Verifier:        claude-sonnet-4-5-20250929 (Anthropic)")
+    print("  Drafter:         claude-haiku-4-5-20251001 (Anthropic)")
+    print("  Verifier:        claude-opus-4-5-20251101 (Anthropic)")
     print("  Quality Thresh:  0.7")
     print("  Task:            77-way intent classification")
     print()
 
     benchmark = Banking77Benchmark(
-        drafter_model="gpt-4o-mini",
-        verifier_model="claude-sonnet-4-5-20250929",
-        drafter_provider="openai",
+        drafter_model="claude-haiku-4-5-20251001",
+        verifier_model="claude-opus-4-5-20251101",
+        drafter_provider="anthropic",
         verifier_provider="anthropic",
         quality_threshold=0.7,
         max_samples=max_samples,

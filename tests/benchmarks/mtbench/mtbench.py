@@ -7,11 +7,11 @@ Based on MT-Bench by LMSYS (https://github.com/lm-sys/FastChat/tree/main/fastcha
 """
 
 import asyncio
-from typing import Any
+from typing import Any, Optional
 
-from cascadeflow.agent import Agent
+from cascadeflow import CascadeAgent, ModelConfig
 
-from .base import Benchmark, BenchmarkResult, BenchmarkSummary
+from ..base import Benchmark, BenchmarkSummary
 
 
 class MTBenchmark(Benchmark):
@@ -19,9 +19,9 @@ class MTBenchmark(Benchmark):
 
     def __init__(
         self,
-        drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "gpt-4o",
-        max_samples: int = 10,
+        drafter_model: str = "claude-haiku-4-5-20251001",
+        verifier_model: str = "claude-opus-4-5-20251101",
+        max_samples: Optional[int] = 10,
     ):
         """
         Initialize MT-Bench benchmark.
@@ -37,6 +37,7 @@ class MTBenchmark(Benchmark):
             verifier_model=verifier_model,
             max_samples=max_samples,
         )
+        self._conversations: dict[str, Any] = {}
 
     def load_dataset(self) -> list[tuple[str, Any]]:
         """
@@ -209,9 +210,12 @@ class MTBenchmark(Benchmark):
             },
         ]
 
+        self._conversations = {c["conversation_id"]: c for c in conversations}
+        if self.max_samples is None:
+            return [(c["conversation_id"], c) for c in conversations]
         return [(c["conversation_id"], c) for c in conversations[: self.max_samples]]
 
-    def evaluate_prediction(self, prediction: str, ground_truth: Any) -> tuple[bool, float]:
+    def evaluate_prediction(self, prediction: Any, ground_truth: Any) -> tuple[bool, float]:
         """
         Evaluate multi-turn conversation response quality.
 
@@ -228,50 +232,55 @@ class MTBenchmark(Benchmark):
             Tuple of (passes_threshold, quality_score)
         """
         try:
-            if not prediction or len(prediction.strip()) < 20:
+            responses = prediction if isinstance(prediction, list) else [str(prediction)]
+            if not responses:
                 return False, 0.0
 
-            # Simple heuristic quality scoring
-            quality_score = 0.5  # Base score
+            scores = [self._score_response(response) for response in responses]
+            avg_quality = sum(scores) / len(scores)
+            passes = all(score >= 0.7 for score in scores)
 
-            # Length bonus (substantial responses score higher)
-            if len(prediction) > 100:
-                quality_score += 0.2
-            if len(prediction) > 300:
-                quality_score += 0.1
-
-            # Coherence indicators
-            has_sentences = "." in prediction or "!" in prediction or "?" in prediction
-            if has_sentences:
-                quality_score += 0.1
-
-            # Structure indicators (paragraphs, lists, code blocks)
-            if "\n\n" in prediction or "\n-" in prediction or "```" in prediction:
-                quality_score += 0.1
-
-            # Cap at 1.0
-            quality_score = min(quality_score, 1.0)
-
-            # Consider pass if quality >= 0.7 (70%)
-            passes = quality_score >= 0.7
-
-            return passes, quality_score
+            return passes, avg_quality
 
         except Exception as e:
             print(f"  Warning: Evaluation error: {e}")
             return False, 0.0
 
-    async def run_cascade(self, conversation_data: Any) -> BenchmarkResult:
+    def _score_response(self, response: str) -> float:
+        if not response or len(response.strip()) < 20:
+            return 0.0
+
+        quality_score = 0.5
+
+        if len(response) > 100:
+            quality_score += 0.2
+        if len(response) > 300:
+            quality_score += 0.1
+
+        has_sentences = "." in response or "!" in response or "?" in response
+        if has_sentences:
+            quality_score += 0.1
+
+        if "\n\n" in response or "\n-" in response or "```" in response:
+            quality_score += 0.1
+
+        return min(quality_score, 1.0)
+
+    async def run_cascade(self, query: str) -> dict[str, Any]:
         """
         Run cascade on a multi-turn conversation.
 
         Args:
-            conversation_data: Conversation with multiple turns
+            query: Conversation identifier
 
         Returns:
-            BenchmarkResult with aggregated metrics across all turns
+            Dict containing aggregate metrics across all turns
         """
-        conversation_id = conversation_data["conversation_id"]
+        conversation_id = query
+        conversation_data = self._conversations.get(conversation_id)
+        if conversation_data is None:
+            raise ValueError(f"Conversation not found: {conversation_id}")
+
         category = conversation_data["category"]
         turns = conversation_data["turns"]
 
@@ -279,20 +288,25 @@ class MTBenchmark(Benchmark):
         print(f"  Turns: {len(turns)}")
 
         # Initialize agent with cascade configuration
-        agent = Agent(
-            name=f"MTBench-{category}",
-            task="Multi-turn conversation",
-            drafter_model=self.drafter_model,
-            verifier_model=self.verifier_model,
-            quality={"threshold": 0.7},
+        agent = CascadeAgent(
+            models=[
+                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
+                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
+            ],
+            quality={"threshold": self.quality_threshold},
         )
 
         # Track conversation state
-        conversation_history = []
+        messages: list[dict[str, str]] = []
+        responses: list[str] = []
         all_correct = True
         total_quality = 0.0
         total_cost = 0.0
+        total_draft_cost = 0.0
+        total_verifier_cost = 0.0
         total_latency = 0.0
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
         drafter_accepted_count = 0
 
         # Execute each turn in sequence
@@ -300,39 +314,39 @@ class MTBenchmark(Benchmark):
             turn_num = turn_data["turn"]
             prompt = turn_data["prompt"]
 
-            # Build context-aware prompt with conversation history
-            if conversation_history:
-                context = "\n".join(
-                    [f"Turn {i+1}: {h}" for i, h in enumerate(conversation_history)]
-                )
-                full_prompt = f"Previous conversation:\n{context}\n\nCurrent turn: {prompt}"
-            else:
-                full_prompt = prompt
+            messages.append({"role": "user", "content": prompt})
 
             # Run cascade
-            result = await agent.arun(full_prompt)
+            result = await agent.run(prompt, messages=messages)
 
             # Extract response
-            response = result.get("response", "")
-            conversation_history.append(response)
+            response = result.content
+            responses.append(response)
+            messages.append({"role": "assistant", "content": response})
 
             # Evaluate turn
-            is_correct, quality = self.evaluate_prediction(response, turn_data)
+            quality = self._score_response(response)
+            is_correct = quality >= 0.7
 
             # Track metrics
             if not is_correct:
                 all_correct = False
 
             total_quality += quality
-            total_cost += result.get("total_cost", 0.0)
-            total_latency += result.get("latency_ms", 0.0)
+            total_cost += result.total_cost
+            total_draft_cost += result.draft_cost or 0.0
+            total_verifier_cost += result.verifier_cost or 0.0
+            total_latency += result.latency_ms
+            total_prompt_tokens += result.metadata.get("prompt_tokens", 0)
+            total_completion_tokens += result.metadata.get("completion_tokens", 0)
 
-            if result.get("model_used") == self.drafter_model:
+            turn_used_drafter = result.draft_accepted or result.model_used == self.drafter_model
+            if turn_used_drafter:
                 drafter_accepted_count += 1
 
             print(
                 f"    Turn {turn_num}: Quality={quality:.2f}, "
-                f"{'✅ Drafter' if result.get('model_used') == self.drafter_model else '❌ Verifier'}"
+                f"{'✅ Drafter' if turn_used_drafter else '❌ Verifier'}"
             )
 
         # Calculate aggregated metrics
@@ -343,16 +357,22 @@ class MTBenchmark(Benchmark):
         # Baseline cost (all turns use verifier)
         baseline_cost = self.calculate_baseline_cost(conversation_data)
 
-        return BenchmarkResult(
-            problem_id=conversation_id,
-            correct=all_correct,  # All turns must pass
-            quality_score=avg_quality,
-            latency_ms=avg_latency,
-            cost=total_cost,
-            baseline_cost=baseline_cost,
-            drafter_accepted=(drafter_accepted_count == num_turns),  # All turns accepted
-            category=category,
-        )
+        accepted = drafter_accepted_count == num_turns
+        model_used = self.drafter_model if accepted else self.verifier_model
+
+        return {
+            "prediction": responses,
+            "model_used": model_used,
+            "accepted": accepted,
+            "quality_score": avg_quality,
+            "drafter_cost": total_draft_cost,
+            "verifier_cost": total_verifier_cost,
+            "total_cost": total_cost,
+            "baseline_cost": baseline_cost,
+            "latency_ms": avg_latency,
+            "tokens_input": total_prompt_tokens,
+            "tokens_output": total_completion_tokens,
+        }
 
     def calculate_baseline_cost(self, problem: Any) -> float:
         """
@@ -387,7 +407,7 @@ class MTBenchmark(Benchmark):
         return total_cost
 
 
-async def run_mtbench_benchmark() -> BenchmarkSummary:
+async def run_mtbench_benchmark(max_samples: Optional[int] = 10) -> BenchmarkSummary:
     """
     Run MT-Bench multi-turn conversation benchmark.
 
@@ -399,9 +419,9 @@ async def run_mtbench_benchmark() -> BenchmarkSummary:
     print("=" * 80 + "\n")
 
     benchmark = MTBenchmark(
-        drafter_model="gpt-4o-mini",
-        verifier_model="gpt-4o",
-        max_samples=10,
+        drafter_model="claude-haiku-4-5-20251001",
+        verifier_model="claude-opus-4-5-20251101",
+        max_samples=max_samples,
     )
 
     summary = await benchmark.run()
@@ -411,37 +431,36 @@ async def run_mtbench_benchmark() -> BenchmarkSummary:
     print("MT-BENCH RESULTS")
     print("=" * 80 + "\n")
 
+    correct_count = (
+        int(summary.accuracy / 100 * summary.successful_tests) if summary.successful_tests else 0
+    )
+
     print(f"Total Conversations: {summary.total_tests}")
-    print(f"Successful (all turns pass): {summary.correct} ({summary.accuracy*100:.1f}%)")
+    print(f"Successful (all turns pass): {correct_count} ({summary.accuracy:.1f}%)")
     print(
-        f"Drafter Accepted (all turns): {summary.drafter_accepted} ({summary.acceptance_rate*100:.1f}%)"
+        f"Drafter Accepted (all turns): {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)"
     )
     print(
-        f"Verifier Escalated: {summary.total_tests - summary.drafter_accepted} ({(1-summary.acceptance_rate)*100:.1f}%)"
+        f"Verifier Escalated: {summary.total_tests - summary.drafter_accepted} ({summary.escalation_rate_pct:.1f}%)"
     )
 
     print("\nCost Analysis:")
     print(f"  Cascade Total Cost:  ${summary.total_cost:.6f}")
-    print(f"  Baseline Total Cost: ${summary.baseline_cost:.6f}")
-    print(f"  Cost Savings:        ${summary.cost_savings:.6f} ({summary.cost_reduction_pct:.1f}%)")
+    print(f"  Baseline Total Cost: ${summary.total_baseline_cost:.6f}")
+    print(f"  Cost Savings:        ${summary.total_savings:.6f} ({summary.avg_savings_pct:.1f}%)")
 
     print("\nPerformance:")
     print(f"  Average Latency:     {summary.avg_latency_ms:.0f}ms per turn")
-    print(f"  Average Quality:     {summary.avg_quality_score:.3f}")
-    print(
-        f"  Drafter Accuracy:    {summary.drafter_accuracy*100:.1f}% (when accepted for all turns)"
-    )
+    print(f"  Drafter Accuracy:    {summary.drafter_accuracy:.1f}% (when accepted for all turns)")
 
     print("\nKey Findings:")
-    if summary.acceptance_rate > 0.5:
+    if summary.acceptance_rate_pct > 50:
         print(
-            f"  ✅ Drafter handles {summary.acceptance_rate*100:.0f}% of conversations independently"
+            f"  ✅ Drafter handles {summary.acceptance_rate_pct:.0f}% of conversations independently"
         )
-    if summary.cost_reduction_pct > 40:
-        print(f"  💰 Achieved {summary.cost_reduction_pct:.0f}% cost reduction")
-    if summary.avg_quality_score > 0.75:
-        print("  ✅ High quality maintained across multi-turn conversations")
-    if summary.drafter_accuracy < 0.7:
+    if summary.avg_savings_pct > 40:
+        print(f"  💰 Achieved {summary.avg_savings_pct:.0f}% cost reduction")
+    if summary.drafter_accuracy < 70:
         print("  ⚠️  Multi-turn context retention challenging - consider stronger drafter")
 
     print("\n" + "=" * 80 + "\n")

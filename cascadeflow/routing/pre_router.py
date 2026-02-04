@@ -21,12 +21,14 @@ This enables:
 """
 
 import logging
+import os
 from collections import defaultdict
 from typing import Any, Optional
 
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
 from .base import Router, RoutingDecision, RoutingStrategy
+from .task_detector import TaskDetector, TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +55,75 @@ class PreRouter(Router):
     - Domain-specific routing rules
     """
 
+    FACTUAL_RISK_MARKERS = {
+        "factually accurate",
+        "verified information",
+        "avoid speculation",
+        "misinformation",
+        "misconception",
+        "common myth",
+        "myth",
+        "false belief",
+        "truthful",
+        "fact check",
+        "is it true",
+        "is this true",
+        "is it false",
+        "is it a myth",
+        "state the correct fact",
+        "state the correct facts",
+    }
+
+    FACTUAL_RISK_TOPICS = {
+        "medical",
+        "health",
+        "diagnose",
+        "treatment",
+        "cure",
+        "vaccine",
+        "symptom",
+        "legal",
+        "illegal",
+        "law",
+        "contract",
+        "tax",
+        "financial",
+        "investment",
+        "insurance",
+        "safety",
+        "safe",
+        "harmful",
+    }
+
+    QUESTION_STARTERS = (
+        "what",
+        "who",
+        "when",
+        "where",
+        "why",
+        "how",
+        "is",
+        "are",
+        "was",
+        "were",
+        "does",
+        "do",
+        "can",
+        "should",
+        "could",
+        "did",
+        "will",
+        "would",
+    )
+
     def __init__(
         self,
         enable_cascade: bool = True,
         complexity_detector: Optional[ComplexityDetector] = None,
         cascade_complexities: Optional[list[QueryComplexity]] = None,
+        task_detector: Optional[TaskDetector] = None,
+        enable_task_routing: bool = True,
+        enable_factual_risk_routing: bool = False,
         verbose: bool = False,
     ):
         """
@@ -67,10 +133,16 @@ class PreRouter(Router):
             enable_cascade: Enable cascade routing (if False, always direct)
             complexity_detector: Custom complexity detector
             cascade_complexities: Which complexities should use cascade
+            task_detector: Custom task detector for classification routing
+            enable_task_routing: Enable task-aware routing (v17)
+            enable_factual_risk_routing: Enable factual-risk direct routing (opt-in)
             verbose: Enable verbose logging
         """
         self.enable_cascade = enable_cascade
         self.detector = complexity_detector or ComplexityDetector()
+        self.task_detector = task_detector or TaskDetector()
+        self.enable_task_routing = enable_task_routing
+        self.enable_factual_risk_routing = enable_factual_risk_routing
         self.verbose = verbose
 
         # Default: cascade for simple queries, direct for complex
@@ -85,6 +157,9 @@ class PreRouter(Router):
             "total_queries": 0,
             "by_complexity": defaultdict(int),
             "by_strategy": defaultdict(int),
+            "by_task_type": defaultdict(int),
+            "task_routing_direct": 0,
+            "factual_risk_direct": 0,
             "forced_direct": 0,
             "cascade_disabled": 0,
         }
@@ -92,9 +167,23 @@ class PreRouter(Router):
         logger.info(
             f"PreRouter initialized:\n"
             f"  Cascade enabled: {enable_cascade}\n"
+            f"  Task-aware routing: {enable_task_routing}\n"
+            f"  Factual-risk routing: {enable_factual_risk_routing}\n"
             f"  Cascade complexities: {[c.value for c in self.cascade_complexities]}\n"
             f"  Direct complexities: {[c.value for c in QueryComplexity if c not in self.cascade_complexities]}"
         )
+
+    def _is_factual_risk_query(self, query: str) -> bool:
+        """Return True if query should be treated as factual-risk."""
+        lowered = query.lower()
+        if any(marker in lowered for marker in self.FACTUAL_RISK_MARKERS):
+            return True
+
+        is_question = "?" in lowered or lowered.lstrip().startswith(self.QUESTION_STARTERS)
+        if not is_question:
+            return False
+
+        return any(topic in lowered for topic in self.FACTUAL_RISK_TOPICS)
 
     async def route(self, query: str, context: Optional[dict[str, Any]] = None) -> RoutingDecision:
         """
@@ -131,6 +220,8 @@ class PreRouter(Router):
         self.stats["total_queries"] += 1
 
         # === STEP 1: Detect Complexity ===
+        complexity_metadata = {}
+
         if "complexity" in context:
             # Pre-detected complexity passed in
             complexity = context["complexity"]
@@ -143,12 +234,14 @@ class PreRouter(Router):
                 complexity = QueryComplexity(context["complexity_hint"].lower())
                 complexity_confidence = 1.0
             except ValueError:
-                complexity, complexity_confidence = self.detector.detect(
-                    query, return_metadata=False
+                complexity, complexity_confidence, complexity_metadata = self.detector.detect(
+                    query, return_metadata=True
                 )
         else:
             # Auto-detect complexity
-            complexity, complexity_confidence = self.detector.detect(query, return_metadata=False)
+            complexity, complexity_confidence, complexity_metadata = self.detector.detect(
+                query, return_metadata=True
+            )
 
         # Track complexity
         self.stats["by_complexity"][complexity.value] += 1
@@ -163,8 +256,27 @@ class PreRouter(Router):
             domain_config, "enabled", True
         )
 
+        # === STEP 2.5: Detect Task Type (v17) ===
+        task_result = None
+        if self.enable_task_routing:
+            task_result = self.task_detector.detect(query)
+            self.stats["by_task_type"][task_result.task_type.value] += 1
+
+        factual_risk_detected = False
+        if self.enable_factual_risk_routing:
+            factual_risk_detected = self._is_factual_risk_query(query)
+
         # === STEP 3: Make Routing Decision ===
         force_direct = context.get("force_direct", False)
+        has_code = bool(complexity_metadata.get("has_code") or context.get("has_code", False))
+        has_tool_prompt = bool(context.get("has_tool_prompt", False))
+        if not has_tool_prompt:
+            lowered_query = query.lower()
+            has_tool_prompt = ("tool:" in lowered_query or "parameters:" in lowered_query) and (
+                "tools" in lowered_query or "function" in lowered_query
+            )
+        has_multi_turn = bool(context.get("has_multi_turn", False))
+
         metadata = {
             "complexity": complexity.value,
             "complexity_confidence": complexity_confidence,
@@ -174,7 +286,19 @@ class PreRouter(Router):
             "detected_domain": detected_domain,
             "domain_confidence": domain_confidence,
             "domain_routing_active": domain_routing_active,
+            "has_code": has_code,
+            "has_multi_turn": has_multi_turn,
+            "has_tool_prompt": has_tool_prompt,
+            "factual_risk_detected": factual_risk_detected,
+            "factual_risk_routing": self.enable_factual_risk_routing,
         }
+
+        # Add task detection metadata
+        if task_result:
+            metadata["task_type"] = task_result.task_type.value
+            metadata["task_confidence"] = task_result.confidence
+            metadata["category_count"] = task_result.category_count
+            metadata["task_requires_verifier"] = task_result.should_use_verifier
 
         if force_direct:
             # Forced direct routing
@@ -191,6 +315,23 @@ class PreRouter(Router):
             confidence = 1.0
             self.stats["cascade_disabled"] += 1
             metadata["router_type"] = "cascade_disabled"
+
+        elif factual_risk_detected:
+            # Factual-risk routing override (opt-in safety mode)
+            strategy = RoutingStrategy.DIRECT_BEST
+            reason = "Factual-risk policy: route to verifier for accuracy"
+            confidence = 1.0
+            self.stats["factual_risk_direct"] += 1
+            metadata["router_type"] = "factual_risk_direct"
+
+        elif task_result and task_result.should_use_verifier:
+            # === TASK-AWARE ROUTING (v17) ===
+            # Complex classification tasks benefit from verifier model
+            strategy = RoutingStrategy.DIRECT_BEST
+            reason = task_result.reason
+            confidence = task_result.confidence
+            self.stats["task_routing_direct"] += 1
+            metadata["router_type"] = "task_aware_classification"
 
         elif domain_routing_active:
             # === DOMAIN-AWARE ROUTING (takes precedence) ===
@@ -251,6 +392,36 @@ class PreRouter(Router):
             metadata["domain_threshold"] = getattr(domain_config, "threshold", 0.7)
             metadata["domain_cascade_complexities"] = domain_cascade_complexities
 
+        elif has_tool_prompt and complexity in [
+            QueryComplexity.HARD,
+            QueryComplexity.EXPERT,
+        ]:
+            # Tool-call prompts often look complex but should still use cascade for savings.
+            strategy = RoutingStrategy.CASCADE
+            reason = "Tool prompt override: allow cascade for tool selection"
+            confidence = complexity_confidence
+            metadata["router_type"] = "tool_prompt_override"
+
+        elif has_multi_turn and complexity in [
+            QueryComplexity.HARD,
+            QueryComplexity.EXPERT,
+        ]:
+            # Multi-turn tasks benefit from cascade to save cost on dialogue continuity.
+            strategy = RoutingStrategy.CASCADE
+            reason = "Multi-turn override: allow cascade for multi-turn conversation"
+            confidence = complexity_confidence
+            metadata["router_type"] = "multi_turn_override"
+
+        elif has_code and complexity in [
+            QueryComplexity.HARD,
+            QueryComplexity.EXPERT,
+        ]:
+            # Code tasks are often labeled hard/expert but can still benefit from cascade.
+            strategy = RoutingStrategy.CASCADE
+            reason = "Code task override: allow cascade for code generation"
+            confidence = complexity_confidence
+            metadata["router_type"] = "code_override"
+
         elif complexity in self.cascade_complexities:
             # === COMPLEXITY-BASED ROUTING (fallback) ===
             # No domain config OR domain not detected → use complexity rules
@@ -277,10 +448,13 @@ class PreRouter(Router):
             metadata=metadata,
         )
 
-        if self.verbose:
+        if self.verbose or os.getenv("CASCADEFLOW_BENCH_LOG") == "1":
             domain_info = f" [Domain: {detected_domain}]" if detected_domain else ""
+            task_info = ""
+            if task_result and task_result.task_type.value != "general":
+                task_info = f" [Task: {task_result.task_type.value}, {task_result.category_count} categories]"
             print(
-                f"[PreRouter] {query[:50]}...{domain_info} → {strategy.value}\n"
+                f"[PreRouter] {query[:50]}...{domain_info}{task_info} → {strategy.value}\n"
                 f"           Complexity: {complexity.value} (conf: {complexity_confidence:.2f})\n"
                 f"           Reason: {reason}"
             )
@@ -320,10 +494,13 @@ class PreRouter(Router):
             "total_queries": total,
             "by_complexity": dict(self.stats["by_complexity"]),
             "by_strategy": dict(self.stats["by_strategy"]),
+            "by_task_type": dict(self.stats["by_task_type"]),
             "cascade_rate": f"{cascade_count / total * 100:.1f}%",
             "direct_rate": f"{direct_count / total * 100:.1f}%",
             "forced_direct": self.stats["forced_direct"],
+            "factual_risk_direct": self.stats["factual_risk_direct"],
             "cascade_disabled_count": self.stats["cascade_disabled"],
+            "task_routing_direct": self.stats["task_routing_direct"],
         }
 
     def reset_stats(self) -> None:
@@ -332,6 +509,9 @@ class PreRouter(Router):
             "total_queries": 0,
             "by_complexity": defaultdict(int),
             "by_strategy": defaultdict(int),
+            "by_task_type": defaultdict(int),
+            "task_routing_direct": 0,
+            "factual_risk_direct": 0,
             "forced_direct": 0,
             "cascade_disabled": 0,
         }
@@ -352,6 +532,7 @@ class PreRouter(Router):
         print(f"Cascade Rate:         {stats['cascade_rate']}")
         print(f"Direct Rate:          {stats['direct_rate']}")
         print(f"Forced Direct:        {stats['forced_direct']}")
+        print(f"Factual Risk Direct:  {stats['factual_risk_direct']}")
         print()
         print("BY COMPLEXITY:")
         for complexity, count in stats["by_complexity"].items():

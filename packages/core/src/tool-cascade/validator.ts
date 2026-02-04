@@ -111,7 +111,7 @@ export class ToolCascadeValidator {
       }
 
       const argIssues = Object.entries(args)
-        .filter(([, value]) => typeof value === 'string')
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
         .filter(([, value]) => PLACEHOLDER_VALUES.includes(value.toLowerCase().trim()));
 
       total++;

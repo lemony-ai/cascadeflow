@@ -293,6 +293,32 @@ class ToolQualityValidator:
             return True
         return all(self._tool_name_exists(tc, available_tools) for tc in tool_calls)
 
+    def _get_tool_name_from_schema(self, tool: dict[str, Any]) -> Optional[str]:
+        """Extract tool name from either direct or OpenAI API format.
+
+        Supports both formats:
+        - Direct: {"name": "foo", ...}
+        - OpenAI API: {"type": "function", "function": {"name": "foo", ...}}
+        """
+        # Try direct format first
+        if "name" in tool:
+            return tool["name"]
+        # Try OpenAI API format
+        if "function" in tool and isinstance(tool["function"], dict):
+            return tool["function"].get("name")
+        return None
+
+    def _get_tool_schema(self, tool: dict[str, Any]) -> dict[str, Any]:
+        """Extract tool schema from either direct or OpenAI API format.
+
+        Returns the schema dict containing name, description, parameters, etc.
+        """
+        # OpenAI API format: unwrap from "function" key
+        if "function" in tool and isinstance(tool["function"], dict):
+            return tool["function"]
+        # Direct format: return as-is
+        return tool
+
     def _tool_name_exists(
         self, tool_call: dict[str, Any], available_tools: list[dict[str, Any]]
     ) -> bool:
@@ -301,7 +327,9 @@ class ToolQualityValidator:
         if not tool_name:
             return False
 
-        available_names = {t.get("name") for t in available_tools}
+        # Handle both direct and OpenAI API formats
+        available_names = {self._get_tool_name_from_schema(t) for t in available_tools}
+        available_names.discard(None)  # Remove None if any tools have no name
         return tool_name in available_names
 
     def _validate_required_fields(
@@ -320,10 +348,16 @@ class ToolQualityValidator:
         if not tool_name:
             return False
 
-        # Find tool schema
-        tool_schema = next((t for t in available_tools if t.get("name") == tool_name), None)
-        if not tool_schema:
+        # Find tool schema - handle both direct and OpenAI API formats
+        tool_def = next(
+            (t for t in available_tools if self._get_tool_name_from_schema(t) == tool_name),
+            None,
+        )
+        if not tool_def:
             return False
+
+        # Get the actual schema (unwrap from "function" key if needed)
+        tool_schema = self._get_tool_schema(tool_def)
 
         # Get required fields
         required = tool_schema.get("parameters", {}).get("required", [])
@@ -335,7 +369,7 @@ class ToolQualityValidator:
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 return False
 
         return all(field in arguments for field in required)
@@ -353,7 +387,7 @@ class ToolQualityValidator:
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 return False
 
         return isinstance(arguments, dict)
@@ -368,10 +402,13 @@ class ToolQualityValidator:
     ):
         """Log validation results."""
         status = "✓ VALID" if is_valid else "✗ INVALID"
+        complexity_str = "N/A"
+        if complexity_level and hasattr(complexity_level, "value"):
+            complexity_str = complexity_level.value
         logger.info(
             f"\nTool Quality Validation\n"
             f"Score: {score:.2f}, Threshold: {threshold:.2f}\n"
-            f"Complexity: {complexity_level.value if complexity_level and hasattr(complexity_level, 'value') else 'N/A'}\n"
+            f"Complexity: {complexity_str}\n"
             f"Result: {status}\n"
             f"Issues: {', '.join(issues) if issues else 'None'}"
         )

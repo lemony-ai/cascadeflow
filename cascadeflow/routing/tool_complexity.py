@@ -570,8 +570,14 @@ class ToolComplexityAnalyzer:
         ]
         has_continuation = any(phrase in query for phrase in continuation_phrases)
 
-        # Check if context is empty (might need it but don't have it)
-        lacks_context = context is None or not context
+        # Check if usable message history exists
+        messages = None
+        if context and isinstance(context, dict):
+            messages = (
+                context.get("messages") or context.get("history") or context.get("conversation")
+            )
+        has_messages = isinstance(messages, list) and len(messages) > 1
+        lacks_context = not has_messages
 
         if (has_pronoun or has_continuation) and lacks_context:
             return True, self.weights["context"]

@@ -83,6 +83,17 @@ export interface DomainDetectionResult {
   confidence: number;
   /** Keyword scores by domain */
   scores?: Record<string, number>;
+  /** Additional detection metadata (aligned with Python v15) */
+  metadata?: {
+    /** Length of the input query */
+    queryLength: number;
+    /** Confidence threshold used */
+    threshold: number;
+    /** Whether query was detected as multiple-choice */
+    isMcq: boolean;
+    /** Subject-based domain hint from MCQ parsing */
+    subjectHint: string | null;
+  };
 }
 
 /**
@@ -151,10 +162,10 @@ const SUBJECT_DOMAIN_MAP: Record<string, Domain> = {
   security: Domain.CODE,
 };
 
-/** Built-in domain keyword mappings */
+/** Built-in domain keyword mappings (aligned with Python v15) */
 const DOMAIN_KEYWORDS: Record<Domain, DomainKeywords> = {
   [Domain.CODE]: {
-    veryStrong: ['async', 'await', 'import', 'def', 'return', 'const', 'let', 'npm', 'pip', 'docker', 'kubernetes', 'pytest', 'unittest'],
+    veryStrong: ['async', 'await', 'import', 'def', 'const', 'let', 'npm', 'pip', 'docker', 'kubernetes', 'pytest', 'unittest'],
     strong: ['function', 'class', 'python', 'javascript', 'typescript', 'java', 'code', 'algorithm', 'api', 'debug', 'error', 'exception', 'compile', 'runtime', 'syntax', 'refactor', 'repository'],
     moderate: ['program', 'software', 'implement', 'develop', 'build', 'script', 'test', 'deploy', 'git', 'github', 'lint', 'regex', 'recursion', 'oop', 'frontend', 'backend'],
     weak: [],
@@ -172,76 +183,76 @@ const DOMAIN_KEYWORDS: Record<Domain, DomainKeywords> = {
     weak: [],
   },
   [Domain.RAG]: {
-    veryStrong: ['semantic search', 'vector search', 'embedding', 'chromadb', 'pinecone', 'weaviate', 'faiss', 'rag'],
-    strong: ['retrieval', 'index', 'search', 'document', 'chunk', 'context', 'relevant', 'knowledge base', 'vector database', 'similarity'],
-    moderate: ['find', 'lookup', 'match', 'rank', 'score', 'retrieve', 'passage', 'reference'],
+    veryStrong: ['semantic search', 'vector search', 'embedding', 'similar documents'],
+    strong: ['search', 'retrieve', 'lookup', 'documentation', 'knowledge base', 'documents', 'corpus', 'index', 'relevance'],
+    moderate: ['summarize', 'review', 'analyze', 'compare documents', 'reference', 'citation', 'source', 'context', 'passages'],
     weak: [],
   },
   [Domain.CONVERSATION]: {
-    veryStrong: ['chatbot', 'dialogue', 'conversation', 'multi-turn'],
-    strong: ['chat', 'talk', 'discuss', 'respond', 'reply', 'follow-up', 'context', 'memory', 'persona', 'tone'],
-    moderate: ['say', 'tell', 'ask', 'answer', 'question', 'friendly', 'helpful', 'polite'],
+    veryStrong: ['remember', 'you said', 'earlier you mentioned', 'back to'],
+    strong: ['chat', 'conversation', 'discuss', 'follow-up', 'continue', 'previous', 'earlier', 'dialogue', 'multi-turn'],
+    moderate: ['help', 'support', 'assist', 'question', 'clarify', 'explain', 'understand', 'context', 'referring to'],
     weak: [],
   },
   [Domain.TOOL]: {
-    veryStrong: ['function call', 'tool use', 'api call', 'invoke', 'execute'],
-    strong: ['tool', 'action', 'plugin', 'integration', 'webhook', 'endpoint', 'trigger', 'automation'],
-    moderate: ['use', 'call', 'run', 'perform', 'operation', 'service', 'external'],
+    veryStrong: ['api call', 'webhook', 'endpoint', 'post', 'get', 'put'],
+    strong: ['fetch', 'send', 'create', 'update', 'delete', 'action', 'execute', 'call', 'invoke', 'integration'],
+    moderate: ['check', 'verify', 'schedule', 'book', 'order', 'submit', 'run', 'trigger', 'perform', 'external', 'third-party'],
     weak: [],
   },
   [Domain.CREATIVE]: {
-    veryStrong: ['story', 'poem', 'creative', 'fiction', 'narrative', 'character'],
-    strong: ['write', 'create', 'generate', 'compose', 'draft', 'imagine', 'invent', 'novel', 'blog', 'essay', 'article'],
-    moderate: ['content', 'text', 'description', 'scene', 'dialogue', 'plot', 'theme', 'style'],
-    weak: [],
+    veryStrong: [],
+    strong: ['write', 'story', 'poem', 'creative', 'article', 'essay', 'narrative', 'character', 'plot', 'compose', 'draft'],
+    moderate: ['describe', 'imagine', 'design', 'generate content', 'marketing', 'copy', 'blog', 'social media'],
+    weak: ['create', 'make', 'new'],
   },
   [Domain.SUMMARY]: {
-    veryStrong: ['summarize', 'tldr', 'summary', 'condense'],
-    strong: ['brief', 'concise', 'short', 'main points', 'key takeaways', 'overview', 'abstract'],
-    moderate: ['reduce', 'shorten', 'highlight', 'essential', 'important', 'core'],
-    weak: [],
+    veryStrong: [],
+    strong: ['summarize', 'condense', 'tldr', 'executive summary', 'key points', 'main themes', 'highlights', 'overview'],
+    moderate: ['brief', 'abstract', 'essence', 'distill', 'compress', 'shorten', 'extract main'],
+    weak: ['short', 'simple', 'quick'],
   },
   [Domain.TRANSLATION]: {
-    veryStrong: ['translate', 'translation', 'translator'],
-    strong: ['language', 'french', 'spanish', 'german', 'chinese', 'japanese', 'korean', 'arabic', 'russian', 'italian', 'portuguese'],
-    moderate: ['english', 'convert', 'localize', 'from', 'to', 'bilingual'],
-    weak: [],
+    veryStrong: [],
+    strong: ['translate', 'translation', 'convert language', 'localize', 'spanish', 'french', 'german', 'chinese', 'japanese'],
+    moderate: ['language', 'multilingual', 'interpret', 'international', 'native language', 'foreign'],
+    weak: ['change', 'switch', 'different language'],
   },
   [Domain.MATH]: {
-    veryStrong: ['equation', 'theorem', 'proof', 'calculus', 'derivative', 'integral', 'matrix'],
-    strong: ['calculate', 'solve', 'compute', 'math', 'mathematical', 'algebra', 'geometry', 'trigonometry', 'statistics', 'probability'],
-    moderate: ['number', 'formula', 'expression', 'variable', 'function', 'graph', 'plot'],
-    weak: [],
+    veryStrong: ['derivative', 'integral', 'theorem', 'proof', 'eigenvalue', 'differential equation', 'matrix multiplication', 'calculus', 'trigonometry', 'logarithm', 'how many did', 'how much does', 'how much in dollars', 'how much money', 'what is the total', 'what percentage'],
+    strong: ['calculate', 'equation', 'formula', 'mathematics', 'algebra', 'geometry', 'statistics', 'probability', 'solve', 'vector', 'matrix', 'optimization', 'polynomial', 'how much', 'how many', 'per day', 'per hour', 'per week', 'each day', 'remainder', 'in total', 'altogether'],
+    moderate: ['compute', 'graph', 'variable', 'function', 'coefficient', 'expression', 'numeric', 'symbolic', 'scientific notation', 'exponent', 'factorial', 'summation', 'left over', 'start with', 'end up with', 'divided equally', 'split evenly'],
+    weak: ['add', 'subtract', 'multiply', 'divide', 'number', 'math', 'show your work', 'step by step', 'calculate', 'equals', 'what is', 'times', 'plus', 'minus'],
   },
   [Domain.MEDICAL]: {
-    veryStrong: ['diagnosis', 'treatment', 'symptom', 'medication', 'disease', 'patient', 'clinical'],
-    strong: ['medical', 'health', 'healthcare', 'doctor', 'hospital', 'therapy', 'surgery', 'prescription', 'pharmaceutical'],
-    moderate: ['pain', 'condition', 'test', 'exam', 'care', 'recovery', 'chronic', 'acute'],
-    weak: [],
+    veryStrong: ['symptoms of', 'diagnosis of', 'treatment for', 'blood test', 'medical advice', 'diabetes', 'hypertension', 'cardiovascular', 'prescription drug'],
+    strong: ['diagnosis', 'symptom', 'treatment', 'disease', 'patient', 'medical', 'doctor', 'medication', 'surgery', 'clinical', 'pharmacy', 'prescription', 'healthcare', 'prognosis', 'chronic', 'acute'],
+    moderate: ['health', 'pain', 'condition', 'therapy', 'hospital', 'nurse', 'drug', 'dosage', 'protocol', 'interact', 'side effect'],
+    weak: ['feel', 'hurt', 'sick', 'ill'],
   },
   [Domain.LEGAL]: {
-    veryStrong: ['contract', 'legal', 'law', 'statute', 'regulation', 'compliance', 'litigation'],
-    strong: ['attorney', 'lawyer', 'court', 'jurisdiction', 'liability', 'clause', 'agreement', 'terms', 'rights', 'obligations'],
-    moderate: ['legal advice', 'counsel', 'lawsuit', 'plaintiff', 'defendant', 'verdict', 'evidence'],
-    weak: [],
+    veryStrong: [],
+    strong: ['law', 'legal', 'contract', 'lawsuit', 'court', 'attorney', 'regulation', 'statute', 'liability', 'plaintiff', 'defendant', 'compliance', 'litigation'],
+    moderate: ['rights', 'agreement', 'clause', 'terms', 'policy', 'jurisdiction', 'precedent', 'case law'],
+    weak: ['rule', 'requirement', 'must'],
   },
   [Domain.FINANCIAL]: {
-    veryStrong: ['investment', 'portfolio', 'stock', 'bond', 'equity', 'financial analysis', 'trading'],
-    strong: ['financial', 'market', 'revenue', 'profit', 'loss', 'dividend', 'asset', 'liability', 'budget', 'forecast'],
-    moderate: ['money', 'cost', 'price', 'value', 'return', 'risk', 'growth', 'income'],
-    weak: [],
+    veryStrong: [],
+    strong: ['financial', 'investment', 'portfolio', 'risk', 'earnings', 'revenue', 'market', 'stock', 'trading', 'valuation', 'roi', 'profit', 'loss', 'bond', 'bonds', 'equity', 'equities', 'interest rate', 'yield', 'coupon', 'fixed income'],
+    moderate: ['analysis', 'forecast', 'budget', 'venture capital', 'asset', 'liability', 'cash flow', 'dividend', 'risk-return', 'rate environment', 'yield curve'],
+    weak: ['money', 'cost', 'price', 'pay'],
   },
   [Domain.MULTIMODAL]: {
-    veryStrong: ['image', 'picture', 'photo', 'visual', 'screenshot', 'diagram'],
-    strong: ['show', 'see', 'look', 'display', 'view', 'figure', 'illustration', 'graphic'],
-    moderate: ['video', 'audio', 'media', 'content', 'file'],
-    weak: [],
+    veryStrong: [],
+    strong: ['image', 'photo', 'picture', 'visual', 'scan', 'ocr', 'chart', 'graph', 'diagram', 'screenshot', 'video'],
+    moderate: ['see', 'view', 'look at', 'display', 'caption', 'describe image', 'analyze photo', 'show me the image', 'show the picture'],
+    weak: ['this', 'that', 'here'],
   },
   [Domain.GENERAL]: {
-    veryStrong: [],
-    strong: ['what', 'why', 'how', 'when', 'where', 'who', 'explain', 'describe'],
-    moderate: ['tell', 'know', 'understand', 'learn', 'information', 'about'],
-    weak: [],
+    veryStrong: ['what is the capital', 'who invented', 'when was', 'how does', 'explain how', 'tell me about'],
+    strong: ['fact', 'history', 'geography', 'science', 'explain', 'describe', 'definition', 'famous', 'country', 'city', 'world'],
+    moderate: ['what is', 'who is', 'where is', 'why does', 'information about', 'knowledge', 'encyclopedia', 'trivia'],
+    weak: ['simple', 'basic', 'general'],
   },
 };
 
@@ -389,6 +400,12 @@ export class DomainRouter {
       domain: detectedDomain,
       confidence,
       scores,
+      metadata: {
+        queryLength: query.length,
+        threshold: 0,
+        isMcq,
+        subjectHint: subjectHint ?? null,
+      },
     };
   }
 

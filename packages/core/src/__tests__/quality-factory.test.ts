@@ -25,17 +25,18 @@ describe('QualityValidator Factory Methods', () => {
       expect(config.minAlignmentScore).toBe(expectedConfig.minAlignmentScore);
     });
 
-    it('should have production-grade thresholds', () => {
+    it('should have cascade-optimized production thresholds', () => {
       const validator = QualityValidator.forProduction();
       const config = validator.getConfig();
 
-      // Production thresholds should be moderate to high
+      // Production uses cascade-optimized inverted thresholds (Python-synced)
+      // harder → lower threshold → escalate to verifier more often
       expect(config.confidenceThresholds).toBeDefined();
-      expect(config.confidenceThresholds!.trivial).toBe(0.60);
-      expect(config.confidenceThresholds!.simple).toBe(0.68);
-      expect(config.confidenceThresholds!.moderate).toBe(0.73);
-      expect(config.confidenceThresholds!.hard).toBe(0.83);
-      expect(config.confidenceThresholds!.expert).toBe(0.88);
+      expect(config.confidenceThresholds!.trivial).toBe(0.55);
+      expect(config.confidenceThresholds!.simple).toBe(0.50);
+      expect(config.confidenceThresholds!.moderate).toBe(0.45);
+      expect(config.confidenceThresholds!.hard).toBe(0.42);
+      expect(config.confidenceThresholds!.expert).toBe(0.40);
     });
 
     it('should validate high-quality responses', async () => {
@@ -76,18 +77,20 @@ describe('QualityValidator Factory Methods', () => {
       expect(config.minWordCount).toBe(expectedConfig.minWordCount);
     });
 
-    it('should have more lenient thresholds than production', () => {
+    it('should have traditional thresholds vs production inverted thresholds', () => {
       const dev = QualityValidator.forDevelopment();
       const prod = QualityValidator.forProduction();
 
       const devConfig = dev.getConfig();
       const prodConfig = prod.getConfig();
 
-      // Dev should be more lenient
-      expect(devConfig.confidenceThresholds!.simple).toBeLessThan(
+      // Production uses cascade-optimized inverted thresholds (Python-synced)
+      // Dev uses traditional increasing thresholds
+      // Dev.simple (0.60) > prod.simple (0.50) since prod is inverted
+      expect(devConfig.confidenceThresholds!.simple).toBeGreaterThan(
         prodConfig.confidenceThresholds!.simple!
       );
-      expect(devConfig.confidenceThresholds!.moderate).toBeLessThan(
+      expect(devConfig.confidenceThresholds!.moderate).toBeGreaterThan(
         prodConfig.confidenceThresholds!.moderate!
       );
       expect(devConfig.minWordCount).toBeLessThanOrEqual(prodConfig.minWordCount);
@@ -195,21 +198,23 @@ describe('QualityValidator Factory Methods', () => {
       expect(config.useSemanticValidation).toBe(false); // Disabled for speed
     });
 
-    it('should have most lenient thresholds for high acceptance', () => {
+    it('should have lower trivial threshold and word count than production', () => {
       const cascade = QualityValidator.forCascade();
       const prod = QualityValidator.forProduction();
 
       const cascadeConfig = cascade.getConfig();
       const prodConfig = prod.getConfig();
 
-      // Cascade should be more lenient to achieve 50-60% acceptance
+      // Cascade has lower trivial threshold (0.25 vs 0.55) for high acceptance
       expect(cascadeConfig.confidenceThresholds!.trivial).toBeLessThan(
         prodConfig.confidenceThresholds!.trivial!
       );
+      // Cascade has lower simple threshold (0.40 vs 0.50)
       expect(cascadeConfig.confidenceThresholds!.simple).toBeLessThan(
         prodConfig.confidenceThresholds!.simple!
       );
-      expect(cascadeConfig.confidenceThresholds!.moderate).toBeLessThan(
+      // But cascade.moderate (0.55) > prod.moderate (0.45) since prod is inverted
+      expect(cascadeConfig.confidenceThresholds!.moderate).toBeGreaterThan(
         prodConfig.confidenceThresholds!.moderate!
       );
       expect(cascadeConfig.minWordCount).toBeLessThan(prodConfig.minWordCount);
@@ -321,7 +326,7 @@ describe('QualityValidator Factory Methods', () => {
   });
 
   describe('Factory Method Comparisons', () => {
-    it('should maintain ordering: strict > production > development > cascade > permissive', () => {
+    it('should maintain ordering for traditional presets: strict > dev > cascade > permissive', () => {
       const strict = QualityValidator.strict();
       const prod = QualityValidator.forProduction();
       const dev = QualityValidator.forDevelopment();
@@ -334,11 +339,8 @@ describe('QualityValidator Factory Methods', () => {
       const cascadeConfig = cascade.getConfig();
       const permissiveConfig = permissive.getConfig();
 
-      // Check moderate complexity threshold ordering
+      // Traditional presets follow moderate threshold ordering
       expect(strictConfig.confidenceThresholds!.moderate).toBeGreaterThan(
-        prodConfig.confidenceThresholds!.moderate!
-      );
-      expect(prodConfig.confidenceThresholds!.moderate).toBeGreaterThan(
         devConfig.confidenceThresholds!.moderate!
       );
       expect(devConfig.confidenceThresholds!.moderate).toBeGreaterThan(
@@ -347,6 +349,13 @@ describe('QualityValidator Factory Methods', () => {
       expect(cascadeConfig.confidenceThresholds!.moderate).toBeGreaterThanOrEqual(
         permissiveConfig.confidenceThresholds!.moderate!
       );
+
+      // Production uses cascade-optimized inverted thresholds
+      // prod.moderate (0.45) is lower than all traditional presets
+      expect(prodConfig.confidenceThresholds!.moderate).toBeLessThan(
+        strictConfig.confidenceThresholds!.moderate!
+      );
+      expect(prodConfig.minConfidence).toBeLessThan(strictConfig.minConfidence);
     });
 
     it('should all enable alignment scoring by default', () => {

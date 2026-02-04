@@ -16,27 +16,29 @@ describe('QualityConfigFactory', () => {
       const config = QualityConfigFactory.forProduction();
 
       expect(config).toBeDefined();
-      expect(config.minConfidence).toBe(0.73);
+      expect(config.minConfidence).toBe(0.55);
       expect(config.confidenceThresholds).toBeDefined();
       expect(config.useLogprobs).toBe(true);
       expect(config.strictMode).toBe(false);
     });
 
-    it('should have adaptive thresholds by complexity', () => {
+    it('should have cascade-optimized thresholds by complexity', () => {
       const config = QualityConfigFactory.forProduction();
 
-      expect(config.confidenceThresholds?.trivial).toBe(0.60);
-      expect(config.confidenceThresholds?.simple).toBe(0.68);
-      expect(config.confidenceThresholds?.moderate).toBe(0.73);
-      expect(config.confidenceThresholds?.hard).toBe(0.83);
-      expect(config.confidenceThresholds?.expert).toBe(0.88);
+      // Synced with Python cascadeflow/quality/quality.py defaults
+      // Cascade-optimized: inverted thresholds (harder → lower → escalate to verifier)
+      expect(config.confidenceThresholds?.trivial).toBe(0.55);
+      expect(config.confidenceThresholds?.simple).toBe(0.50);
+      expect(config.confidenceThresholds?.moderate).toBe(0.45);
+      expect(config.confidenceThresholds?.hard).toBe(0.42);
+      expect(config.confidenceThresholds?.expert).toBe(0.40);
     });
 
-    it('should have moderate acceptance rate', () => {
+    it('should have cascade-appropriate acceptance rate', () => {
       const config = QualityConfigFactory.forProduction();
 
-      // Production should be stricter than cascade but more lenient than strict
-      expect(config.minConfidence).toBeGreaterThan(0.55); // Cascade fallback
+      // Production is cascade-optimized, more lenient than strict
+      expect(config.minConfidence).toBeGreaterThanOrEqual(0.50);
       expect(config.minConfidence).toBeLessThan(0.85); // Strict fallback
     });
 
@@ -58,15 +60,17 @@ describe('QualityConfigFactory', () => {
       expect(config.strictMode).toBe(false);
     });
 
-    it('should be more lenient than production', () => {
+    it('should have higher thresholds than cascade-optimized production', () => {
       const prodConfig = QualityConfigFactory.forProduction();
       const devConfig = QualityConfigFactory.forDevelopment();
 
-      expect(devConfig.minConfidence).toBeLessThanOrEqual(prodConfig.minConfidence);
-      expect(devConfig.confidenceThresholds?.trivial).toBeLessThan(
+      // Production uses cascade-optimized inverted thresholds (Python-synced),
+      // so dev thresholds are actually higher (stricter) than prod
+      expect(devConfig.minConfidence).toBeGreaterThanOrEqual(prodConfig.minConfidence);
+      expect(devConfig.confidenceThresholds?.trivial).toBeLessThanOrEqual(
         prodConfig.confidenceThresholds?.trivial!
       );
-      expect(devConfig.confidenceThresholds?.expert).toBeLessThan(
+      expect(devConfig.confidenceThresholds?.expert).toBeGreaterThan(
         prodConfig.confidenceThresholds?.expert!
       );
     });
@@ -151,14 +155,17 @@ describe('QualityConfigFactory', () => {
       expect(config.strictMode).toBe(false);
     });
 
-    it('should be more lenient than production', () => {
+    it('should be more lenient than production for word count', () => {
       const prodConfig = QualityConfigFactory.forProduction();
       const cascadeConfig = QualityConfigFactory.forCascade();
 
-      expect(cascadeConfig.minConfidence).toBeLessThan(prodConfig.minConfidence);
+      // Both share cascade-optimized minConfidence (0.55), but cascade has lower word count
+      expect(cascadeConfig.minConfidence).toBeLessThanOrEqual(prodConfig.minConfidence);
       expect(cascadeConfig.minWordCount).toBeLessThan(prodConfig.minWordCount);
-      expect(cascadeConfig.confidenceThresholds?.moderate).toBeLessThan(
-        prodConfig.confidenceThresholds?.moderate!
+      // Cascade has traditional increasing thresholds while production has inverted
+      // so cascade.moderate (0.55) > prod.moderate (0.45)
+      expect(cascadeConfig.confidenceThresholds?.trivial).toBeLessThan(
+        prodConfig.confidenceThresholds?.trivial!
       );
     });
 
@@ -229,14 +236,14 @@ describe('QualityConfigFactory', () => {
   });
 
   describe('comparative analysis', () => {
-    it('should have strictness ordering: permissive < cascade < dev < production < strict', () => {
+    it('should have strictness ordering: permissive < cascade < dev < strict (production uses inverted)', () => {
       const permissive = QualityConfigFactory.permissive();
       const cascade = QualityConfigFactory.forCascade();
       const dev = QualityConfigFactory.forDevelopment();
       const prod = QualityConfigFactory.forProduction();
       const strict = QualityConfigFactory.strict();
 
-      // Compare moderate thresholds as representative
+      // Traditional presets follow increasing moderate thresholds
       expect(permissive.confidenceThresholds?.moderate).toBeLessThan(
         cascade.confidenceThresholds?.moderate!
       );
@@ -244,11 +251,15 @@ describe('QualityConfigFactory', () => {
         dev.confidenceThresholds?.moderate!
       );
       expect(dev.confidenceThresholds?.moderate).toBeLessThan(
-        prod.confidenceThresholds?.moderate!
-      );
-      expect(prod.confidenceThresholds?.moderate).toBeLessThan(
         strict.confidenceThresholds?.moderate!
       );
+
+      // Production uses cascade-optimized inverted thresholds (Python-synced)
+      // so prod.moderate (0.45) is lower than all traditional presets
+      expect(prod.confidenceThresholds?.expert).toBeLessThan(
+        strict.confidenceThresholds?.expert!
+      );
+      expect(prod.minConfidence).toBeLessThan(strict.minConfidence);
     });
 
     it('should all enable logprobs', () => {
@@ -384,16 +395,16 @@ describe('QualityConfigFactory', () => {
       }
     });
 
-    it('should have increasing thresholds by complexity', () => {
-      const configs = [
-        QualityConfigFactory.forProduction(),
+    it('should have increasing thresholds by complexity for traditional presets', () => {
+      // Traditional presets have increasing thresholds (harder → higher threshold)
+      const traditionalConfigs = [
         QualityConfigFactory.forDevelopment(),
         QualityConfigFactory.strict(),
         QualityConfigFactory.forCascade(),
         QualityConfigFactory.permissive(),
       ];
 
-      for (const config of configs) {
+      for (const config of traditionalConfigs) {
         const thresholds = config.confidenceThresholds;
         if (thresholds) {
           expect(thresholds.trivial).toBeLessThanOrEqual(thresholds.simple!);
@@ -402,6 +413,18 @@ describe('QualityConfigFactory', () => {
           expect(thresholds.hard).toBeLessThanOrEqual(thresholds.expert!);
         }
       }
+    });
+
+    it('should have inverted thresholds for cascade-optimized production', () => {
+      // Production uses cascade-optimized inverted thresholds (Python-synced)
+      // harder → lower threshold → escalate to verifier more often
+      const prod = QualityConfigFactory.forProduction();
+      const thresholds = prod.confidenceThresholds!;
+
+      expect(thresholds.trivial).toBeGreaterThanOrEqual(thresholds.simple!);
+      expect(thresholds.simple).toBeGreaterThanOrEqual(thresholds.moderate!);
+      expect(thresholds.moderate).toBeGreaterThanOrEqual(thresholds.hard!);
+      expect(thresholds.hard).toBeGreaterThanOrEqual(thresholds.expert!);
     });
   });
 });

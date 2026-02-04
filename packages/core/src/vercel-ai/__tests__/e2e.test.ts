@@ -53,18 +53,11 @@ function normalizeUsage(usage?: {
   input_tokens?: number;
   output_tokens?: number;
 }): UsageMetrics {
-  const promptTokens =
-    'prompt_tokens' in (usage ?? {})
-      ? usage?.prompt_tokens ?? 0
-      : usage?.input_tokens ?? 0;
-  const completionTokens =
-    'completion_tokens' in (usage ?? {})
-      ? usage?.completion_tokens ?? 0
-      : usage?.output_tokens ?? 0;
-  const totalTokens =
-    'total_tokens' in (usage ?? {})
-      ? usage?.total_tokens ?? promptTokens + completionTokens
-      : promptTokens + completionTokens;
+  // Use type assertion to handle union type access
+  const u = usage as Record<string, number | undefined> | undefined;
+  const promptTokens = u?.prompt_tokens ?? u?.input_tokens ?? 0;
+  const completionTokens = u?.completion_tokens ?? u?.output_tokens ?? 0;
+  const totalTokens = u?.total_tokens ?? promptTokens + completionTokens;
 
   return { promptTokens, completionTokens, totalTokens };
 }
@@ -79,7 +72,9 @@ async function generateText({
   maxTokens?: number;
 }): Promise<GenerateResult> {
   if (model.provider === 'openai') {
-    const client = new OpenAI({ apiKey: OPENAI_KEY });
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY ?? OPENAI_KEY,
+    });
     const response = await client.chat.completions.create({
       model: model.model,
       messages: [{ role: 'user', content: prompt }],
@@ -96,7 +91,9 @@ async function generateText({
   }
 
   if (model.provider === 'groq') {
-    const client = new Groq({ apiKey: GROQ_KEY });
+    const client = new Groq({
+      apiKey: process.env.GROQ_API_KEY ?? GROQ_KEY,
+    });
     const response = await client.chat.completions.create({
       model: model.model,
       messages: [{ role: 'user', content: prompt }],
@@ -112,7 +109,9 @@ async function generateText({
     };
   }
 
-  const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+  const client = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY ?? ANTHROPIC_KEY,
+  });
   const response = await client.messages.create({
     model: model.model,
     max_tokens: maxTokens,
@@ -140,7 +139,9 @@ async function streamText({
   maxTokens?: number;
 }): Promise<StreamResult> {
   if (model.provider === 'openai') {
-    const client = new OpenAI({ apiKey: OPENAI_KEY });
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY ?? OPENAI_KEY,
+    });
     const stream = await client.chat.completions.create({
       model: model.model,
       messages: [{ role: 'user', content: prompt }],
@@ -160,7 +161,9 @@ async function streamText({
     };
   }
 
-  const client = new Groq({ apiKey: GROQ_KEY });
+  const client = new Groq({
+    apiKey: process.env.GROQ_API_KEY ?? GROQ_KEY,
+  });
   const stream = await client.chat.completions.create({
     model: model.model,
     messages: [{ role: 'user', content: prompt }],

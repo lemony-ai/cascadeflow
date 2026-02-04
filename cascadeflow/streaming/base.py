@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
+from ..utils.messages import messages_to_prompt
+
 logger = logging.getLogger(__name__)
 
 
@@ -349,6 +351,7 @@ class StreamManager:
         is_direct_route: bool = False,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[dict[str, Any]] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ) -> AsyncIterator[StreamEvent]:
         """
@@ -365,13 +368,16 @@ class StreamManager:
             is_direct_route: If True, skip cascade and go straight to verifier
             tools: List of tool definitions for function calling
             tool_choice: Tool selection strategy
+            messages: Optional multi-turn messages (role/content)
             **kwargs: Additional provider parameters
 
         Yields:
             StreamEvent objects with type, content, and data
         """
         try:
-            logger.info(f"Starting streaming execution for query: {query[:50]}...")
+            query_text = messages_to_prompt(messages) if messages else query
+            query = query_text
+            logger.info(f"Starting streaming execution for query: {query_text[:50]}...")
 
             # ================================================================
             # FIX #3: Filter kwargs to prevent contamination
@@ -380,7 +386,14 @@ class StreamManager:
                 k: v
                 for k, v in kwargs.items()
                 if k
-                not in {"routing_strategy", "is_direct_route", "complexity", "tools", "tool_choice"}
+                not in {
+                    "routing_strategy",
+                    "is_direct_route",
+                    "complexity",
+                    "tools",
+                    "tool_choice",
+                    "messages",
+                }
             }
 
             # Add tools and tool_choice if provided

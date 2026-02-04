@@ -237,28 +237,31 @@ async function main() {
 
     console.log(`   💰 Cost: $${result.totalCost.toFixed(6)}`);
 
-    // Latency breakdown
+    // Latency breakdown - use library-provided fields!
     const totalLatency = result.latencyMs || 0;
     const draftLatency = result.draftLatencyMs || 0;
     const verifierLatency = result.verifierLatencyMs || 0;
+    // cascadeOverheadMs is computed by the library:
+    // - Draft accepted: 0ms (we saved verifier time)
+    // - Draft rejected: full draftLatencyMs (wasted drafter attempt)
+    // - Direct route: 0ms (no cascade)
+    const cascadeOverhead = result.cascadeOverheadMs || 0;
 
-    // Calculate provider vs cascade latency
-    const providerLatency = draftLatency + verifierLatency;
-    const cascadeLatency = Math.max(0, totalLatency - providerLatency);
-
-    if (providerLatency > 0) {
-      const providerPct = totalLatency > 0 ? (providerLatency / totalLatency) * 100 : 0;
-      const cascadePct = totalLatency > 0 ? (cascadeLatency / totalLatency) * 100 : 0;
-      console.log('   ⚡ Latency Breakdown:');
-      console.log(`      Total: ${totalLatency.toFixed(0)}ms`);
-      console.log(
-        `      ├─ Provider API: ${providerLatency.toFixed(0)}ms (${providerPct.toFixed(1)}%)`
-      );
-      console.log(
-        `      └─ cascadeflow: ${cascadeLatency.toFixed(0)}ms (${cascadePct.toFixed(1)}%)`
-      );
+    console.log('   ⚡ Latency Breakdown:');
+    console.log(`      Total: ${totalLatency.toFixed(0)}ms`);
+    if (result.cascaded && !result.draftAccepted) {
+      // Draft was rejected - drafter time was wasted
+      console.log(`      ├─ Drafter (wasted): ${draftLatency.toFixed(0)}ms`);
+      console.log(`      └─ Verifier: ${verifierLatency.toFixed(0)}ms`);
+      console.log(`      ⚠️  Cascade overhead: +${cascadeOverhead.toFixed(0)}ms (drafter was rejected)`);
+    } else if (result.cascaded && result.draftAccepted) {
+      // Draft was accepted - we saved the verifier time
+      console.log(`      └─ Drafter only: ${draftLatency.toFixed(0)}ms`);
+      console.log('      ✅ Cascade overhead: 0ms (verifier skipped)');
     } else {
-      console.log(`   ⚡ Latency: ${totalLatency.toFixed(0)}ms`);
+      // Direct route - no cascade overhead
+      console.log(`      └─ Provider API: ${totalLatency.toFixed(0)}ms (direct route)`);
+      console.log('      ✅ Cascade overhead: 0ms (direct route)');
     }
 
     console.log(`   📊 Complexity: ${result.complexity}`);

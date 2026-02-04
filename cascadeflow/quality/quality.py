@@ -17,6 +17,7 @@ CHANGELOG:
 - Oct 13, 2025: Fixed imports to use relative imports (now in quality/ package)
 """
 
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -553,6 +554,8 @@ class QualityValidator:
         # Initialize checks and details
         checks = {}
         details = {}
+        alignment = None  # Initialize for v13.3 confidence boost check
+        alignment_features: dict[str, Any] = {}
 
         # === CRITICAL FIX: Calculate alignment score ===
         if self.alignment_scorer:
@@ -562,9 +565,15 @@ class QualityValidator:
             else:
                 difficulty = 0.5  # Default
 
-            alignment = self.alignment_scorer.score(
-                query=query, response=draft_content, query_difficulty=difficulty
+            alignment_result = self.alignment_scorer.score(
+                query=query, response=draft_content, query_difficulty=difficulty, verbose=True
             )
+            if hasattr(alignment_result, "alignment_score"):
+                alignment = alignment_result.alignment_score
+                alignment_features = getattr(alignment_result, "features", {}) or {}
+                details["alignment_features"] = alignment_features
+            else:
+                alignment = alignment_result
             details["alignment"] = alignment
             details["query_difficulty"] = difficulty
 
@@ -573,13 +582,20 @@ class QualityValidator:
             # v7.1 CALIBRATED: Lowered from 0.25 to 0.15 to match confidence.py thresholds
             # Only rejects SEVERELY off-topic responses (< 0.15)
             # Moderate off-topic (0.15-0.25) gets confidence cap in confidence.py instead
-            ALIGNMENT_FLOOR = 0.15  # CHANGED from 0.25
+            alignment_floor = 0.15  # CHANGED from 0.25
+            if alignment_features.get("is_multi_turn") or alignment_features.get("is_roleplay"):
+                alignment_floor = 0.10
+                details["alignment_floor_relaxed"] = True
+            elif self._is_creative_query(query):
+                alignment_floor = 0.10
+                details["alignment_floor_relaxed"] = True
+                details["creative_mode"] = True
 
-            if alignment < ALIGNMENT_FLOOR:
+            if alignment < alignment_floor:
                 checks["alignment"] = False
                 details["alignment_floor_triggered"] = True
                 details["alignment_floor_reason"] = (
-                    f"Off-topic response detected (alignment: {alignment:.2f} < {ALIGNMENT_FLOOR})"
+                    f"Off-topic response detected (alignment: {alignment:.2f} < {alignment_floor})"
                 )
                 # Log warning
                 if self.config.log_decisions:
@@ -596,11 +612,46 @@ class QualityValidator:
             checks["alignment"] = True
             details["alignment"] = None
 
+        # === v13.3: Function call confidence boost ===
+        # When alignment scorer returns 0.72 (v13 special boost for function calls,
+        # long context QA, or tool use), use alignment score as effective confidence.
+        # This allows valid function call responses to pass even when model API
+        # confidence is low (common for structured/tool outputs).
+        V13_FUNCTION_CALL_BOOST = 0.72
+        effective_confidence = confidence
+
+        if alignment is not None and abs(alignment - V13_FUNCTION_CALL_BOOST) < 0.001:
+            # v13 boost detected - use alignment as effective confidence
+            effective_confidence = alignment
+            details["v13_confidence_boost"] = True
+            details["original_confidence"] = confidence
+            details["effective_confidence"] = effective_confidence
+            if self.config.log_decisions:
+                logger.info(
+                    f"✓ v13.3: Function call boost applied. "
+                    f"Original confidence: {confidence:.3f} → Effective: {effective_confidence:.3f}"
+                )
+
         # 1. Confidence check
-        checks["confidence"] = confidence >= threshold
+        adjusted_threshold = threshold
+        if alignment_features.get("is_multi_turn"):
+            adjusted_threshold = min(adjusted_threshold, 0.55)
+            details["multi_turn_threshold"] = adjusted_threshold
+            details["multi_turn_mode"] = True
+        if alignment_features.get("is_roleplay") or alignment_features.get("is_extraction"):
+            adjusted_threshold = min(adjusted_threshold, 0.55)
+            details["roleplay_threshold"] = adjusted_threshold
+            details["roleplay_mode"] = True
+        is_math_mode = self._is_math_query(query) or self._has_math_response(draft_content)
+        if is_math_mode:
+            adjusted_threshold = min(adjusted_threshold, 0.55)
+            details["math_threshold"] = adjusted_threshold
+            details["math_mode"] = True
+
+        checks["confidence"] = effective_confidence >= adjusted_threshold
         details["confidence"] = {
             "value": confidence,
-            "threshold": threshold,
+            "threshold": adjusted_threshold,
             "complexity": complexity,
         }
 
@@ -615,6 +666,85 @@ class QualityValidator:
             checks["low_hallucination_risk"] = True  # Don't check hallucinations
 
             details["trivial_mode"] = True
+
+        # SPECIAL HANDLING FOR CLASSIFICATION RESPONSES
+        # Classification responses (intent/category) are short by design.
+        # They contain a label + brief reasoning, not paragraphs of text.
+        # Apply lenient validation for length and specificity.
+        elif self._is_classification_response(draft_content, query):
+            # For classification, be lenient on length and specificity
+            checks["length_appropriate"] = True  # Any length OK for classification
+            checks["has_content"] = len(draft_content.strip()) >= 10  # Minimal content check
+            checks["acceptable_hedging"] = True  # Classification responses are definitive
+            checks["sufficient_specificity"] = True  # The label IS the specificity
+            checks["low_hallucination_risk"] = True  # Don't check hallucinations
+
+            details["classification_mode"] = True
+
+        # SPECIAL HANDLING FOR CODE RESPONSES
+        # Code outputs are often short and tokenized, so word-count checks are too strict.
+        # Apply lenient length/specificity validation while keeping confidence+alignment.
+        elif self._is_code_response(draft_content, query):
+            code_threshold = min(threshold, 0.60)
+            checks["confidence"] = effective_confidence >= code_threshold
+            checks["length_appropriate"] = True  # Code length varies widely
+            checks["has_content"] = len(draft_content.strip()) >= 10
+            checks["acceptable_hedging"] = True  # Code outputs are typically direct
+            checks["sufficient_specificity"] = True  # Function signature + body is specific
+            checks["low_hallucination_risk"] = True  # Avoid text-pattern false positives
+
+            details["code_mode"] = True
+            details["code_threshold"] = code_threshold
+
+        # SPECIAL HANDLING FOR MATH RESPONSES
+        # Math answers can be short and still correct; use lenient structural checks.
+        elif is_math_mode:
+            checks["confidence"] = effective_confidence >= adjusted_threshold
+            checks["length_appropriate"] = True  # Short math answers are OK
+            checks["has_content"] = len(draft_content.strip()) >= 5
+            checks["acceptable_hedging"] = True  # Calculations often include caveats
+            checks["sufficient_specificity"] = True  # Final numeric answer is specific
+            checks["low_hallucination_risk"] = True  # Avoid text-pattern false positives
+
+            details["math_mode_checks"] = True
+
+        # === v13.5: SPECIAL HANDLING FOR FUNCTION CALL RESPONSES ===
+        # Function call responses (detected by v13 alignment boost signal 0.72)
+        # are structured outputs like "Tool: X\nParameters: {...}"
+        # These are short by design and may use phrases like "I would use..."
+        # Apply lenient validation similar to classification responses.
+        # v14: Also bypass confidence threshold - the v13 boost IS the validation signal.
+        elif details.get("v13_confidence_boost", False):
+            # For function call responses, be lenient on structural checks.
+            # Only bypass confidence if the tool call looks sane and non-multi-turn.
+            is_function_call = alignment_features.get("is_function_call", False)
+            valid_function_call = alignment_features.get("valid_function_call_response", False)
+            is_multi_turn = alignment_features.get("is_multi_turn", False)
+            is_multi_turn = is_multi_turn or self._is_multi_turn_prompt(query)
+
+            if not is_function_call:
+                is_function_call = self._is_function_call_prompt(query)
+                valid_function_call = self._has_function_call_response(draft_content)
+
+            function_call_sane = self._function_call_has_sane_params(draft_content)
+
+            # Lenient structural checks for tool-call responses
+            checks["length_appropriate"] = True  # Tool responses can be short
+            checks["has_content"] = len(draft_content.strip()) >= 10  # Minimal content check
+            checks["acceptable_hedging"] = True  # "I would use..." is OK for tool selection
+            checks["sufficient_specificity"] = True  # Tool name + params IS specific
+            checks["low_hallucination_risk"] = True  # Don't check hallucinations
+
+            details["function_call_mode"] = True
+            details["function_call_multi_turn"] = is_multi_turn
+            details["function_call_sane"] = function_call_sane
+            details["valid_function_call_response"] = valid_function_call
+
+            all_valid = is_function_call and valid_function_call and function_call_sane
+            if all_valid and not is_multi_turn:
+                checks["confidence"] = True  # Allow bypass for simple, sane tool calls
+            else:
+                details["function_call_requires_verifier"] = True
 
         else:
             # For non-trivial queries, apply normal checks
@@ -631,7 +761,7 @@ class QualityValidator:
 
             # 4. Hedging detection
             # Check if this is math content - apply more lenient hedging rules
-            is_math_content = self._is_math_query(query) or self._has_math_response(draft_content)
+            is_math_content = is_math_mode
             hedging_analysis = self.analyzer.detect_hedging(
                 draft_content, is_math_content=is_math_content
             )
@@ -672,7 +802,10 @@ class QualityValidator:
 
         # Generate detailed reason
         if passed:
-            reason = f"All checks passed (confidence: {confidence:.2f} >= {threshold:.2f}, complexity: {complexity})"
+            reason = (
+                f"All checks passed (confidence: {confidence:.2f} >= "
+                f"{threshold:.2f}, complexity: {complexity})"
+            )
         else:
             failed = [name for name, result in checks.items() if not result]
             reason = f"Failed checks: {', '.join(failed)} (complexity: {complexity})"
@@ -738,6 +871,29 @@ class QualityValidator:
         return has_currency or has_math_question
 
     @staticmethod
+    def _is_creative_query(query: str) -> bool:
+        """Check if query is creative/writing oriented (heuristic)."""
+        if not query:
+            return False
+        query_lower = query.lower()
+        creative_indicators = [
+            "write",
+            "story",
+            "poem",
+            "haiku",
+            "metaphor",
+            "creative",
+            "roleplay",
+            "character",
+            "dialogue",
+            "fiction",
+            "narrative",
+            "lyrics",
+            "song",
+        ]
+        return any(indicator in query_lower for indicator in creative_indicators)
+
+    @staticmethod
     def _has_math_response(content: str) -> bool:
         """Check if response contains mathematical calculations."""
         # Check for calculation patterns
@@ -748,6 +904,151 @@ class QualityValidator:
         # Check for step-by-step math
         has_steps = bool(re.search(r"step\s*\d|first.*then|=\s*\d+", content.lower()))
         return has_calculations or has_answer or has_steps
+
+    @staticmethod
+    def _is_classification_response(content: str, query: str) -> bool:
+        """Check if response is in intent/category classification format.
+
+        Classification responses are short by design - they identify a category
+        with brief reasoning. Apply lenient length/specificity validation for these.
+
+        Patterns detected:
+        - "Intent: <label>" or "Category: <label>" format
+        - "Reasoning: ..." + "Intent: ..." format
+        - Query asking to classify into categories/intents
+        """
+        content_lower = content.lower()
+        query_lower = query.lower()
+
+        # Check if query is asking for classification
+        classification_query_patterns = [
+            "classify",
+            "categorize",
+            "which intent",
+            "what intent",
+            "which category",
+            "what category",
+            "available intents",
+            "available categories",
+            "one of the",  # "into one of the X categories"
+        ]
+        is_classification_query = any(p in query_lower for p in classification_query_patterns)
+
+        # Check if response is in classification format
+        classification_response_patterns = [
+            r"intent:\s*\w",  # Intent: <label>
+            r"category:\s*\w",  # Category: <label>
+            r"classification:\s*\w",  # Classification: <label>
+            r"label:\s*\w",  # Label: <label>
+            r"reasoning:.*intent:",  # Reasoning + Intent format
+            r"the intent is\s+\w",  # "The intent is X"
+            r"classified as\s+\w",  # "Classified as X"
+        ]
+        is_classification_response = any(
+            re.search(p, content_lower) for p in classification_response_patterns
+        )
+
+        return is_classification_query and is_classification_response
+
+    @staticmethod
+    def _is_code_response(content: str, query: str) -> bool:
+        """Heuristic check for code generation prompts and code-like responses."""
+        query_lower = query.lower()
+        content_lower = content.lower()
+
+        code_query_markers = [
+            "write a",
+            "implement",
+            "code",
+            "function",
+            "class",
+            "method",
+            "algorithm",
+            "python",
+            "javascript",
+            "typescript",
+            "sql",
+        ]
+        is_code_query = any(marker in query_lower for marker in code_query_markers)
+
+        has_code_block = "```" in content
+        has_signature = bool(re.search(r"^\\s*(def|class)\\s+\\w+", content, re.MULTILINE))
+        code_token_hits = sum(
+            1
+            for marker in ["def ", "class ", "return ", "import ", "from ", "if ", "for ", "while "]
+            if marker in content_lower
+        )
+        looks_like_code = has_code_block or has_signature or code_token_hits >= 2
+
+        return is_code_query and looks_like_code
+
+    @staticmethod
+    def _is_function_call_prompt(query: str) -> bool:
+        """Heuristic check for tool/function-call style prompts."""
+        query_lower = query.lower()
+        markers = [
+            "tool",
+            "function",
+            "call the",
+            "use the",
+            "parameters",
+            "arguments",
+            "tool:",
+            "function:",
+        ]
+        return any(marker in query_lower for marker in markers)
+
+    @staticmethod
+    def _has_function_call_response(response: str) -> bool:
+        """Heuristic check for structured tool/function-call responses."""
+        response_lower = response.lower()
+        markers = [
+            "tool:",
+            "function:",
+            "parameters",
+            "arguments",
+            "call the",
+            "use the",
+        ]
+        return any(marker in response_lower for marker in markers)
+
+    @staticmethod
+    def _function_call_has_sane_params(response: str) -> bool:
+        """Best-effort sanity check for tool parameter payloads."""
+        placeholders = {"todo", "tbd", "unknown", "n/a", "null", "none", "undefined", ""}
+        match = re.search(r"\{.*\}", response, re.DOTALL)
+        if not match:
+            return True
+
+        try:
+            payload = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return False
+
+        if not isinstance(payload, dict):
+            return False
+
+        for value in payload.values():
+            if isinstance(value, str) and value.strip().lower() in placeholders:
+                return False
+
+        return True
+
+    @staticmethod
+    def _is_multi_turn_prompt(query: str) -> bool:
+        """Heuristic check for multi-turn conversation prompts."""
+        query_lower = query.lower()
+        markers = [
+            "previous conversation",
+            "conversation history",
+            "conversation so far",
+            "turn 1:",
+            "turn 2:",
+            "user:",
+            "assistant:",
+            "earlier in the conversation",
+        ]
+        return any(marker in query_lower for marker in markers)
 
 
 class ComparativeValidator:
