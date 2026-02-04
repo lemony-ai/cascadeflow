@@ -70,6 +70,7 @@ CHANGELOG:
   * Gives 0.72 alignment score for valid multi-turn responses
   * Fixes MT-Bench 3.9% multi-turn degradation issue
   * Universal benefit: ALL developers using multi-turn conversations
+- Feb 4, 2026 (v18.1): Treats User/Assistant histories as multi-turn without explicit markers
 
 PRODUCTION TEST RESULTS:
 After v7.11:
@@ -1148,10 +1149,18 @@ class QueryResponseAlignmentScorer:
             marker in query_lower for marker in current_turn_markers
         )
 
-        # Multi-turn if: has conversation marker, OR turn markers, OR user/assistant pair with current turn
+        # Detect multiple turns even without explicit "current turn" markers
+        user_markers = ["user:", "human:", "question:"]
+        assistant_markers = ["assistant:", "ai:", "answer:"]
+        user_count = sum(query_lower.count(marker) for marker in user_markers)
+        assistant_count = sum(query_lower.count(marker) for marker in assistant_markers)
+        has_user_assistant_multi = has_user_assistant and user_count >= 2 and assistant_count >= 1
+
+        # Multi-turn if: has conversation marker, OR turn markers, OR multi-turn user/assistant pairs
         return (
             has_conversation_marker
             or has_turn_marker
+            or has_user_assistant_multi
             or (has_user_assistant and has_current_turn)
             or (has_conversation_marker and has_current_turn)
         )

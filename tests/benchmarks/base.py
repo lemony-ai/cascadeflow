@@ -5,6 +5,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from cascadeflow.integrations.litellm import LiteLLMCostProvider
+from cascadeflow.utils import estimate_tokens
+
 
 @dataclass
 class BenchmarkResult:
@@ -103,25 +106,36 @@ class Benchmark(ABC):
 
     def __init__(
         self,
-        name: str,
+        name: Optional[str] = None,
+        *,
         drafter_model: str,
         verifier_model: str,
         quality_threshold: float = 0.7,
         max_samples: Optional[int] = None,
+        dataset_name: Optional[str] = None,
+        baseline_model: Optional[str] = None,
     ):
         """
         Initialize benchmark.
 
         Args:
             name: Benchmark name (e.g., "HumanEval", "Banking77")
+            dataset_name: Optional dataset display name (aliases name)
             drafter_model: Name of drafter model (e.g., "gpt-4o-mini")
             verifier_model: Name of verifier model (e.g., "gpt-4o")
+            baseline_model: Optional baseline model name (defaults to verifier)
             quality_threshold: Quality threshold for accepting drafter (0-1)
             max_samples: Maximum number of samples to test (None = all)
         """
-        self.name = name
+        if dataset_name is None and name is None:
+            raise ValueError("Benchmark requires name or dataset_name")
+
+        resolved_name = dataset_name or name
+        self.name = resolved_name
+        self.dataset_name = resolved_name
         self.drafter_model = drafter_model
         self.verifier_model = verifier_model
+        self.baseline_model = baseline_model or verifier_model
         self.quality_threshold = quality_threshold
         self.max_samples = max_samples
 
@@ -174,7 +188,7 @@ class Benchmark(ABC):
         """
         pass
 
-    def get_baseline_cost(self, query: str) -> float:
+    def get_baseline_cost(self, query: str, prediction: Optional[str] = None) -> float:
         """
         Calculate cost if always using powerful model.
 
@@ -186,13 +200,36 @@ class Benchmark(ABC):
         Returns:
             Estimated cost in USD
         """
-        # Default: Estimate ~500 tokens input + 500 tokens output
-        # GPT-4o: $2.50 per 1M input, $10.00 per 1M output
-        input_tokens = 500
-        output_tokens = 500
-        input_cost = (input_tokens / 1_000_000) * 2.50
-        output_cost = (output_tokens / 1_000_000) * 10.00
-        return input_cost + output_cost
+        input_tokens = estimate_tokens(str(query))
+        output_tokens = estimate_tokens(str(prediction)) if prediction else 500
+
+        try:
+            provider = LiteLLMCostProvider()
+            return provider.calculate_cost(
+                model=self.baseline_model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+        except Exception:
+            # Default: Estimate ~500 tokens input + 500 tokens output using GPT-4o pricing
+            input_tokens = 500
+            output_tokens = 500
+            input_cost = (input_tokens / 1_000_000) * 2.50
+            output_cost = (output_tokens / 1_000_000) * 10.00
+            return input_cost + output_cost
+
+    def _calculate_baseline_cost_from_tokens(
+        self, input_tokens: int, output_tokens: int, query: str, prediction: Any
+    ) -> float:
+        try:
+            provider = LiteLLMCostProvider()
+            return provider.calculate_cost(
+                model=self.baseline_model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+        except Exception:
+            return self.get_baseline_cost(query, str(prediction))
 
     async def run(self) -> BenchmarkSummary:
         """
@@ -229,9 +266,24 @@ class Benchmark(ABC):
                     cascade_result["prediction"], ground_truth
                 )
 
-                # Use baseline cost from cascade result if available (more accurate)
-                # Otherwise calculate baseline cost
-                baseline_cost = cascade_result.get("baseline_cost") or self.get_baseline_cost(query)
+                tokens_input = cascade_result["tokens_input"]
+                tokens_output = cascade_result["tokens_output"]
+                if tokens_input == 0:
+                    tokens_input = estimate_tokens(str(query))
+                if tokens_output == 0:
+                    tokens_output = estimate_tokens(str(cascade_result["prediction"]))
+
+                baseline_cost = cascade_result.get("baseline_cost", 0.0)
+                if baseline_cost <= 0:
+                    if not cascade_result["accepted"] and cascade_result["verifier_cost"] > 0:
+                        baseline_cost = cascade_result["verifier_cost"]
+                    else:
+                        baseline_cost = self._calculate_baseline_cost_from_tokens(
+                            tokens_input,
+                            tokens_output,
+                            query,
+                            cascade_result["prediction"],
+                        )
 
                 # Create result
                 result = BenchmarkResult(
@@ -246,8 +298,8 @@ class Benchmark(ABC):
                     total_cost=cascade_result["total_cost"],
                     baseline_cost=baseline_cost,
                     latency_ms=cascade_result["latency_ms"],
-                    tokens_input=cascade_result["tokens_input"],
-                    tokens_output=cascade_result["tokens_output"],
+                    tokens_input=tokens_input,
+                    tokens_output=tokens_output,
                     ground_truth=ground_truth,
                     prediction=cascade_result["prediction"],
                     is_correct=is_correct,
@@ -326,6 +378,24 @@ class Benchmark(ABC):
                 avg_input_tokens=0.0,
                 avg_output_tokens=0.0,
             )
+
+        # Re-estimate baseline cost using typical verifier output length.
+        verifier_outputs = sorted(
+            r.tokens_output for r in valid_results if r.escalated and r.tokens_output > 0
+        )
+        if verifier_outputs:
+            baseline_output_floor = verifier_outputs[len(verifier_outputs) // 2]
+            for result in valid_results:
+                if not result.accepted:
+                    continue
+                estimated_output = max(result.tokens_output, baseline_output_floor)
+                baseline_cost = self._calculate_baseline_cost_from_tokens(
+                    result.tokens_input,
+                    estimated_output,
+                    result.query,
+                    result.prediction,
+                )
+                result.baseline_cost = max(result.baseline_cost, baseline_cost)
 
         # Cascade metrics
         drafter_accepted = sum(1 for r in valid_results if r.accepted)

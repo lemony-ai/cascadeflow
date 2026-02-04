@@ -330,23 +330,32 @@ class ProductionConfidenceEstimator:
         # - New thresholds maintain same safety level with more accurate scoring
 
         alignment_floor_applied = False
+        alignment_floor = 0.25
+        severe_threshold = 0.15
+        very_poor_threshold = 0.20
 
-        if alignment_score is not None and alignment_score < 0.25:  # CHANGED from 0.30
+        if query and (self._is_multi_turn_query(query) or self._is_creative_query(query)):
+            alignment_floor = 0.15
+            severe_threshold = 0.10
+            very_poor_threshold = 0.15
+            components["alignment_floor_relaxed"] = True
+
+        if alignment_score is not None and alignment_score < alignment_floor:
             # Off-topic or very poor alignment detected
             # Cap confidence to force cascade to verifier
 
             original_confidence = calibrated
 
             # Progressive capping based on how bad the alignment is
-            if alignment_score < 0.15:  # CHANGED from 0.20
+            if alignment_score < severe_threshold:
                 # Severely off-topic (e.g., "weather" answer to "2+2")
                 calibrated = min(calibrated, 0.30)
                 severity = "severe"
-            elif alignment_score < 0.20:  # CHANGED from 0.25
+            elif alignment_score < very_poor_threshold:
                 # Very poor alignment
                 calibrated = min(calibrated, 0.35)
                 severity = "very poor"
-            else:  # 0.20 <= alignment < 0.25 (CHANGED from 0.25-0.30)
+            else:
                 # Poor alignment
                 calibrated = min(calibrated, 0.40)
                 severity = "poor"
@@ -377,6 +386,37 @@ class ProductionConfidenceEstimator:
             alignment_score=alignment_score,
             alignment_floor_applied=alignment_floor_applied,
         )
+
+    @staticmethod
+    def _is_multi_turn_query(query: str) -> bool:
+        """Detect multi-turn conversations in prompt text."""
+        if not query:
+            return False
+        query_lower = query.lower()
+        return "assistant:" in query_lower and "user:" in query_lower
+
+    @staticmethod
+    def _is_creative_query(query: str) -> bool:
+        """Detect creative/writing requests (heuristic)."""
+        if not query:
+            return False
+        query_lower = query.lower()
+        creative_indicators = [
+            "write",
+            "story",
+            "poem",
+            "haiku",
+            "metaphor",
+            "creative",
+            "roleplay",
+            "character",
+            "dialogue",
+            "fiction",
+            "narrative",
+            "lyrics",
+            "song",
+        ]
+        return any(indicator in query_lower for indicator in creative_indicators)
 
     def _calculate_from_logprobs(
         self, logprobs: list[float], tokens: Optional[list[str]], response: str

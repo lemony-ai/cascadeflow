@@ -827,6 +827,7 @@ class ComplexityDetector:
 
         # 6. Detect code patterns
         has_code = any(re.search(p, query) for p in self.CODE_PATTERNS)
+        metadata["has_code"] = has_code
 
         # 7. Length and structure analysis
         # Note: words and word_count already calculated in step 5 for density-aware tech_boost

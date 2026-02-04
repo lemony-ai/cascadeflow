@@ -10,7 +10,7 @@ Research Questions:
 5. Are there provider-specific quirks in domain detection?
 
 Methodology:
-- Same drafter (gpt-4o-mini) → Multiple verifiers (gpt-4o, claude-sonnet-4)
+- Same drafter (claude-haiku-4-5-20251001) → Multiple verifiers (gpt-4o, claude-opus-4-5)
 - Test across multiple query types (simple, complex, domain-specific)
 - Measure quality scores, latency, and acceptance rates per provider
 - Identify optimal threshold per provider
@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from cascadeflow.agent import CascadeAgent
+from cascadeflow import CascadeAgent, ModelConfig
 
 
 @dataclass
@@ -100,9 +100,9 @@ async def test_provider_comparison():
         return
 
     print("Configuration:")
-    print("  Drafter:         gpt-4o-mini (shared for both)")
+    print("  Drafter:         claude-haiku-4-5-20251001 (shared for both)")
     print("  OpenAI Verifier: gpt-4o")
-    print("  Anthropic Verifier: claude-sonnet-4-5-20250929")
+    print("  Anthropic Verifier: claude-opus-4-5-20251101")
     print("  Quality Threshold: 0.7 (same for both)\n")
 
     results: list[ProviderComparisonResult] = []
@@ -129,19 +129,26 @@ async def test_provider_comparison():
                 print("  Testing OpenAI verifier...", end="", flush=True)
                 openai_agent = CascadeAgent(
                     models=[
-                        {"name": "gpt-4o-mini", "provider": "openai"},
-                        {"name": "gpt-4o", "provider": "openai"},
+                        ModelConfig(
+                            name="claude-haiku-4-5-20251001",
+                            provider="anthropic",
+                            cost=0.003,
+                        ),
+                        ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
                     ],
                     quality={"threshold": 0.7},
                 )
 
                 openai_start = time.time()
-                openai_result = await openai_agent.arun(query)
+                openai_result = await openai_agent.run(query)
                 openai_latency = (time.time() - openai_start) * 1000
 
-                openai_quality = openai_result.get("quality_score", 0.0)
-                openai_accepted = openai_result.get("model_used") == "gpt-4o-mini"
-                openai_cost = openai_result.get("total_cost", 0.0)
+                openai_quality = openai_result.quality_score or 0.0
+                openai_accepted = (
+                    openai_result.draft_accepted
+                    or openai_result.model_used == "claude-haiku-4-5-20251001"
+                )
+                openai_cost = openai_result.total_cost
 
                 print(
                     f" Quality: {openai_quality:.2f}, "
@@ -153,22 +160,30 @@ async def test_provider_comparison():
                 print("  Testing Anthropic verifier...", end="", flush=True)
                 anthropic_agent = CascadeAgent(
                     models=[
-                        {"name": "gpt-4o-mini", "provider": "openai"},
-                        {
-                            "name": "claude-sonnet-4-5-20250929",
-                            "provider": "anthropic",
-                        },
+                        ModelConfig(
+                            name="claude-haiku-4-5-20251001",
+                            provider="anthropic",
+                            cost=0.003,
+                        ),
+                        ModelConfig(
+                            name="claude-opus-4-5-20251101",
+                            provider="anthropic",
+                            cost=0.045,
+                        ),
                     ],
                     quality={"threshold": 0.7},
                 )
 
                 anthropic_start = time.time()
-                anthropic_result = await anthropic_agent.arun(query)
+                anthropic_result = await anthropic_agent.run(query)
                 anthropic_latency = (time.time() - anthropic_start) * 1000
 
-                anthropic_quality = anthropic_result.get("quality_score", 0.0)
-                anthropic_accepted = anthropic_result.get("model_used") == "gpt-4o-mini"
-                anthropic_cost = anthropic_result.get("total_cost", 0.0)
+                anthropic_quality = anthropic_result.quality_score or 0.0
+                anthropic_accepted = (
+                    anthropic_result.draft_accepted
+                    or anthropic_result.model_used == "claude-haiku-4-5-20251001"
+                )
+                anthropic_cost = anthropic_result.total_cost
 
                 print(
                     f" Quality: {anthropic_quality:.2f}, "

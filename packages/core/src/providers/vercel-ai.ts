@@ -255,6 +255,7 @@ export class VercelAISDKProvider extends BaseProvider {
     }
 
     const usage = result.usage ? await result.usage : undefined;
+    const finishReason = await Promise.resolve(result.finishReason);
     yield {
       content: '',
       done: true,
@@ -265,7 +266,7 @@ export class VercelAISDKProvider extends BaseProvider {
             total_tokens: usage.totalTokens ?? 0,
           }
         : undefined,
-      finish_reason: result.finishReason,
+      finish_reason: finishReason,
       raw: result,
     };
   }

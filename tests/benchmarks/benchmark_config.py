@@ -107,71 +107,70 @@ class DomainBenchmarkConfig:
 
 
 # Optimized domain configurations for benchmarks (2025 models)
-# GPT-5 Mini: Excellent math/code drafter ($0.25/M input)
-# GPT-5: Best verifier, 74.9% SWE-bench ($1.25/M input)
-# Haiku 4.5: Extended thinking, great for creative ($1/M input)
+# Haiku 4.5: Extended thinking, great cost/quality ratio
+# Opus 4.5: Highest accuracy verifier for validation
 DOMAIN_CONFIGS = {
     # High accuracy domains - GPT-5 family for math/code
     "code": DomainBenchmarkConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - excellent code
-        verifier="gpt-5",  # GPT-5 - best reasoning
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.85,
         temperature=0.1,
     ),
     "math": DomainBenchmarkConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - excellent math
-        verifier="gpt-5",  # GPT-5 - best math reasoning
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.85,
         temperature=0.1,
     ),
     "reasoning": DomainBenchmarkConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - strong reasoning
-        verifier="gpt-5",
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.80,
         temperature=0.3,
     ),
     "stem": DomainBenchmarkConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - good for STEM
-        verifier="gpt-5",
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.82,
         temperature=0.3,
     ),
     # Medium accuracy domains - balanced thresholds
     "extraction": DomainBenchmarkConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - good structured output
-        verifier="gpt-5",
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.75,
         temperature=0.2,
     ),
     "humanities": DomainBenchmarkConfig(
-        drafter="claude-haiku-4-5-20251001",  # Haiku 4.5 - extended thinking
-        verifier="claude-sonnet-4-5-20250929",  # Sonnet 4.5
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.72,
         temperature=0.5,
     ),
     "social_sciences": DomainBenchmarkConfig(
-        drafter="claude-haiku-4-5-20251001",  # Haiku 4.5 - extended thinking
-        verifier="claude-sonnet-4-5-20250929",
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.72,
         temperature=0.5,
     ),
     # Creative domains - Haiku 4.5 for creative tasks
     "writing": DomainBenchmarkConfig(
-        drafter="claude-haiku-4-5-20251001",  # Haiku 4.5 - excellent creative
-        verifier="claude-sonnet-4-5-20250929",  # Sonnet 4.5
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.65,
         temperature=0.7,
     ),
     "roleplay": DomainBenchmarkConfig(
-        drafter="claude-haiku-4-5-20251001",  # Haiku 4.5 - good at roleplay
-        verifier="claude-sonnet-4-5-20250929",
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.65,
         temperature=0.8,
     ),
     # General fallback - GPT-5 Mini
     "general": DomainBenchmarkConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - fast and capable
-        verifier="gpt-5",
+        drafter="claude-haiku-4-5-20251001",
+        verifier="claude-opus-4-5-20251101",
         quality_threshold=0.70,
         temperature=0.7,
     ),
@@ -185,10 +184,10 @@ class BenchmarkConfig:
     # Core settings
     mode: BenchmarkMode = BenchmarkMode.FULL
 
-    # Model selection (2025 GPT-5 family)
-    default_drafter: str = "gpt-5-mini"  # $0.25/M input, $2/M output
-    default_verifier: str = "gpt-5"  # $1.25/M input, $10/M output
-    baseline_model: str = "gpt-5"  # Model for baseline comparison
+    # Model selection (2025 Claude 4.5)
+    default_drafter: str = "claude-haiku-4-5-20251001"  # $1/M input, $5/M output
+    default_verifier: str = "claude-opus-4-5-20251101"  # $15/M input, $75/M output
+    baseline_model: str = "claude-opus-4-5-20251101"  # Model for baseline comparison
 
     # Quality thresholds
     default_quality_threshold: float = 0.70
@@ -260,14 +259,14 @@ class BenchmarkConfig:
         config = cls(mode=mode)
         # MT-Bench has diverse categories - use lower thresholds for creative
         config.domain_configs["writing"] = DomainBenchmarkConfig(
-            drafter="gpt-4o-mini",
-            verifier="gpt-4o",
+            drafter="claude-haiku-4-5-20251001",
+            verifier="claude-opus-4-5-20251101",
             quality_threshold=0.60,  # Lower for writing
             temperature=0.7,
         )
         config.domain_configs["roleplay"] = DomainBenchmarkConfig(
-            drafter="gpt-4o-mini",
-            verifier="gpt-4o",
+            drafter="claude-haiku-4-5-20251001",
+            verifier="claude-opus-4-5-20251101",
             quality_threshold=0.60,  # Lower for roleplay
             temperature=0.8,
         )
@@ -280,8 +279,8 @@ class BenchmarkConfig:
         # MMLU needs higher accuracy - conservative thresholds
         config.default_quality_threshold = 0.75
         config.domain_configs["stem"] = DomainBenchmarkConfig(
-            drafter="gpt-4o-mini",
-            verifier="gpt-4o",
+            drafter="claude-haiku-4-5-20251001",
+            verifier="claude-opus-4-5-20251101",
             quality_threshold=0.80,
             temperature=0.2,
         )
@@ -294,8 +293,8 @@ class BenchmarkConfig:
         # GSM8K is math - highest accuracy needed
         config.default_quality_threshold = 0.85
         config.domain_configs["math"] = DomainBenchmarkConfig(
-            drafter="gpt-4o-mini",  # or deepseek-coder for math
-            verifier="gpt-4o",
+            drafter="claude-haiku-4-5-20251001",
+            verifier="claude-opus-4-5-20251101",
             quality_threshold=0.88,
             temperature=0.1,
         )
@@ -319,8 +318,8 @@ class BenchmarkConfig:
         """Convert to CascadeAgent configuration dict."""
         return {
             "models": [
-                {"name": self.default_drafter, "provider": "openai"},
-                {"name": self.default_verifier, "provider": "openai"},
+                {"name": self.default_drafter, "provider": "anthropic"},
+                {"name": self.default_verifier, "provider": "anthropic"},
             ],
             "enable_domain_detection": self.enable_domain_pipeline,
             "use_semantic_domains": self.enable_semantic_detection,

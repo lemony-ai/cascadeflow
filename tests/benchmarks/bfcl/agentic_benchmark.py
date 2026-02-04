@@ -61,6 +61,8 @@ class AgenticResult:
     draft_accepted: bool
     cost: float
     latency_ms: float
+    draft_accepted_turns: int = 0
+    draft_acceptance_rate: float = 0.0
     turns_completed: int = 0
     tools_called: list[str] = field(default_factory=list)
     dependency_handled: bool = False
@@ -679,8 +681,8 @@ class AgenticBenchmark:
 
     def __init__(
         self,
-        drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "gpt-4o",
+        drafter_model: str = "claude-haiku-4-5-20251001",
+        verifier_model: str = "claude-opus-4-5-20251101",
     ):
         self.drafter_model = drafter_model
         self.verifier_model = verifier_model
@@ -703,6 +705,120 @@ class AgenticBenchmark:
                 tools.append(tool)
 
         return tools
+
+    def _format_tools_desc_simple(self, tools: list[dict[str, Any]]) -> str:
+        """Format tool descriptions without parameter details."""
+        lines = []
+        for tool in tools:
+            func = tool.get("function", {})
+            name = func.get("name", "unknown")
+            description = func.get("description", "")
+            lines.append(f"- {name}: {description}")
+        return "\n".join(lines)
+
+    def _format_tools_desc(self, tools: list[dict[str, Any]]) -> str:
+        """Format tool descriptions with parameter names."""
+        lines = []
+        for tool in tools:
+            func = tool.get("function", {})
+            name = func.get("name", "unknown")
+            description = func.get("description", "")
+            params = func.get("parameters", {}) if isinstance(func.get("parameters"), dict) else {}
+            properties = params.get("properties", {}) if isinstance(params, dict) else {}
+            param_names = ", ".join(sorted(properties.keys())) if properties else "none"
+            lines.append(f"- {name}: {description} (params: {param_names})")
+        return "\n".join(lines)
+
+    def _extract_parameters(self, response: str) -> list[dict[str, Any]]:
+        """Extract JSON parameter blocks from a tool response."""
+        parameters = []
+        search_text = response
+        search_text_lower = response.lower()
+        start = 0
+
+        while True:
+            params_idx = search_text_lower.find("parameters", start)
+            if params_idx == -1:
+                break
+            brace_idx = search_text.find("{", params_idx)
+            if brace_idx == -1:
+                start = params_idx + 1
+                continue
+
+            depth = 0
+            end_idx = None
+            for i in range(brace_idx, len(search_text)):
+                char = search_text[i]
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end_idx = i + 1
+                        break
+
+            if end_idx:
+                raw_json = search_text[brace_idx:end_idx]
+                try:
+                    parsed = json.loads(raw_json)
+                    if isinstance(parsed, dict):
+                        parameters.append(parsed)
+                except json.JSONDecodeError:
+                    pass
+                start = end_idx
+            else:
+                start = brace_idx + 1
+
+        return parameters
+
+    def _required_state_keys(self, requirement: str, state: dict[str, Any]) -> list[str]:
+        """Determine which state keys are required based on the requirement text."""
+        requirement_lower = requirement.lower()
+        required = []
+        for key in state.keys():
+            if key.lower() in requirement_lower or key.replace("_", " ") in requirement_lower:
+                required.append(key)
+
+        if not required and len(state) == 1:
+            required = list(state.keys())
+
+        return required
+
+    def _state_referenced(
+        self,
+        response: str,
+        params_list: list[dict[str, Any]],
+        state: dict[str, Any],
+        required_keys: list[str],
+    ) -> bool:
+        """Check if required state keys or values are referenced in the response or params."""
+        response_lower = response.lower()
+
+        for key in required_keys:
+            value = state.get(key)
+            key_variants = {
+                key.lower(),
+                key.replace("_", " ").lower(),
+                key.replace("_", "").lower(),
+            }
+            key_seen = any(variant in response_lower for variant in key_variants)
+            value_seen = str(value).lower() in response_lower if value is not None else False
+
+            params_seen = False
+            for params in params_list:
+                if key in params:
+                    params_value = params.get(key)
+                    if value is None or str(params_value).lower() == str(value).lower():
+                        params_seen = True
+                        break
+                if value is not None and str(value).lower() in str(params).lower():
+                    params_seen = True
+                    break
+
+            if not (key_seen or value_seen or params_seen):
+                return False
+
+        return True
 
     def _check_dependency_flow(
         self,
@@ -737,10 +853,7 @@ class AgenticBenchmark:
         prompt = task["prompt"]
         expected_sequence = task.get("expected_sequence", [])
 
-        tools_desc = "\n".join([
-            f"- {t['function']['name']}: {t['function']['description']}"
-            for t in tools
-        ])
+        tools_desc = self._format_tools_desc_simple(tools)
 
         # Use natural language prompt to avoid inflating complexity scores
         # The system instructions with "first", "then", "1. 2. 3." trigger
@@ -757,8 +870,8 @@ Reason: <explanation>"""
 
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
+                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
             ],
             enable_domain_detection=True,
             use_semantic_domains=True,
@@ -781,11 +894,18 @@ Reason: <explanation>"""
                 not expected_sequence or len(tools_called) >= len(expected_sequence) - 1
             )
 
+            draft_accepted = bool(
+                getattr(result, "draft_accepted", False)
+                or result.metadata.get("draft_accepted", False)
+            )
+
             return AgenticResult(
                 task_id=task_id,
                 task_type=task_type,
                 correct=correct,
-                draft_accepted=result.metadata.get("draft_accepted", False),
+                draft_accepted=draft_accepted,
+                draft_accepted_turns=1 if draft_accepted else 0,
+                draft_acceptance_rate=1.0 if draft_accepted else 0.0,
                 cost=result.total_cost,
                 latency_ms=latency_ms,
                 turns_completed=1,
@@ -811,15 +931,12 @@ Reason: <explanation>"""
         tools = task["tools"]
         turns = task["turns"]
 
-        tools_desc = "\n".join([
-            f"- {t['function']['name']}: {t['function']['description']}"
-            for t in tools
-        ])
+        tools_desc = self._format_tools_desc(tools)
 
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
+                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
             ],
             enable_domain_detection=True,
             enable_tool_complexity_routing=False,  # Disable to allow CASCADE for agentic tasks
@@ -832,6 +949,7 @@ Reason: <explanation>"""
         state_maintained = True
         conversation_history = []
         state = {}
+        draft_accepted_turns = 0
 
         try:
             for turn_idx, turn in enumerate(turns):
@@ -853,20 +971,31 @@ Reason: <explanation>"""
 {history_text}{state_text}
 {turn['user']}
 
-Format: Tool: <name>, Parameters: <JSON>"""
+For each tool you would call, specify:
+Tool: <name>, Parameters: <JSON> (use exact parameter keys)
+If you need to respond to the user, call generate_response after any lookup/search tool."""
 
                 result = await agent.run(prompt, max_tokens=500)
                 total_cost += result.total_cost
 
                 tools_in_turn = self._extract_tool_calls(result.content)
+                params_in_turn = self._extract_parameters(result.content)
                 all_tools_called.extend(tools_in_turn)
+
+                turn_draft_accepted = bool(
+                    getattr(result, "draft_accepted", False)
+                    or result.metadata.get("draft_accepted", False)
+                )
+                if turn_draft_accepted:
+                    draft_accepted_turns += 1
 
                 # Check state requirement
                 if "state_requirement" in turn and turn_idx > 0:
-                    # Check if previous state is referenced
-                    for key in state.keys():
-                        if key not in result.content.lower():
-                            state_maintained = False
+                    required_keys = self._required_state_keys(turn["state_requirement"], state)
+                    if not self._state_referenced(
+                        result.content, params_in_turn, state, required_keys
+                    ):
+                        state_maintained = False
 
                 # Update state
                 if "state_update" in turn:
@@ -881,12 +1010,18 @@ Format: Tool: <name>, Parameters: <JSON>"""
                 turns_completed += 1
 
             latency_ms = (time.time() - start_time) * 1000
+            total_turns = len(turns)
+            draft_acceptance_rate = (
+                draft_accepted_turns / total_turns if total_turns else 0.0
+            )
 
             return AgenticResult(
                 task_id=task_id,
                 task_type=task_type,
                 correct=turns_completed == len(turns) and state_maintained,
-                draft_accepted=False,  # Multi-turn doesn't track this simply
+                draft_accepted=draft_accepted_turns == len(turns),
+                draft_accepted_turns=draft_accepted_turns,
+                draft_acceptance_rate=draft_acceptance_rate,
                 cost=total_cost,
                 latency_ms=latency_ms,
                 turns_completed=turns_completed,
@@ -900,6 +1035,8 @@ Format: Tool: <name>, Parameters: <JSON>"""
                 task_type=task_type,
                 correct=False,
                 draft_accepted=False,
+                draft_accepted_turns=draft_accepted_turns,
+                draft_acceptance_rate=0.0,
                 cost=total_cost,
                 latency_ms=latency_ms,
                 turns_completed=turns_completed,
@@ -953,19 +1090,29 @@ Format: Tool: <name>, Parameters: <JSON>"""
         total = len(self.results)
         correct = sum(1 for r in self.results if r.correct)
         draft_accepted = sum(1 for r in self.results if r.draft_accepted)
+        draft_accepted_turns = sum(r.draft_accepted_turns for r in self.results)
         dependency_handled = sum(1 for r in self.results if r.dependency_handled)
         total_cost = sum(r.cost for r in self.results)
+        total_turns = sum(r.turns_completed for r in self.results)
 
         # Group by task type
         by_type = {}
         for r in self.results:
             if r.task_type not in by_type:
-                by_type[r.task_type] = {"correct": 0, "total": 0, "draft_accepted": 0}
+                by_type[r.task_type] = {
+                    "correct": 0,
+                    "total": 0,
+                    "draft_accepted": 0,
+                    "draft_accepted_turns": 0,
+                    "turns": 0,
+                }
             by_type[r.task_type]["total"] += 1
             if r.correct:
                 by_type[r.task_type]["correct"] += 1
             if r.draft_accepted:
                 by_type[r.task_type]["draft_accepted"] += 1
+            by_type[r.task_type]["draft_accepted_turns"] += r.draft_accepted_turns
+            by_type[r.task_type]["turns"] += r.turns_completed
 
         # Separate natural language vs explicit prompts
         natural_results = [r for r in self.results if r.task_type.startswith("natural_")]
@@ -980,7 +1127,7 @@ Format: Tool: <name>, Parameters: <JSON>"""
         explicit_draft = sum(1 for r in explicit_results if r.draft_accepted)
 
         accuracy = correct / total if total > 0 else 0
-        draft_rate = draft_accepted / total if total > 0 else 0
+        draft_rate = draft_accepted_turns / total_turns if total_turns > 0 else 0
         dependency_rate = dependency_handled / total if total > 0 else 0
 
         metrics = {
@@ -988,6 +1135,7 @@ Format: Tool: <name>, Parameters: <JSON>"""
             "correct": correct,
             "accuracy": accuracy,
             "draft_acceptance": draft_rate,
+            "draft_acceptance_by_task": draft_accepted / total if total > 0 else 0,
             "dependency_handling": dependency_rate,
             "total_cost": total_cost,
             "by_type": by_type,
@@ -1013,7 +1161,7 @@ Format: Tool: <name>, Parameters: <JSON>"""
 
         print("\nOverall Performance:")
         print(f"  Accuracy:            {accuracy:.1%} ({correct}/{total})")
-        print(f"  Draft Acceptance:    {draft_rate:.1%}")
+        print(f"  Draft Acceptance:    {draft_rate:.1%} (by turn)")
         print(f"  Dependency Handling: {dependency_rate:.1%}")
         print(f"  Total Cost:          ${total_cost:.4f}")
 
@@ -1043,8 +1191,12 @@ Format: Tool: <name>, Parameters: <JSON>"""
         for task_type, data in by_type.items():
             type_acc = data["correct"] / data["total"] if data["total"] > 0 else 0
             type_draft = data["draft_accepted"] / data["total"] if data["total"] > 0 else 0
+            type_draft_turn = data["draft_accepted_turns"] / data["turns"] if data["turns"] > 0 else 0
             marker = "🌿" if task_type.startswith("natural_") else "📋"
-            print(f"  {marker} {task_type:25} Acc: {type_acc:.1%} ({data['correct']}/{data['total']}) | Draft: {type_draft:.1%}")
+            print(
+                f"  {marker} {task_type:25} Acc: {type_acc:.1%} ({data['correct']}/{data['total']}) | "
+                f"Draft: {type_draft:.1%} | Draft (turn): {type_draft_turn:.1%}"
+            )
 
         print("=" * 70)
 
@@ -1058,8 +1210,8 @@ async def main():
     parser = argparse.ArgumentParser(description="Agentic Tool Calling Benchmark")
     parser.add_argument("--sample", type=int, help="Run N tasks")
     parser.add_argument("--full", action="store_true", help="Run all tasks")
-    parser.add_argument("--drafter", default="gpt-4o-mini")
-    parser.add_argument("--verifier", default="gpt-4o")
+    parser.add_argument("--drafter", default="claude-haiku-4-5-20251001")
+    parser.add_argument("--verifier", default="claude-opus-4-5-20251101")
 
     args = parser.parse_args()
 

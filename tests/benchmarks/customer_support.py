@@ -25,9 +25,9 @@ Metrics:
 
 import asyncio
 import os
-from typing import Any
+from typing import Any, Optional
 
-from cascadeflow.agent import CascadeAgent
+from cascadeflow import CascadeAgent, ModelConfig
 
 from .base import Benchmark, BenchmarkResult, BenchmarkSummary
 
@@ -37,14 +37,17 @@ class CustomerSupportBenchmark(Benchmark):
 
     def __init__(
         self,
-        drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "gpt-4o",
+        drafter_model: str = "claude-haiku-4-5-20251001",
+        verifier_model: str = "claude-opus-4-5-20251101",
         quality_threshold: float = 0.7,
-        max_samples: int = 20,
+        max_samples: Optional[int] = 20,
     ):
         """Initialize customer support benchmark."""
+        dataset_name = (
+            "CustomerSupport-full" if max_samples is None else f"CustomerSupport-{max_samples}"
+        )
         super().__init__(
-            dataset_name="CustomerSupport-20",
+            dataset_name=dataset_name,
             drafter_model=drafter_model,
             verifier_model=verifier_model,
             baseline_model=verifier_model,
@@ -371,17 +374,31 @@ Provide a helpful response that addresses their concern."""
 
         agent = CascadeAgent(
             models=[
-                {"name": self.drafter_model, "provider": "openai"},
-                {"name": self.verifier_model, "provider": "openai"},
+                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
+                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
             ],
             quality={"threshold": self.quality_threshold},
         )
 
-        result = await agent.arun(enhanced_query)
-        return result
+        result = await agent.run(enhanced_query)
+
+        return {
+            "prediction": result.content,
+            "model_used": result.model_used,
+            "accepted": result.draft_accepted,
+            "quality_score": result.quality_score or 0.0,
+            "drafter_cost": result.draft_cost or 0.0,
+            "verifier_cost": result.verifier_cost or 0.0,
+            "total_cost": result.total_cost,
+            "latency_ms": result.latency_ms,
+            "tokens_input": result.metadata.get("prompt_tokens", 0),
+            "tokens_output": result.metadata.get("completion_tokens", 0),
+        }
 
 
-async def run_customer_support_benchmark() -> BenchmarkSummary:
+async def run_customer_support_benchmark(
+    max_samples: Optional[int] = 20,
+) -> BenchmarkSummary:
     """Run customer support benchmark and generate report."""
 
     print("\n" + "=" * 80)
@@ -389,15 +406,20 @@ async def run_customer_support_benchmark() -> BenchmarkSummary:
     print("=" * 80 + "\n")
 
     # Verify API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY not set")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("Error: ANTHROPIC_API_KEY not set")
         return
 
     print("Configuration:")
-    print("  Dataset:         CustomerSupport-20 (realistic support scenarios)")
-    print("  Drafter:         gpt-4o-mini")
-    print("  Verifier:        gpt-4o")
-    print("  Baseline:        gpt-4o (always)")
+    dataset_label = (
+        "CustomerSupport-full (bundled set)"
+        if max_samples is None
+        else f"CustomerSupport-{max_samples} (realistic support scenarios)"
+    )
+    print(f"  Dataset:         {dataset_label}")
+    print("  Drafter:         claude-haiku-4-5-20251001")
+    print("  Verifier:        claude-opus-4-5-20251101")
+    print("  Baseline:        claude-opus-4-5-20251101 (always)")
     print("  Quality Threshold: 0.7\n")
 
     print("Query Distribution:")
@@ -412,10 +434,10 @@ async def run_customer_support_benchmark() -> BenchmarkSummary:
 
     # Create benchmark
     benchmark = CustomerSupportBenchmark(
-        drafter_model="gpt-4o-mini",
-        verifier_model="gpt-4o",
+        drafter_model="claude-haiku-4-5-20251001",
+        verifier_model="claude-opus-4-5-20251101",
         quality_threshold=0.7,
-        max_samples=20,
+        max_samples=max_samples,
     )
 
     # Run benchmark
@@ -427,22 +449,26 @@ async def run_customer_support_benchmark() -> BenchmarkSummary:
     print("CUSTOMER SUPPORT BENCHMARK RESULTS")
     print("=" * 80 + "\n")
 
+    correct_count = (
+        int(summary.accuracy / 100 * summary.successful_tests) if summary.successful_tests else 0
+    )
+
     print(f"Total Queries:       {summary.total_tests}")
-    print(f"Helpful Responses:   {summary.correct} ({summary.accuracy*100:.1f}%)")
-    print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate*100:.1f}%)")
+    print(f"Helpful Responses:   {correct_count} ({summary.accuracy:.1f}%)")
+    print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)")
     print(
-        f"Verifier Escalated:  {summary.total_tests - summary.drafter_accepted} ({(1-summary.acceptance_rate)*100:.1f}%)"
+        f"Verifier Escalated:  {summary.escalated_to_verifier} ({summary.escalation_rate_pct:.1f}%)"
     )
 
     print("\nCost Analysis:")
     print(f"  Cascade Total Cost:  ${summary.total_cost:.6f}")
-    print(f"  Baseline Total Cost: ${summary.baseline_cost:.6f}")
-    print(f"  Cost Savings:        ${summary.cost_savings:.6f} ({summary.cost_reduction_pct:.1f}%)")
+    print(f"  Baseline Total Cost: ${summary.total_baseline_cost:.6f}")
+    print(f"  Cost Savings:        ${summary.total_savings:.6f} ({summary.avg_savings_pct:.1f}%)")
 
     # Calculate monthly/annual savings for typical support volume
     queries_per_month = 10000  # Typical small business support volume
     monthly_cascade = (summary.total_cost / summary.total_tests) * queries_per_month
-    monthly_baseline = (summary.baseline_cost / summary.total_tests) * queries_per_month
+    monthly_baseline = (summary.total_baseline_cost / summary.total_tests) * queries_per_month
     monthly_savings = monthly_baseline - monthly_cascade
     annual_savings = monthly_savings * 12
 
@@ -452,37 +478,36 @@ async def run_customer_support_benchmark() -> BenchmarkSummary:
 
     print("\nPerformance:")
     print(f"  Average Latency:     {summary.avg_latency_ms:.0f}ms")
-    print(f"  Average Quality:     {summary.avg_quality_score:.3f}")
-    print(f"  Drafter Accuracy:    {summary.drafter_accuracy*100:.1f}% (when accepted)")
+    print(f"  Drafter Accuracy:    {summary.drafter_accuracy:.1f}% (when accepted)")
 
     print("\nKey Findings:")
-    if summary.acceptance_rate >= 0.6:
+    if summary.acceptance_rate_pct >= 60:
         print(
-            f"  ✅ Drafter handles {summary.acceptance_rate*100:.0f}% of queries (meets 60% target)"
+            f"  ✅ Drafter handles {summary.acceptance_rate_pct:.0f}% of queries (meets 60% target)"
         )
     else:
-        print(f"  ⚠️  Drafter acceptance below 60%: {summary.acceptance_rate*100:.0f}%")
+        print(f"  ⚠️  Drafter acceptance below 60%: {summary.acceptance_rate_pct:.0f}%")
 
-    if summary.accuracy >= 0.85:
-        print(f"  ✅ High response quality: {summary.accuracy*100:.0f}% helpful")
+    if summary.accuracy >= 85:
+        print(f"  ✅ High response quality: {summary.accuracy:.0f}% helpful")
     else:
-        print(f"  ⚠️  Response quality below 85%: {summary.accuracy*100:.0f}%")
+        print(f"  ⚠️  Response quality below 85%: {summary.accuracy:.0f}%")
 
-    if summary.cost_reduction_pct >= 50:
-        print(f"  💰 Significant cost savings: {summary.cost_reduction_pct:.0f}% reduction")
+    if summary.avg_savings_pct >= 50:
+        print(f"  💰 Significant cost savings: {summary.avg_savings_pct:.0f}% reduction")
 
-    if summary.drafter_accuracy >= 0.8:
+    if summary.drafter_accuracy >= 80:
         print(
-            f"  ✅ Drafter maintains quality: {summary.drafter_accuracy*100:.0f}% accurate on simple queries"
+            f"  ✅ Drafter maintains quality: {summary.drafter_accuracy:.0f}% accurate on simple queries"
         )
 
     # Business impact summary
     print("\n📊 Business Impact:")
     print(f"  - Cascade pattern saves ${annual_savings:.0f}/year at 10K queries/month")
-    print(f"  - Drafter handles {summary.acceptance_rate*100:.0f}% of queries at 10x lower cost")
+    print(f"  - Drafter handles {summary.acceptance_rate_pct:.0f}% of queries at 10x lower cost")
     print("  - Verifier escalation ensures complex queries get premium responses")
 
-    if summary.acceptance_rate >= 0.6 and summary.accuracy >= 0.85:
+    if summary.acceptance_rate_pct >= 60 and summary.accuracy >= 85:
         print("  - ✅ Ready for production deployment in customer support use cases")
 
     print("\n" + "=" * 80 + "\n")

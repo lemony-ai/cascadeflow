@@ -33,6 +33,9 @@ import { ToolRouter } from './routers/tool-router';
 import { TierRouter } from './routers/tier-router';
 import { DomainRouter, Domain } from './routers/domain-router';
 import { RoutingStrategy } from './routers/base';
+import { ToolCallDetector } from './tool-cascade/detector';
+import { ToolCascadeRouter } from './tool-cascade/router';
+import { ToolCascadeValidator } from './tool-cascade/validator';
 import { CallbackEvent } from './telemetry/callbacks';
 import type { DomainConfig, DomainConfigMap } from './config/domain-config';
 
@@ -99,6 +102,9 @@ export class CascadeAgent {
   private batchProcessor?: import('./batch').BatchProcessor;
   private preRouter: PreRouter;
   private toolRouter: ToolRouter;
+  private toolCallDetector: ToolCallDetector;
+  private toolCascadeRouter: ToolCascadeRouter;
+  private toolCascadeValidator: ToolCascadeValidator;
   private tierRouter?: TierRouter;
   private callbackManager?: import('./telemetry/callbacks').CallbackManager;
   private domainRouter: DomainRouter;
@@ -205,6 +211,9 @@ export class CascadeAgent {
       models: this.models,
       verbose,
     });
+    this.toolCallDetector = new ToolCallDetector();
+    this.toolCascadeRouter = new ToolCascadeRouter();
+    this.toolCascadeValidator = new ToolCascadeValidator({ router: this.toolCascadeRouter });
 
     // DomainRouter: Domain detection for smart routing
     this.domainRouter = new DomainRouter();
@@ -266,8 +275,12 @@ export class CascadeAgent {
     enableCascade?: boolean;
   }): CascadeAgent {
     const available = getAvailableProviders();
+    const supportedProviders = new Set(['openai', 'anthropic', 'groq']);
+    const supportedAvailable = available.filter((provider) =>
+      supportedProviders.has(provider)
+    );
 
-    if (available.length === 0) {
+    if (supportedAvailable.length === 0) {
       throw new Error(
         'No providers available. Set API keys in environment (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)'
       );
@@ -276,7 +289,7 @@ export class CascadeAgent {
     const models: ModelConfig[] = [];
 
     // Add OpenAI models if available
-    if (available.includes('openai')) {
+    if (supportedAvailable.includes('openai')) {
       models.push(
         { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
         { name: 'gpt-3.5-turbo', provider: 'openai', cost: 0.002 },
@@ -285,7 +298,7 @@ export class CascadeAgent {
     }
 
     // Add Anthropic models if available
-    if (available.includes('anthropic')) {
+    if (supportedAvailable.includes('anthropic')) {
       models.push(
         { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
         { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 }
@@ -293,7 +306,7 @@ export class CascadeAgent {
     }
 
     // Add Groq models if available
-    if (available.includes('groq')) {
+    if (supportedAvailable.includes('groq')) {
       models.push({ name: 'llama-3.3-70b-versatile', provider: 'groq', cost: 0.0 });
     }
 
@@ -339,8 +352,12 @@ export class CascadeAgent {
     }
   ): CascadeAgent {
     const available = getAvailableProviders();
+    const supportedProviders = new Set(['openai', 'anthropic', 'groq']);
+    const supportedAvailable = available.filter((provider) =>
+      supportedProviders.has(provider)
+    );
 
-    if (available.length === 0) {
+    if (supportedAvailable.length === 0) {
       throw new Error(
         'No providers available. Set API keys in environment (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)'
       );
@@ -352,7 +369,7 @@ export class CascadeAgent {
       : null;
 
     // Add OpenAI models if available
-    if (available.includes('openai')) {
+    if (supportedAvailable.includes('openai')) {
       const openaiModels: ModelConfig[] = [
         { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
         { name: 'gpt-3.5-turbo', provider: 'openai', cost: 0.002 },
@@ -367,7 +384,7 @@ export class CascadeAgent {
     }
 
     // Add Anthropic models if available
-    if (available.includes('anthropic')) {
+    if (supportedAvailable.includes('anthropic')) {
       const anthropicModels: ModelConfig[] = [
         { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
         { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 },
@@ -381,7 +398,7 @@ export class CascadeAgent {
     }
 
     // Add Groq models if available
-    if (available.includes('groq')) {
+    if (supportedAvailable.includes('groq')) {
       const groqModels: ModelConfig[] = [
         { name: 'llama-3.3-70b-versatile', provider: 'groq', cost: 0.0 },
       ];
@@ -592,6 +609,23 @@ export class CascadeAgent {
       domainConfig = this.domainConfigs[detectedDomain];
     }
 
+    // === STEP 1d: TOOL CASCADE ROUTING ===
+    let toolRoutingDecision: ReturnType<ToolCascadeRouter['route']> | undefined;
+    if (options.tools && options.tools.length > 0) {
+      const intent = this.toolCallDetector.detect({
+        query: queryText,
+        tools: options.tools,
+      });
+      toolRoutingDecision = this.toolCascadeRouter.route(
+        {
+          query: queryText,
+          tools: options.tools,
+          messages,
+        },
+        intent.confidence
+      );
+    }
+
     // === STEP 2: ROUTING DECISION (PreRouter) ===
     const routingContext: Record<string, any> = {
       tools: options.tools,
@@ -608,10 +642,17 @@ export class CascadeAgent {
     const { complexity } = this.complexityDetector.detect(queryText);
 
     // Determine if we should cascade based on routing decision
-    const shouldCascade =
+    let shouldCascade =
       !options.forceDirect &&
       routingDecision.strategy === RoutingStrategy.CASCADE &&
       availableModels.length > 1;
+
+    // Tool routing overrides for tool calls
+    if (toolRoutingDecision?.strategy === 'direct') {
+      shouldCascade = false;
+    } else if (toolRoutingDecision?.strategy === 'cascade') {
+      shouldCascade = true;
+    }
 
     let draftCost = 0;
     let verifierCost = 0;
@@ -630,6 +671,9 @@ export class CascadeAgent {
     if (!shouldCascade || availableModels.length === 1) {
       // Direct route to best model (most expensive) from available models
       const bestModelConfig = availableModels[availableModels.length - 1];
+      const directReason = toolRoutingDecision?.strategy === 'direct'
+        ? `Direct route (tool routing: ${toolRoutingDecision.complexity.complexityLevel})`
+        : `Direct route (${complexity} complexity detected)`;
 
       try {
         const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
@@ -667,7 +711,7 @@ export class CascadeAgent {
           cascaded: false,
           draftAccepted: false,
           routingStrategy: 'direct',
-          reason: `Direct route (${complexity} complexity detected)`,
+          reason: directReason,
           toolCalls: finalToolCalls,
           hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,
           draftModel: undefined,
@@ -720,15 +764,53 @@ export class CascadeAgent {
       // Quality validation using logprobs and heuristics
       // Domain threshold takes precedence over per-model threshold
       const qualityThreshold = domainConfig?.threshold ?? draftModelConfig.qualityThreshold;
-      const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
-      const qualityResult = await this.qualityValidator.validate(
-        draftResponse.content,
-        query,
-        draftResponse.logprobs,
-        complexity,
-        qualityThreshold // Domain or per-model threshold override
+      const expectsToolCalls = Boolean(
+        options.tools &&
+        options.tools.length > 0 &&
+        toolRoutingDecision?.strategy !== 'skip'
       );
-      const qualityPassed = qualityResult.passed;
+      let qualityScore: number | undefined;
+      let qualityCheckPassed: boolean | undefined;
+      let draftConfidence: number | undefined;
+      let rejectionReason: string | undefined;
+
+      if (expectsToolCalls) {
+        const toolCalls = Array.isArray(draftResponse.tool_calls) ? draftResponse.tool_calls : [];
+        if (toolCalls.length === 0) {
+          qualityScore = 0;
+          qualityCheckPassed = false;
+          rejectionReason = 'no_tool_calls_generated';
+        } else {
+          const complexityLevel = toolRoutingDecision?.complexity.complexityLevel;
+          const toolValidation = this.toolCascadeValidator.validate(
+            toolCalls,
+            options.tools ?? [],
+            complexityLevel
+          );
+          qualityScore = toolValidation.score;
+          qualityCheckPassed = toolValidation.valid;
+          if (!toolValidation.valid && toolValidation.errors.length > 0) {
+            rejectionReason = toolValidation.errors.join('; ');
+          }
+        }
+      } else {
+        const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
+        const qualityResult = await this.qualityValidator.validate(
+          draftResponse.content,
+          query,
+          draftResponse.logprobs,
+          complexity,
+          qualityThreshold // Domain or per-model threshold override
+        );
+        qualityScore = qualityResult.score;
+        qualityCheckPassed = qualityResult.passed;
+        draftConfidence = qualityResult.confidence;
+        if (!qualityResult.passed) {
+          rejectionReason = qualityResult.reason;
+        }
+      }
+
+      const qualityPassed = qualityCheckPassed ?? false;
 
       if (!qualityPassed && availableModels.length > 1 && !options.forceDirect) {
         // Escalate to verifier (next model from available models)
@@ -818,13 +900,13 @@ export class CascadeAgent {
         draftModel,
         draftCost,
         draftLatencyMs: draftLatency,
-        draftConfidence: qualityResult.confidence, // Confidence score from quality validator
+        draftConfidence: draftConfidence, // Confidence score from validator (if available)
         verifierModel,
         verifierCost,
         verifierLatencyMs: verifierLatency,
-        qualityScore: qualityResult.score, // Quality score from validator
-        qualityCheckPassed: qualityResult.passed, // Whether quality check passed
-        rejectionReason: !qualityResult.passed ? qualityResult.reason : undefined,
+        qualityScore: qualityScore, // Quality score from validator
+        qualityCheckPassed: qualityCheckPassed, // Whether quality check passed
+        rejectionReason: rejectionReason,
         costSaved,
         savingsPercentage,
         // Cascade overhead = wasted latency from cascade decisions
@@ -976,6 +1058,23 @@ export class CascadeAgent {
       domainConfig = this.domainConfigs[detectedDomain];
     }
 
+    // === STEP 1d: TOOL CASCADE ROUTING ===
+    let toolRoutingDecision: ReturnType<ToolCascadeRouter['route']> | undefined;
+    if (options.tools && options.tools.length > 0) {
+      const intent = this.toolCallDetector.detect({
+        query: queryText,
+        tools: options.tools,
+      });
+      toolRoutingDecision = this.toolCascadeRouter.route(
+        {
+          query: queryText,
+          tools: options.tools,
+          messages,
+        },
+        intent.confidence
+      );
+    }
+
     // === STEP 2: ROUTING DECISION ===
     const routingContext: Record<string, any> = {
       tools: options.tools,
@@ -989,10 +1088,16 @@ export class CascadeAgent {
     const routingDecision = await this.preRouter.route(queryText, routingContext);
     const { complexity } = this.complexityDetector.detect(queryText);
 
-    const shouldCascade =
+    let shouldCascade =
       !options.forceDirect &&
       routingDecision.strategy === RoutingStrategy.CASCADE &&
       availableModels.length > 1;
+
+    if (toolRoutingDecision?.strategy === 'direct') {
+      shouldCascade = false;
+    } else if (toolRoutingDecision?.strategy === 'cascade') {
+      shouldCascade = true;
+    }
 
     // For MVP, use simple cascade logic similar to run()
     let draftCost = 0;
@@ -1023,6 +1128,9 @@ export class CascadeAgent {
     try {
       if (!shouldCascade) {
         const bestModelConfig = availableModels[availableModels.length - 1];
+        const directReason = toolRoutingDecision?.strategy === 'direct'
+          ? `Direct route (tool routing: ${toolRoutingDecision.complexity.complexityLevel})`
+          : `Direct route (${complexity} complexity detected)`;
         const directProvider = providerRegistry.get(
           bestModelConfig.provider,
           bestModelConfig
@@ -1089,7 +1197,7 @@ export class CascadeAgent {
           cascaded: false,
           draftAccepted: false,
           routingStrategy: 'direct',
-          reason: `Direct route (${complexity} complexity detected)`,
+          reason: directReason,
           toolCalls: directToolCalls,
           hasToolCalls: !!directToolCalls && directToolCalls.length > 0,
           draftModel: undefined,
@@ -1169,14 +1277,59 @@ export class CascadeAgent {
       draftCost = (estimatedTokens / 1000) * draftModelConfig.cost;
 
       // Quality validation using logprobs and heuristics
-      const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
-      const qualityResult = await this.qualityValidator.validate(
-        draftContent,
-        query,
-        draftLogprobs.length > 0 ? draftLogprobs : undefined,
-        complexity,
-        draftModelConfig.qualityThreshold // Per-model threshold override
+      const expectsToolCalls = Boolean(
+        options.tools &&
+        options.tools.length > 0 &&
+        toolRoutingDecision?.strategy !== 'skip'
       );
+      let qualityResult: {
+        passed: boolean;
+        score: number;
+        confidence: number;
+        reason: string;
+      };
+
+      if (expectsToolCalls) {
+        if (!draftToolCalls || draftToolCalls.length === 0) {
+          qualityResult = {
+            passed: false,
+            score: 0,
+            confidence: 0,
+            reason: 'no_tool_calls_generated',
+          };
+        } else {
+          const complexityLevel = toolRoutingDecision?.complexity.complexityLevel;
+          const toolValidation = this.toolCascadeValidator.validate(
+            draftToolCalls,
+            options.tools ?? [],
+            complexityLevel
+          );
+          qualityResult = {
+            passed: toolValidation.valid,
+            score: toolValidation.score,
+            confidence: toolValidation.score,
+            reason: toolValidation.valid
+              ? 'tool_quality_passed'
+              : (toolValidation.errors.join('; ') || 'tool_quality_failed'),
+          };
+        }
+      } else {
+        const query = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
+        const result = await this.qualityValidator.validate(
+          draftContent,
+          query,
+          draftLogprobs.length > 0 ? draftLogprobs : undefined,
+          complexity,
+          draftModelConfig.qualityThreshold // Per-model threshold override
+        );
+        qualityResult = {
+          passed: result.passed,
+          score: result.score,
+          confidence: result.confidence,
+          reason: result.reason,
+        };
+      }
+
       const qualityPassed = qualityResult.passed;
 
       draftAccepted = qualityPassed || availableModels.length === 1 || options.forceDirect === true;

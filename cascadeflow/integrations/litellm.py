@@ -286,6 +286,19 @@ class LiteLLMCostProvider:
             >>> print(f"${cost:.6f}")
             $0.004500
         """
+        override_pricing = {
+            "claude-opus-4-5": {"input": 15.0, "output": 75.0},
+            "claude-opus-4": {"input": 15.0, "output": 75.0},
+            "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
+            "claude-haiku-4.5": {"input": 1.0, "output": 5.0},
+            "claude-3-5-haiku": {"input": 1.0, "output": 5.0},
+        }
+        for model_prefix, rates in override_pricing.items():
+            if model.startswith(model_prefix):
+                input_cost = (input_tokens / 1_000_000) * rates["input"]
+                output_cost = (output_tokens / 1_000_000) * rates["output"]
+                return input_cost + output_cost
+
         if not LITELLM_AVAILABLE:
             if self.fallback_enabled:
                 return self._fallback_cost(model, input_tokens, output_tokens)
@@ -448,8 +461,15 @@ class LiteLLMCostProvider:
             "default": {"input": 1.0, "output": 2.0},
         }
 
-        # Get pricing or use default
-        pricing = rough_pricing.get(model, rough_pricing["default"])
+        # Get pricing by exact match first, then prefix match, then default
+        pricing = rough_pricing.get(model)
+        if pricing is None:
+            for model_prefix, prefix_pricing in rough_pricing.items():
+                if model_prefix != "default" and model.startswith(model_prefix):
+                    pricing = prefix_pricing
+                    break
+        if pricing is None:
+            pricing = rough_pricing["default"]
 
         input_cost = (input_tokens / 1_000_000) * pricing["input"]
         output_cost = (output_tokens / 1_000_000) * pricing["output"]

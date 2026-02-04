@@ -274,21 +274,28 @@ class TestComplexityDetection:
     async def test_trivial_query(self, mock_agent):
         """Test trivial query detection."""
         # Mock complexity detector to return TRIVIAL
-        mock_agent.complexity_detector.detect = Mock(return_value=(QueryComplexity.TRIVIAL, 0.9))
+        mock_agent.complexity_detector.detect = Mock(
+            return_value=(QueryComplexity.TRIVIAL, 0.9, {})
+        )
 
         result = await mock_agent.run("What is 2+2?")
 
         # Should use cheapest model for trivial queries (cascade: free drafter + verifier)
         # Cascade uses free llama3:8b as drafter (cost=0.0) + gpt-4o verifier (small cost)
         assert result.draft_cost == 0.0  # Drafter should be free
-        assert result.total_cost > 0.0  # Verifier adds small cost
+        if result.draft_accepted:
+            assert result.total_cost == 0.0  # Draft accepted, verifier not called
+        else:
+            assert result.total_cost > 0.0  # Verifier adds small cost
         assert result.total_cost < 0.001  # But total cost should be minimal
 
     @pytest.mark.asyncio
     async def test_expert_query(self, mock_agent):
         """Test expert query detection."""
         # Mock complexity detector to return EXPERT
-        mock_agent.complexity_detector.detect = Mock(return_value=(QueryComplexity.EXPERT, 0.95))
+        mock_agent.complexity_detector.detect = Mock(
+            return_value=(QueryComplexity.EXPERT, 0.95, {})
+        )
 
         result = await mock_agent.run("Explain quantum entanglement in relation to Bell's theorem")
 

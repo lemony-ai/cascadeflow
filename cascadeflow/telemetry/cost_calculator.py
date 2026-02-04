@@ -247,13 +247,121 @@ class CostCalculator:
         # Determine if draft was accepted
         draft_accepted = getattr(result, "draft_accepted", False)
 
-        # 🆕 Estimate input tokens from query
-        query_input_tokens = self.estimate_tokens(query_text) if query_text else 0
+        metadata = getattr(result, "metadata", {}) or {}
+        prompt_tokens = metadata.get("prompt_tokens")
+        completion_tokens = metadata.get("completion_tokens")
+
+        draft_prompt_tokens = metadata.get("draft_prompt_tokens")
+        draft_completion_tokens = metadata.get("draft_completion_tokens")
+        verifier_prompt_tokens = metadata.get("verifier_prompt_tokens")
+        verifier_completion_tokens = metadata.get("verifier_completion_tokens")
 
         if draft_accepted:
-            return self._calculate_accepted_costs(result, query_input_tokens)
+            if draft_prompt_tokens is None and prompt_tokens is not None:
+                draft_prompt_tokens = prompt_tokens
+            if draft_completion_tokens is None and completion_tokens is not None:
+                draft_completion_tokens = completion_tokens
         else:
-            return self._calculate_rejected_costs(result, query_input_tokens)
+            if verifier_prompt_tokens is None and prompt_tokens is not None:
+                verifier_prompt_tokens = prompt_tokens
+            if verifier_completion_tokens is None and completion_tokens is not None:
+                verifier_completion_tokens = completion_tokens
+
+        # Fill missing tokens with estimates
+        if draft_prompt_tokens is None:
+            draft_prompt_tokens = self.estimate_tokens(query_text) if query_text else 0
+        if draft_completion_tokens is None:
+            draft_completion_tokens = self._extract_or_estimate_tokens(result, "draft")
+
+        if draft_accepted:
+            verifier_prompt_tokens = 0
+            verifier_completion_tokens = 0
+        else:
+            if verifier_prompt_tokens is None:
+                verifier_prompt_tokens = self.estimate_tokens(query_text) if query_text else 0
+            if verifier_completion_tokens is None:
+                verifier_completion_tokens = self._extract_or_estimate_tokens(result, "verifier")
+
+        return self._calculate_from_usage(
+            draft_prompt_tokens=int(draft_prompt_tokens),
+            draft_completion_tokens=int(draft_completion_tokens),
+            verifier_prompt_tokens=int(verifier_prompt_tokens or 0),
+            verifier_completion_tokens=int(verifier_completion_tokens or 0),
+            draft_accepted=draft_accepted,
+        )
+
+    def _calculate_from_usage(
+        self,
+        *,
+        draft_prompt_tokens: int,
+        draft_completion_tokens: int,
+        verifier_prompt_tokens: int,
+        verifier_completion_tokens: int,
+        draft_accepted: bool,
+    ) -> CostBreakdown:
+        """
+        Calculate costs using explicit prompt/completion tokens per model.
+
+        Uses LiteLLM pricing when available for accurate input/output billing.
+        """
+        draft_total_tokens = draft_prompt_tokens + draft_completion_tokens
+        verifier_total_tokens = (
+            0
+            if draft_accepted
+            else verifier_prompt_tokens + verifier_completion_tokens
+        )
+
+        draft_cost = self._calculate_model_cost(
+            self.drafter,
+            draft_total_tokens,
+            input_tokens=draft_prompt_tokens,
+            output_tokens=draft_completion_tokens,
+        )
+        verifier_cost = self._calculate_model_cost(
+            self.verifier,
+            verifier_total_tokens,
+            input_tokens=verifier_prompt_tokens if not draft_accepted else 0,
+            output_tokens=verifier_completion_tokens,
+        )
+
+        total_cost = draft_cost + verifier_cost
+
+        if draft_accepted:
+            bigonly_cost = self._calculate_model_cost(
+                self.verifier,
+                draft_total_tokens,
+                input_tokens=draft_prompt_tokens,
+                output_tokens=draft_completion_tokens,
+            )
+            cost_saved = bigonly_cost - draft_cost
+        else:
+            bigonly_cost = verifier_cost
+            cost_saved = -draft_cost
+
+        savings_percent = (cost_saved / bigonly_cost * 100) if bigonly_cost > 0 else 0.0
+
+        return CostBreakdown(
+            draft_cost=draft_cost,
+            verifier_cost=verifier_cost,
+            total_cost=total_cost,
+            cost_saved=cost_saved,
+            bigonly_cost=bigonly_cost,
+            savings_percent=savings_percent,
+            draft_tokens=draft_total_tokens,
+            verifier_tokens=verifier_total_tokens,
+            total_tokens=draft_total_tokens + verifier_total_tokens,
+            was_cascaded=True,
+            draft_accepted=draft_accepted,
+            metadata={
+                "calculation_method": "from_usage",
+                "drafter_model": self.drafter.name,
+                "verifier_model": self.verifier.name,
+                "draft_prompt_tokens": draft_prompt_tokens,
+                "draft_completion_tokens": draft_completion_tokens,
+                "verifier_prompt_tokens": verifier_prompt_tokens,
+                "verifier_completion_tokens": verifier_completion_tokens,
+            },
+        )
 
     def calculate_from_tokens(
         self,
@@ -638,6 +746,9 @@ class CostCalculator:
         # Try metadata first
         if hasattr(result, "metadata") and result.metadata:
             if model_type == "draft":
+                tokens = result.metadata.get("draft_completion_tokens", 0)
+                if tokens > 0:
+                    return tokens
                 # Try direct token count
                 tokens = result.metadata.get("draft_tokens", 0)
                 if tokens > 0:
@@ -654,6 +765,9 @@ class CostCalculator:
                     return self.estimate_tokens(draft_response)
 
             else:  # verifier
+                tokens = result.metadata.get("verifier_completion_tokens", 0)
+                if tokens > 0:
+                    return tokens
                 # Try direct token count
                 tokens = result.metadata.get("verifier_tokens", 0)
                 if tokens > 0:
@@ -701,6 +815,9 @@ class CostCalculator:
         Returns:
             Cost in dollars
         """
+        if getattr(model, "cost", None) == 0:
+            return 0.0
+
         # Try LiteLLM for accurate input/output pricing
         try:
             from cascadeflow.integrations.litellm import LITELLM_AVAILABLE, LiteLLMCostProvider

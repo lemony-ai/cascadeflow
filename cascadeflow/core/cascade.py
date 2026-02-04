@@ -50,6 +50,7 @@ from typing import Any, Optional
 
 from ..quality import AdaptiveThreshold, ComparativeValidator, QualityConfig, QualityValidator
 from ..schema.config import ModelConfig
+from ..utils.messages import get_last_user_message, messages_to_prompt, normalize_messages
 
 # Initialize logger FIRST (before try-except blocks that use it)
 logger = logging.getLogger(__name__)
@@ -534,6 +535,7 @@ class WholeResponseCascade:
         complexity: Optional[str] = None,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ) -> SpeculativeResult:
         """
@@ -557,6 +559,11 @@ class WholeResponseCascade:
         self.stats["total_executions"] += 1
         overall_start = time.time()
 
+        normalized_messages = normalize_messages(messages) if messages else None
+        query_text = (
+            messages_to_prompt(normalized_messages) if normalized_messages else query
+        )
+
         # === ROUTE: TEXT PATH vs TOOL PATH ===
         has_tools = tools is not None and len(tools) > 0
 
@@ -566,13 +573,14 @@ class WholeResponseCascade:
                 logger.info(f"🔧 TOOL PATH: {len(tools)} tools available")
 
             return await self._execute_tool_path(
-                query=query,
+                query=query_text,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 tools=tools,
                 tool_choice=tool_choice,
                 complexity=complexity,
                 overall_start=overall_start,
+                messages=normalized_messages,
                 **kwargs,
             )
         else:
@@ -581,11 +589,12 @@ class WholeResponseCascade:
                 logger.info("📝 TEXT PATH: No tools")
 
             return await self._execute_text_path(
-                query=query,
+                query=query_text,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 complexity=complexity,
                 overall_start=overall_start,
+                messages=normalized_messages,
                 **kwargs,
             )
 
@@ -602,6 +611,7 @@ class WholeResponseCascade:
         tool_choice: Optional[str],
         complexity: Optional[str],
         overall_start: float,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ) -> SpeculativeResult:
         """
@@ -631,8 +641,15 @@ class WholeResponseCascade:
         # === PHASE 1: Analyze Tool Complexity ===
         if self.tool_complexity_analyzer and not complexity:
             complexity_start = time.time()
+            complexity_query = query
+            if messages:
+                last_user_message = get_last_user_message(messages)
+                if last_user_message:
+                    complexity_query = last_user_message
             tool_analysis = self.tool_complexity_analyzer.analyze_tool_call(
-                query=query, tools=tools
+                query=complexity_query,
+                tools=tools,
+                context={"messages": messages} if messages else None,
             )
             timing["tool_complexity_analysis_ms"] = (time.time() - complexity_start) * 1000
             complexity = tool_analysis.complexity_level.value
@@ -649,7 +666,12 @@ class WholeResponseCascade:
         # === PHASE 2: Generate Draft with Tools ===
         draft_start = time.time()
         draft_result = await self._call_drafter(
-            query, max_tokens, temperature, tools=tools, tool_choice=tool_choice
+            query,
+            max_tokens,
+            temperature,
+            tools=tools,
+            tool_choice=tool_choice,
+            messages=messages,
         )
         timing["draft_latency_ms"] = (time.time() - draft_start) * 1000
 
@@ -665,7 +687,12 @@ class WholeResponseCascade:
 
             verifier_start = time.time()
             verifier_result = await self._call_verifier(
-                query, max_tokens, temperature, tools=tools, tool_choice=tool_choice
+                query,
+                max_tokens,
+                temperature,
+                tools=tools,
+                tool_choice=tool_choice,
+                messages=messages,
             )
             timing["verifier_latency_ms"] = (time.time() - verifier_start) * 1000
             timing["total_latency_ms"] = (time.time() - overall_start) * 1000
@@ -702,6 +729,7 @@ class WholeResponseCascade:
                 tool_calls=verifier_tool_calls,
                 alignment_score=None,
                 cost_breakdown=costs,
+                verifier_result=verifier_result,
             )
 
         # === PHASE 3: Preliminary Confidence Check ===
@@ -722,7 +750,12 @@ class WholeResponseCascade:
                 )
             verifier_task = asyncio.create_task(
                 self._call_verifier(
-                    query, max_tokens, temperature, tools=tools, tool_choice=tool_choice
+                    query,
+                    max_tokens,
+                    temperature,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    messages=messages,
                 )
             )
         else:
@@ -814,6 +847,7 @@ class WholeResponseCascade:
                 tool_calls=draft_tool_calls,
                 alignment_score=None,
                 cost_breakdown=costs,
+                draft_result=draft_result,
             )
 
         else:
@@ -830,7 +864,12 @@ class WholeResponseCascade:
             verifier_start = time.time()
             if verifier_task is None:
                 verifier_result = await self._call_verifier(
-                    query, max_tokens, temperature, tools=tools, tool_choice=tool_choice
+                    query,
+                    max_tokens,
+                    temperature,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    messages=messages,
                 )
             else:
                 verifier_result = await verifier_task
@@ -887,6 +926,8 @@ class WholeResponseCascade:
                 tool_calls=verifier_tool_calls,
                 alignment_score=None,
                 cost_breakdown=costs,
+                draft_result=draft_result,
+                verifier_result=verifier_result,
             )
 
     def _should_accept_tool_draft(
@@ -943,6 +984,7 @@ class WholeResponseCascade:
         temperature: float,
         complexity: Optional[str],
         overall_start: float,
+        messages: Optional[list[dict[str, Any]]] = None,
         **kwargs,
     ) -> SpeculativeResult:
         """
@@ -966,7 +1008,9 @@ class WholeResponseCascade:
 
         # === PHASE 1: Generate Draft ===
         draft_start = time.time()
-        draft_result = await self._call_drafter(query, max_tokens, temperature, tools=None)
+        draft_result = await self._call_drafter(
+            query, max_tokens, temperature, tools=None, messages=messages
+        )
         timing["draft_latency_ms"] = (time.time() - draft_start) * 1000
 
         if self.verbose:
@@ -978,7 +1022,9 @@ class WholeResponseCascade:
                 logger.warning("Draft failed, falling back to verifier")
 
             verifier_start = time.time()
-            verifier_result = await self._call_verifier(query, max_tokens, temperature, tools=None)
+            verifier_result = await self._call_verifier(
+                query, max_tokens, temperature, tools=None, messages=messages
+            )
             timing["verifier_latency_ms"] = (time.time() - verifier_start) * 1000
             timing["total_latency_ms"] = (time.time() - overall_start) * 1000
             timing["cascade_overhead_ms"] = timing["draft_latency_ms"]
@@ -1012,6 +1058,7 @@ class WholeResponseCascade:
                 complexity=complexity,
                 alignment_score=None,
                 cost_breakdown=costs,
+                verifier_result=verifier_result,
             )
 
         # === PHASE 2: Preliminary Confidence Check ===
@@ -1029,7 +1076,9 @@ class WholeResponseCascade:
                     f"Draft confidence {raw_draft_confidence:.2f} < 0.75, starting verifier"
                 )
             verifier_task = asyncio.create_task(
-                self._call_verifier(query, max_tokens, temperature, tools=None)
+                self._call_verifier(
+                    query, max_tokens, temperature, tools=None, messages=messages
+                )
             )
         else:
             verifier_task = None
@@ -1174,7 +1223,7 @@ class WholeResponseCascade:
             verifier_start = time.time()
             if verifier_task is None:
                 verifier_result = await self._call_verifier(
-                    query, max_tokens, temperature, tools=None
+                    query, max_tokens, temperature, tools=None, messages=messages
                 )
             else:
                 verifier_result = await verifier_task
@@ -1225,6 +1274,7 @@ class WholeResponseCascade:
                 rejection_reason=validation_reason,
                 alignment_score=alignment_score,
                 cost_breakdown=costs,
+                draft_result=draft_result,
                 verifier_result=verifier_result,
             )
 
@@ -1239,6 +1289,7 @@ class WholeResponseCascade:
         temperature: float,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
     ) -> Optional[dict[str, Any]]:
         """
         Call drafter model with optional tool support.
@@ -1250,10 +1301,10 @@ class WholeResponseCascade:
             # === CRITICAL FIX: Route to correct method based on tools ===
             if tools:
                 # TOOL PATH: Use complete_with_tools() with messages format
-                messages = [{"role": "user", "content": query}]
+                tool_messages = messages or [{"role": "user", "content": query}]
 
                 result = await provider.complete_with_tools(
-                    messages=messages,
+                    messages=tool_messages,
                     tools=tools,
                     tool_choice=tool_choice,
                     model=self.drafter.name,
@@ -1262,8 +1313,9 @@ class WholeResponseCascade:
                 )
             else:
                 # TEXT PATH: Use complete() with prompt format
+                prompt = messages_to_prompt(messages) if messages else query
                 result = await provider.complete(
-                    prompt=query,
+                    prompt=prompt,
                     model=self.drafter.name,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -1284,6 +1336,7 @@ class WholeResponseCascade:
         temperature: float,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
     ) -> dict[str, Any]:
         """
         Call verifier model with optional tool support.
@@ -1295,10 +1348,10 @@ class WholeResponseCascade:
             # === CRITICAL FIX: Route to correct method based on tools ===
             if tools:
                 # TOOL PATH: Use complete_with_tools() with messages format
-                messages = [{"role": "user", "content": query}]
+                tool_messages = messages or [{"role": "user", "content": query}]
 
                 result = await provider.complete_with_tools(
-                    messages=messages,
+                    messages=tool_messages,
                     tools=tools,
                     tool_choice=tool_choice,
                     model=self.verifier.name,
@@ -1307,8 +1360,9 @@ class WholeResponseCascade:
                 )
             else:
                 # TEXT PATH: Use complete() with prompt format
+                prompt = messages_to_prompt(messages) if messages else query
                 result = await provider.complete(
-                    prompt=query,
+                    prompt=prompt,
                     model=self.verifier.name,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -1389,8 +1443,21 @@ class WholeResponseCascade:
         passed = getattr(validation_result, "passed", False)
 
         # Additional semantic quality check if available
+        skip_semantic = False
+        validation_details = getattr(validation_result, "details", {}) or {}
+        alignment_features = validation_details.get("alignment_features", {}) or {}
+        if validation_details.get("code_mode") or validation_details.get("classification_mode"):
+            skip_semantic = True
+        if validation_details.get("function_call_mode"):
+            skip_semantic = True
+        if validation_details.get("math_mode"):
+            skip_semantic = True
+        if alignment_features.get("is_multi_turn"):
+            skip_semantic = True
+
         if (
             passed
+            and not skip_semantic
             and self.semantic_quality_checker
             and self.semantic_quality_checker.is_available()
         ):
@@ -1538,13 +1605,29 @@ class WholeResponseCascade:
         # Extract token counts from provider responses for LiteLLM integration
         if draft_result:
             if "prompt_tokens" in draft_result:
+                metadata["draft_prompt_tokens"] = draft_result["prompt_tokens"]
+            if "completion_tokens" in draft_result:
+                metadata["draft_completion_tokens"] = draft_result["completion_tokens"]
+            if "total_tokens" in draft_result:
+                metadata["draft_total_tokens"] = draft_result["total_tokens"]
+
+        if verifier_result:
+            if "prompt_tokens" in verifier_result:
+                metadata["verifier_prompt_tokens"] = verifier_result["prompt_tokens"]
+            if "completion_tokens" in verifier_result:
+                metadata["verifier_completion_tokens"] = verifier_result["completion_tokens"]
+            if "total_tokens" in verifier_result:
+                metadata["verifier_total_tokens"] = verifier_result["total_tokens"]
+
+        # Preserve legacy prompt/completion token keys for consumers
+        if draft_accepted and draft_result:
+            if "prompt_tokens" in draft_result:
                 metadata["prompt_tokens"] = draft_result["prompt_tokens"]
             if "completion_tokens" in draft_result:
                 metadata["completion_tokens"] = draft_result["completion_tokens"]
             if "total_tokens" in draft_result:
                 metadata["total_tokens"] = draft_result["total_tokens"]
         elif verifier_result:
-            # If draft was rejected, use verifier tokens
             if "prompt_tokens" in verifier_result:
                 metadata["prompt_tokens"] = verifier_result["prompt_tokens"]
             if "completion_tokens" in verifier_result:

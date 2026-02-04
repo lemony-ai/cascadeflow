@@ -48,6 +48,7 @@ from .utils import (
     ProgressiveJSONParser,
     ToolCallValidator,
 )
+from ..utils.messages import messages_to_prompt, normalize_messages
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,88 @@ class ToolStreamManager:
         word_count = len(text.split())
         return max(1, int(word_count * 1.3))
 
+    def _estimate_messages_tokens(self, messages: list[dict[str, Any]]) -> int:
+        """
+        Estimate token count for a list of messages.
+        """
+        if not messages:
+            return 0
+        prompt = messages_to_prompt(messages)
+        return self._estimate_tokens_from_text(prompt)
+
+    def _estimate_tool_call_tokens(self, tool_calls: Optional[list[dict[str, Any]]]) -> int:
+        """
+        Estimate token count for tool call structures.
+        """
+        if not tool_calls:
+            return 0
+        total = 0
+        for tool_call in tool_calls:
+            total += self._estimate_tokens_from_text(json.dumps(tool_call))
+        return total
+
+    def _calculate_cost_from_tokens(self, model_config, tokens: int) -> float:
+        """
+        Calculate cost for a model from token count.
+        """
+        return model_config.cost * (tokens / 1000)
+
+    def _calculate_costs_from_token_totals(
+        self, draft_tokens: int, verifier_tokens: int
+    ) -> dict[str, float]:
+        """
+        Calculate costs using aggregated token totals (input + output).
+        """
+        draft_tokens = max(0, int(draft_tokens))
+        verifier_tokens = max(0, int(verifier_tokens))
+        total_tokens = draft_tokens + verifier_tokens
+
+        draft_cost = self._calculate_cost_from_tokens(self.cascade.drafter, draft_tokens)
+        verifier_cost = self._calculate_cost_from_tokens(self.cascade.verifier, verifier_tokens)
+        total_cost = draft_cost + verifier_cost
+
+        bigonly_cost = self._calculate_cost_from_tokens(self.cascade.verifier, total_tokens)
+        cost_saved = bigonly_cost - total_cost
+
+        return {
+            "draft_cost": draft_cost,
+            "verifier_cost": verifier_cost,
+            "total_cost": total_cost,
+            "cost_saved": cost_saved,
+            "draft_tokens": draft_tokens,
+            "verifier_tokens": verifier_tokens,
+            "total_tokens": total_tokens,
+        }
+
+    def _append_tool_results_to_messages(
+        self,
+        messages: list[dict[str, Any]],
+        tool_calls: list[dict[str, Any]],
+        tool_results: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Append tool execution results to the message history.
+        """
+        updated = list(messages)
+        for index, tool_call in enumerate(tool_calls):
+            result_entry = tool_results[index] if index < len(tool_results) else {}
+            if result_entry.get("success"):
+                content = json.dumps(result_entry.get("result"))
+            else:
+                error = result_entry.get("error", "tool_execution_failed")
+                content = json.dumps({"error": error})
+
+            tool_message: dict[str, Any] = {"role": "tool", "content": content}
+            if tool_call.get("name"):
+                tool_message["name"] = tool_call["name"]
+            tool_call_id = tool_call.get("id") or tool_call.get("tool_call_id")
+            if tool_call_id:
+                tool_message["tool_call_id"] = tool_call_id
+
+            updated.append(tool_message)
+
+        return updated
+
     def _calculate_costs(
         self,
         draft_content: str,
@@ -307,6 +390,7 @@ class ToolStreamManager:
         max_tokens: int = 1000,
         temperature: float = 0.7,
         tool_choice: Optional[dict[str, Any]] = None,
+        messages: Optional[list[dict[str, Any]]] = None,
         execute_tools: bool = False,
         max_turns: int = 1,
         complexity: Optional[str] = None,
@@ -324,6 +408,7 @@ class ToolStreamManager:
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
             tool_choice: Tool selection strategy (auto/required/specific)
+            messages: Optional multi-turn messages (role/content)
             execute_tools: If True, auto-execute tools and continue
             max_turns: Maximum conversation turns (for multi-turn)
             complexity: Query complexity (for quality validation)
@@ -347,7 +432,18 @@ class ToolStreamManager:
             raise ValueError("tools parameter is required for tool streaming")
 
         try:
-            logger.info(f"Starting tool streaming for query: {query[:50]}...")
+            normalized_messages = normalize_messages(messages) if messages else None
+            query_text = (
+                messages_to_prompt(normalized_messages) if normalized_messages else query
+            )
+
+            draft_input_tokens = 0
+            draft_output_tokens = 0
+            verifier_input_tokens = 0
+            verifier_output_tokens = 0
+            multi_turn_used = False
+
+            logger.info(f"Starting tool streaming for query: {query_text[:50]}...")
 
             # Emit routing event
             yield ToolStreamEvent(
@@ -360,12 +456,14 @@ class ToolStreamManager:
                 },
             )
 
-            # 🔧 FIX: Build messages list from query
-            messages = [{"role": "user", "content": query}]
+            # 🔧 FIX: Build messages list from query or multi-turn history
+            tool_messages = normalized_messages or [{"role": "user", "content": query}]
 
             # Add system prompt if provided in kwargs
             if "system_prompt" in kwargs:
-                messages.insert(0, {"role": "system", "content": kwargs.pop("system_prompt")})
+                tool_messages.insert(0, {"role": "system", "content": kwargs.pop("system_prompt")})
+
+            draft_input_tokens += self._estimate_messages_tokens(tool_messages)
 
             # 🔧 FIX: Clean kwargs to prevent parameter duplication
             # Remove tools, tool_choice, and internal parameters
@@ -381,6 +479,7 @@ class ToolStreamManager:
                     "complexity",  # Internal parameter
                     "execute_tools",  # Internal parameter
                     "max_turns",  # Internal parameter
+                    "messages",  # Internal parameter
                 }
             }
 
@@ -414,7 +513,7 @@ class ToolStreamManager:
 
                     # 🔧 FIX: Pass messages instead of model/prompt
                     async for chunk in draft_provider.stream_with_tools(
-                        messages=messages,  # ✅ FIXED
+                        messages=tool_messages,  # ✅ FIXED
                         tools=tools,  # ← Explicit
                         max_tokens=max_tokens,
                         temperature=temperature,
@@ -444,7 +543,7 @@ class ToolStreamManager:
 
                     # 🔧 FIX: Pass messages instead of model/prompt
                     response = await draft_provider.complete_with_tools(
-                        messages=messages,  # ✅ FIXED
+                        messages=tool_messages,  # ✅ FIXED
                         tools=tools,  # ← Explicit
                         max_tokens=max_tokens,
                         temperature=temperature,
@@ -493,6 +592,9 @@ class ToolStreamManager:
                 f"Draft complete: {len(tool_calls_found)} tool calls, "
                 f"{len(draft_content)} chars, {draft_latency_ms:.0f}ms"
             )
+
+            draft_output_tokens += self._estimate_tokens_from_text(draft_content)
+            draft_output_tokens += self._estimate_tool_call_tokens(tool_calls_found)
 
             # ================================================================
             # STAGE 2: Validate Tool Calls
@@ -570,6 +672,7 @@ class ToolStreamManager:
             # ================================================================
 
             tool_results = []
+            all_tool_results = []
 
             if execute_tools and draft_accepted and tool_calls_found:
                 logger.info(f"Executing {len(tool_calls_found)} tool(s)...")
@@ -619,6 +722,8 @@ class ToolStreamManager:
 
                         logger.error(f"Tool execution failed: {error_msg}")
 
+                all_tool_results.extend(tool_results)
+
             # ================================================================
             # STAGE 4: Handle Result or Cascade
             # ================================================================
@@ -627,13 +732,10 @@ class ToolStreamManager:
                 # Draft accepted, return tool calls
                 total_latency_ms = (time.time() - overall_start_time) * 1000
 
-                # 🆕 Calculate costs WITH query_text
-                costs = self._calculate_costs(
-                    draft_content=draft_content,
-                    verifier_content=None,
-                    draft_accepted=True,
-                    query_text=query,  # 🆕 NEW!
-                    tool_calls=tool_calls_found,
+                draft_total_tokens = draft_input_tokens + draft_output_tokens
+                verifier_total_tokens = verifier_input_tokens + verifier_output_tokens
+                costs = self._calculate_costs_from_token_totals(
+                    draft_total_tokens, verifier_total_tokens
                 )
 
                 result_data = {
@@ -665,34 +767,131 @@ class ToolStreamManager:
                 return
 
             elif draft_accepted and execute_tools:
-                # Tools executed, could continue for multi-turn
-                # For now, just return results
-                total_latency_ms = (time.time() - overall_start_time) * 1000
+                # Tools executed; continue multi-turn if additional tool calls are needed.
+                current_messages = tool_messages
+                final_content = draft_content
+                final_tool_calls = tool_calls_found
+                turn_index = 1
 
-                # 🆕 Calculate costs WITH query_text
-                costs = self._calculate_costs(
-                    draft_content=draft_content,
-                    verifier_content=None,
-                    draft_accepted=True,
-                    query_text=query,  # 🆕 NEW!
-                    tool_calls=tool_calls_found,
+                while tool_calls_found and turn_index < max_turns:
+                    multi_turn_used = True
+                    current_messages = self._append_tool_results_to_messages(
+                        current_messages, tool_calls_found, tool_results
+                    )
+                    draft_input_tokens += self._estimate_messages_tokens(current_messages)
+
+                    response = await draft_provider.complete_with_tools(
+                        messages=current_messages,
+                        tools=tools,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        tool_choice=tool_choice,
+                        **provider_kwargs,
+                    )
+
+                    next_tool_calls = (
+                        response.tool_calls if hasattr(response, "tool_calls") else []
+                    ) or []
+                    next_content = response.content or ""
+
+                    draft_output_tokens += self._estimate_tokens_from_text(next_content)
+                    draft_output_tokens += self._estimate_tool_call_tokens(next_tool_calls)
+
+                    for tool_call in next_tool_calls:
+                        yield ToolStreamEvent(
+                            type=ToolStreamEventType.TOOL_CALL_START,
+                            tool_call={"name": tool_call.get("name", "unknown")},
+                            data={"model": draft_model.name, "turn": turn_index + 1},
+                        )
+                        yield ToolStreamEvent(
+                            type=ToolStreamEventType.TOOL_CALL_COMPLETE,
+                            tool_call=tool_call,
+                            data={"model": draft_model.name, "turn": turn_index + 1},
+                        )
+
+                    if next_content:
+                        yield ToolStreamEvent(
+                            type=ToolStreamEventType.TEXT_CHUNK,
+                            content=next_content,
+                            data={"model": draft_model.name, "phase": "draft", "turn": turn_index + 1},
+                        )
+
+                    final_content = next_content or final_content
+                    final_tool_calls = next_tool_calls
+
+                    if not next_tool_calls:
+                        tool_calls_found = next_tool_calls
+                        break
+
+                    tool_calls_found = next_tool_calls
+                    tool_results = []
+
+                    logger.info(f"Executing {len(tool_calls_found)} tool(s)...")
+                    for tool_call in tool_calls_found:
+                        yield ToolStreamEvent(
+                            type=ToolStreamEventType.TOOL_EXECUTING,
+                            tool_call=tool_call,
+                            data={"tool_name": tool_call.get("name")},
+                        )
+                        try:
+                            if self.tool_executor:
+                                result = await self.tool_executor(tool_call, tools)
+                            else:
+                                result = await self._default_tool_executor(tool_call, tools)
+
+                            tool_results.append(
+                                {"tool_call": tool_call, "result": result, "success": True}
+                            )
+                            all_tool_results.append(
+                                {"tool_call": tool_call, "result": result, "success": True}
+                            )
+
+                            yield ToolStreamEvent(
+                                type=ToolStreamEventType.TOOL_RESULT,
+                                tool_call=tool_call,
+                                tool_result=result,
+                                data={"success": True},
+                            )
+                        except Exception as e:
+                            error_msg = str(e)
+                            tool_results.append(
+                                {"tool_call": tool_call, "error": error_msg, "success": False}
+                            )
+                            all_tool_results.append(
+                                {"tool_call": tool_call, "error": error_msg, "success": False}
+                            )
+                            yield ToolStreamEvent(
+                                type=ToolStreamEventType.TOOL_ERROR,
+                                tool_call=tool_call,
+                                error=error_msg,
+                                data={"tool_name": tool_call.get("name")},
+                            )
+
+                    turn_index += 1
+
+                total_latency_ms = (time.time() - overall_start_time) * 1000
+                draft_total_tokens = draft_input_tokens + draft_output_tokens
+                verifier_total_tokens = verifier_input_tokens + verifier_output_tokens
+                costs = self._calculate_costs_from_token_totals(
+                    draft_total_tokens, verifier_total_tokens
                 )
 
                 result_data = {
-                    "content": draft_content,
-                    "tool_calls": tool_calls_found,
-                    "tool_results": tool_results,
+                    "content": final_content,
+                    "tool_calls": final_tool_calls,
+                    "tool_results": all_tool_results or tool_results,
                     "model_used": draft_model.name,
                     "draft_accepted": True,
                     "tools_executed": True,
                     "latency_ms": total_latency_ms,
-                    "total_cost": costs["total_cost"],  # 🆕
-                    "draft_cost": costs["draft_cost"],  # 🆕
-                    "verifier_cost": costs["verifier_cost"],  # 🆕
-                    "cost_saved": costs["cost_saved"],  # 🆕
-                    "draft_tokens": costs["draft_tokens"],  # 🆕 Includes input!
-                    "verifier_tokens": costs["verifier_tokens"],  # 🆕
-                    "total_tokens": costs["total_tokens"],  # 🆕
+                    "total_cost": costs["total_cost"],
+                    "draft_cost": costs["draft_cost"],
+                    "verifier_cost": costs["verifier_cost"],
+                    "cost_saved": costs["cost_saved"],
+                    "draft_tokens": costs["draft_tokens"],
+                    "verifier_tokens": costs["verifier_tokens"],
+                    "total_tokens": costs["total_tokens"],
+                    "max_turns_reached": bool(tool_calls_found and turn_index >= max_turns),
                 }
 
                 yield ToolStreamEvent(
@@ -730,6 +929,8 @@ class ToolStreamManager:
                 verifier_tool_calls = []
                 verifier_content = ""
 
+                verifier_input_tokens += self._estimate_messages_tokens(tool_messages)
+
                 if hasattr(verifier_provider, "complete_with_tools"):
                     if hasattr(verifier_provider, "stream_with_tools"):
                         # Streaming verifier
@@ -737,7 +938,7 @@ class ToolStreamManager:
 
                         # 🔧 FIX: Pass messages instead of model/prompt
                         async for chunk in verifier_provider.stream_with_tools(
-                            messages=messages,  # ✅ FIXED
+                            messages=tool_messages,  # ✅ FIXED
                             tools=tools,  # ← Explicit
                             max_tokens=max_tokens,
                             temperature=temperature,
@@ -762,7 +963,7 @@ class ToolStreamManager:
 
                         # 🔧 FIX: Pass messages instead of model/prompt
                         response = await verifier_provider.complete_with_tools(
-                            messages=messages,  # ✅ FIXED
+                            messages=tool_messages,  # ✅ FIXED
                             tools=tools,  # ← Explicit
                             max_tokens=max_tokens,
                             temperature=temperature,
@@ -792,6 +993,13 @@ class ToolStreamManager:
                 verifier_latency_ms = (time.time() - verifier_start_time) * 1000
                 total_latency_ms = (time.time() - overall_start_time) * 1000
 
+                verifier_output_tokens += self._estimate_tokens_from_text(verifier_content)
+                verifier_output_tokens += self._estimate_tool_call_tokens(verifier_tool_calls)
+
+                final_content = verifier_content
+                final_tool_calls = verifier_tool_calls
+                max_turns_reached = False
+
                 # Execute verifier tools if needed
                 if execute_tools and verifier_tool_calls:
                     logger.info(f"Executing {len(verifier_tool_calls)} verifier tool(s)...")
@@ -810,6 +1018,9 @@ class ToolStreamManager:
                             tool_results.append(
                                 {"tool_call": tool_call, "result": result, "success": True}
                             )
+                            all_tool_results.append(
+                                {"tool_call": tool_call, "result": result, "success": True}
+                            )
 
                             yield ToolStreamEvent(
                                 type=ToolStreamEventType.TOOL_RESULT,
@@ -821,6 +1032,9 @@ class ToolStreamManager:
                             tool_results.append(
                                 {"tool_call": tool_call, "error": str(e), "success": False}
                             )
+                            all_tool_results.append(
+                                {"tool_call": tool_call, "error": str(e), "success": False}
+                            )
 
                             yield ToolStreamEvent(
                                 type=ToolStreamEventType.TOOL_ERROR,
@@ -828,33 +1042,139 @@ class ToolStreamManager:
                                 error=str(e),
                             )
 
-                # 🆕 Calculate costs WITH query_text for cascaded path
-                costs = self._calculate_costs(
-                    draft_content=draft_content,
-                    verifier_content=verifier_content,
-                    draft_accepted=False,
-                    query_text=query,  # 🆕 NEW!
-                    tool_calls=verifier_tool_calls or tool_calls_found,
+                    current_messages = tool_messages
+                    turn_index = 1
+
+                    while verifier_tool_calls and turn_index < max_turns:
+                        multi_turn_used = True
+                        current_messages = self._append_tool_results_to_messages(
+                            current_messages, verifier_tool_calls, tool_results
+                        )
+                        verifier_input_tokens += self._estimate_messages_tokens(current_messages)
+
+                        response = await verifier_provider.complete_with_tools(
+                            messages=current_messages,
+                            tools=tools,
+                            max_tokens=max_tokens,
+                            temperature=temperature,
+                            tool_choice=tool_choice,
+                            **provider_kwargs,
+                        )
+
+                        next_tool_calls = (
+                            response.tool_calls if hasattr(response, "tool_calls") else []
+                        ) or []
+                        next_content = response.content or ""
+
+                        verifier_output_tokens += self._estimate_tokens_from_text(next_content)
+                        verifier_output_tokens += self._estimate_tool_call_tokens(next_tool_calls)
+
+                        for tool_call in next_tool_calls:
+                            yield ToolStreamEvent(
+                                type=ToolStreamEventType.TOOL_CALL_START,
+                                tool_call={"name": tool_call.get("name", "unknown")},
+                                data={"model": verifier_model.name, "turn": turn_index + 1},
+                            )
+                            yield ToolStreamEvent(
+                                type=ToolStreamEventType.TOOL_CALL_COMPLETE,
+                                tool_call=tool_call,
+                                data={"model": verifier_model.name, "turn": turn_index + 1},
+                            )
+
+                        if next_content:
+                            yield ToolStreamEvent(
+                                type=ToolStreamEventType.TEXT_CHUNK,
+                                content=next_content,
+                                data={
+                                    "model": verifier_model.name,
+                                    "phase": "verifier",
+                                    "turn": turn_index + 1,
+                                },
+                            )
+
+                        final_content = next_content or final_content
+                        final_tool_calls = next_tool_calls
+
+                        if not next_tool_calls:
+                            verifier_tool_calls = next_tool_calls
+                            break
+
+                        verifier_tool_calls = next_tool_calls
+                        tool_results = []
+
+                        logger.info(
+                            f"Executing {len(verifier_tool_calls)} verifier tool(s)..."
+                        )
+                        for tool_call in verifier_tool_calls:
+                            yield ToolStreamEvent(
+                                type=ToolStreamEventType.TOOL_EXECUTING,
+                                tool_call=tool_call,
+                            )
+
+                            try:
+                                if self.tool_executor:
+                                    result = await self.tool_executor(tool_call, tools)
+                                else:
+                                    result = await self._default_tool_executor(tool_call, tools)
+
+                                tool_results.append(
+                                    {"tool_call": tool_call, "result": result, "success": True}
+                                )
+                                all_tool_results.append(
+                                    {"tool_call": tool_call, "result": result, "success": True}
+                                )
+
+                                yield ToolStreamEvent(
+                                    type=ToolStreamEventType.TOOL_RESULT,
+                                    tool_call=tool_call,
+                                    tool_result=result,
+                                )
+
+                            except Exception as e:
+                                tool_results.append(
+                                    {"tool_call": tool_call, "error": str(e), "success": False}
+                                )
+                                all_tool_results.append(
+                                    {"tool_call": tool_call, "error": str(e), "success": False}
+                                )
+
+                                yield ToolStreamEvent(
+                                    type=ToolStreamEventType.TOOL_ERROR,
+                                    tool_call=tool_call,
+                                    error=str(e),
+                                )
+
+                        turn_index += 1
+
+                    max_turns_reached = bool(
+                        verifier_tool_calls and turn_index >= max_turns
+                    )
+
+                draft_total_tokens = draft_input_tokens + draft_output_tokens
+                verifier_total_tokens = verifier_input_tokens + verifier_output_tokens
+                costs = self._calculate_costs_from_token_totals(
+                    draft_total_tokens, verifier_total_tokens
                 )
 
                 # Final result
                 result_data = {
-                    "content": verifier_content,
-                    "tool_calls": verifier_tool_calls,
-                    "tool_results": tool_results,
+                    "content": final_content,
+                    "tool_calls": final_tool_calls,
+                    "tool_results": all_tool_results or tool_results,
                     "model_used": verifier_model.name,
                     "draft_accepted": False,
                     "cascaded": True,
                     "latency_ms": total_latency_ms,
                     "draft_latency_ms": draft_latency_ms,
                     "verifier_latency_ms": verifier_latency_ms,
-                    "total_cost": costs["total_cost"],  # 🆕 Includes both models + input!
-                    "draft_cost": costs["draft_cost"],  # 🆕
-                    "verifier_cost": costs["verifier_cost"],  # 🆕
-                    "cost_saved": costs["cost_saved"],  # 🆕 (negative)
-                    "draft_tokens": costs["draft_tokens"],  # 🆕 Includes input!
-                    "verifier_tokens": costs["verifier_tokens"],  # 🆕 Includes input!
-                    "total_tokens": costs["total_tokens"],  # 🆕
+                    "total_cost": costs["total_cost"],
+                    "draft_cost": costs["draft_cost"],
+                    "verifier_cost": costs["verifier_cost"],
+                    "cost_saved": costs["cost_saved"],
+                    "draft_tokens": costs["draft_tokens"],
+                    "verifier_tokens": costs["verifier_tokens"],
+                    "total_tokens": costs["total_tokens"],
+                    "max_turns_reached": max_turns_reached,
                 }
 
                 yield ToolStreamEvent(

@@ -120,9 +120,9 @@ class Banking77Benchmark(Benchmark):
 
     def __init__(
         self,
-        drafter_model: str = "gpt-4o-mini",
-        verifier_model: str = "claude-sonnet-4-5-20250929",
-        drafter_provider: str = "openai",
+        drafter_model: str = "claude-haiku-4-5-20251001",
+        verifier_model: str = "claude-opus-4-5-20251101",
+        drafter_provider: str = "anthropic",
         verifier_provider: str = "anthropic",
         quality_threshold: float = 0.7,
         max_samples: Optional[int] = None,  # None = full dataset
@@ -154,7 +154,7 @@ class Banking77Benchmark(Benchmark):
         """
         Calculate baseline cost using actual verifier model pricing.
 
-        Claude Sonnet 4.5: $3.00 per 1M input, $15.00 per 1M output
+        Claude Opus 4.5: $15.00 per 1M input, $75.00 per 1M output
 
         Args:
             query: Input query (used to estimate token count)
@@ -165,9 +165,9 @@ class Banking77Benchmark(Benchmark):
         # Estimate tokens: ~1000 input (prompt + 77 intents), ~100 output
         input_tokens = 1000
         output_tokens = 100
-        # Claude Sonnet 4.5 pricing
-        input_cost = (input_tokens / 1_000_000) * 3.00
-        output_cost = (output_tokens / 1_000_000) * 15.00
+        # Claude Opus 4.5 pricing
+        input_cost = (input_tokens / 1_000_000) * 15.00
+        output_cost = (output_tokens / 1_000_000) * 75.00
         return input_cost + output_cost
 
     def load_dataset(self) -> list[tuple[str, Any]]:
@@ -412,24 +412,24 @@ async def run_banking77_benchmark(
     print("=" * 80 + "\n")
 
     # Verify API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY not set")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("Error: ANTHROPIC_API_KEY not set")
         return None
 
     sample_desc = f"{max_samples} samples" if max_samples else f"full {split} set"
     print("Configuration:")
     print(f"  Dataset:         Banking77 ({sample_desc})")
     print(f"  Split:           {split}")
-    print("  Drafter:         gpt-4o-mini (OpenAI)")
-    print("  Verifier:        claude-sonnet-4-5-20250929 (Anthropic)")
+    print("  Drafter:         claude-haiku-4-5-20251001 (Anthropic)")
+    print("  Verifier:        claude-opus-4-5-20251101 (Anthropic)")
     print("  Quality Thresh:  0.7")
     print("  Task:            77-way intent classification")
     print()
 
     benchmark = Banking77Benchmark(
-        drafter_model="gpt-4o-mini",
-        verifier_model="claude-sonnet-4-5-20250929",
-        drafter_provider="openai",
+        drafter_model="claude-haiku-4-5-20251001",
+        verifier_model="claude-opus-4-5-20251101",
+        drafter_provider="anthropic",
         verifier_provider="anthropic",
         quality_threshold=0.7,
         max_samples=max_samples,

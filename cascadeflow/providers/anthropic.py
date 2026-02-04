@@ -4,7 +4,7 @@ import json
 import os
 import time
 from collections.abc import AsyncIterator
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import httpx
 
@@ -273,14 +273,59 @@ class AnthropicProvider(BaseProvider):
 
         anthropic_tools = []
         for tool in tools:
+            function_block = tool.get("function") if isinstance(tool.get("function"), dict) else {}
+            name = tool.get("name") or function_block.get("name")
+            description = tool.get("description") or function_block.get("description", "")
+            parameters = (
+                tool.get("parameters")
+                or tool.get("input_schema")
+                or function_block.get("parameters", {"type": "object", "properties": {}})
+            )
+
+            if not name:
+                raise KeyError("name")
+
             anthropic_tool = {
-                "name": tool["name"],
-                "description": tool.get("description", ""),
-                "input_schema": tool.get("parameters", {"type": "object", "properties": {}}),
+                "name": name,
+                "description": description,
+                "input_schema": parameters,
             }
             anthropic_tools.append(anthropic_tool)
 
         return anthropic_tools
+
+    def _normalize_tool_choice(
+        self, tool_choice: Optional[Union[dict[str, Any], str]]
+    ) -> Optional[dict[str, Any]]:
+        if not tool_choice:
+            return None
+        if isinstance(tool_choice, str):
+            choice = tool_choice.strip()
+            if not choice:
+                return None
+            lowered = choice.lower()
+            if lowered in {"auto", "any"}:
+                return {"type": lowered}
+            if lowered in {"none", "disable", "disabled"}:
+                return None
+            return {"type": "tool", "name": choice}
+        if isinstance(tool_choice, dict):
+            tool_type = tool_choice.get("type")
+            if tool_type == "function":
+                function_block = tool_choice.get("function") or {}
+                name = function_block.get("name")
+                if name:
+                    return {"type": "tool", "name": name}
+            if tool_type in {"auto", "any"}:
+                return {"type": tool_type}
+            if tool_type in {"none"}:
+                return None
+            if tool_type == "tool":
+                return tool_choice
+            name = tool_choice.get("name")
+            if name:
+                return {"type": "tool", "name": name}
+        return None
 
     def _parse_tool_calls(self, content: list[dict[str, Any]]) -> Optional[list[dict[str, Any]]]:
         """
@@ -337,7 +382,7 @@ class AnthropicProvider(BaseProvider):
         model: str = "claude-sonnet-4-20250514",
         max_tokens: int = 4096,
         temperature: float = 0.7,
-        tool_choice: Optional[dict[str, str]] = None,
+        tool_choice: Optional[Union[dict[str, Any], str]] = None,
         **kwargs,
     ) -> ModelResponse:
         """
@@ -376,9 +421,9 @@ class AnthropicProvider(BaseProvider):
             temperature: Sampling temperature (0-1)
             tool_choice: Control tool calling behavior:
                 - None/omitted: Model decides
-                - {"type": "auto"}: Model decides (explicit)
-                - {"type": "any"}: Must use a tool
-                - {"type": "tool", "name": "get_weather"}: Force specific tool
+                - "auto" or {"type": "auto"}: Model decides (explicit)
+                - "any" or {"type": "any"}: Must use a tool
+                - "get_weather" or {"type": "tool", "name": "get_weather"}: Force specific tool
             **kwargs: Additional Anthropic parameters
 
         Returns:
@@ -443,8 +488,9 @@ class AnthropicProvider(BaseProvider):
             payload["tools"] = anthropic_tools
 
             # Add tool_choice if specified
-            if tool_choice:
-                payload["tool_choice"] = tool_choice
+            normalized_choice = self._normalize_tool_choice(tool_choice)
+            if normalized_choice:
+                payload["tool_choice"] = normalized_choice
 
         try:
             # Make API request (retry handled by parent class)
@@ -994,6 +1040,7 @@ class AnthropicProvider(BaseProvider):
             "claude-sonnet-3-5": 9.0,  # $3 in + $15 out = $9 blended (alternative naming)
             "claude-3-5-haiku": 3.0,  # $1 in + $5 out = $3 blended
             "claude-haiku-3-5": 3.0,  # $1 in + $5 out = $3 blended (alternative naming)
+            "claude-haiku-4-5": 3.0,  # $1 in + $5 out = $3 blended
             # Claude 3 Series
             "claude-3-opus": 45.0,  # $15 in + $75 out = $45 blended
             "claude-3-sonnet": 9.0,  # $3 in + $15 out = $9 blended
