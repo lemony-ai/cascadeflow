@@ -369,7 +369,7 @@ class ToolQualityValidator:
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 return False
 
         return all(field in arguments for field in required)
@@ -387,7 +387,7 @@ class ToolQualityValidator:
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 return False
 
         return isinstance(arguments, dict)
@@ -402,10 +402,13 @@ class ToolQualityValidator:
     ):
         """Log validation results."""
         status = "✓ VALID" if is_valid else "✗ INVALID"
+        complexity_str = "N/A"
+        if complexity_level and hasattr(complexity_level, "value"):
+            complexity_str = complexity_level.value
         logger.info(
             f"\nTool Quality Validation\n"
             f"Score: {score:.2f}, Threshold: {threshold:.2f}\n"
-            f"Complexity: {complexity_level.value if complexity_level and hasattr(complexity_level, 'value') else 'N/A'}\n"
+            f"Complexity: {complexity_str}\n"
             f"Result: {status}\n"
             f"Issues: {', '.join(issues) if issues else 'None'}"
         )

@@ -201,8 +201,8 @@ class CascadeAgent:
             domain_configs: Optional dict mapping domain strings to DomainConfig
                            (e.g., {"code": DomainConfig(...), "medical": DomainConfig(...)})
             enable_domain_detection: Enable automatic domain detection for queries
-            use_semantic_domains: Use ML-based semantic domain detection (hybrid mode)
-                                 Leverages same embedding model as quality system for better accuracy
+            use_semantic_domains: Use ML-based semantic domain detection (hybrid mode).
+                                 Leverages same embedding model as quality system.
             enable_factual_risk_routing: Route factual-risk prompts directly to verifier (opt-in)
 
         Deprecated Args (v0.1.x compatibility):
@@ -250,9 +250,9 @@ class CascadeAgent:
                 "   Converting config to quality_config automatically..."
             )
             # Convert CascadeConfig to QualityConfig
-            # QualityConfig takes confidence_thresholds (dict), not confidence_threshold (single value)
+            # QualityConfig takes confidence_thresholds (dict), not single value
             quality_config = QualityConfig.for_cascade()  # Use default cascade config
-            # Note: CascadeConfig quality_threshold is ignored since QualityConfig uses complexity-aware thresholds
+            # Note: CascadeConfig quality_threshold ignored - uses complexity-aware
 
         # Handle old 'tiers' parameter
         if tiers is not None:
@@ -701,7 +701,8 @@ class CascadeAgent:
                 )
             except Exception as e:
                 logger.warning(
-                    f"Failed to initialize provider '{model.provider}' for model '{model.name}': {e}"
+                    f"Failed to initialize provider '{model.provider}' "
+                    f"for model '{model.name}': {e}"
                 )
 
         if not providers:
@@ -841,9 +842,9 @@ class CascadeAgent:
             available_models = tool_filter_result["models"]
 
             if self.verbose:
-                print(
-                    f"[Tool Filtering: {len(available_models)}/{len(self.models)} models support tools]"
-                )
+                n_avail = len(available_models)
+                n_total = len(self.models)
+                print(f"[Tool Filtering: {n_avail}/{n_total} models support tools]")
 
             logger.info(
                 f"Tool filtering: {len(available_models)}/{len(self.models)} models capable. "
@@ -856,9 +857,10 @@ class CascadeAgent:
                     domain_config=domain_config, available_models=available_models
                 )
                 if tool_drafter or tool_verifier:
+                    d_name = tool_drafter.name if tool_drafter else "default"
+                    v_name = tool_verifier.name if tool_verifier else "default"
                     logger.info(
-                        f"Domain tool models: drafter={tool_drafter.name if tool_drafter else 'default'}, "
-                        f"verifier={tool_verifier.name if tool_verifier else 'default'}"
+                        f"Domain tool models: drafter={d_name}, verifier={v_name}"
                     )
 
         # 🆕 v19: Tool Complexity Routing - Analyze tool call complexity
@@ -891,10 +893,9 @@ class CascadeAgent:
                     f"[Tool Complexity: {tool_complexity_strategy.complexity_level.value} "
                     f"(score: {tool_complexity_strategy.analysis.score:.1f})]"
                 )
-                print(
-                    f"[Tool Routing: {'CASCADE' if tool_complexity_strategy.use_cascade else 'DIRECT'} "
-                    f"({tool_complexity_strategy.decision.value})]"
-                )
+                route = "CASCADE" if tool_complexity_strategy.use_cascade else "DIRECT"
+                decision_val = tool_complexity_strategy.decision.value
+                print(f"[Tool Routing: {route} ({decision_val})]")
 
             logger.info(
                 f"Tool complexity routing: {tool_complexity_strategy.complexity_level.value} → "
@@ -907,12 +908,13 @@ class CascadeAgent:
             tier_filtered_models = self.tier_router.filter_models(user_tier, available_models)
 
             if self.verbose:
-                print(
-                    f"[Tier Filtering ('{user_tier}'): {len(tier_filtered_models)}/{len(available_models)} models allowed]"
-                )
+                n_tier = len(tier_filtered_models)
+                n_avail = len(available_models)
+                print(f"[Tier Filtering ('{user_tier}'): {n_tier}/{n_avail} models]")
 
             logger.info(
-                f"Tier '{user_tier}' filtering: {len(available_models)} → {len(tier_filtered_models)} models. "
+                f"Tier '{user_tier}' filtering: {len(available_models)} → "
+                f"{len(tier_filtered_models)} models. "
                 f"Allowed: {[m.name for m in tier_filtered_models]}"
             )
 
@@ -921,8 +923,8 @@ class CascadeAgent:
             # User specified tier but no tier router configured
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
-                f"Ignoring tier parameter. "
-                f"To use tiers, initialize agent with: CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"Ignoring tier parameter. To use tiers, initialize agent with: "
+                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
             )
 
         # Get routing decision (domain-aware)
@@ -968,25 +970,27 @@ class CascadeAgent:
                 if not use_cascade:
                     use_cascade = True
                     routing_strategy = "cascade"
+                    level = tool_complexity_strategy.complexity_level.value
                     routing_reason = (
-                        f"Tool complexity override: {tool_complexity_strategy.complexity_level.value} "
-                        f"tool call → cascade (simple tools can use cheap model)"
+                        f"Tool complexity override: {level} tool call → cascade "
+                        f"(simple tools can use cheap model)"
                     )
                     if self.verbose:
-                        print(f"[Tool Routing Override: DIRECT → CASCADE]")
-                        print(f"[Reason: Simple tool complexity allows cascade]")
+                        print("[Tool Routing Override: DIRECT → CASCADE]")
+                        print("[Reason: Simple tool complexity allows cascade]")
             elif tool_complexity_decision == ToolRoutingDecision.TOOL_DIRECT_LARGE:
                 # Complex tool call - force direct (override text complexity if it said cascade)
                 if use_cascade:
                     use_cascade = False
                     routing_strategy = "direct"
+                    level = tool_complexity_strategy.complexity_level.value
                     routing_reason = (
-                        f"Tool complexity override: {tool_complexity_strategy.complexity_level.value} "
-                        f"tool call → direct (complex tools need better model)"
+                        f"Tool complexity override: {level} tool call → direct "
+                        f"(complex tools need better model)"
                     )
                     if self.verbose:
-                        print(f"[Tool Routing Override: CASCADE → DIRECT]")
-                        print(f"[Reason: Complex tool complexity requires direct]")
+                        print("[Tool Routing Override: CASCADE → DIRECT]")
+                        print("[Reason: Complex tool complexity requires direct]")
 
         if self.verbose:
             print(f"[Routing: {routing_strategy.upper()}]")
@@ -1005,7 +1009,8 @@ class CascadeAgent:
             effective_threshold = domain_config.threshold
             if self.verbose:
                 print(
-                    f"[Applying domain config: temp={effective_temperature}, threshold={effective_threshold}]"
+                    f"[Applying domain config: temp={effective_temperature}, "
+                    f"threshold={effective_threshold}]"
                 )
 
         if use_cascade:
@@ -1343,7 +1348,8 @@ class CascadeAgent:
             )
 
             logger.info(
-                f"[StreamEvents] Query domain: {detected_domain} (confidence: {domain_confidence:.2f})"
+                f"[StreamEvents] Query domain: {detected_domain} "
+                f"(confidence: {domain_confidence:.2f})"
             )
 
         # Filter models by tool capability
@@ -2313,19 +2319,19 @@ class CascadeAgent:
         tool_queries = telemetry_stats.get("tool_queries", 0)
         if tool_queries > 0:
             print("TOOL USAGE:")
-            print(
-                f"  Tool Queries:       {tool_queries} ({tool_queries/telemetry_stats['total_queries']*100:.1f}%)"
-            )
+            total = telemetry_stats["total_queries"]
+            pct = tool_queries / total * 100
+            print(f"  Tool Queries:       {tool_queries} ({pct:.1f}%)")
             print()
 
         print("ROUTING:")
-        print(
-            f"  Cascade Used:       {telemetry_stats['cascade_used']} ({telemetry_stats['cascade_rate']:.1f}%)"
-        )
+        cascade_used = telemetry_stats["cascade_used"]
+        cascade_rate = telemetry_stats["cascade_rate"]
+        print(f"  Cascade Used:       {cascade_used} ({cascade_rate:.1f}%)")
         print(f"  Direct Routed:      {telemetry_stats['direct_routed']}")
-        print(
-            f"  Streaming Used:     {telemetry_stats.get('streaming_used', 0)} ({telemetry_stats['streaming_rate']:.1f}%)"
-        )
+        streaming_used = telemetry_stats.get("streaming_used", 0)
+        streaming_rate = telemetry_stats["streaming_rate"]
+        print(f"  Streaming Used:     {streaming_used} ({streaming_rate:.1f}%)")
         print()
 
         # Router stats

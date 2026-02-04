@@ -284,7 +284,10 @@ class TaskDetector:
 
         # Strategy 4: Count items in newline-separated lists after markers
         # Look for sections like "Available intents:\n- item1\n- item2"
-        list_section_pattern = r"(?:intents?|categories?|labels?|options?|choices?):\s*\n((?:[-*]\s*\w+.*\n)+)"
+        list_section_pattern = (
+            r"(?:intents?|categories?|labels?|options?|choices?):\s*\n"
+            r"((?:[-*]\s*\w+.*\n)+)"
+        )
         list_sections = re.findall(list_section_pattern, query, re.IGNORECASE)
         for section in list_sections:
             items = re.findall(r"[-*]\s*\w+", section)
@@ -319,7 +322,8 @@ class TaskDetector:
                     continue
                 elif not re.match(r"^[\w_]+$", line_stripped):
                     # Non-intent content, might end section
-                    if line_stripped.lower().startswith(("format", "output", "instruction", "respond")):
+                    end_markers = ("format", "output", "instruction", "respond")
+                    if line_stripped.lower().startswith(end_markers):
                         in_list_section = False
 
         count = max(count, len(intent_lines))
