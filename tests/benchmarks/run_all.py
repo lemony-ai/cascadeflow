@@ -173,6 +173,18 @@ async def run_all_benchmarks(
         print(f"❌ Agentic structured tool-calling benchmark failed: {e}\n")
         results["tool_calls_agentic"] = None
 
+    # Run Real-World Tool-Calling Benchmark
+    try:
+        print("Running Real-World Tool-Calling Benchmark...")
+        from .tool_calls_realworld import run_tool_calls_realworld_benchmark
+
+        tool_calls_realworld_summary = await run_tool_calls_realworld_benchmark()
+        results["tool_calls_realworld"] = tool_calls_realworld_summary
+        print("✅ Real-world tool-calling benchmark completed\n")
+    except Exception as e:
+        print(f"❌ Real-world tool-calling benchmark failed: {e}\n")
+        results["tool_calls_realworld"] = None
+
     # Run Provider Comparison
     try:
         print("Running Provider Comparison Benchmark...")
