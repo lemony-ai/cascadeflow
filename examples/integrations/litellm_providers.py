@@ -255,7 +255,8 @@ def example_8_real_world_usage():
 
     print("How to use LiteLLM with cascadeflow agents:\n")
 
-    print("""
+    print(
+        """
 # Step 1: Import cascadeflow and LiteLLM
 from cascadeflow import CascadeAgent, ModelConfig
 from cascadeflow.integrations.litellm import LiteLLMCostProvider
@@ -289,7 +290,8 @@ agent = CascadeAgent(models=[
 result = await agent.run("Write a Python function to sort a list")
 print(f"Cost: ${result.total_cost:.6f}")
 print(f"Model used: {result.model_used}")
-""")
+"""
+    )
 
     print("💡 BENEFITS:")
     print("  - Accurate cost tracking via LiteLLM")

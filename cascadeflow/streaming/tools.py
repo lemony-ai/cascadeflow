@@ -433,9 +433,7 @@ class ToolStreamManager:
 
         try:
             normalized_messages = normalize_messages(messages) if messages else None
-            query_text = (
-                messages_to_prompt(normalized_messages) if normalized_messages else query
-            )
+            query_text = messages_to_prompt(normalized_messages) if normalized_messages else query
 
             draft_input_tokens = 0
             draft_output_tokens = 0
@@ -813,7 +811,11 @@ class ToolStreamManager:
                         yield ToolStreamEvent(
                             type=ToolStreamEventType.TEXT_CHUNK,
                             content=next_content,
-                            data={"model": draft_model.name, "phase": "draft", "turn": turn_index + 1},
+                            data={
+                                "model": draft_model.name,
+                                "phase": "draft",
+                                "turn": turn_index + 1,
+                            },
                         )
 
                     final_content = next_content or final_content
@@ -1102,9 +1104,7 @@ class ToolStreamManager:
                         verifier_tool_calls = next_tool_calls
                         tool_results = []
 
-                        logger.info(
-                            f"Executing {len(verifier_tool_calls)} verifier tool(s)..."
-                        )
+                        logger.info(f"Executing {len(verifier_tool_calls)} verifier tool(s)...")
                         for tool_call in verifier_tool_calls:
                             yield ToolStreamEvent(
                                 type=ToolStreamEventType.TOOL_EXECUTING,
@@ -1146,9 +1146,7 @@ class ToolStreamManager:
 
                         turn_index += 1
 
-                    max_turns_reached = bool(
-                        verifier_tool_calls and turn_index >= max_turns
-                    )
+                    max_turns_reached = bool(verifier_tool_calls and turn_index >= max_turns)
 
                 draft_total_tokens = draft_input_tokens + draft_output_tokens
                 verifier_total_tokens = verifier_input_tokens + verifier_output_tokens

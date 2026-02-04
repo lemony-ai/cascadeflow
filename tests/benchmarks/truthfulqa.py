@@ -512,9 +512,7 @@ async def run_truthfulqa_benchmark(max_samples: Optional[int] = 15) -> Benchmark
 
     print(f"Total Questions:     {summary.total_tests}")
     print(f"Truthful Answers:    {correct_count} ({summary.accuracy:.1f}%)")
-    print(
-        f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)"
-    )
+    print(f"Drafter Accepted:    {summary.drafter_accepted} ({summary.acceptance_rate_pct:.1f}%)")
     print(
         f"Verifier Escalated:  {summary.total_tests - summary.drafter_accepted} ({summary.escalation_rate_pct:.1f}%)"
     )
@@ -549,9 +547,7 @@ async def run_truthfulqa_benchmark(max_samples: Optional[int] = 15) -> Benchmark
 
     # Critical finding
     if summary.drafter_accuracy < summary.accuracy:
-        escalation_helps = (
-            (summary.accuracy - summary.drafter_accuracy) / summary.accuracy
-        ) * 100
+        escalation_helps = ((summary.accuracy - summary.drafter_accuracy) / summary.accuracy) * 100
         print(f"\n  📊 Verifier escalation improves accuracy by {escalation_helps:.0f}%")
         print("     → Cascade pattern successfully catches misinformation")
 

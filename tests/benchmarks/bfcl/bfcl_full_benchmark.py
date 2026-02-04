@@ -34,6 +34,7 @@ from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
 @dataclass
 class BFCLResult:
     """Result for a single function calling test."""
+
     task_id: str
     task_type: str
     correct: bool
@@ -199,7 +200,6 @@ BFCL_TASKS = [
         "expected_function": "send_email",
         "expected_params": {"to": "john@example.com", "subject": "Project Update"},
     },
-
     # Parallel function calls (multiple tools at once)
     {
         "task_id": "parallel_1",
@@ -222,7 +222,6 @@ BFCL_TASKS = [
         "prompt": "Search for 'Python tutorials' and create a 'Study Session' event for 2024-12-20",
         "expected_functions": ["search", "create_event"],
     },
-
     # Tool selection (choosing right tool from multiple)
     {
         "task_id": "selection_1",
@@ -252,7 +251,6 @@ BFCL_TASKS = [
         "prompt": "Find information about climate change",
         "expected_function": "search",
     },
-
     # Complex parameter extraction
     {
         "task_id": "complex_params_1",
@@ -260,7 +258,12 @@ BFCL_TASKS = [
         "tools": [CALENDAR_TOOL],
         "prompt": "Create a 90-minute meeting called 'Q4 Planning' on January 5th, 2025 at 2:30 PM",
         "expected_function": "create_event",
-        "expected_params": {"title": "Q4 Planning", "date": "2025-01-05", "time": "14:30", "duration_minutes": 90},
+        "expected_params": {
+            "title": "Q4 Planning",
+            "date": "2025-01-05",
+            "time": "14:30",
+            "duration_minutes": 90,
+        },
     },
     {
         "task_id": "complex_params_2",
@@ -270,7 +273,6 @@ BFCL_TASKS = [
         "expected_function": "query_database",
         "expected_params": {"table": "orders", "limit": 50},
     },
-
     # No tool needed scenarios
     {
         "task_id": "no_tool_1",
@@ -290,26 +292,41 @@ BFCL_TASKS = [
 
 # Add more tasks for full benchmark
 for i in range(10):
-    cities = ["San Francisco", "Sydney", "Mumbai", "Cairo", "Moscow", "Seoul", "Dubai", "Singapore", "Toronto", "Amsterdam"]
-    BFCL_TASKS.append({
-        "task_id": f"weather_batch_{i}",
-        "task_type": "simple",
-        "tools": [WEATHER_TOOL],
-        "prompt": f"What's the current weather in {cities[i]}?",
-        "expected_function": "get_weather",
-        "expected_params": {"location": cities[i]},
-    })
+    cities = [
+        "San Francisco",
+        "Sydney",
+        "Mumbai",
+        "Cairo",
+        "Moscow",
+        "Seoul",
+        "Dubai",
+        "Singapore",
+        "Toronto",
+        "Amsterdam",
+    ]
+    BFCL_TASKS.append(
+        {
+            "task_id": f"weather_batch_{i}",
+            "task_type": "simple",
+            "tools": [WEATHER_TOOL],
+            "prompt": f"What's the current weather in {cities[i]}?",
+            "expected_function": "get_weather",
+            "expected_params": {"location": cities[i]},
+        }
+    )
 
 for i in range(5):
     expressions = ["(100 + 50) * 2", "sqrt(144) + 10", "15 / 3 - 2", "2^10", "45 % 7"]
-    BFCL_TASKS.append({
-        "task_id": f"calc_batch_{i}",
-        "task_type": "simple",
-        "tools": [CALCULATOR_TOOL],
-        "prompt": f"Calculate {expressions[i]}",
-        "expected_function": "calculate",
-        "expected_params": {"expression": expressions[i]},
-    })
+    BFCL_TASKS.append(
+        {
+            "task_id": f"calc_batch_{i}",
+            "task_type": "simple",
+            "tools": [CALCULATOR_TOOL],
+            "prompt": f"Calculate {expressions[i]}",
+            "expected_function": "calculate",
+            "expected_params": {"expression": expressions[i]},
+        }
+    )
 
 
 class BFCLBenchmark:
@@ -333,7 +350,14 @@ class BFCLBenchmark:
         response_lower = response.lower()
 
         # Check for function name mentions
-        function_names = ["get_weather", "calculate", "search", "create_event", "send_email", "query_database"]
+        function_names = [
+            "get_weather",
+            "calculate",
+            "search",
+            "create_event",
+            "send_email",
+            "query_database",
+        ]
 
         found_function = None
         for func in function_names:
@@ -343,7 +367,7 @@ class BFCLBenchmark:
 
         # Try to extract JSON-like params
         params = {}
-        json_match = re.search(r'\{[^}]+\}', response)
+        json_match = re.search(r"\{[^}]+\}", response)
         if json_match:
             try:
                 params = json.loads(json_match.group())
@@ -363,7 +387,11 @@ class BFCLBenchmark:
 
         if expected_func is None:
             # No tool should be used
-            func_correct = found_func is None or "don't need" in response.lower() or "no tool" in response.lower()
+            func_correct = (
+                found_func is None
+                or "don't need" in response.lower()
+                or "no tool" in response.lower()
+            )
             return func_correct, True
 
         func_correct = found_func == expected_func
@@ -389,10 +417,9 @@ class BFCLBenchmark:
         expected_params = task.get("expected_params")
 
         # Format tools for prompt
-        tools_desc = "\n".join([
-            f"- {t['function']['name']}: {t['function']['description']}"
-            for t in tools
-        ])
+        tools_desc = "\n".join(
+            [f"- {t['function']['name']}: {t['function']['description']}" for t in tools]
+        )
 
         full_prompt = f"""You have access to the following tools:
 
@@ -568,26 +595,30 @@ async def main():
     output_dir.mkdir(exist_ok=True)
 
     with open(output_dir / "results.json", "w") as f:
-        json.dump({
-            "config": {
-                "drafter": args.drafter,
-                "verifier": args.verifier,
+        json.dump(
+            {
+                "config": {
+                    "drafter": args.drafter,
+                    "verifier": args.verifier,
+                },
+                "metrics": results,
+                "results": [
+                    {
+                        "task_id": r.task_id,
+                        "task_type": r.task_type,
+                        "correct": r.correct,
+                        "draft_accepted": r.draft_accepted,
+                        "cost": r.cost,
+                        "latency_ms": r.latency_ms,
+                        "function_called": r.function_called,
+                        "params_correct": r.params_correct,
+                    }
+                    for r in benchmark.results
+                ],
             },
-            "metrics": results,
-            "results": [
-                {
-                    "task_id": r.task_id,
-                    "task_type": r.task_type,
-                    "correct": r.correct,
-                    "draft_accepted": r.draft_accepted,
-                    "cost": r.cost,
-                    "latency_ms": r.latency_ms,
-                    "function_called": r.function_called,
-                    "params_correct": r.params_correct,
-                }
-                for r in benchmark.results
-            ],
-        }, f, indent=2)
+            f,
+            indent=2,
+        )
 
     print(f"\nResults saved to: {output_dir}/")
 

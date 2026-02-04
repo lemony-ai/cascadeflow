@@ -55,6 +55,7 @@ from cascadeflow import CascadeAgent, ModelConfig
 @dataclass
 class AgenticResult:
     """Result for an agentic tool calling test."""
+
     task_id: str
     task_type: str
     correct: bool
@@ -133,7 +134,10 @@ UPDATE_ORDER_STATUS_TOOL = {
             "type": "object",
             "properties": {
                 "order_id": {"type": "string"},
-                "new_status": {"type": "string", "enum": ["pending", "processing", "shipped", "delivered", "cancelled"]},
+                "new_status": {
+                    "type": "string",
+                    "enum": ["pending", "processing", "shipped", "delivered", "cancelled"],
+                },
                 "reason": {"type": "string", "description": "Reason for status change"},
             },
             "required": ["order_id", "new_status"],
@@ -151,7 +155,10 @@ SEARCH_KNOWLEDGE_BASE_TOOL = {
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
-                "category": {"type": "string", "enum": ["technical", "billing", "general", "returns"]},
+                "category": {
+                    "type": "string",
+                    "enum": ["technical", "billing", "general", "returns"],
+                },
             },
             "required": ["query"],
         },
@@ -167,7 +174,11 @@ GENERATE_RESPONSE_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "article_ids": {"type": "array", "items": {"type": "string"}, "description": "Article IDs from search"},
+                "article_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Article IDs from search",
+                },
                 "customer_question": {"type": "string"},
                 "tone": {"type": "string", "enum": ["formal", "friendly", "apologetic"]},
             },
@@ -401,7 +412,6 @@ Step 2: Use the returned user_id to fetch orders with status 'shipped'""",
         "expected_sequence": ["search_knowledge_base", "generate_response"],
         "dependency_check": "article_ids from search used in generate_response",
     },
-
     # ═══════════════════════════════════════════════════════════════════════════
     # 3-STEP CHAIN: A → B → C dependency
     # ═══════════════════════════════════════════════════════════════════════════
@@ -432,7 +442,6 @@ Steps:
         "expected_sequence": ["lookup_user", "get_user_orders", "update_order_status"],
         "dependency_check": "Full chain execution with data propagation",
     },
-
     # ═══════════════════════════════════════════════════════════════════════════
     # PARALLEL THEN MERGE: Fetch multiple data sources, then synthesize
     # ═══════════════════════════════════════════════════════════════════════════
@@ -461,7 +470,6 @@ Then create the quote using the collected information.""",
         "expected_final": "create_quote",
         "dependency_check": "Parallel fetch → merge",
     },
-
     # ═══════════════════════════════════════════════════════════════════════════
     # CONDITIONAL: Different tool based on previous result
     # ═══════════════════════════════════════════════════════════════════════════
@@ -481,7 +489,12 @@ Customer reason: "Product arrived damaged"
     {
         "task_id": "conditional_refund_2",
         "task_type": "conditional",
-        "tools": [LOOKUP_USER_TOOL, GET_USER_ORDERS_TOOL, CHECK_ELIGIBILITY_TOOL, PROCESS_REFUND_TOOL],
+        "tools": [
+            LOOKUP_USER_TOOL,
+            GET_USER_ORDERS_TOOL,
+            CHECK_ELIGIBILITY_TOOL,
+            PROCESS_REFUND_TOOL,
+        ],
         "prompt": """Customer emma@mail.com wants a refund on their most recent order.
 
 Execute:
@@ -489,17 +502,26 @@ Execute:
 2. Get their orders to find the most recent
 3. Check refund eligibility
 4. If eligible, process the refund as store credit""",
-        "expected_sequence": ["lookup_user", "get_user_orders", "check_eligibility", "process_refund"],
+        "expected_sequence": [
+            "lookup_user",
+            "get_user_orders",
+            "check_eligibility",
+            "process_refund",
+        ],
         "conditional_logic": "Chain with conditional ending",
     },
-
     # ═══════════════════════════════════════════════════════════════════════════
     # MULTI-TURN STATE: Conversation with state tracking
     # ═══════════════════════════════════════════════════════════════════════════
     {
         "task_id": "multiturn_support_1",
         "task_type": "multi_turn_state",
-        "tools": [LOOKUP_USER_TOOL, GET_USER_ORDERS_TOOL, SEARCH_KNOWLEDGE_BASE_TOOL, GENERATE_RESPONSE_TOOL],
+        "tools": [
+            LOOKUP_USER_TOOL,
+            GET_USER_ORDERS_TOOL,
+            SEARCH_KNOWLEDGE_BASE_TOOL,
+            GENERATE_RESPONSE_TOOL,
+        ],
         "turns": [
             {
                 "user": "I need help with my order. My email is frank@customer.com",
@@ -604,7 +626,6 @@ NATURAL_LANGUAGE_TASKS = [
         "dependency_check": "article_ids from search",
         "expected_cascade": True,
     },
-
     # --- 3-STEP CHAINS (Natural Language) - These are genuinely complex ---
     {
         "task_id": "natural_chain_details_1",
@@ -624,7 +645,6 @@ NATURAL_LANGUAGE_TASKS = [
         "dependency_check": "Full chain execution with data propagation",
         "expected_cascade": False,  # Genuinely complex
     },
-
     # --- PARALLEL THEN MERGE (Natural Language) ---
     {
         "task_id": "natural_quote_1",
@@ -636,7 +656,6 @@ NATURAL_LANGUAGE_TASKS = [
         "dependency_check": "Parallel data gathering → synthesis",
         "expected_cascade": False,  # Multiple tools + synthesis = complex
     },
-
     # --- CONDITIONAL (Natural Language) ---
     {
         "task_id": "natural_refund_1",
@@ -654,26 +673,30 @@ AGENTIC_TASKS.extend(NATURAL_LANGUAGE_TASKS)
 
 # Add more task variations (explicit)
 for i, email in enumerate(["test1@example.com", "test2@example.com", "test3@example.com"]):
-    AGENTIC_TASKS.append({
-        "task_id": f"dep_batch_{i}",
-        "task_type": "single_dependency",
-        "tools": [LOOKUP_USER_TOOL, GET_USER_ORDERS_TOOL],
-        "prompt": f"Find all orders for {email}. First look up the user, then get their orders.",
-        "expected_sequence": ["lookup_user", "get_user_orders"],
-        "dependency_check": "user_id propagation",
-    })
+    AGENTIC_TASKS.append(
+        {
+            "task_id": f"dep_batch_{i}",
+            "task_type": "single_dependency",
+            "tools": [LOOKUP_USER_TOOL, GET_USER_ORDERS_TOOL],
+            "prompt": f"Find all orders for {email}. First look up the user, then get their orders.",
+            "expected_sequence": ["lookup_user", "get_user_orders"],
+            "dependency_check": "user_id propagation",
+        }
+    )
 
 # Add natural language batch variations
 for i, email in enumerate(["natural1@example.com", "natural2@example.com", "natural3@example.com"]):
-    AGENTIC_TASKS.append({
-        "task_id": f"natural_batch_{i}",
-        "task_type": "natural_single_dependency",
-        "tools": [LOOKUP_USER_TOOL, GET_USER_ORDERS_TOOL],
-        "prompt": f"Show me the orders for {email}",
-        "expected_sequence": ["lookup_user", "get_user_orders"],
-        "dependency_check": "user_id propagation",
-        "expected_cascade": True,
-    })
+    AGENTIC_TASKS.append(
+        {
+            "task_id": f"natural_batch_{i}",
+            "task_type": "natural_single_dependency",
+            "tools": [LOOKUP_USER_TOOL, GET_USER_ORDERS_TOOL],
+            "prompt": f"Show me the orders for {email}",
+            "expected_sequence": ["lookup_user", "get_user_orders"],
+            "dependency_check": "user_id propagation",
+            "expected_cascade": True,
+        }
+    )
 
 
 class AgenticBenchmark:
@@ -694,10 +717,19 @@ class AgenticBenchmark:
         tools = []
 
         tool_names = [
-            "lookup_user", "get_user_orders", "get_order_details",
-            "update_order_status", "search_knowledge_base", "generate_response",
-            "get_product_info", "get_inventory", "get_pricing", "create_quote",
-            "check_eligibility", "process_refund", "deny_refund",
+            "lookup_user",
+            "get_user_orders",
+            "get_order_details",
+            "update_order_status",
+            "search_knowledge_base",
+            "generate_response",
+            "get_product_info",
+            "get_inventory",
+            "get_pricing",
+            "create_quote",
+            "check_eligibility",
+            "process_refund",
+            "deny_refund",
         ]
 
         for tool in tool_names:
@@ -958,7 +990,9 @@ Reason: <explanation>"""
                 if conversation_history:
                     history_text = "Previous conversation:\n"
                     for h in conversation_history:
-                        history_text += f"User: {h['user']}\nAssistant: {h['assistant'][:200]}...\n\n"
+                        history_text += (
+                            f"User: {h['user']}\nAssistant: {h['assistant'][:200]}...\n\n"
+                        )
 
                 # Include accumulated state
                 state_text = ""
@@ -1002,18 +1036,18 @@ If you need to respond to the user, call generate_response after any lookup/sear
                     state.update(turn["state_update"])
 
                 # Track conversation
-                conversation_history.append({
-                    "user": turn["user"],
-                    "assistant": result.content,
-                })
+                conversation_history.append(
+                    {
+                        "user": turn["user"],
+                        "assistant": result.content,
+                    }
+                )
 
                 turns_completed += 1
 
             latency_ms = (time.time() - start_time) * 1000
             total_turns = len(turns)
-            draft_acceptance_rate = (
-                draft_accepted_turns / total_turns if total_turns else 0.0
-            )
+            draft_acceptance_rate = draft_accepted_turns / total_turns if total_turns else 0.0
 
             return AgenticResult(
                 task_id=task_id,
@@ -1172,11 +1206,15 @@ If you need to respond to the user, call generate_response after any lookup/sear
         if natural_total > 0:
             nat_acc = natural_correct / natural_total
             nat_draft = natural_draft / natural_total
-            print(f"  Natural Language:    Acc: {nat_acc:.1%} | Draft: {nat_draft:.1%} ({natural_draft}/{natural_total})")
+            print(
+                f"  Natural Language:    Acc: {nat_acc:.1%} | Draft: {nat_draft:.1%} ({natural_draft}/{natural_total})"
+            )
         if explicit_total > 0:
             exp_acc = explicit_correct / explicit_total
             exp_draft = explicit_draft / explicit_total
-            print(f"  Explicit Steps:      Acc: {exp_acc:.1%} | Draft: {exp_draft:.1%} ({explicit_draft}/{explicit_total})")
+            print(
+                f"  Explicit Steps:      Acc: {exp_acc:.1%} | Draft: {exp_draft:.1%} ({explicit_draft}/{explicit_total})"
+            )
 
         if natural_total > 0 and explicit_total > 0:
             draft_diff = (natural_draft / natural_total) - (explicit_draft / explicit_total)
@@ -1191,7 +1229,9 @@ If you need to respond to the user, call generate_response after any lookup/sear
         for task_type, data in by_type.items():
             type_acc = data["correct"] / data["total"] if data["total"] > 0 else 0
             type_draft = data["draft_accepted"] / data["total"] if data["total"] > 0 else 0
-            type_draft_turn = data["draft_accepted_turns"] / data["turns"] if data["turns"] > 0 else 0
+            type_draft_turn = (
+                data["draft_accepted_turns"] / data["turns"] if data["turns"] > 0 else 0
+            )
             marker = "🌿" if task_type.startswith("natural_") else "📋"
             print(
                 f"  {marker} {task_type:25} Acc: {type_acc:.1%} ({data['correct']}/{data['total']}) | "
@@ -1233,28 +1273,32 @@ async def main():
     output_dir.mkdir(exist_ok=True)
 
     with open(output_dir / "results.json", "w") as f:
-        json.dump({
-            "config": {
-                "drafter": args.drafter,
-                "verifier": args.verifier,
+        json.dump(
+            {
+                "config": {
+                    "drafter": args.drafter,
+                    "verifier": args.verifier,
+                },
+                "metrics": results,
+                "results": [
+                    {
+                        "task_id": r.task_id,
+                        "task_type": r.task_type,
+                        "correct": r.correct,
+                        "draft_accepted": r.draft_accepted,
+                        "cost": r.cost,
+                        "latency_ms": r.latency_ms,
+                        "turns_completed": r.turns_completed,
+                        "tools_called": r.tools_called,
+                        "dependency_handled": r.dependency_handled,
+                        "state_maintained": r.state_maintained,
+                    }
+                    for r in benchmark.results
+                ],
             },
-            "metrics": results,
-            "results": [
-                {
-                    "task_id": r.task_id,
-                    "task_type": r.task_type,
-                    "correct": r.correct,
-                    "draft_accepted": r.draft_accepted,
-                    "cost": r.cost,
-                    "latency_ms": r.latency_ms,
-                    "turns_completed": r.turns_completed,
-                    "tools_called": r.tools_called,
-                    "dependency_handled": r.dependency_handled,
-                    "state_maintained": r.state_maintained,
-                }
-                for r in benchmark.results
-            ],
-        }, f, indent=2)
+            f,
+            indent=2,
+        )
 
     print(f"\nResults saved to: {output_dir}/")
 

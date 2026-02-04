@@ -573,7 +573,9 @@ class ToolComplexityAnalyzer:
         # Check if usable message history exists
         messages = None
         if context and isinstance(context, dict):
-            messages = context.get("messages") or context.get("history") or context.get("conversation")
+            messages = (
+                context.get("messages") or context.get("history") or context.get("conversation")
+            )
         has_messages = isinstance(messages, list) and len(messages) > 1
         lacks_context = not has_messages
 

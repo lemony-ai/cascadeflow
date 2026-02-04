@@ -6,28 +6,24 @@ import { describe, it, expect, vi } from 'vitest';
 import { VercelAISDKProvider, VERCEL_AI_PROVIDER_SPECS, VERCEL_AI_PROVIDER_NAMES } from '../providers/vercel-ai';
 import type { ModelConfig } from '../config';
 
-vi.mock(
-  'ai',
-  () => ({
-    generateText: vi.fn(async () => ({
-      text: 'Hello from Vercel AI SDK',
-      usage: { promptTokens: 4, completionTokens: 6, totalTokens: 10 },
+vi.mock('ai', () => ({
+  generateText: vi.fn(async () => ({
+    text: 'Hello from Vercel AI SDK',
+    usage: { promptTokens: 4, completionTokens: 6, totalTokens: 10 },
+    finishReason: 'stop',
+  })),
+  streamText: vi.fn(async () => {
+    async function* stream() {
+      yield 'Hello ';
+      yield 'stream';
+    }
+    return {
+      textStream: stream(),
+      usage: Promise.resolve({ promptTokens: 2, completionTokens: 3, totalTokens: 5 }),
       finishReason: 'stop',
-    })),
-    streamText: vi.fn(async () => {
-      async function* stream() {
-        yield 'Hello ';
-        yield 'stream';
-      }
-      return {
-        textStream: stream(),
-        usage: Promise.resolve({ promptTokens: 2, completionTokens: 3, totalTokens: 5 }),
-        finishReason: 'stop',
-      };
-    }),
+    };
   }),
-  { virtual: true }
-);
+}));
 
 describe('Vercel AI SDK Provider', () => {
   it('defines 17+ supported Vercel AI SDK providers', () => {

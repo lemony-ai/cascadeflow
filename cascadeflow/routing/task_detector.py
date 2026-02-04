@@ -175,9 +175,7 @@ class TaskDetector:
             reason="Standard query - use complexity-based routing",
         )
 
-    def _detect_classification(
-        self, query: str, query_lower: str
-    ) -> TaskDetectionResult:
+    def _detect_classification(self, query: str, query_lower: str) -> TaskDetectionResult:
         """
         Detect if query is a classification task.
 
@@ -195,9 +193,7 @@ class TaskDetector:
         has_list_marker = any(marker in query_lower for marker in self.LIST_MARKERS)
 
         # Check for output format
-        has_output_format = any(
-            marker in query_lower for marker in self.OUTPUT_FORMAT_MARKERS
-        )
+        has_output_format = any(marker in query_lower for marker in self.OUTPUT_FORMAT_MARKERS)
 
         # Classification if has instruction + list OR instruction + output format
         is_classification = has_classification_instruction and (
@@ -285,8 +281,7 @@ class TaskDetector:
         # Strategy 4: Count items in newline-separated lists after markers
         # Look for sections like "Available intents:\n- item1\n- item2"
         list_section_pattern = (
-            r"(?:intents?|categories?|labels?|options?|choices?):\s*\n"
-            r"((?:[-*]\s*\w+.*\n)+)"
+            r"(?:intents?|categories?|labels?|options?|choices?):\s*\n" r"((?:[-*]\s*\w+.*\n)+)"
         )
         list_sections = re.findall(list_section_pattern, query, re.IGNORECASE)
         for section in list_sections:

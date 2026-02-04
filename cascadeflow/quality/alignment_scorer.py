@@ -760,9 +760,9 @@ class QueryResponseAlignmentScorer:
             "tool_name:",
             "arguments:",
         ]
-        has_output_format = sum(
-            1 for p in output_format_patterns if p in query_lower
-        ) >= 2  # At least 2 format markers
+        has_output_format = (
+            sum(1 for p in output_format_patterns if p in query_lower) >= 2
+        )  # At least 2 format markers
 
         # Function call format detection logic:
         # 1. Original: has markers + (schema OR instruction)
@@ -1105,9 +1105,7 @@ class QueryResponseAlignmentScorer:
             "earlier in the conversation:",
         ]
 
-        has_conversation_marker = any(
-            marker in query_lower for marker in multi_turn_markers
-        )
+        has_conversation_marker = any(marker in query_lower for marker in multi_turn_markers)
 
         # Check for turn indicators
         turn_markers = [
@@ -1145,9 +1143,7 @@ class QueryResponseAlignmentScorer:
             "your turn:",
         ]
 
-        has_current_turn = any(
-            marker in query_lower for marker in current_turn_markers
-        )
+        has_current_turn = any(marker in query_lower for marker in current_turn_markers)
 
         # Detect multiple turns even without explicit "current turn" markers
         user_markers = ["user:", "human:", "question:"]

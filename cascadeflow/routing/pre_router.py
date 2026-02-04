@@ -272,9 +272,8 @@ class PreRouter(Router):
         has_tool_prompt = bool(context.get("has_tool_prompt", False))
         if not has_tool_prompt:
             lowered_query = query.lower()
-            has_tool_prompt = (
-                ("tool:" in lowered_query or "parameters:" in lowered_query)
-                and ("tools" in lowered_query or "function" in lowered_query)
+            has_tool_prompt = ("tool:" in lowered_query or "parameters:" in lowered_query) and (
+                "tools" in lowered_query or "function" in lowered_query
             )
         has_multi_turn = bool(context.get("has_multi_turn", False))
 

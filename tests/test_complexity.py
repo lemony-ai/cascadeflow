@@ -117,12 +117,15 @@ class TestComplexityDetector:
     def test_long_technical_query_escalates(self):
         """Test that long queries WITH technical keywords get upgraded properly."""
         # Long prompt with technical terms should escalate
-        query = """
+        query = (
+            """
         We need to implement a production-ready microservices architecture
         with OAuth2 authentication, PostgreSQL database optimization,
         Kubernetes deployment, and comprehensive error handling.
         The system should scale horizontally with load balancing.
-        """ * 3  # ~90 words with many expert keywords
+        """
+            * 3
+        )  # ~90 words with many expert keywords
         complexity, _ = self.detector.detect(query)
         # Should be HARD or EXPERT due to technical keyword density
         assert complexity in [QueryComplexity.HARD, QueryComplexity.EXPERT]

@@ -800,9 +800,7 @@ class ComplexityDetector:
         is_function_call = self._is_function_call_format(query)
         metadata["is_function_call"] = is_function_call
         if is_function_call:
-            self.stats["function_call_detected"] = (
-                self.stats.get("function_call_detected", 0) + 1
-            )
+            self.stats["function_call_detected"] = self.stats.get("function_call_detected", 0) + 1
             logger.debug(f"v14: Function call format detected in query")
 
         # 3. Detect technical terms
@@ -857,9 +855,7 @@ class ComplexityDetector:
         # false positives like "build" matching "building" in stories
         if word_count > 200:
             simple_matches = sum(
-                1
-                for kw in self.SIMPLE_KEYWORDS
-                if re.search(rf"\b{re.escape(kw)}\b", query_lower)
+                1 for kw in self.SIMPLE_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
             )
             moderate_matches = sum(
                 1
@@ -867,21 +863,15 @@ class ComplexityDetector:
                 if re.search(rf"\b{re.escape(kw)}\b", query_lower)
             )
             hard_matches = sum(
-                1
-                for kw in self.HARD_KEYWORDS
-                if re.search(rf"\b{re.escape(kw)}\b", query_lower)
+                1 for kw in self.HARD_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
             )
             expert_matches = sum(
-                1
-                for kw in self.EXPERT_KEYWORDS
-                if re.search(rf"\b{re.escape(kw)}\b", query_lower)
+                1 for kw in self.EXPERT_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
             )
         else:
             # For short prompts, use faster substring matching (original behavior)
             simple_matches = sum(1 for kw in self.SIMPLE_KEYWORDS if kw in query_lower)
-            moderate_matches = sum(
-                1 for kw in self.MODERATE_KEYWORDS if kw in query_lower
-            )
+            moderate_matches = sum(1 for kw in self.MODERATE_KEYWORDS if kw in query_lower)
             hard_matches = sum(1 for kw in self.HARD_KEYWORDS if kw in query_lower)
             expert_matches = sum(1 for kw in self.EXPERT_KEYWORDS if kw in query_lower)
 
@@ -1038,12 +1028,17 @@ class ComplexityDetector:
         # Pattern: DOCUMENT/CONTEXT/TEXT block + QUESTION marker + short question
         is_long_context_qa = self._is_long_context_qa_format(query_lower, word_count)
         metadata["is_long_context_qa"] = is_long_context_qa
-        if is_long_context_qa and final_complexity in [QueryComplexity.HARD, QueryComplexity.EXPERT]:
+        if is_long_context_qa and final_complexity in [
+            QueryComplexity.HARD,
+            QueryComplexity.EXPERT,
+        ]:
             logger.debug(
                 f"v15: Capping {final_complexity.value} → MODERATE for long-context QA format"
             )
             metadata["v15_complexity_capped"] = True
-            metadata["original_complexity"] = metadata.get("original_complexity", final_complexity.value)
+            metadata["original_complexity"] = metadata.get(
+                "original_complexity", final_complexity.value
+            )
             final_complexity = QueryComplexity.MODERATE
             final_confidence = 0.85
 

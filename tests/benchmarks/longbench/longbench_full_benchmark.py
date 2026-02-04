@@ -37,6 +37,7 @@ from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
 # HuggingFace datasets - optional import
 try:
     from datasets import load_dataset
+
     HF_DATASETS_AVAILABLE = True
 except ImportError:
     HF_DATASETS_AVAILABLE = False
@@ -46,6 +47,7 @@ except ImportError:
 @dataclass
 class LongBenchResult:
     """Result for a single long context test."""
+
     task_id: str
     task_type: str
     word_count: int
@@ -72,11 +74,13 @@ Early AI researchers developed programs that could solve algebra word problems, 
 
 The resurgence of AI in the 1990s was driven by several factors: the availability of large amounts of data, increased computational power, and new techniques like machine learning. Deep learning, a subset of machine learning using neural networks with many layers, revolutionized the field starting in 2012 when a deep learning system won the ImageNet competition by a large margin.
 
-""" + """Today, AI is used in a wide variety of applications including speech recognition, image recognition, recommendation systems, autonomous vehicles, medical diagnosis, and scientific research. Large language models like GPT and Claude have demonstrated remarkable capabilities in understanding and generating human language, leading to a new wave of AI applications.
+"""
+        + """Today, AI is used in a wide variety of applications including speech recognition, image recognition, recommendation systems, autonomous vehicles, medical diagnosis, and scientific research. Large language models like GPT and Claude have demonstrated remarkable capabilities in understanding and generating human language, leading to a new wave of AI applications.
 
 The development of AI has raised important ethical questions about privacy, bias, job displacement, and the potential risks of artificial general intelligence. Researchers and policymakers are working to ensure that AI is developed in a way that is safe, beneficial, and aligned with human values.
 
-""" * 10,  # Repeat to make it longer
+"""
+        * 10,  # Repeat to make it longer
         "question": "According to the text, what event is considered the founding of AI research as a field?",
         "expected_answer": "dartmouth",
         "answer_contains": ["dartmouth", "1956", "workshop"],
@@ -89,7 +93,8 @@ Climate change refers to long-term shifts in global temperatures and weather pat
 
 Burning fossil fuels generates greenhouse gas emissions that act like a blanket wrapped around the Earth, trapping the sun's heat and raising temperatures. The main greenhouse gases that are causing climate change include carbon dioxide and methane. These come from using gasoline for driving a car or coal for heating a building, for example. Clearing land and cutting down forests can also release carbon dioxide.
 
-""" + """Agriculture, oil and gas operations are major sources of methane emissions. Energy, industry, transport, buildings, agriculture and land use are among the main sectors causing greenhouse gases.
+"""
+        + """Agriculture, oil and gas operations are major sources of methane emissions. Energy, industry, transport, buildings, agriculture and land use are among the main sectors causing greenhouse gases.
 
 The effects of climate change are already being felt around the world. Rising temperatures are causing more frequent and severe heat waves. Changes in precipitation patterns are leading to more droughts in some areas and more flooding in others. Sea levels are rising due to melting ice sheets and glaciers, threatening coastal communities. Extreme weather events like hurricanes and wildfires are becoming more intense.
 
@@ -97,7 +102,8 @@ Scientists have observed that the Earth's average temperature has increased by a
 
 To address climate change, countries around the world have committed to reducing greenhouse gas emissions. The Paris Agreement, adopted in 2015, aims to limit global warming to 1.5 degrees Celsius above pre-industrial levels. This requires transitioning to renewable energy sources, improving energy efficiency, protecting and restoring forests, and developing new technologies for carbon capture and storage.
 
-""" * 8,
+"""
+        * 8,
         "question": "What is the main goal of the Paris Agreement mentioned in the text?",
         "expected_answer": "1.5 degrees",
         "answer_contains": ["1.5", "limit", "warming"],
@@ -117,7 +123,8 @@ Key growth drivers included:
 
 The company announced a $2 billion share buyback program and increased quarterly dividend by 10% to $0.44 per share.
 
-""" + """
+"""
+        + """
 DOCUMENT 2: MARKET ANALYSIS
 The technology sector continues to outperform broader markets, with cloud computing leading growth. Industry analysts project the global cloud market to reach $1.2 trillion by 2027, growing at a CAGR of 16%.
 
@@ -129,7 +136,8 @@ Key trends shaping the market:
 
 Competition remains intense, with major players investing heavily in data center expansion and AI capabilities.
 
-""" + """
+"""
+        + """
 DOCUMENT 3: PRODUCT ANNOUNCEMENTS
 The company unveiled its next-generation AI platform at the annual developer conference. Key features include:
 - 10x improvement in inference speed
@@ -139,7 +147,8 @@ The company unveiled its next-generation AI platform at the annual developer con
 
 The platform will be generally available in Q1 2025, with early access starting next month. Pricing starts at $0.01 per 1,000 API calls.
 
-""" * 5,
+"""
+        * 5,
         "question": "What was the cloud services revenue growth rate in Q3 2024?",
         "expected_answer": "35%",
         "answer_contains": ["35"],
@@ -155,7 +164,8 @@ Prior to the Industrial Revolution, manufacturing was often done in people's hom
 
 The textile industry was substantially transformed during this period. Before mechanization, textiles were made in homes with the raw materials brought to people's homes and picked up when finished. Initially, this was done by independent artisans who owned their own equipment. However, the development of new technology led to the rise of factories.
 
-""" + """Key inventions that drove the Industrial Revolution included the spinning jenny, the water frame, the power loom, and the steam engine. James Watt's improvements to the steam engine in 1765 made it a practical source of power for factories and transportation.
+"""
+        + """Key inventions that drove the Industrial Revolution included the spinning jenny, the water frame, the power loom, and the steam engine. James Watt's improvements to the steam engine in 1765 made it a practical source of power for factories and transportation.
 
 The steam engine enabled the development of railways and steamships, dramatically reducing travel times and enabling the movement of goods and people over long distances. The first public railway, the Stockton and Darlington Railway, opened in 1825 in England.
 
@@ -165,7 +175,8 @@ Working conditions in early factories were often dangerous and unhealthy. Worker
 
 The Industrial Revolution transformed society in fundamental ways. It changed how people lived, worked, and related to each other. It led to the growth of the middle class, increased literacy, and new forms of entertainment and culture.
 
-""" * 6,
+"""
+        * 6,
         "question": "Summarize the main impacts of the Industrial Revolution in 2-3 sentences.",
         "expected_answer": "transformation",
         "answer_contains": ["factory", "urban", "transform"],
@@ -290,7 +301,8 @@ def validate_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
 ```
-""" * 3,
+"""
+        * 3,
         "question": "What happens when a user exceeds the maximum number of failed login attempts according to this code?",
         "expected_answer": "locked",
         "answer_contains": ["lock", "30 minute", "locked_until"],
@@ -311,7 +323,8 @@ Key Components:
 - Query Engine: Supports SQL-like queries with distributed execution plans
 - Cache Layer: In-memory caching with LRU eviction policy
 
-""" + """
+"""
+        + """
 SECTION 2: DATA MODEL
 The system supports multiple data models including relational tables, document stores, and key-value pairs. Data is automatically sharded across nodes based on a consistent hashing algorithm.
 
@@ -321,7 +334,8 @@ Schema Management:
 - Foreign key constraints are enforced at the application level
 - Column families group related columns for efficient storage
 
-""" + """
+"""
+        + """
 SECTION 3: REPLICATION AND CONSISTENCY
 Data is replicated across multiple nodes using synchronous and asynchronous replication modes.
 
@@ -332,7 +346,8 @@ Consistency Levels:
 
 The default consistency level is QUORUM, which provides a good balance between consistency and availability.
 
-""" * 15,  # Make it very long
+"""
+        * 15,  # Make it very long
         "question": "What is the default consistency level in this database system?",
         "expected_answer": "QUORUM",
         "answer_contains": ["QUORUM", "quorum"],
@@ -342,10 +357,11 @@ The default consistency level is QUORUM, which provides a good balance between c
 # Add more padded versions for super-long tests
 for i in range(5):
     base_padding = "This is additional context to test long document handling capabilities. " * 200
-    LONGBENCH_TASKS.append({
-        "task_id": f"padded_simple_{i}",
-        "task_type": "padded_simple",
-        "context": f"""
+    LONGBENCH_TASKS.append(
+        {
+            "task_id": f"padded_simple_{i}",
+            "task_type": "padded_simple",
+            "context": f"""
 {base_padding}
 
 Here is the actual information you need:
@@ -353,10 +369,11 @@ The capital of France is Paris. Paris is known as the City of Light.
 
 {base_padding}
 """,
-        "question": "What is the capital of France?",
-        "expected_answer": "Paris",
-        "answer_contains": ["paris"],
-    })
+            "question": "What is the capital of France?",
+            "expected_answer": "Paris",
+            "answer_contains": ["paris"],
+        }
+    )
 
 
 # HuggingFace LongBench dataset subsets
@@ -445,18 +462,22 @@ def load_huggingface_longbench(
                 if not contains or not contains[0]:
                     continue
 
-                tasks.append({
-                    "task_id": f"hf_{subset}_{i}",
-                    "task_type": task_type,
-                    "context": context,
-                    "question": question,
-                    "expected_answer": expected,
-                    "answer_contains": contains,
-                    "source": "huggingface",
-                    "subset": subset,
-                })
+                tasks.append(
+                    {
+                        "task_id": f"hf_{subset}_{i}",
+                        "task_type": task_type,
+                        "context": context,
+                        "question": question,
+                        "expected_answer": expected,
+                        "answer_contains": contains,
+                        "source": "huggingface",
+                        "subset": subset,
+                    }
+                )
 
-            print(f"  Loaded {len([t for t in tasks if t.get('subset') == subset])} tasks from {subset}")
+            print(
+                f"  Loaded {len([t for t in tasks if t.get('subset') == subset])} tasks from {subset}"
+            )
 
         except Exception as e:
             print(f"Warning: Failed to load {subset}: {e}")
@@ -653,14 +674,18 @@ Provide a clear, direct answer based only on the information in the document."""
         for task_type, data in by_type.items():
             type_acc = data["correct"] / data["total"] if data["total"] > 0 else 0
             avg_words = data["words"] // data["total"] if data["total"] > 0 else 0
-            print(f"  {task_type:20} {type_acc:.1%} ({data['correct']}/{data['total']}) | ~{avg_words:,} words")
+            print(
+                f"  {task_type:20} {type_acc:.1%} ({data['correct']}/{data['total']}) | ~{avg_words:,} words"
+            )
 
         print("\nBy Document Length:")
         for bucket, results in buckets.items():
             if results:
                 bucket_acc = sum(1 for r in results if r.correct) / len(results)
                 bucket_draft = sum(1 for r in results if r.draft_accepted) / len(results)
-                print(f"  {bucket:8} {bucket_acc:.1%} acc | {bucket_draft:.1%} draft | {len(results)} tasks")
+                print(
+                    f"  {bucket:8} {bucket_acc:.1%} acc | {bucket_draft:.1%} draft | {len(results)} tasks"
+                )
 
         print("=" * 70)
 
@@ -728,27 +753,31 @@ async def main():
 
     results_file = "results_hf.json" if args.hf else "results.json"
     with open(output_dir / results_file, "w") as f:
-        json.dump({
-            "config": {
-                "drafter": args.drafter,
-                "verifier": args.verifier,
-                "data_source": data_source,
+        json.dump(
+            {
+                "config": {
+                    "drafter": args.drafter,
+                    "verifier": args.verifier,
+                    "data_source": data_source,
+                },
+                "metrics": results,
+                "results": [
+                    {
+                        "task_id": r.task_id,
+                        "task_type": r.task_type,
+                        "word_count": r.word_count,
+                        "correct": r.correct,
+                        "draft_accepted": r.draft_accepted,
+                        "cost": r.cost,
+                        "latency_ms": r.latency_ms,
+                        "complexity": r.complexity,
+                    }
+                    for r in benchmark.results
+                ],
             },
-            "metrics": results,
-            "results": [
-                {
-                    "task_id": r.task_id,
-                    "task_type": r.task_type,
-                    "word_count": r.word_count,
-                    "correct": r.correct,
-                    "draft_accepted": r.draft_accepted,
-                    "cost": r.cost,
-                    "latency_ms": r.latency_ms,
-                    "complexity": r.complexity,
-                }
-                for r in benchmark.results
-            ],
-        }, f, indent=2)
+            f,
+            indent=2,
+        )
 
     print(f"\nResults saved to: {output_dir}/{results_file}")
 

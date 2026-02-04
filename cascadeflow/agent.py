@@ -859,9 +859,7 @@ class CascadeAgent:
                 if tool_drafter or tool_verifier:
                     d_name = tool_drafter.name if tool_drafter else "default"
                     v_name = tool_verifier.name if tool_verifier else "default"
-                    logger.info(
-                        f"Domain tool models: drafter={d_name}, verifier={v_name}"
-                    )
+                    logger.info(f"Domain tool models: drafter={d_name}, verifier={v_name}")
 
         # 🆕 v19: Tool Complexity Routing - Analyze tool call complexity
         tool_complexity_strategy = None
@@ -958,11 +956,7 @@ class CascadeAgent:
         # 🆕 v19: Tool Complexity Routing Override
         # For tool calls, tool complexity takes precedence over text complexity
         # This enables: simple tool calls → cascade, complex tool calls → direct
-        if (
-            tools
-            and tool_complexity_decision is not None
-            and self.enable_tool_complexity_routing
-        ):
+        if tools and tool_complexity_decision is not None and self.enable_tool_complexity_routing:
             # TOOL_CASCADE means simple tool call → allow cascade (cheap model can handle)
             # TOOL_DIRECT_LARGE means complex tool call → force direct (need better model)
             if tool_complexity_decision == ToolRoutingDecision.TOOL_CASCADE:
@@ -1946,9 +1940,7 @@ class CascadeAgent:
                     for key in ("drafter_cost", "draft_cost", "verifier_cost", "cost_saved")
                 ):
                     metadata_costs = {
-                        "draft_cost": metadata.get(
-                            "drafter_cost", metadata.get("draft_cost", 0.0)
-                        ),
+                        "draft_cost": metadata.get("drafter_cost", metadata.get("draft_cost", 0.0)),
                         "verifier_cost": metadata.get("verifier_cost", 0.0),
                         "total_cost": metadata.get("total_cost", spec_result.total_cost),
                         "cost_saved": metadata.get("cost_saved", 0.0),
@@ -1963,11 +1955,7 @@ class CascadeAgent:
                 total_cost = cost_breakdown.total_cost  # ✅ PROPERLY AGGREGATED!
                 cost_saved = cost_breakdown.cost_saved
 
-                if (
-                    metadata_costs
-                    and total_cost == 0.0
-                    and metadata_costs["total_cost"] > 0.0
-                ):
+                if metadata_costs and total_cost == 0.0 and metadata_costs["total_cost"] > 0.0:
                     draft_cost = metadata_costs["draft_cost"]
                     verifier_cost = metadata_costs["verifier_cost"]
                     total_cost = metadata_costs["total_cost"]

@@ -130,11 +130,7 @@ class HumanEvalBenchmark(Benchmark):
                 url = "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl"
                 with urllib.request.urlopen(url, timeout=30) as response:
                     payload = response.read().decode("utf-8")
-                full_problems = [
-                    json.loads(line)
-                    for line in payload.splitlines()
-                    if line.strip()
-                ]
+                full_problems = [json.loads(line) for line in payload.splitlines() if line.strip()]
                 return [(p["prompt"], p) for p in full_problems]
             except Exception as exc:
                 print(f"  Warning: Failed to download full HumanEval dataset: {exc}")

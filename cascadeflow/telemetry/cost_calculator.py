@@ -306,9 +306,7 @@ class CostCalculator:
         """
         draft_total_tokens = draft_prompt_tokens + draft_completion_tokens
         verifier_total_tokens = (
-            0
-            if draft_accepted
-            else verifier_prompt_tokens + verifier_completion_tokens
+            0 if draft_accepted else verifier_prompt_tokens + verifier_completion_tokens
         )
 
         draft_cost = self._calculate_model_cost(

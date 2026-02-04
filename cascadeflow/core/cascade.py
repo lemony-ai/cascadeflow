@@ -560,9 +560,7 @@ class WholeResponseCascade:
         overall_start = time.time()
 
         normalized_messages = normalize_messages(messages) if messages else None
-        query_text = (
-            messages_to_prompt(normalized_messages) if normalized_messages else query
-        )
+        query_text = messages_to_prompt(normalized_messages) if normalized_messages else query
 
         # === ROUTE: TEXT PATH vs TOOL PATH ===
         has_tools = tools is not None and len(tools) > 0
@@ -1076,9 +1074,7 @@ class WholeResponseCascade:
                     f"Draft confidence {raw_draft_confidence:.2f} < 0.75, starting verifier"
                 )
             verifier_task = asyncio.create_task(
-                self._call_verifier(
-                    query, max_tokens, temperature, tools=None, messages=messages
-                )
+                self._call_verifier(query, max_tokens, temperature, tools=None, messages=messages)
             )
         else:
             verifier_task = None
@@ -1637,9 +1633,9 @@ class WholeResponseCascade:
 
         return SpeculativeResult(
             content=content,
-            model_used=self.drafter.name
-            if draft_accepted
-            else f"{self.drafter.name}+{self.verifier.name}",
+            model_used=(
+                self.drafter.name if draft_accepted else f"{self.drafter.name}+{self.verifier.name}"
+            ),
             drafter_model=self.drafter.name,
             verifier_model=self.verifier.name,
             draft_accepted=draft_accepted,

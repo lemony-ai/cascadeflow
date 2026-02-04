@@ -53,18 +53,11 @@ function normalizeUsage(usage?: {
   input_tokens?: number;
   output_tokens?: number;
 }): UsageMetrics {
-  const promptTokens =
-    'prompt_tokens' in (usage ?? {})
-      ? usage?.prompt_tokens ?? 0
-      : usage?.input_tokens ?? 0;
-  const completionTokens =
-    'completion_tokens' in (usage ?? {})
-      ? usage?.completion_tokens ?? 0
-      : usage?.output_tokens ?? 0;
-  const totalTokens =
-    'total_tokens' in (usage ?? {})
-      ? usage?.total_tokens ?? promptTokens + completionTokens
-      : promptTokens + completionTokens;
+  // Use type assertion to handle union type access
+  const u = usage as Record<string, number | undefined> | undefined;
+  const promptTokens = u?.prompt_tokens ?? u?.input_tokens ?? 0;
+  const completionTokens = u?.completion_tokens ?? u?.output_tokens ?? 0;
+  const totalTokens = u?.total_tokens ?? promptTokens + completionTokens;
 
   return { promptTokens, completionTokens, totalTokens };
 }

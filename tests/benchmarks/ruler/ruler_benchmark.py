@@ -86,9 +86,11 @@ def insert_needle_at_position(haystack: str, needle: str, position: float) -> st
 # TEST CASE GENERATION
 # ============================================================================
 
+
 @dataclass
 class RulerTestCase:
     """A RULER benchmark test case."""
+
     task_id: str
     task_type: str  # single_niah, multi_niah, multi_query, multi_key
     context: str
@@ -117,7 +119,7 @@ def generate_single_niah(context_length: int, position: float = 0.5) -> RulerTes
         expected_answer=str(secret_number),
         context_length=len(context.split()),
         needle_position=position,
-        metadata={"secret_number": secret_number}
+        metadata={"secret_number": secret_number},
     )
 
 
@@ -147,7 +149,11 @@ def generate_multi_niah(context_length: int, num_needles: int = 3) -> RulerTestC
         pos = (i + 1) / (num_needles + 1)
         context = insert_needle_at_position(context, needle, pos)
 
-    question = "List all the specific facts mentioned in the text. What are: " + ", ".join([k for k, v in selected]) + "?"
+    question = (
+        "List all the specific facts mentioned in the text. What are: "
+        + ", ".join([k for k, v in selected])
+        + "?"
+    )
     expected = ", ".join([f"{k}: {v}" for k, v in selected])
 
     return RulerTestCase(
@@ -158,18 +164,20 @@ def generate_multi_niah(context_length: int, num_needles: int = 3) -> RulerTestC
         expected_answer=expected,
         context_length=len(context.split()),
         needle_position=0.5,
-        metadata={"answers": answers, "num_needles": num_needles}
+        metadata={"answers": answers, "num_needles": num_needles},
     )
 
 
 def generate_multi_key(context_length: int, num_keys: int = 4) -> RulerTestCase:
     """Generate a Multi-Key NIAH test case with key-value pairs to track."""
-    keys = ["Project Alpha", "Operation Beta", "Initiative Gamma", "Program Delta", "Task Epsilon"][:num_keys]
+    keys = ["Project Alpha", "Operation Beta", "Initiative Gamma", "Program Delta", "Task Epsilon"][
+        :num_keys
+    ]
     values = {}
     needles = []
 
     for key in keys:
-        code = ''.join(random.choices(string.ascii_uppercase, k=4))
+        code = "".join(random.choices(string.ascii_uppercase, k=4))
         values[key] = code
         needles.append(f"ACCESS CODE: {key} requires code {code}.")
 
@@ -191,7 +199,7 @@ def generate_multi_key(context_length: int, num_keys: int = 4) -> RulerTestCase:
         expected_answer=values[query_key],
         context_length=len(context.split()),
         needle_position=0.5,
-        metadata={"all_values": values, "query_key": query_key}
+        metadata={"all_values": values, "query_key": query_key},
     )
 
 
@@ -216,6 +224,7 @@ def generate_test_suite(context_lengths: list[int]) -> list[RulerTestCase]:
 # ============================================================================
 # EVALUATION
 # ============================================================================
+
 
 def evaluate_response(test_case: RulerTestCase, response: str) -> bool:
     """Check if the response contains the expected answer."""
@@ -242,10 +251,9 @@ def evaluate_response(test_case: RulerTestCase, response: str) -> bool:
 # BENCHMARK RUNNER
 # ============================================================================
 
+
 async def run_test_case(
-    agent: CascadeAgent,
-    test_case: RulerTestCase,
-    verbose: bool = False
+    agent: CascadeAgent, test_case: RulerTestCase, verbose: bool = False
 ) -> dict[str, Any]:
     """Run a single test case and return results."""
     start_time = time.time()
@@ -292,10 +300,7 @@ Answer the question based only on the information provided in the document above
 
 
 async def run_benchmark(
-    config: dict = None,
-    sample_size: int = None,
-    full: bool = False,
-    verbose: bool = False
+    config: dict = None, sample_size: int = None, full: bool = False, verbose: bool = False
 ) -> dict[str, Any]:
     """Run the RULER benchmark."""
     config = config or DEFAULT_CONFIG
@@ -379,7 +384,11 @@ async def run_benchmark(
         by_length[bucket]["draft_accepted"] += 1 if r.get("draft_accepted") else 0
 
     # By needle position
-    by_position = {"start": {"correct": 0, "total": 0}, "middle": {"correct": 0, "total": 0}, "end": {"correct": 0, "total": 0}}
+    by_position = {
+        "start": {"correct": 0, "total": 0},
+        "middle": {"correct": 0, "total": 0},
+        "end": {"correct": 0, "total": 0},
+    }
     for r in results:
         pos = r.get("needle_position", 0.5)
         if pos < 0.3:
@@ -433,8 +442,10 @@ async def run_benchmark(
             "draft_acceptance": drafts_accepted / total,
             "total_cost": total_cost,
         },
-        "by_type": {t: {"accuracy": s["correct"]/s["total"], **s} for t, s in by_type.items()},
-        "by_length": {l: {"accuracy": s["correct"]/s["total"], **s} for l, s in by_length.items()},
+        "by_type": {t: {"accuracy": s["correct"] / s["total"], **s} for t, s in by_type.items()},
+        "by_length": {
+            l: {"accuracy": s["correct"] / s["total"], **s} for l, s in by_length.items()
+        },
         "results": results,
     }
 
@@ -450,6 +461,7 @@ async def run_benchmark(
 # MAIN
 # ============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="RULER-style Long Context Benchmark")
     parser.add_argument("--sample", type=int, help="Run with N samples")
@@ -457,11 +469,7 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     args = parser.parse_args()
 
-    asyncio.run(run_benchmark(
-        sample_size=args.sample,
-        full=args.full,
-        verbose=args.verbose
-    ))
+    asyncio.run(run_benchmark(sample_size=args.sample, full=args.full, verbose=args.verbose))
 
 
 if __name__ == "__main__":

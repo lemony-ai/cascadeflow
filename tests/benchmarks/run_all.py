@@ -64,9 +64,7 @@ async def run_all_benchmarks(
         print("Running HumanEval Code Generation Benchmark...")
         from .humaneval import run_humaneval_benchmark
 
-        humaneval_summary = await run_humaneval_benchmark(
-            max_samples=None if full else 10
-        )
+        humaneval_summary = await run_humaneval_benchmark(max_samples=None if full else 10)
         results["humaneval"] = humaneval_summary
         print("✅ HumanEval benchmark completed\n")
     except Exception as e:
@@ -102,9 +100,7 @@ async def run_all_benchmarks(
         print("Running TruthfulQA Factual Accuracy Benchmark...")
         from .truthfulqa import run_truthfulqa_benchmark
 
-        truthfulqa_summary = await run_truthfulqa_benchmark(
-            max_samples=None if full else 15
-        )
+        truthfulqa_summary = await run_truthfulqa_benchmark(max_samples=None if full else 15)
         results["truthfulqa"] = truthfulqa_summary
         print("✅ TruthfulQA benchmark completed\n")
     except Exception as e:
@@ -130,9 +126,7 @@ async def run_all_benchmarks(
         print("Running Customer Support Benchmark...")
         from .customer_support import run_customer_support_benchmark
 
-        customer_summary = await run_customer_support_benchmark(
-            max_samples=None if full else 20
-        )
+        customer_summary = await run_customer_support_benchmark(max_samples=None if full else 20)
         results["customer_support"] = customer_summary
         print("✅ Customer support benchmark completed\n")
     except Exception as e:
@@ -201,12 +195,8 @@ def generate_comparison_table(results: dict[str, Any]) -> str:
     table += f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
     table += "## Summary Statistics\n\n"
-    table += (
-        "| Benchmark | Accuracy | Acceptance Rate | Avg Savings | Drafter Accuracy | Avg Latency |\n"
-    )
-    table += (
-        "|-----------|----------|-----------------|-------------|------------------|-------------|\n"
-    )
+    table += "| Benchmark | Accuracy | Acceptance Rate | Avg Savings | Drafter Accuracy | Avg Latency |\n"
+    table += "|-----------|----------|-----------------|-------------|------------------|-------------|\n"
 
     for name, summary in results.items():
         if summary is None or name == "provider_comparison" or not hasattr(summary, "total_tests"):
@@ -240,7 +230,9 @@ def generate_comparison_table(results: dict[str, Any]) -> str:
         table += "\n## Agentic Tool-Calling Summary\n\n"
         table += f"- **Total Tasks:** {agentic_summary.get('total_tasks', 0)}\n"
         table += f"- **Accuracy:** {agentic_summary.get('accuracy', 0) * 100:.1f}%\n"
-        table += f"- **Draft Acceptance:** {agentic_summary.get('draft_acceptance', 0) * 100:.1f}%\n"
+        table += (
+            f"- **Draft Acceptance:** {agentic_summary.get('draft_acceptance', 0) * 100:.1f}%\n"
+        )
         table += f"- **Dependency Handling:** {agentic_summary.get('dependency_handling', 0) * 100:.1f}%\n"
         table += f"- **Total Cost:** ${agentic_summary.get('total_cost', 0):.6f}\n"
 
@@ -265,7 +257,9 @@ def generate_comparison_table(results: dict[str, Any]) -> str:
 
     # Calculate aggregate statistics
     valid_results = [
-        r for r in results.values() if r is not None and r != "completed" and hasattr(r, "total_tests")
+        r
+        for r in results.values()
+        if r is not None and r != "completed" and hasattr(r, "total_tests")
     ]
 
     if valid_results:
