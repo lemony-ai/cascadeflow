@@ -1,7 +1,7 @@
 """
 Tests for Domain Detection System (Phase 3.2)
 
-This module tests the 15-domain detection system including:
+This module tests the 17-domain detection system including:
 - Domain detection accuracy for each domain
 - Multi-domain query handling
 - Confidence thresholds
@@ -118,6 +118,22 @@ def test_detect_creative_domain(detector):
     )
 
     assert domain == Domain.CREATIVE
+
+
+def test_detect_comparison_domain(detector):
+    """Test COMPARISON domain detection."""
+    domain, confidence = detector.detect("Compare cats vs dogs and list pros and cons")
+
+    assert domain == Domain.COMPARISON
+    assert confidence > 0.5
+
+
+def test_detect_factual_domain(detector):
+    """Test FACTUAL domain detection."""
+    domain, confidence = detector.detect("Fact check this claim and verify with sources")
+
+    assert domain == Domain.FACTUAL
+    assert confidence > 0.4
     assert confidence > 0.6
 
 

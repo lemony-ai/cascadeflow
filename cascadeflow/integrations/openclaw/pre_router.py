@@ -24,6 +24,8 @@ CATEGORY_TO_DOMAIN = {
     "image_understanding": "multimodal",
     "brain": "general",
     "cron": "general",
+    "comparison": "comparison",
+    "factual": "factual",
 }
 
 HEARTBEAT_METHODS = {
