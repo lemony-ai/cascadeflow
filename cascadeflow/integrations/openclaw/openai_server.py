@@ -161,8 +161,18 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if not domain_hint and cascadeflow_tags.get("category"):
             domain_hint = CATEGORY_TO_DOMAIN.get(cascadeflow_tags.get("category"))
 
+        channel = metadata.get("channel") or payload.get("channel")
+        if not channel and cascadeflow_tags.get("category"):
+            channel = cascadeflow_tags.get("category")
+
         if cascadeflow_tags:
-            self.log_message("Cascadeflow tags: %s", cascadeflow_tags)
+            self.log_message(
+                "Cascadeflow tags=%s channel=%s profile=%s domain=%s",
+                cascadeflow_tags,
+                channel,
+                cascadeflow_tags.get("profile"),
+                domain_hint,
+            )
 
         domain_confidence_hint = (
             routing_decision.hint.confidence
@@ -179,9 +189,6 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             kpi_flags["profile"] = cascadeflow_tags.get("profile")
 
         tenant_id = metadata.get("tenant_id") or payload.get("tenant_id")
-        channel = metadata.get("channel") or payload.get("channel")
-        if not channel and cascadeflow_tags.get("category"):
-            channel = cascadeflow_tags.get("category")
 
         # Profile inference from model id (optional)
         if "quality" in model:
