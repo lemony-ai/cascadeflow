@@ -1,165 +1,152 @@
-# OpenClaw Integration Strategy (Planning)
+# OpenClaw Integration Strategy (Plan)
 
-## Scope & Assumptions
-- This document is a **planning-only** proposal. It does not implement code changes.
-- OpenClaw internals are not yet available in this repo; the plan below includes discovery steps and placeholders to be validated once OpenClaw docs/source are provided.
-- The integration should preserve OpenClaw’s existing UX while enabling cascadeflow’s cost-optimized routing.
+## Goals
+- **Winning DX:** fastest possible onboarding for OpenClaw users with minimal config.
+- **Winning UX:** clear savings and latency improvements with zero surprises.
+- **Lean core:** OpenClaw integration remains optional and isolated from default Cascadeflow flow.
+- **Low overhead:** pre-routing decisions must add minimal latency.
 
-## OpenClaw Architecture Understanding (Hypothesis + Discovery)
-Because OpenClaw documentation isn’t present in this repository, treat the following as a working model and confirm during discovery:
+## Non-Goals (v1)
+- No cost caps or budget enforcement at launch.
+- No breaking changes to existing Cascadeflow routing APIs.
 
-1. **Skill model**
-   - Skills are likely organized as a directory with a `SKILL.md` manifest plus supporting code and assets.
-   - Skills are probably loaded dynamically and expose a standardized entrypoint that OpenClaw can invoke (similar to a plugin/extension model).
+## Design Principles
+- **One-minute start:** set `drafter` + `verifier` and it works.
+- **Progressive disclosure:** domain/channel routing is opt-in and additive.
+- **Deterministic where possible:** predictable OpenClaw-native routes pre-routed.
+- **Dynamic where needed:** Cascadeflow domain/complexity routing handles the rest.
+- **Separation of concerns:** OpenClaw integration stays in its own module + skill.
 
-2. **LLM invocation pipeline**
-   - OpenClaw likely supports multiple providers and exposes a provider registry plus model-selection configuration.
-   - LLM calls probably flow through a centralized client where routing logic and telemetry (usage/cost) can be added.
+## Integration Choice (OpenClaw-side)
+**Recommended:** Cascadeflow provider + optional OpenClaw skill (hybrid).
+- Provider handles all OpenClaw LLM calls via Cascadeflow.
+- Skill provides explicit tagging and quick UI enablement for domain channels.
 
-3. **Configuration patterns**
-   - Expect config to include provider credentials, default model, and per-skill overrides.
-   - A centralized config file or environment-variable-based system is likely used.
+## Architecture Overview
 
-**Discovery checklist** (to perform when OpenClaw repo/docs are available):
-- Locate OpenClaw skill spec and example skills.
-- Identify model/provider configuration files and how overrides work.
-- Find the LLM client abstraction and any telemetry/usage tracking hooks.
+### 1) OpenClaw Pre-Router (Opt-in)
+**Purpose:** ultra-low-latency routing for predictable OpenClaw-native events.
+- Uses method/payload hints only (no extra model call).
+- Applies when OpenClaw integration is enabled.
+- Explicit tags from the OpenClaw skill always override classifier decisions.
 
-## Integration Approaches (Comparison)
+### 2) Cascadeflow Rule Engine (Replaces policy)
+**Purpose:** centralized routing rules for tiers, KPIs, and domain-aware routing.
+- Replaces policy feature; no legacy policy code retained.
+- Centralizes: user tiers, profiles, budgets/limits (future), domain routing, KPI gates.
+- Rules are backward compatible with existing config keys.
 
-### A) OpenClaw Skill that wraps cascadeflow
-**Concept:** Build an OpenClaw skill that exposes cascadeflow as a callable tool. The skill invokes cascadeflow to decide the best model/provider per request.
+### 3) Cascadeflow Core Routing
+**Purpose:** handle dynamic or ambiguous requests.
+- Domain detection, tool complexity, cascade verification, and fallback logic.
 
-**Pros**
-- Minimal changes to OpenClaw core.
-- Optional/opt-in per skill or per workflow.
+## OpenClaw User Flow (Winning DX)
+1) **Install Cascadeflow provider** in OpenClaw.
+2) **Set two models:** `drafter` + `verifier`.
+3) Optional: add `failover` channel.
+4) Optional: add OpenClaw-native or Cascadeflow domain channels when ready.
 
-**Cons**
-- Only affects calls that explicitly use the skill.
-- Harder to enforce global cost optimization.
+The default path always works with only `drafter` + `verifier`.
 
-**Best for:** Trial rollouts, targeted use cases, manual invocation.
+## Channel Model Setup (Cascadeflow-side)
+**Required**
+- `drafter` (fast/cheap)
+- `verifier` (quality)
 
-### B) cascadeflow as a proxy for OpenClaw LLM calls
-**Concept:** Configure OpenClaw’s LLM client to route all model calls through cascadeflow (as a service or local library). cascadeflow handles provider selection and cost logic globally.
+**Optional**
+- `failover` (backup provider/model)
+  - If not set: fallback = `drafter`, then `verifier`
 
-**Pros**
-- Maximum coverage: all LLM usage benefits from optimization.
-- Centralized telemetry and savings reporting.
+**Optional OpenClaw-native channels (opt-in)**
+- `heartbeat`, `voice`, `image_understanding`, `web_search`, `brain`, `coding`, `content`
 
-**Cons**
-- Requires deeper integration in OpenClaw’s core LLM layer.
-- Higher operational complexity (service availability, latency).
+**Optional Cascadeflow domains (opt-in)**
+- `code`, `data`, `structured`, `rag`, `conversation`, `tool`, `creative`, `summary`,
+  `translation`, `math`, `medical`, `legal`, `financial`, `multimodal`, `general`
 
-**Best for:** Organization-wide cost control, consistent performance.
+## Routing Rules (Source of Truth)
+### OpenClaw-native routes
+- **Explicit tags:** from OpenClaw skill.
+- **Classifier:** pre-router uses method/payload hints (no model call).
+- **If no match:** cascadeflow domain/complexity routing.
 
-### C) Hybrid: Skill + Proxy
-**Concept:** Default to proxy routing for most calls, but also ship a skill for manual overrides and A/B testing.
+### Cascadeflow domains
+- **Auto-detected** by Cascadeflow domain routing.
+- Explicit tags are optional and only needed to force a specific domain.
 
-**Pros**
-- Flexible rollout; allows fast experimentation.
-- Provides fallback for workflows that need explicit control.
+## Rule Engine v1
+**Inputs**
+- Domain + confidence
+- Complexity + tool call profile
+- User tier / profile / KPI flags
+- OpenClaw tags (if present)
 
-**Cons**
-- More moving parts and documentation burden.
+**Outputs**
+- `routing_strategy`: `direct`, `cascade`, or `cascade_if_low_confidence`
+- `preferred_channel`: optional channel override
+- `reason`: decision trace for debugging
 
-**Recommended:** Start with **B** for global savings, add **A** for manual control and experimentation.
+**Migration Targets**
+- Move user tiers + profile selection into Rule Engine.
+- Move domain routing decision logic into Rule Engine.
+- Keep actual domain detection and model selection in core routing.
 
-## What the Skill Should Provide
-If implementing the skill (A or C), recommended capabilities:
+## Savings/Accuracy Targets (Acceptance Criteria)
+For any OpenClaw use case with routing enabled:
+- **Savings target:** >= 60%
+- **Accuracy target:** >= 90%
 
-1. **Manual cascade triggering**
-   - Let users explicitly send a prompt through cascadeflow.
+If unmet:
+- Investigate, engineer, and propose a validated solution before launch.
 
-2. **Cost optimization toggle**
-   - Enable/disable cascade routing per request or per skill.
+## OpenClaw Skill (First-touch DX)
+**Purpose:** fastest setup, explicit tags, and optional domain/channel routing.
+- Provide guidance for quickstart and optional domain routes.
+- Provide explicit tags for OpenClaw-native routes.
+- Explain how to enable the OpenClaw pre-router classifier.
+- Keep skill doc lean and aligned with OpenClaw docs format.
 
-3. **Telemetry + dashboard hooks**
-   - Emit metrics (model chosen, cost estimate, latency) to OpenClaw’s telemetry system.
+## DX Risks & Mitigations
+- **Too many surfaces (tiers/profiles/rules):**
+  - Mitigation: a single quickstart path and progressive disclosure.
+- **Ambiguous domain tags:**
+  - Mitigation: explicit tag guidance + classifier overrides.
 
-4. **Policy helpers**
-   - Accept quality thresholds or “safety bars” that cascadeflow uses when selecting models.
+## Implementation Plan
 
-## Configuration Schema Proposal
-**Goal:** Let OpenClaw users specify cascadeflow policies globally and per use case.
+### Phase 0 — Discovery
+- Confirm OpenClaw protocol schema and event taxonomy.
+- Validate where skill tagging hooks exist.
+- Confirm OpenClaw “browser” behavior (content fetch vs. analysis).
 
-```yaml
-openclaw:
-  llm:
-    provider: cascadeflow
-    cascadeflow:
-      endpoint: "http://localhost:8080"
-      api_key: "${CASCADEFLOW_API_KEY}"
-      default_policy: "balanced"
-      policies:
-        high_accuracy:
-          quality_threshold: 0.9
-          max_cost_per_1k_tokens_usd: 0.15
-          fallback_models: ["gpt-4.1", "claude-3.5"]
-        low_cost:
-          quality_threshold: 0.7
-          max_cost_per_1k_tokens_usd: 0.02
-          fallback_models: ["gpt-4o-mini", "claude-3-haiku"]
+#### Discovery findings (2026-02-04)
+- **Protocol source of truth:** TypeBox schemas live in `src/gateway/protocol/schema.ts`; AJV validators in `src/gateway/protocol/index.ts`; server methods in `src/gateway/server.ts`. The generated JSON Schema is `dist/protocol.schema.json`; docs note the raw schema is usually published at `raw.githubusercontent.com/openclaw/openclaw/main/dist/protocol.schema.json` (verify availability). citeturn3view0turn8search1
+- **Gateway frames:** Request/response/event frames are the canonical transport shape; connect is the first request. citeturn2view0
+- **Skills + ClawHub:** Skills are folders with `SKILL.md` (plus supporting files), loaded from `<workspace>/skills` and `~/.openclaw/skills` with workspace precedence. ClawHub is the public registry; CLI installs into `./skills` by default. citeturn0search0turn0search1
+- **Browser behavior:** The OpenClaw browser is an agent‑controlled, isolated Chromium profile with deterministic tab control, snapshots/screenshots, and action execution. Internally it uses CDP and Playwright for advanced actions. This is more than content fetch; treat browser workloads as potentially complex unless a deterministic fetch‑only path is confirmed. citeturn6search0
 
-skills:
-  summarize:
-    cascadeflow_policy: "low_cost"
-  code_review:
-    cascadeflow_policy: "high_accuracy"
-```
+### Phase 1 — Rule Engine v1
+- Add RuleEngine + RuleDecision types.
+- Migrate tiers/profiles/domain routing decisions to RuleEngine.
+- Keep backwards compatibility with existing config.
 
-**Notes:**
-- The schema should align with OpenClaw’s existing config conventions once known.
-- Policies should be reusable and override-able per skill or workflow.
+### Phase 2 — OpenClaw Pre-Router
+- Implement method/payload-based classifier.
+- Respect explicit tags from OpenClaw skill.
+- Provide opt-in config to enable/disable classifier.
 
-## Usage Examples
+### Phase 3 — Provider + Skill
+- **No OpenClaw code changes required**: users configure a custom provider in OpenClaw
+  to route LLM calls to Cascadeflow.
+- OpenClaw skill for explicit tags and guidance.
+- Failover channel support and docs.
 
-### 1) Global proxy
-- All OpenClaw LLM calls are routed through cascadeflow.
-- Default policy is `balanced`, with opt-in overrides per skill.
+### Phase 4 — Validation
+- E2E OpenClaw tests (latency, savings, accuracy).
+- Must meet acceptance criteria; if not, block launch and iterate.
 
-### 2) Manual skill invocation
-- A user calls the “cascadeflow” skill explicitly.
-- The skill returns the model decision and cost estimate along with the response.
-
-### 3) A/B testing
-- Use a feature flag to route a percentage of calls through cascadeflow.
-- Compare cost and quality metrics vs. baseline.
-
-## Implementation Roadmap
-
-### Phase 0 — Discovery (1–2 days)
-- Read OpenClaw skill and LLM client docs/source.
-- Identify config entry points and telemetry hooks.
-- Confirm how provider selection is currently done.
-
-### Phase 1 — Minimal proxy (3–5 days)
-- Implement a cascadeflow provider adapter in OpenClaw’s LLM layer.
-- Route all calls through cascadeflow with a default policy.
-- Emit basic metrics (model chosen, cost estimate, latency).
-
-### Phase 2 — Skill + policy controls (3–5 days)
-- Build optional OpenClaw skill for manual control.
-- Add policy overrides per skill/workflow.
-- Provide structured usage logs for dashboards.
-
-### Phase 3 — Production hardening (1–2 weeks)
-- Add retries, fallbacks, and circuit breakers.
-- Implement SLA monitoring and alerting.
-- Provide migration guides and onboarding templates.
-
-## Value Proposition for OpenClaw Users
-
-1. **Estimated savings**
-   - If cascadeflow can route 30–70% of calls to cheaper models while maintaining quality, organizations could realize material cost savings.
-   - Exact savings depend on traffic mix and target quality thresholds.
-
-2. **Ease of setup**
-   - Proxy mode requires only a config change and endpoint credentials.
-   - Optional skill provides manual control without altering existing workflows.
-
-## Open Questions / Validation Needed
-- Exact OpenClaw skill spec and entrypoint contract.
-- Configuration format and precedence rules.
-- Telemetry/cost accounting APIs for usage reporting.
-- Any OpenClaw security constraints for external routing.
+## Open Questions
+- How OpenClaw exposes skill tagging and routing metadata (docs confirm skills are injected into prompts; explicit tag surface still to confirm). citeturn0search1
+- Exact OpenClaw native categories and their stability (validate against schema + server methods list).
+- Whether the published `dist/protocol.schema.json` exists on GitHub or is only available in releases (docs suggest a raw link but availability may vary). citeturn3view0turn8search1
+- Any OpenClaw constraints around provider/skill execution on Pi vs Mac mini.

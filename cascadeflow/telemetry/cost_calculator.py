@@ -813,14 +813,19 @@ class CostCalculator:
         Returns:
             Cost in dollars
         """
-        if getattr(model, "cost", None) == 0:
+        # Free/local models (e.g., Ollama) should not incur cost estimates.
+        if getattr(model, "cost", None) == 0 and getattr(model, "provider", "") == "ollama":
             return 0.0
 
-        # Try LiteLLM for accurate input/output pricing
+        # Try LiteLLM for accurate input/output pricing.
+        # If LiteLLM is unavailable but model.cost == 0, still attempt LiteLLM's
+        # fallback estimates to avoid returning 0 for non-free models.
         try:
             from cascadeflow.integrations.litellm import LITELLM_AVAILABLE, LiteLLMCostProvider
 
-            if LITELLM_AVAILABLE and (input_tokens > 0 or output_tokens > 0):
+            if (LITELLM_AVAILABLE or getattr(model, "cost", None) == 0) and (
+                input_tokens > 0 or output_tokens > 0
+            ):
                 provider = LiteLLMCostProvider()
                 cost = provider.calculate_cost(
                     model=model.name,
@@ -839,6 +844,8 @@ class CostCalculator:
                 )
 
         # Fallback: model.cost is cost per 1K tokens
+        if getattr(model, "cost", None) == 0:
+            return 0.0
         return (tokens / 1000) * model.cost
 
     @staticmethod
