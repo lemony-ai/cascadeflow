@@ -217,9 +217,11 @@ def test_detect_multimodal_domain(detector):
 
 def test_detect_general_domain(detector):
     """Test GENERAL domain as fallback."""
-    result = detector.detect_with_scores("What is the largest city in France?")
+    # Use a truly generic query that doesn't match specific domains
+    result = detector.detect_with_scores("Tell me something interesting")
 
     # Generic query should have low confidence or fall to GENERAL
+    # Note: "What is the largest city in France?" now correctly routes to FACTUAL
     assert result.domain == Domain.GENERAL or result.confidence < 0.6
 
 
@@ -276,15 +278,15 @@ def test_rag_vs_general_separation(detector):
         "Use semantic search with vector embeddings to retrieve documents"
     )
 
-    # GENERAL query (simple factual)
-    general_result = detector.detect_with_scores("What is the population of Tokyo?")
+    # FACTUAL query (simple factual - now correctly routes to FACTUAL)
+    factual_result = detector.detect_with_scores("What is the population of Tokyo?")
 
     # RAG should win for first query
     assert rag_result.domain == Domain.RAG
     assert rag_result.scores[Domain.RAG] > 0.5
 
-    # GENERAL should win for second query (or low confidence)
-    assert general_result.domain == Domain.GENERAL or general_result.confidence < 0.4
+    # FACTUAL should win for second query (knowledge questions now route correctly)
+    assert factual_result.domain == Domain.FACTUAL or factual_result.confidence < 0.4
 
 
 def test_tool_vs_code_separation(detector):
@@ -356,7 +358,8 @@ def test_multi_domain_scores_sorted(detector):
 
 def test_low_confidence_fallback_to_general(detector):
     """Test that low confidence queries fall back to GENERAL."""
-    result = detector.detect_with_scores("Hello there")  # No domain-specific keywords
+    # Use a truly generic query (not a greeting - greetings now route to CONVERSATION)
+    result = detector.detect_with_scores("Something random and vague")
 
     # Should have low confidence across all domains
     assert result.domain == Domain.GENERAL
