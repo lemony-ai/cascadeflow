@@ -161,6 +161,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if not domain_hint and cascadeflow_tags.get("category"):
             domain_hint = CATEGORY_TO_DOMAIN.get(cascadeflow_tags.get("category"))
 
+        if cascadeflow_tags:
+            self.log_message("Cascadeflow tags: %s", cascadeflow_tags)
+
         domain_confidence_hint = (
             routing_decision.hint.confidence
             if routing_decision.hint
