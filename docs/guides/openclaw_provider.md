@@ -12,6 +12,7 @@ python -m cascadeflow.integrations.openclaw.openai_server --port 8084
 
 Common options:
 - `--preset balanced|cost_optimized|speed_optimized|quality_optimized|development`
+- `--config /path/to/cascadeflow.yaml` (override models + channels via config file)
 - `--no-classifier` to disable the OpenClaw pre-router classifier
 - `--no-stream` to disable streaming responses
 
@@ -75,6 +76,28 @@ If you use the OpenClaw skill to add explicit tags, the server will honor
 
 You can pass `metadata.tenant_id` and `metadata.channel` in OpenClaw requests
 to activate per-tenant rules and channel failover routing in Cascadeflow.
+
+## 6) Optional OpenClaw-native channels (heartbeat/cron)
+
+To route trivial system events to a smaller model, define channels in a
+Cascadeflow config and start the server with `--config`:
+
+```yaml
+models:
+  - name: gpt-4o-mini
+    provider: openai
+    cost: 0.00015
+  - name: gpt-4o
+    provider: openai
+    cost: 0.0025
+
+channels:
+  heartbeat: gpt-4o-mini
+  cron: gpt-4o-mini
+```
+
+When OpenClaw sends `metadata.method`/`metadata.event` (or explicit tags),
+Cascadeflow will map categories to channels and use these smaller models.
 
 ## Notes
 - This server is transport-agnostic; OpenClaw only needs to call the OpenAI

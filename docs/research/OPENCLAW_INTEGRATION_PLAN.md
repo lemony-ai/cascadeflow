@@ -44,7 +44,7 @@
 1) **Install Cascadeflow provider** in OpenClaw.
 2) **Set two models:** `drafter` + `verifier`.
 3) Optional: add `failover` channel.
-4) Optional: add OpenClaw-native or Cascadeflow domain channels when ready.
+4) Optional: add OpenClaw-native or Cascadeflow domain channels when ready (via Cascadeflow config).
 
 The default path always works with only `drafter` + `verifier`.
 
@@ -58,7 +58,7 @@ The default path always works with only `drafter` + `verifier`.
   - If not set: fallback = `drafter`, then `verifier`
 
 **Optional OpenClaw-native channels (opt-in)**
-- `heartbeat`, `voice`, `image_understanding`, `web_search`, `brain`, `coding`, `content`
+- `heartbeat`, `cron`, `voice`, `image_understanding`, `web_search`, `brain`, `coding`, `content`
 
 **Optional Cascadeflow domains (opt-in)**
 - `code`, `data`, `structured`, `rag`, `conversation`, `tool`, `creative`, `summary`,
@@ -69,6 +69,8 @@ The default path always works with only `drafter` + `verifier`.
 - **Explicit tags:** from OpenClaw skill.
 - **Classifier:** pre-router uses method/payload hints (no model call).
 - **If no match:** cascadeflow domain/complexity routing.
+ - **Channel mapping:** OpenClaw categories map to channel names (optional) so users can
+  route trivial system events (e.g., heartbeat/cron) to a smaller model than the drafter.
 
 ### Cascadeflow domains
 - **Auto-detected** by Cascadeflow domain routing.
@@ -134,16 +136,19 @@ If unmet:
 - Implement method/payload-based classifier.
 - Respect explicit tags from OpenClaw skill.
 - Provide opt-in config to enable/disable classifier.
+ - Map OpenClaw category → channel when no channel is provided.
 
 ### Phase 3 — Provider + Skill
 - **No OpenClaw code changes required**: users configure a custom provider in OpenClaw
   to route LLM calls to Cascadeflow.
 - OpenClaw skill for explicit tags and guidance.
 - Failover channel support and docs.
+ - Optional Cascadeflow config file to map OpenClaw categories → dedicated channel models.
 
 ### Phase 4 — Validation
 - E2E OpenClaw tests (latency, savings, accuracy).
 - Must meet acceptance criteria; if not, block launch and iterate.
+ - Verify heartbeat/cron routing hits dedicated channels when configured.
 
 ## Open Questions
 - How OpenClaw exposes skill tagging and routing metadata (docs confirm skills are injected into prompts; explicit tag surface still to confirm). citeturn0search1

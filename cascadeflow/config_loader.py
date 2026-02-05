@@ -186,6 +186,28 @@ def parse_domains(domains_config: dict[str, dict[str, Any]]) -> dict[str, Domain
     return {domain: parse_domain_config(config) for domain, config in domains_config.items()}
 
 
+def parse_channel_models(channels_config: dict[str, Any]) -> dict[str, list[str]]:
+    """Parse channel->models mapping."""
+    channel_models: dict[str, list[str]] = {}
+    for channel, value in channels_config.items():
+        if isinstance(value, str) and value.strip():
+            channel_models[channel] = [value.strip()]
+        elif isinstance(value, list):
+            models = [str(item).strip() for item in value if str(item).strip()]
+            if models:
+                channel_models[channel] = models
+    return channel_models
+
+
+def parse_channel_failover(failover_config: dict[str, Any]) -> dict[str, str]:
+    """Parse channel->failover channel mapping."""
+    channel_failover: dict[str, str] = {}
+    for channel, value in failover_config.items():
+        if isinstance(value, str) and value.strip():
+            channel_failover[channel] = value.strip()
+    return channel_failover
+
+
 def create_agent_from_config(config: dict[str, Any], **overrides) -> "CascadeAgent":
     """
     Create a CascadeAgent from a configuration dictionary.
@@ -229,6 +251,12 @@ def create_agent_from_config(config: dict[str, Any], **overrides) -> "CascadeAge
     if domain_configs:
         agent_kwargs["domain_configs"] = domain_configs
         agent_kwargs["enable_domain_detection"] = settings.get("enable_domain_detection", True)
+
+    # Optional channel routing
+    if "channels" in config:
+        agent_kwargs["channel_models"] = parse_channel_models(config["channels"])
+    if "channel_failover" in config:
+        agent_kwargs["channel_failover"] = parse_channel_failover(config["channel_failover"])
 
     # Apply overrides
     agent_kwargs.update(overrides)
@@ -368,6 +396,15 @@ settings:
   enable_cascade: true
   enable_domain_detection: true
   verbose: false
+
+# Optional channel routing (OpenClaw categories or custom channels)
+channels:
+  heartbeat: gpt-4o-mini
+  cron: gpt-4o-mini
+  voice: gpt-4o-realtime
+
+channel_failover:
+  voice: heartbeat
 """
 
 
@@ -389,6 +426,13 @@ EXAMPLE_JSON_CONFIG = """{
     "enable_cascade": true,
     "enable_domain_detection": true,
     "verbose": false
+  },
+  "channels": {
+    "heartbeat": "gpt-4o-mini",
+    "cron": "gpt-4o-mini"
+  },
+  "channel_failover": {
+    "voice": "heartbeat"
   }
 }
 """

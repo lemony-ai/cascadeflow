@@ -51,6 +51,8 @@ class OpenClawAdapter:
         prompt, extracted_messages = _extract_prompt(query, messages, params, payload)
         tenant_id = _extract_value(params, payload, keys=("tenant_id", "tenantId", "accountId"))
         channel = _extract_value(params, payload, keys=("channel", "lane", "replyChannel"))
+        if not channel and routing.tags.get("category"):
+            channel = routing.tags.get("category")
 
         kpi_flags = kwargs.pop("kpi_flags", None) or {}
         if routing.tags.get("category"):

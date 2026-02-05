@@ -169,6 +169,8 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         tenant_id = metadata.get("tenant_id") or payload.get("tenant_id")
         channel = metadata.get("channel") or payload.get("channel")
+        if not channel and cascadeflow_tags.get("category"):
+            channel = cascadeflow_tags.get("category")
 
         # Profile inference from model id (optional)
         if "quality" in model:
@@ -392,6 +394,10 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8084, help="Bind port (default: 8084)")
     parser.add_argument(
+        "--config",
+        help="Optional Cascadeflow config file (yaml/json) for models + channel routing",
+    )
+    parser.add_argument(
         "--preset",
         default="balanced",
         help="Cascadeflow preset (balanced, cost_optimized, speed_optimized, quality_optimized, development)",
@@ -401,9 +407,14 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
-    from cascadeflow.utils.presets import auto_agent
+    if args.config:
+        from cascadeflow.config_loader import load_agent
 
-    agent = auto_agent(preset=args.preset, verbose=args.verbose, enable_cascade=True)
+        agent = load_agent(args.config, verbose=args.verbose)
+    else:
+        from cascadeflow.utils.presets import auto_agent
+
+        agent = auto_agent(preset=args.preset, verbose=args.verbose, enable_cascade=True)
     server = OpenClawOpenAIServer(
         agent,
         OpenClawOpenAIConfig(
