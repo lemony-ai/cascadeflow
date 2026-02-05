@@ -94,6 +94,19 @@ def _check_tool_routing_available():
         return False
 
 
+def _has_tool_result_in_messages(messages: Optional[list[dict[str, Any]]]) -> bool:
+    """
+    Check if messages contain a tool result (role='tool').
+
+    In agent loops, when tool results are provided, the model should respond
+    with TEXT summarizing the results, not generate more tool_calls.
+    This prevents the 'no_tool_calls_generated' false rejection.
+    """
+    if not messages:
+        return False
+    return any(msg.get("role") == "tool" for msg in messages)
+
+
 class DeferralStrategy(Enum):
     """Deferral strategies for whole-response cascade."""
 
@@ -762,7 +775,7 @@ class WholeResponseCascade:
         # === PHASE 4: Tool Quality Validation ===
         quality_start = time.time()
         should_accept, quality_score, rejection_reason = self._should_accept_tool_draft(
-            draft_result, query, tools, complexity
+            draft_result, query, tools, complexity, messages=messages
         )
         timing["quality_check_ms"] = (time.time() - quality_start) * 1000
 
@@ -929,7 +942,12 @@ class WholeResponseCascade:
             )
 
     def _should_accept_tool_draft(
-        self, draft_result: dict[str, Any], query: str, tools: list[dict[str, Any]], complexity: str
+        self,
+        draft_result: dict[str, Any],
+        query: str,
+        tools: list[dict[str, Any]],
+        complexity: str,
+        messages: Optional[list[dict[str, Any]]] = None,
     ) -> tuple[bool, float, Optional[str]]:
         """
         Validate tool call draft using ToolQualityValidator.
@@ -938,6 +956,16 @@ class WholeResponseCascade:
             Tuple of (should_accept, quality_score, rejection_reason)
         """
         draft_tool_calls = draft_result.get("tool_calls")
+        draft_content = draft_result.get("content", "")
+
+        # AGENT LOOP FIX: If messages contain tool results (role='tool'),
+        # expect TEXT response, not more tool_calls
+        if _has_tool_result_in_messages(messages):
+            # In agent loop context - text response is valid
+            if draft_content and not draft_tool_calls:
+                # Has text content, no tool calls - this is correct behavior
+                draft_confidence = draft_result.get("confidence", 0.8)
+                return True, draft_confidence, None
 
         # If no tool calls in draft, reject (query asked for tools)
         if not draft_tool_calls:

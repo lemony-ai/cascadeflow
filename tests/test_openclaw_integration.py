@@ -22,9 +22,7 @@ REQUEST_TIMEOUT = float(os.getenv("OPENCLAW_REQUEST_TIMEOUT", "45"))
 # Three provider-style configs represented by virtual model IDs supported by the
 # OpenClaw-compatible server (profile inferred from model string).
 PROVIDER_CONFIGS = [
-    pytest.param("cascadeflow-auto", id="provider:auto"),
-    pytest.param("cascadeflow-quality", id="provider:quality"),
-    pytest.param("cascadeflow-cost", id="provider:cost"),
+    pytest.param("cascadeflow", id="cascadeflow"),
 ]
 
 TOOL_SCENARIOS: list[dict[str, Any]] = [
