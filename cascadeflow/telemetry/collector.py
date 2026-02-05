@@ -68,6 +68,11 @@ class MetricsSnapshot:
     total_tool_calls: int = 0
     avg_tools_per_query: float = 0.0
 
+    # Token metrics (optional, if providers report tokens)
+    draft_tokens: int = 0
+    verifier_tokens: int = 0
+    total_tokens: int = 0
+
     # Metadata
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -138,6 +143,12 @@ class MetricsCollector:
             # NEW for Phase 3: Tool metrics
             "tool_queries": 0,
             "total_tool_calls": 0,
+            # Savings metrics (derived from CascadeResult.cost_saved)
+            "total_saved": 0.0,
+            "baseline_cost": 0.0,
+            "draft_tokens": 0,
+            "verifier_tokens": 0,
+            "total_tokens": 0,
         }
 
         # Quality system metrics
@@ -266,6 +277,43 @@ class MetricsCollector:
         # Keep recent results for rolling metrics (with timestamp)
         if result:
             try:
+                total_cost = float(getattr(result, "total_cost", 0.0))
+                cost_saved = getattr(result, "cost_saved", None)
+                if cost_saved is None:
+                    cost_saved = 0.0
+                    self.stats["baseline_cost"] += total_cost
+                else:
+                    self.stats["total_saved"] += float(cost_saved)
+                    # Baseline = actual + saved (can be lower if saved is negative)
+                    self.stats["baseline_cost"] += total_cost + float(cost_saved)
+
+                # Token accounting (if available in metadata)
+                metadata = getattr(result, "metadata", {}) or {}
+                draft_tokens = metadata.get("draft_total_tokens")
+                if draft_tokens is None:
+                    draft_prompt = metadata.get("draft_prompt_tokens")
+                    draft_completion = metadata.get("draft_completion_tokens")
+                    if draft_prompt is not None or draft_completion is not None:
+                        draft_tokens = (draft_prompt or 0) + (draft_completion or 0)
+
+                verifier_tokens = metadata.get("verifier_total_tokens")
+                if verifier_tokens is None:
+                    verifier_prompt = metadata.get("verifier_prompt_tokens")
+                    verifier_completion = metadata.get("verifier_completion_tokens")
+                    if verifier_prompt is not None or verifier_completion is not None:
+                        verifier_tokens = (verifier_prompt or 0) + (verifier_completion or 0)
+
+                total_tokens = metadata.get("total_tokens")
+                if total_tokens is None and draft_tokens is not None and verifier_tokens is not None:
+                    total_tokens = draft_tokens + verifier_tokens
+
+                if isinstance(draft_tokens, (int, float)):
+                    self.stats["draft_tokens"] += int(draft_tokens)
+                if isinstance(verifier_tokens, (int, float)):
+                    self.stats["verifier_tokens"] += int(verifier_tokens)
+                if isinstance(total_tokens, (int, float)):
+                    self.stats["total_tokens"] += int(total_tokens)
+
                 rule_reason = None
                 rule_strategy = None
                 rule_confidence = None
@@ -286,6 +334,10 @@ class MetricsCollector:
                         "streaming": streaming,
                         "has_tools": has_tools,  # NEW
                         "tool_calls_count": tool_calls_count,  # NEW
+                        "cost_saved": cost_saved,
+                        "draft_tokens": draft_tokens,
+                        "verifier_tokens": verifier_tokens,
+                        "total_tokens": total_tokens,
                         "timestamp": datetime.now().isoformat(),
                         "query": str(getattr(result, "content", ""))[:100],  # Truncate for memory
                         "model_used": getattr(result, "model_used", "unknown"),
@@ -341,6 +393,13 @@ class MetricsCollector:
                 "tool_rate": 0.0,
                 "total_tool_calls": 0,
                 "avg_tools_per_query": 0.0,
+                # Savings stats
+                "total_saved": 0.0,
+                "baseline_cost": 0.0,
+                "savings_percent": 0.0,
+                "draft_tokens": 0,
+                "verifier_tokens": 0,
+                "total_tokens": 0,
                 # Distribution
                 "by_complexity": {},
                 "acceptance_by_complexity": {},
@@ -353,6 +412,11 @@ class MetricsCollector:
 
         total = self.stats["total_queries"]
         cascade_total = self.stats["cascade_used"]
+        total_saved = self.stats.get("total_saved", 0.0)
+        baseline_cost = self.stats.get(
+            "baseline_cost", self.stats["total_cost"] + total_saved
+        )
+        savings_percent = (total_saved / baseline_cost * 100) if baseline_cost > 0 else 0.0
 
         # Calculate rates
         cascade_rate = cascade_total / total * 100
@@ -415,6 +479,13 @@ class MetricsCollector:
             "tool_rate": round(tool_rate, 1),
             "total_tool_calls": self.stats["total_tool_calls"],
             "avg_tools_per_query": round(avg_tools_per_query, 2),
+            # Savings stats
+            "total_saved": round(total_saved, 6),
+            "baseline_cost": round(baseline_cost, 6),
+            "savings_percent": round(savings_percent, 1),
+            "draft_tokens": self.stats.get("draft_tokens", 0),
+            "verifier_tokens": self.stats.get("verifier_tokens", 0),
+            "total_tokens": self.stats.get("total_tokens", 0),
             # Distribution
             "by_complexity": dict(self.stats["by_complexity"]),
             "acceptance_by_complexity": dict(self.acceptance_by_complexity),
@@ -508,6 +579,9 @@ class MetricsCollector:
             tool_queries=tool_queries,
             total_tool_calls=total_tool_calls,
             avg_tools_per_query=round(avg_tools_per_query, 2),
+            draft_tokens=self.stats.get("draft_tokens", 0),
+            verifier_tokens=self.stats.get("verifier_tokens", 0),
+            total_tokens=self.stats.get("total_tokens", 0),
         )
 
     def get_recent_anomalies(
@@ -752,6 +826,12 @@ class MetricsCollector:
             # NEW for Phase 3: Tool metrics
             "tool_queries": 0,
             "total_tool_calls": 0,
+            # Savings metrics
+            "total_saved": 0.0,
+            "baseline_cost": 0.0,
+            "draft_tokens": 0,
+            "verifier_tokens": 0,
+            "total_tokens": 0,
         }
 
         self.quality_scores.clear()

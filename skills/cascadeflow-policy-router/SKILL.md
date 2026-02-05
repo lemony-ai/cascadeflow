@@ -118,10 +118,32 @@ Suggested commands:
 - `/cascade stats` → summarize cost savings + acceptance rate
 - `/cascade domains` → per-domain performance
 - `/cascade latency` → overhead analysis
+- `/cascade savings` → cost comparison vs verifier-only baseline
 
 Example:
 ```
 curl http://127.0.0.1:8084/stats | jq .
+```
+
+Savings fields (from `/stats.summary`):
+- `total_cost`: actual spend
+- `baseline_cost`: verifier-only baseline (actual + saved)
+- `total_saved`: baseline - actual
+- `savings_percent`: savings / baseline
+- `draft_tokens`, `verifier_tokens`, `total_tokens` (if providers report tokens)
+
+Example output (formatted in the skill):
+```
+📊 CascadeFlow Savings Report
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Total Queries: 1,247
+Draft Acceptance: 64%
+
+💰 Cost Comparison:
+  Verifier-only: $18.72
+  With Cascade:  $6.54
+  ━━━━━━━━━━━━━━━━
+  Savings:       $12.18 (65%)
 ```
 
 ## Tagging Rules (What this skill sends)
