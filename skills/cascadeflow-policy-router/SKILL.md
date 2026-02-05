@@ -27,6 +27,7 @@ Define the core channels in your Cascadeflow OpenClaw config:
 
 Optional OpenClaw-native channels (opt-in, used when explicitly tagged in this skill OR when detected by the OpenClaw pre-router classifier):
 - `heartbeat` (system/heartbeat flows)
+- `cron` (scheduled jobs / cron events)
 - `voice` (tts/voicewake)
 - `image_understanding` (image attachments)
 - `web_search` (web_search/web_fetch when user enables)
@@ -67,6 +68,7 @@ openclaw:
 
     # Optional OpenClaw-native channels
     heartbeat: "claude-3-5-haiku-20241022"
+    cron: "claude-3-5-haiku-20241022"
     voice: "gpt-4o-realtime"
     image_understanding: "gpt-4o"
     web_search: "claude-3-5-haiku-20241022"

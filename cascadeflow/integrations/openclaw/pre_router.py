@@ -16,12 +16,14 @@ OPENCLAW_NATIVE_CATEGORIES = {
     "brain",
     "coding",
     "content",
+    "cron",
 }
 
 CATEGORY_TO_DOMAIN = {
     "coding": "code",
     "image_understanding": "multimodal",
     "brain": "general",
+    "cron": "general",
 }
 
 HEARTBEAT_METHODS = {
@@ -40,6 +42,8 @@ VOICE_METHODS = {"talk.mode"}
 VOICE_EVENTS = {"talk.mode", "voicewake.changed"}
 
 WEB_SEARCH_METHODS = {"browser.request"}
+CRON_METHOD_PREFIXES = ("cron.",)
+CRON_EVENTS = {"cron"}
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,13 @@ def classify_openclaw_frame(
             category="heartbeat",
             confidence=0.95,
             reason="heartbeat_method_or_event",
+        )
+
+    if method.startswith(CRON_METHOD_PREFIXES) or event in CRON_EVENTS:
+        return OpenClawRouteHint(
+            category="cron",
+            confidence=0.9,
+            reason="cron_method_or_event",
         )
 
     if method.startswith(VOICE_METHOD_PREFIXES) or method in VOICE_METHODS or event in VOICE_EVENTS:
