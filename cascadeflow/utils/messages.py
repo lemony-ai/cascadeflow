@@ -25,13 +25,22 @@ def _extract_content(content: Any) -> str:
     return str(content)
 
 
-def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Normalize message dicts to ensure role/content are plain strings."""
-    normalized: list[dict[str, str]] = []
+def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize message dicts, preserving tool-related fields."""
+    normalized: list[dict[str, Any]] = []
     for message in messages:
-        role = str(message.get("role", "user"))
-        content = _extract_content(message.get("content", ""))
-        normalized.append({"role": role, "content": content})
+        norm_msg: dict[str, Any] = {
+            "role": str(message.get("role", "user")),
+            "content": _extract_content(message.get("content", "")),
+        }
+        # Preserve tool-related fields for OpenAI compatibility
+        if "tool_calls" in message:
+            norm_msg["tool_calls"] = message["tool_calls"]
+        if "tool_call_id" in message:
+            norm_msg["tool_call_id"] = message["tool_call_id"]
+        if "name" in message:
+            norm_msg["name"] = message["name"]
+        normalized.append(norm_msg)
     return normalized
 
 
