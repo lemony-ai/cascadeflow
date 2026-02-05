@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Optional
 
+from cascadeflow.tools.formats import normalize_tools
 from cascadeflow.utils.messages import get_last_user_message
 
 from .adapter import build_routing_decision
@@ -139,18 +140,51 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         model = payload.get("model", "cascadeflow")
         temperature = payload.get("temperature", 0.7)
-        max_tokens = payload.get("max_tokens", 100)
-        tools = payload.get("tools")
+        max_tokens = payload.get("max_tokens")
+        if max_tokens is None:
+            max_tokens = payload.get("max_completion_tokens", 100)
+        tools_payload = payload.get("tools")
+        if tools_payload is None and isinstance(payload.get("functions"), list):
+            tools_payload = [
+                {"type": "function", "function": func}
+                for func in payload.get("functions", [])
+                if isinstance(func, dict)
+            ]
         tool_choice = payload.get("tool_choice")
+        if tool_choice is None and "function_call" in payload:
+            legacy_choice = payload.get("function_call")
+            if isinstance(legacy_choice, str):
+                if legacy_choice in {"auto", "none"}:
+                    tool_choice = legacy_choice
+                else:
+                    tool_choice = {"type": "function", "function": {"name": legacy_choice}}
+            elif isinstance(legacy_choice, dict):
+                name = legacy_choice.get("name")
+                if isinstance(name, str) and name:
+                    tool_choice = {"type": "function", "function": {"name": name}}
+        tools = normalize_tools(tools_payload)
         stream = bool(payload.get("stream"))
 
         if stream and not server.config.allow_streaming:
             return self._send_openai_error("Streaming not enabled", status=400)
 
-        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        metadata = {}
+        metadata_value = payload.get("metadata")
+        if isinstance(metadata_value, dict):
+            metadata = metadata_value
+        elif isinstance(metadata_value, str) and metadata_value.strip():
+            try:
+                parsed = json.loads(metadata_value)
+                if isinstance(parsed, dict):
+                    metadata = parsed
+            except json.JSONDecodeError:
+                metadata = {}
+
+        method = metadata.get("method") or payload.get("method")
+        event = metadata.get("event") or payload.get("event")
         routing_decision = build_routing_decision(
-            method=metadata.get("method"),
-            event=metadata.get("event"),
+            method=method,
+            event=event,
             params=payload,
             payload=metadata,
             enable_classifier=server.config.enable_classifier,
@@ -162,16 +196,20 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             domain_hint = CATEGORY_TO_DOMAIN.get(cascadeflow_tags.get("category"))
 
         channel = metadata.get("channel") or payload.get("channel")
+        if not channel and cascadeflow_tags.get("channel"):
+            channel = cascadeflow_tags.get("channel")
         if not channel and cascadeflow_tags.get("category"):
             channel = cascadeflow_tags.get("category")
 
         if cascadeflow_tags:
             self.log_message(
-                "Cascadeflow tags=%s channel=%s profile=%s domain=%s",
+                "Cascadeflow tags=%s channel=%s profile=%s domain=%s method=%s event=%s",
                 cascadeflow_tags,
                 channel,
                 cascadeflow_tags.get("profile"),
                 domain_hint,
+                method,
+                event,
             )
 
         domain_confidence_hint = (

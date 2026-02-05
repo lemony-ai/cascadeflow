@@ -488,14 +488,35 @@ class OpenAIProvider(BaseProvider):
         # Convert tools to OpenAI format
         openai_tools = self._convert_tools_to_openai(tools) if tools else None
 
-        # Build request payload
+        # Build request payload with reasoning-model compatibility
+        model_info = get_reasoning_model_info(model)
+        is_gpt5 = model.lower().startswith("gpt-5")
+        extra = dict(kwargs)
+        extra.pop("max_tokens", None)
+        extra.pop("max_completion_tokens", None)
+        extra_tool_choice = extra.pop("tool_choice", None)
+        if tool_choice is None:
+            tool_choice = extra_tool_choice
+
         payload = {
             "model": model,
             "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            **kwargs,
         }
+
+        if model_info.supports_temperature:
+            payload["temperature"] = extra.pop("temperature", temperature)
+        else:
+            extra.pop("temperature", None)
+
+        if is_gpt5 or model_info.requires_max_completion_tokens:
+            payload["max_completion_tokens"] = max_tokens
+        else:
+            payload["max_tokens"] = max_tokens
+
+        if model_info.supports_reasoning_effort and "reasoning_effort" in extra:
+            payload["reasoning_effort"] = extra.pop("reasoning_effort")
+
+        payload.update(extra)
 
         # Add tools if provided
         if openai_tools:

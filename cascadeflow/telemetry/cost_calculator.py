@@ -40,7 +40,7 @@ Fixed: October 20, 2025 - Added input token support
 
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -843,10 +843,89 @@ class CostCalculator:
                     f"LiteLLM cost calculation failed for {model.name}: {e}, using fallback"
                 )
 
-        # Fallback: model.cost is cost per 1K tokens
+        # Fallback: if cost is zero, attempt provider-aware estimates
         if getattr(model, "cost", None) == 0:
+            estimated = self._estimate_fallback_cost(
+                model=model,
+                tokens=tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+            if estimated is not None:
+                return estimated
             return 0.0
+
+        # Default: model.cost is cost per 1K tokens
         return (tokens / 1000) * model.cost
+
+    @staticmethod
+    def _estimate_fallback_cost(
+        model, tokens: int, input_tokens: int = 0, output_tokens: int = 0
+    ) -> Optional[float]:
+        provider = str(getattr(model, "provider", "") or "").lower()
+        name = str(getattr(model, "name", "") or "").lower()
+
+        if provider not in {"openai", "anthropic"}:
+            if name.startswith(("gpt-", "o1", "o3")):
+                provider = "openai"
+            elif name.startswith("claude-"):
+                provider = "anthropic"
+
+        total_tokens = tokens or (input_tokens + output_tokens)
+
+        if provider == "openai":
+            pricing = {
+                "gpt-5": {"input": 0.00125, "output": 0.010},
+                "gpt-5-mini": {"input": 0.00025, "output": 0.002},
+                "gpt-5-nano": {"input": 0.00005, "output": 0.0004},
+                "gpt-4o": {"input": 0.0025, "output": 0.010},
+                "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+                "o1-mini": {"input": 0.003, "output": 0.012},
+                "o1": {"input": 0.015, "output": 0.060},
+                "o3-mini": {"input": 0.001, "output": 0.005},
+                "gpt-4-turbo": {"input": 0.010, "output": 0.030},
+                "gpt-4": {"input": 0.030, "output": 0.060},
+                "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
+            }
+            rates = None
+            for prefix, rate in pricing.items():
+                if name.startswith(prefix):
+                    rates = rate
+                    break
+            if not rates:
+                rates = {"input": 0.030, "output": 0.060}
+            if input_tokens or output_tokens:
+                return (input_tokens / 1000) * rates["input"] + (
+                    output_tokens / 1000
+                ) * rates["output"]
+            blended = (rates["input"] * 0.3) + (rates["output"] * 0.7)
+            return (total_tokens / 1000) * blended
+
+        if provider == "anthropic":
+            rates = {
+                "claude-opus-4.1": 45.0,
+                "claude-opus-4": 45.0,
+                "claude-sonnet-4.5": 9.0,
+                "claude-sonnet-4": 9.0,
+                "claude-3-5-sonnet": 9.0,
+                "claude-sonnet-3-5": 9.0,
+                "claude-3-5-haiku": 3.0,
+                "claude-haiku-3-5": 3.0,
+                "claude-haiku-4-5": 3.0,
+                "claude-3-opus": 45.0,
+                "claude-3-sonnet": 15.0,
+                "claude-3-haiku": 0.25,
+            }
+            blended = None
+            for prefix, rate in rates.items():
+                if name.startswith(prefix):
+                    blended = rate
+                    break
+            if blended is None:
+                blended = 15.0
+            return (total_tokens / 1_000_000) * blended
+
+        return None
 
     @staticmethod
     def estimate_tokens(text: str) -> int:
