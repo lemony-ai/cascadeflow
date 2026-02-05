@@ -101,6 +101,14 @@ def test_detect_conversation_domain(detector):
     assert Domain.CONVERSATION in top_domains or result.scores[Domain.CONVERSATION] > 0.3
 
 
+def test_detect_conversation_domain_from_history_markers(detector):
+    """Conversation markers should boost CONVERSATION domain."""
+    result = detector.detect_with_scores(
+        "User: Hi there\nAssistant: Hello! How can I help?\nUser: Continue our chat"
+    )
+    assert result.scores[Domain.CONVERSATION] > 0.5
+
+
 def test_detect_tool_domain(detector):
     """Test TOOL domain detection with function calling query."""
     result = detector.detect_with_scores(

@@ -105,6 +105,81 @@ Cascadeflow will map categories to channels and use these smaller models.
 Heartbeat/cron default to direct cheap if a channel model is configured,
 and you can override per-channel strategy via the `strategy` field.
 
+## Tested Model Setups (Cascadeflow configs)
+These example configs were validated in OpenClaw E2E tests. Replace model IDs
+with the exact names for your providers.
+
+### 1) Anthropic-only
+| Role      | Model               | Use Case            |
+| --------- | ------------------- | ------------------- |
+| Verifier  | Opus 4.5            | Quality baseline    |
+| Drafter   | Haiku 4.5           | Default fast        |
+| Code      | Sonnet 4            | More capability     |
+| Reasoning | Sonnet 4.5          | Complex logic       |
+| Creative  | Sonnet 4            | Balanced creativity |
+| Heartbeat | Haiku 4 -> Haiku 4.5 | Ultra cheap         |
+
+```yaml
+openclaw:
+  channels:
+    drafter: "claude-haiku-4-5"
+    verifier: "claude-opus-4-5"
+    code: "claude-sonnet-4"
+    reasoning: "claude-sonnet-4-5"
+    creative: "claude-sonnet-4"
+    heartbeat: "claude-haiku-4-5"
+```
+
+### 2) OpenAI-only
+| Role      | Model       | Use Case            |
+| --------- | ----------- | ------------------- |
+| Verifier  | GPT-5.2     | Quality baseline    |
+| Drafter   | GPT-5 mini  | Default fast        |
+| Code      | GPT-5       | Strong at code      |
+| Reasoning | o3-mini     | Excellent reasoning |
+| Heartbeat | nano -> mini | Ultra cheap         |
+| Cron      | nano -> mini | Cost efficient      |
+
+```yaml
+openclaw:
+  channels:
+    drafter: "gpt-5-mini"
+    verifier: "gpt-5.2"
+    code: "gpt-5"
+    reasoning: "o3-mini"
+    heartbeat: "gpt-5-nano"
+    cron: "gpt-5-nano"
+```
+
+### 3) Mixed (Best of Both)
+| Domain       | Drafter    | Verifier   | Why                    |
+| ------------ | ---------- | ---------- | ---------------------- |
+| Default      | GPT-5 mini | Opus 4.5   | Speed + quality        |
+| Code         | GPT-5      | GPT-5.2    | OpenAI excels          |
+| Reasoning    | o3-mini    | Opus 4.5   | o3 + Opus verification |
+| Creative     | Sonnet 4   | Opus 4.5   | Anthropic voice        |
+| Conversation | Haiku 4.5  | Sonnet 4.5 | Natural feel           |
+| Tools        | GPT-5 mini | GPT-5      | OpenAI tool support    |
+| Heartbeat    | nano       | mini       | Cheapest               |
+
+```yaml
+openclaw:
+  channels:
+    drafter: "gpt-5-mini"
+    verifier: "claude-opus-4-5"
+    code:
+      models: ["gpt-5", "gpt-5.2"]
+    reasoning:
+      models: ["o3-mini", "claude-opus-4-5"]
+    creative:
+      models: ["claude-sonnet-4", "claude-opus-4-5"]
+    conversation:
+      models: ["claude-haiku-4-5", "claude-sonnet-4-5"]
+    tools:
+      models: ["gpt-5-mini", "gpt-5"]
+    heartbeat: "gpt-5-nano"
+```
+
 ## Notes
 - This server is transport-agnostic; OpenClaw only needs to call the OpenAI
   endpoint configured above.

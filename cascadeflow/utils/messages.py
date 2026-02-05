@@ -4,7 +4,7 @@ Message normalization utilities for cascadeflow.
 Provides consistent handling for multi-turn message history across providers.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 
 def _extract_content(content: Any) -> str:
@@ -56,3 +56,72 @@ def get_last_user_message(messages: list[dict[str, Any]]) -> str:
     if normalized:
         return normalized[-1]["content"].strip()
     return ""
+
+
+def is_multi_turn_messages(messages: list[dict[str, Any]]) -> bool:
+    """Return True if the message list represents a multi-turn conversation."""
+    normalized = normalize_messages(messages)
+    if not normalized:
+        return False
+    user_count = sum(1 for message in normalized if message["role"].lower() == "user")
+    return user_count >= 2
+
+
+def is_multi_turn_prompt(prompt: str) -> bool:
+    """
+    Detect if a prompt contains multi-turn conversation markers.
+
+    Uses lightweight heuristics (history markers, turn markers, user/assistant pairs).
+    """
+    if not prompt:
+        return False
+
+    prompt_lower = prompt.lower()
+
+    multi_turn_markers = [
+        "previous conversation:",
+        "conversation history:",
+        "conversation so far:",
+        "prior context:",
+        "chat history:",
+        "dialogue history:",
+        "earlier in the conversation:",
+    ]
+    if any(marker in prompt_lower for marker in multi_turn_markers):
+        return True
+
+    turn_markers = [
+        "turn 1:",
+        "turn 2:",
+        "[turn 1]",
+        "[turn 2]",
+        "turn 1\n",
+        "turn 2\n",
+    ]
+    if any(marker in prompt_lower for marker in turn_markers):
+        return True
+
+    user_markers = ["user:", "human:", "question:"]
+    assistant_markers = ["assistant:", "ai:", "answer:"]
+    user_count = sum(prompt_lower.count(marker) for marker in user_markers)
+    assistant_count = sum(prompt_lower.count(marker) for marker in assistant_markers)
+    if user_count >= 2 and assistant_count >= 1:
+        return True
+
+    current_turn_markers = ["current turn:", "current question:", "now answer:", "now respond:"]
+    has_user_assistant = any(
+        user in prompt_lower and assistant in prompt_lower
+        for user in user_markers
+        for assistant in assistant_markers
+    )
+    if has_user_assistant and any(marker in prompt_lower for marker in current_turn_markers):
+        return True
+
+    return False
+
+
+def detect_multi_turn(prompt: str, messages: Optional[list[dict[str, Any]]] = None) -> bool:
+    """Detect multi-turn conversation from messages or prompt text."""
+    if messages and is_multi_turn_messages(messages):
+        return True
+    return is_multi_turn_prompt(prompt)
