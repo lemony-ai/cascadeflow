@@ -92,7 +92,7 @@ class DomainKeywords:
     weak: list[str] = field(default_factory=list)
 
 
-# Built-in domain keyword mappings (15 production domains)
+# Built-in domain keyword mappings (17 production domains)
 DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
     Domain.CODE: DomainKeywords(
         very_strong=[  # Highly discriminative (Research: 77% accuracy)
@@ -988,7 +988,7 @@ class DomainDetector:
         Returns:
             List of recommended models (sorted by relevance)
         """
-        # Default domain-specific model recommendations (15 domains)
+        # Default domain-specific model recommendations (17 domains)
         domain_models = {
             Domain.CODE: [
                 {"name": "deepseek-coder", "provider": "deepseek", "cost": 0.0014},

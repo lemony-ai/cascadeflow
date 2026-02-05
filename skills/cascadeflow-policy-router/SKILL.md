@@ -153,17 +153,18 @@ Draft Acceptance: 64%
 ## Tagging Rules (What this skill sends)
 This skill adds explicit routing hints only when the domain is predictable.
 
-- Use `cascadeflow_category` for explicit domain routing.
-- Optionally use `cascadeflow_profile`:
+- Use `cascadeflow.category` for OpenClaw-native categories.
+- Use `cascadeflow.domain` for Cascadeflow domains (e.g., `comparison`, `factual`, `creative`).
+- Optionally use `cascadeflow.profile`:
   - `best`
   - `cost_savings`
-- Optionally set `cascadeflow_model` to force a model.
+- Optionally set `cascadeflow.model` to force a model.
 
 Example (explicit domain routing):
 ```json
 {
   "cascadeflow": {
-    "category": "web_search",
+    "domain": "comparison",
     "profile": "cost_savings"
   }
 }
