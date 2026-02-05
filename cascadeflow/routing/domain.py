@@ -1405,6 +1405,21 @@ DOMAIN_THRESHOLDS: dict[Domain, float] = {
 }
 
 
+# Candidate models benchmarked for semantic domain detection quality.
+# Keep the default aligned with investigation report findings.
+FASTEMBED_DOMAIN_MODELS: tuple[str, ...] = (
+    "intfloat/e5-large-v2",
+    "BAAI/bge-large-en-v1.5",
+    "sentence-transformers/all-MiniLM-L6-v2",
+)
+
+# Hybrid tuning constants
+HYBRID_RULE_LOCK_CONFIDENCE = 0.82
+HYBRID_RULE_LOCK_MARGIN = 0.20
+HYBRID_SEMANTIC_HIGH_CONFIDENCE = 0.74
+HYBRID_SEMANTIC_MIN_MARGIN = 0.08
+
+
 class SemanticDomainDetector:
     """
     Optional ML-based domain detector using semantic embeddings.
@@ -1430,6 +1445,7 @@ class SemanticDomainDetector:
         embedder: Optional["UnifiedEmbeddingService"] = None,
         confidence_threshold: float = 0.6,
         use_hybrid: bool = True,
+        model_name: str = "intfloat/e5-large-v2",
     ):
         """
         Initialize semantic domain detector.
@@ -1438,15 +1454,17 @@ class SemanticDomainDetector:
             embedder: Optional UnifiedEmbeddingService (creates new if None)
             confidence_threshold: Minimum similarity for detection (default: 0.6)
             use_hybrid: Whether to combine with rule-based detection (default: True)
+            model_name: FastEmbed model used when embedder is not supplied
         """
         self.confidence_threshold = confidence_threshold
         self.use_hybrid = use_hybrid
+        self.model_name = model_name
 
         # Use provided embedder or create new one
         if embedder is not None:
             self.embedder = embedder
         elif HAS_ML:
-            self.embedder = UnifiedEmbeddingService()
+            self.embedder = UnifiedEmbeddingService(model_name=model_name)
         else:
             self.embedder = None
 
@@ -1548,6 +1566,14 @@ class SemanticDomainDetector:
             similarity = self.embedder._cosine_similarity(query_embedding, domain_embedding)
             scores[domain] = float(similarity) if similarity is not None else 0.0
 
+        def _top_domain_margin(domain_scores: dict[Domain, float]) -> tuple[Domain, float, float]:
+            if not domain_scores:
+                return Domain.GENERAL, 0.0, 0.0
+            ranked = sorted(domain_scores.items(), key=lambda item: item[1], reverse=True)
+            top_domain, top_score = ranked[0]
+            second_score = ranked[1][1] if len(ranked) > 1 else 0.0
+            return top_domain, top_score, max(0.0, top_score - second_score)
+
         # Find best match using domain-specific thresholds
         detected_domain = max(scores, key=scores.get) if scores else Domain.GENERAL
         confidence = scores.get(detected_domain, 0.0)
@@ -1562,9 +1588,44 @@ class SemanticDomainDetector:
         if self.use_hybrid and self.rule_detector:
             rule_result = self.rule_detector.detect_with_scores(query)
 
-            # Weighted average: favor semantic when confident, rules for tie-breaking
-            # If semantic is confident (>0.7), weight it 70/30; otherwise 50/50
-            ml_weight = 0.7 if confidence > 0.7 else 0.5
+            semantic_domain, semantic_confidence, semantic_margin = _top_domain_margin(scores)
+            rule_domain, rule_confidence, rule_margin = _top_domain_margin(rule_result.scores)
+
+            # Rule detector is currently strongest. Preserve high-confidence rule decisions.
+            if (
+                rule_domain != Domain.GENERAL
+                and rule_confidence >= HYBRID_RULE_LOCK_CONFIDENCE
+                and rule_margin >= HYBRID_RULE_LOCK_MARGIN
+            ):
+                return DomainDetectionResult(
+                    domain=rule_result.domain,
+                    confidence=rule_result.confidence,
+                    scores=rule_result.scores,
+                    metadata={
+                        "method": "hybrid",
+                        "source": "rule_lock",
+                        "model_name": self.model_name,
+                    },
+                )
+
+            # When semantic is confidently differentiating a domain, trust it more.
+            semantic_override = (
+                semantic_domain != Domain.GENERAL
+                and semantic_confidence >= HYBRID_SEMANTIC_HIGH_CONFIDENCE
+                and semantic_margin >= HYBRID_SEMANTIC_MIN_MARGIN
+            )
+
+            # Adaptive blending: semantic adds value primarily when rule confidence is weak
+            # or when both methods agree.
+            if semantic_override:
+                ml_weight = 0.72
+            elif rule_confidence < 0.62:
+                ml_weight = 0.62
+            elif semantic_domain == rule_domain:
+                ml_weight = 0.58
+            else:
+                ml_weight = 0.40
+
             rule_weight = 1.0 - ml_weight
 
             hybrid_scores = {}
@@ -1585,5 +1646,6 @@ class SemanticDomainDetector:
                 "method": "hybrid" if self.use_hybrid else "semantic",
                 "query_length": len(query),
                 "threshold": self.confidence_threshold,
+                "model_name": self.model_name,
             },
         )

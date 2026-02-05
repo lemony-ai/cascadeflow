@@ -10,15 +10,18 @@ This module tests the 17-domain detection system including:
 - Edge cases
 """
 
+import math
 import pytest
 
 from cascadeflow.routing.domain import (
+    FASTEMBED_DOMAIN_MODELS,
     DOMAIN_EXEMPLARS,
     DOMAIN_THRESHOLDS,
     Domain,
     DomainDetectionResult,
     DomainDetector,
     DomainKeywords,
+    SemanticDomainDetector,
 )
 
 # ============================================================================
@@ -764,3 +767,77 @@ class TestDomainThresholds:
         for domain, thresh in DOMAIN_THRESHOLDS.items():
             if domain != Domain.GENERAL:
                 assert thresh >= general_thresh
+
+
+# ============================================================================
+# SEMANTIC/HYBRID TUNING TESTS
+# ============================================================================
+
+
+class _FakeEmbedder:
+    """Minimal embedding stub for deterministic semantic-domain tests."""
+
+    def __init__(self, vectors: dict[str, tuple[float, float]]):
+        self._vectors = vectors
+        self.is_available = True
+
+    def embed(self, text: str):
+        return self._vectors.get(text, (0.0, 0.0))
+
+    def embed_batch(self, texts: list[str]):
+        return [self.embed(text) for text in texts]
+
+    @staticmethod
+    def _cosine_similarity(vec1, vec2):
+        norm1 = math.sqrt(sum(v * v for v in vec1)) + 1e-8
+        norm2 = math.sqrt(sum(v * v for v in vec2)) + 1e-8
+        similarity = sum((a / norm1) * (b / norm2) for a, b in zip(vec1, vec2))
+        return float(max(0.0, min(1.0, similarity)))
+
+
+def _semantic_detector_for_test(query_vectors: dict[str, tuple[float, float]]) -> SemanticDomainDetector:
+    detector = SemanticDomainDetector(
+        embedder=_FakeEmbedder(query_vectors),
+        use_hybrid=True,
+        model_name="intfloat/e5-large-v2",
+    )
+    detector._domain_embeddings = {
+        Domain.CODE: (1.0, 0.0),
+        Domain.DATA: (0.0, 1.0),
+        Domain.GENERAL: (0.5, 0.5),
+    }
+    detector._embeddings_computed = True
+    return detector
+
+
+def test_fastembed_candidate_models_declared():
+    """Semantic detector should expose benchmarked FastEmbed candidate models."""
+    assert "intfloat/e5-large-v2" in FASTEMBED_DOMAIN_MODELS
+    assert "BAAI/bge-large-en-v1.5" in FASTEMBED_DOMAIN_MODELS
+    assert "sentence-transformers/all-MiniLM-L6-v2" in FASTEMBED_DOMAIN_MODELS
+
+
+def test_hybrid_rule_lock_preserves_high_confidence_rule_decisions():
+    """Hybrid mode should keep strong rule-based detections when semantic disagrees."""
+    query = "Use async await import in Python to implement this function"
+    detector = _semantic_detector_for_test(
+        {query: (0.0, 1.0)}  # Semantic bias toward DATA
+    )
+
+    result = detector.detect_with_scores(query)
+
+    assert result.domain == Domain.CODE
+    assert result.metadata.get("source") == "rule_lock"
+
+
+def test_hybrid_semantic_signal_adds_value_when_rules_are_weak():
+    """Hybrid mode should rely on semantic signal for weak/ambiguous rule queries."""
+    query = "Can you help me with this?"
+    detector = _semantic_detector_for_test(
+        {query: (1.0, 0.0)}  # Semantic bias toward CODE
+    )
+
+    result = detector.detect_with_scores(query)
+
+    assert result.domain == Domain.CODE
+    assert result.metadata["method"] == "hybrid"
