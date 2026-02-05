@@ -92,12 +92,18 @@ models:
     cost: 0.0025
 
 channels:
-  heartbeat: gpt-4o-mini
-  cron: gpt-4o-mini
+  heartbeat:
+    models: gpt-4o-mini
+    strategy: direct_cheap
+  cron:
+    models: gpt-4o-mini
+    strategy: direct_cheap
 ```
 
 When OpenClaw sends `metadata.method`/`metadata.event` (or explicit tags),
 Cascadeflow will map categories to channels and use these smaller models.
+Heartbeat/cron default to direct cheap if a channel model is configured,
+and you can override per-channel strategy via the `strategy` field.
 
 ## Notes
 - This server is transport-agnostic; OpenClaw only needs to call the OpenAI

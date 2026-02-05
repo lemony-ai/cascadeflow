@@ -25,7 +25,7 @@ Define the core channels in your Cascadeflow OpenClaw config:
 - `failover`: optional (backup provider/model)
   - If not set: fallback = drafter, then verifier
 
-Optional OpenClaw-native channels (opt-in, used when explicitly tagged in this skill OR when detected by the OpenClaw pre-router classifier):
+Optional OpenClaw-native channels (opt-in, explicitly tagged in this skill; classifier can also map when enabled):
 - `heartbeat` (system/heartbeat flows)
 - `cron` (scheduled jobs / cron events)
 - `voice` (tts/voicewake)
@@ -57,6 +57,7 @@ Note:
   - `brain` -> `general`
 - Cascadeflow domains are handled by Cascadeflow's automatic domain routing.
 - Explicit tags are optional and only needed if you want to force a specific domain.
+ - Suggested routing: OpenClaw-native via explicit tags (or classifier), Cascadeflow domains via auto-detection.
 
 Example:
 ```yaml
@@ -67,9 +68,15 @@ openclaw:
     failover: "gpt-4o-mini"   # optional
 
     # Optional OpenClaw-native channels
-    heartbeat: "claude-3-5-haiku-20241022"
-    cron: "claude-3-5-haiku-20241022"
-    voice: "gpt-4o-realtime"
+    heartbeat:
+      models: "claude-3-5-haiku-20241022"
+      strategy: direct_cheap
+    cron:
+      models: "claude-3-5-haiku-20241022"
+      strategy: direct_cheap
+    voice:
+      models: "gpt-4o-realtime"
+      strategy: direct_best
     image_understanding: "gpt-4o"
     web_search: "claude-3-5-haiku-20241022"
     brain: "claude-3-5-sonnet-20241022"
@@ -101,6 +108,7 @@ openclaw:
 - Cascadeflow domains are auto-detected by Cascadeflow logic.
 - If no tag/classifier match, Cascadeflow handles the request dynamically.
 - Suggested routing: OpenClaw-native via explicit tags; Cascadeflow domains via auto-detection.
+ - Heartbeat/cron channels default to direct cheap when a channel model is configured.
 
 ## Tagging Rules (What this skill sends)
 This skill adds explicit routing hints only when the domain is predictable.
