@@ -109,3 +109,12 @@ and you can override per-channel strategy via the `strategy` field.
 - This server is transport-agnostic; OpenClaw only needs to call the OpenAI
   endpoint configured above.
 - For production, you can front the server with a reverse proxy and auth.
+
+## Optional Stats Endpoint
+Cascadeflow exposes runtime metrics at `GET /stats` on the OpenAI server.
+Use this to view savings, acceptance rate, tool usage, and latency.
+
+Example:
+```
+curl http://127.0.0.1:8084/stats | jq .
+```

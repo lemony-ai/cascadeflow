@@ -110,6 +110,20 @@ openclaw:
 - Suggested routing: OpenClaw-native via explicit tags; Cascadeflow domains via auto-detection.
  - Heartbeat/cron channels default to direct cheap when a channel model is configured.
 
+## Metrics & Stats (OpenClaw-side)
+Cascadeflow exposes runtime metrics at `GET /stats` on the OpenAI server.
+Use this to validate savings, acceptance rate, tool usage, and latency.
+
+Suggested commands:
+- `/cascade stats` → summarize cost savings + acceptance rate
+- `/cascade domains` → per-domain performance
+- `/cascade latency` → overhead analysis
+
+Example:
+```
+curl http://127.0.0.1:8084/stats | jq .
+```
+
 ## Tagging Rules (What this skill sends)
 This skill adds explicit routing hints only when the domain is predictable.
 
