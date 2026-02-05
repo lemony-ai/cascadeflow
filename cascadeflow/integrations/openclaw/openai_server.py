@@ -7,7 +7,9 @@ Implements POST /v1/chat/completions and routes requests through CascadeAgent.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
+import queue
 import threading
 import time
 from dataclasses import dataclass
@@ -38,6 +40,8 @@ class OpenClawOpenAIServer:
         self.config = config or OpenClawOpenAIConfig()
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._loop_thread: threading.Thread | None = None
 
     def start(self) -> int:
         if self._server:
@@ -59,6 +63,37 @@ class OpenClawOpenAIServer:
         self._server.server_close()
         self._server = None
         self._thread = None
+        if self._loop:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            if self._loop_thread:
+                self._loop_thread.join(timeout=1)
+            self._loop = None
+            self._loop_thread = None
+
+    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop and self._loop.is_running():
+            return self._loop
+
+        loop = asyncio.new_event_loop()
+
+        def _run_loop() -> None:
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        thread = threading.Thread(target=_run_loop, daemon=True)
+        thread.start()
+        self._loop = loop
+        self._loop_thread = thread
+        return loop
+
+    def run_coroutine(self, coro):
+        loop = self._ensure_loop()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()
+
+    def submit_coroutine(self, coro):
+        loop = self._ensure_loop()
+        return asyncio.run_coroutine_threadsafe(coro, loop)
 
     @property
     def host(self) -> str:
@@ -104,9 +139,12 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if stream and not server.config.allow_streaming:
             return self._send_openai_error("Streaming not enabled", status=400)
 
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
         routing_decision = build_routing_decision(
+            method=metadata.get("method"),
+            event=metadata.get("event"),
             params=payload,
-            payload=None,
+            payload=metadata,
             enable_classifier=server.config.enable_classifier,
         )
 
@@ -122,7 +160,6 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         )
 
         kpi_flags = {}
-        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
         if isinstance(metadata.get("kpi_flags"), dict):
             kpi_flags.update(metadata.get("kpi_flags"))
         if cascadeflow_tags.get("category"):
@@ -192,44 +229,66 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
 
-        async def _stream():
-            async for event in server.agent.stream_events(
-                query=get_last_user_message(messages),
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                tools=tools,
-                tool_choice=tool_choice,
-                domain_hint=domain_hint,
-                domain_confidence_hint=domain_confidence_hint,
-                kpi_flags=kpi_flags,
-                tenant_id=tenant_id,
-                channel=channel,
-            ):
-                if event.type.value != "chunk":
-                    continue
-                chunk = {
-                    "id": "chatcmpl-cascadeflow",
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": model,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {"content": event.content},
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
-                self.wfile.flush()
+        event_queue: queue.Queue[object] = queue.Queue()
+        sentinel = object()
+        error_box: dict[str, Exception] = {}
 
-            self.wfile.write(b"data: [DONE]\n\n")
+        async def _produce() -> None:
+            try:
+                async for event in server.agent.stream_events(
+                    query=get_last_user_message(messages),
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    domain_hint=domain_hint,
+                    domain_confidence_hint=domain_confidence_hint,
+                    kpi_flags=kpi_flags,
+                    tenant_id=tenant_id,
+                    channel=channel,
+                ):
+                    event_queue.put(event)
+            except Exception as exc:  # pragma: no cover - streaming error path
+                error_box["error"] = exc
+            finally:
+                event_queue.put(sentinel)
+
+        future = server.submit_coroutine(_produce())
+
+        while True:
+            item = event_queue.get()
+            if item is sentinel:
+                break
+            event = item
+            if getattr(event.type, "value", None) != "chunk":
+                continue
+            chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": event.content},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
             self.wfile.flush()
 
-        import asyncio
+        try:
+            future.result(timeout=1)
+        except Exception as exc:  # pragma: no cover - logging only
+            error_box.setdefault("error", exc)
 
-        asyncio.run(_stream())
+        if "error" in error_box:
+            self.log_error("Streaming error: %s", error_box["error"])
+
+        self.wfile.write(b"data: [DONE]\n\n")
+        self.wfile.flush()
 
     def _send_json(self, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -270,7 +329,7 @@ def _run_agent(
 ):
     import asyncio
 
-    return asyncio.run(
+    return server.run_coroutine(
         server.agent.run(
             query=get_last_user_message(messages),
             messages=messages,

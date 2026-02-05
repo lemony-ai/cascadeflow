@@ -301,12 +301,33 @@ class OpenAIProvider(BaseProvider):
 
         openai_tools = []
         for tool in tools:
+            function = tool.get("function") if isinstance(tool, dict) else None
+            if isinstance(function, dict):
+                name = function.get("name") or tool.get("name")
+                description = function.get("description", tool.get("description", ""))
+                parameters = function.get(
+                    "parameters", tool.get("parameters", {"type": "object", "properties": {}})
+                )
+            else:
+                name = tool.get("name") if isinstance(tool, dict) else None
+                description = tool.get("description", "") if isinstance(tool, dict) else ""
+                parameters = (
+                    tool.get("parameters", {"type": "object", "properties": {}})
+                    if isinstance(tool, dict)
+                    else {"type": "object", "properties": {}}
+                )
+
+            if not name:
+                if os.getenv("DEBUG_TOOLS"):
+                    print("⚠️ Skipping tool without name")
+                continue
+
             openai_tool = {
                 "type": "function",
                 "function": {
-                    "name": tool["name"],
-                    "description": tool.get("description", ""),
-                    "parameters": tool.get("parameters", {"type": "object", "properties": {}}),
+                    "name": name,
+                    "description": description,
+                    "parameters": parameters,
                 },
             }
             openai_tools.append(openai_tool)

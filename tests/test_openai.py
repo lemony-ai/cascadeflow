@@ -175,6 +175,32 @@ class TestOpenAIProvider:
         confidence = openai_provider.calculate_confidence("This is an incomplete", metadata)
         assert confidence < 0.9
 
+    def test_convert_tools_accepts_openai_format(self, openai_provider):
+        """Ensure OpenAI-formatted tools are normalized without crashing."""
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather",
+                    "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+                },
+            }
+        ]
+
+        converted = openai_provider._convert_tools_to_openai(tools)
+
+        assert converted[0]["function"]["name"] == "get_weather"
+        assert converted[0]["function"]["description"] == "Get weather"
+
+    def test_convert_tools_skips_missing_name(self, openai_provider):
+        """Tools without a name should be skipped safely."""
+        tools = [{"type": "function", "function": {}}]
+
+        converted = openai_provider._convert_tools_to_openai(tools)
+
+        assert converted == []
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
