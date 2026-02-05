@@ -608,9 +608,13 @@ async def main():
     sample_problems = problems[:sample_size]
 
     # 3. Run benchmark or sweep
+    drafter, verifier = resolve_model_pair("gpt-4o-mini", "claude-opus-4-5-20251101")
+    drafter_cost = resolve_model_cost(drafter, 0.000375)
+    verifier_cost = resolve_model_cost(verifier, 0.0025)
+
     print("\n📊 Using models:")
-    print("  Drafter:  gpt-4o-mini ($0.15/$0.60 per 1M)")
-    print("  Verifier: claude-opus-4-5-20251101 ($5/$25 per 1M)")
+    print(f"  Drafter:  {drafter} (~${drafter_cost:.4f}/1k)")
+    print(f"  Verifier: {verifier} (~${verifier_cost:.4f}/1k)")
 
     if args.sweep:
         sweep_results = await parameter_sweep(
