@@ -614,6 +614,11 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
         weak=["rule", "requirement", "must"],
     ),
     Domain.FINANCIAL: DomainKeywords(
+        very_strong=[
+            "compound interest",
+            "tax implications",
+            "p/e ratio",
+        ],
         strong=[
             "financial",
             "investment",
@@ -636,6 +641,11 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "yield",
             "coupon",
             "fixed income",
+            "interest",
+            "tax",
+            "inflation",
+            "mutual fund",
+            "diversification",
         ],
         moderate=[
             "analysis",
@@ -1204,6 +1214,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Have a dialogue about book recommendations",
         "Chat about weekend activities",
         "Discuss pros and cons of remote work",
+        "How are you today?",
+        "Nice to meet you",
+        "Let's chat about something",
+        "What do you think?",
+        "Tell me more",
+        "Good morning, how's it going?",
+        "Thanks for your help",
     ],
     Domain.TOOL: [
         "Call the weather API for New York",
@@ -1268,6 +1285,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Verify whether this statistic is accurate",
         "Is it true that honey never spoils?",
         "Debunk this common myth with evidence",
+        "What is the capital of France?",
+        "When did World War II end?",
+        "Who invented the telephone?",
+        "What is the population of China?",
+        "Is it true that the Earth is round?",
+        "What year was the Declaration of Independence signed?",
+        "How far is the Moon from Earth?",
     ],
     Domain.MEDICAL: [
         "Explain the symptoms of diabetes",
@@ -1289,6 +1313,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Explain the concept of compound interest",
         "Evaluate risk for this portfolio",
         "Forecast revenue based on historical data",
+        "Explain compound interest",
+        "Calculate ROI on investment",
+        "What are the tax implications",
+        "Portfolio diversification strategy",
+        "Explain P/E ratio",
+        "How does inflation affect savings?",
+        "What is a mutual fund?",
     ],
     Domain.MULTIMODAL: [
         "Describe what's in this image",
@@ -1298,12 +1329,25 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Interpret this diagram and explain it",
     ],
     Domain.GENERAL: [
-        "What is the capital of France?",
-        "Who invented the telephone?",
+        "Tell me something interesting",
         "Explain how photosynthesis works",
         "What are the benefits of exercise?",
         "Describe the water cycle",
+        "Help me with something",
     ],
+}
+
+# Domain-specific confidence thresholds for semantic detection.
+# Some domains (conversation, financial, factual) are harder to detect
+# and benefit from lower thresholds to avoid falling back to GENERAL.
+DOMAIN_THRESHOLDS: dict[Domain, float] = {
+    Domain.CODE: 0.65,
+    Domain.MEDICAL: 0.70,
+    Domain.LEGAL: 0.70,
+    Domain.CONVERSATION: 0.50,
+    Domain.FINANCIAL: 0.55,
+    Domain.FACTUAL: 0.50,
+    Domain.GENERAL: 0.40,
 }
 
 
@@ -1331,7 +1375,7 @@ class SemanticDomainDetector:
         self,
         embedder: Optional["UnifiedEmbeddingService"] = None,
         confidence_threshold: float = 0.6,
-        use_hybrid: bool = False,
+        use_hybrid: bool = True,
     ):
         """
         Initialize semantic domain detector.
@@ -1339,7 +1383,7 @@ class SemanticDomainDetector:
         Args:
             embedder: Optional UnifiedEmbeddingService (creates new if None)
             confidence_threshold: Minimum similarity for detection (default: 0.6)
-            use_hybrid: Whether to combine with rule-based detection (default: False)
+            use_hybrid: Whether to combine with rule-based detection (default: True)
         """
         self.confidence_threshold = confidence_threshold
         self.use_hybrid = use_hybrid
@@ -1450,13 +1494,15 @@ class SemanticDomainDetector:
             similarity = self.embedder._cosine_similarity(query_embedding, domain_embedding)
             scores[domain] = float(similarity) if similarity is not None else 0.0
 
-        # Find best match
-        if not scores or max(scores.values()) < self.confidence_threshold:
+        # Find best match using domain-specific thresholds
+        detected_domain = max(scores, key=scores.get) if scores else Domain.GENERAL
+        confidence = scores.get(detected_domain, 0.0)
+        domain_threshold = DOMAIN_THRESHOLDS.get(
+            detected_domain, self.confidence_threshold
+        )
+        if not scores or confidence < domain_threshold:
             detected_domain = Domain.GENERAL
             confidence = 0.5
-        else:
-            detected_domain = max(scores, key=scores.get)
-            confidence = scores[detected_domain]
 
         # Optionally combine with rule-based (hybrid mode)
         if self.use_hybrid and self.rule_detector:
