@@ -38,6 +38,7 @@ from urllib.request import urlopen, urlretrieve
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 from cascadeflow.routing.domain import DomainDetector, SemanticDomainDetector
 
 # Retry configuration
@@ -571,11 +572,11 @@ async def run_cascade_benchmark(
     MMLU covers: math, science, code, medical, financial, legal, general.
     """
 
-    verifier_provider = "anthropic" if "claude" in verifier.lower() else "openai"
-    drafter_cost = 0.000375  # GPT-4o-mini avg ($0.15/$0.60 per 1M)
-    verifier_cost = (
-        0.015 if "opus" in verifier.lower() else 0.003 if "sonnet" in verifier.lower() else 0.0025
-    )
+    drafter, verifier = resolve_model_pair(drafter, verifier)
+    drafter_provider = resolve_model_provider(drafter)
+    verifier_provider = resolve_model_provider(verifier)
+    drafter_cost = resolve_model_cost(drafter, 0.000375)
+    verifier_cost = resolve_model_cost(verifier, 0.0025)
 
     # Configure all domains expected in MMLU
     # Each domain gets same drafter/verifier but optimized thresholds
@@ -636,7 +637,7 @@ async def run_cascade_benchmark(
 
     agent = CascadeAgent(
         models=[
-            ModelConfig(name=drafter, provider="openai", cost=drafter_cost),
+            ModelConfig(name=drafter, provider=drafter_provider, cost=drafter_cost),
             ModelConfig(name=verifier, provider=verifier_provider, cost=verifier_cost),
         ],
         enable_domain_detection=True,

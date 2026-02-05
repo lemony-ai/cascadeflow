@@ -28,6 +28,7 @@ from urllib.request import urlopen
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 from cascadeflow.routing.domain import Domain, DomainDetector, SemanticDomainDetector
 
 # GSM8K test set URL (from OpenAI's grade-school-math repo)
@@ -354,18 +355,18 @@ async def run_cascade_benchmark(
 ) -> list[BenchmarkResult]:
     """Run cascade benchmark with given parameters."""
 
-    # Determine provider based on model name
-    verifier_provider = "anthropic" if "claude" in verifier.lower() else "openai"
+    default_drafter, default_verifier = resolve_model_pair(drafter, verifier)
+    drafter = default_drafter
+    verifier = default_verifier
 
-    # Model costs per 1K tokens (input/output average)
-    # GPT-4o-mini: $0.15/$0.60 per 1M = $0.000375/1K avg
-    # Claude Opus 4.5: $5/$25 per 1M = $0.015/1K avg
-    drafter_cost = 0.000375 if "gpt-4o-mini" in drafter else 0.002
-    verifier_cost = 0.015 if "opus" in verifier.lower() else 0.0025
+    drafter_provider = resolve_model_provider(drafter)
+    verifier_provider = resolve_model_provider(verifier)
+    drafter_cost = resolve_model_cost(drafter, 0.000375)
+    verifier_cost = resolve_model_cost(verifier, 0.0025)
 
     agent = CascadeAgent(
         models=[
-            ModelConfig(name=drafter, provider="openai", cost=drafter_cost),
+            ModelConfig(name=drafter, provider=drafter_provider, cost=drafter_cost),
             ModelConfig(name=verifier, provider=verifier_provider, cost=verifier_cost),
         ],
         enable_domain_detection=True,
