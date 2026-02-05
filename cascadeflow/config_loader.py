@@ -186,17 +186,37 @@ def parse_domains(domains_config: dict[str, dict[str, Any]]) -> dict[str, Domain
     return {domain: parse_domain_config(config) for domain, config in domains_config.items()}
 
 
+def _parse_channel_models_value(value: Any) -> list[str]:
+    """Parse a single channel models value into a list of model ids."""
+    if isinstance(value, dict):
+        value = value.get("models") if "models" in value else value.get("model")
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    if isinstance(value, list):
+        models = [str(item).strip() for item in value if str(item).strip()]
+        return models
+    return []
+
+
 def parse_channel_models(channels_config: dict[str, Any]) -> dict[str, list[str]]:
     """Parse channel->models mapping."""
     channel_models: dict[str, list[str]] = {}
     for channel, value in channels_config.items():
-        if isinstance(value, str) and value.strip():
-            channel_models[channel] = [value.strip()]
-        elif isinstance(value, list):
-            models = [str(item).strip() for item in value if str(item).strip()]
-            if models:
-                channel_models[channel] = models
+        models = _parse_channel_models_value(value)
+        if models:
+            channel_models[channel] = models
     return channel_models
+
+
+def parse_channel_strategies(channels_config: dict[str, Any]) -> dict[str, str]:
+    """Parse channel->strategy mapping from nested channel config."""
+    channel_strategies: dict[str, str] = {}
+    for channel, value in channels_config.items():
+        if isinstance(value, dict):
+            strategy = value.get("strategy") or value.get("routing_strategy")
+            if isinstance(strategy, str) and strategy.strip():
+                channel_strategies[channel] = strategy.strip()
+    return channel_strategies
 
 
 def parse_channel_failover(failover_config: dict[str, Any]) -> dict[str, str]:
@@ -255,6 +275,9 @@ def create_agent_from_config(config: dict[str, Any], **overrides) -> "CascadeAge
     # Optional channel routing
     if "channels" in config:
         agent_kwargs["channel_models"] = parse_channel_models(config["channels"])
+        channel_strategies = parse_channel_strategies(config["channels"])
+        if channel_strategies:
+            agent_kwargs["channel_strategies"] = channel_strategies
     if "channel_failover" in config:
         agent_kwargs["channel_failover"] = parse_channel_failover(config["channel_failover"])
 
@@ -399,9 +422,15 @@ settings:
 
 # Optional channel routing (OpenClaw categories or custom channels)
 channels:
-  heartbeat: gpt-4o-mini
-  cron: gpt-4o-mini
-  voice: gpt-4o-realtime
+  heartbeat:
+    models: gpt-4o-mini
+    strategy: direct_cheap
+  cron:
+    models: gpt-4o-mini
+    strategy: direct_cheap
+  voice:
+    models: gpt-4o-realtime
+    strategy: direct_best
 
 channel_failover:
   voice: heartbeat
@@ -428,8 +457,14 @@ EXAMPLE_JSON_CONFIG = """{
     "verbose": false
   },
   "channels": {
-    "heartbeat": "gpt-4o-mini",
-    "cron": "gpt-4o-mini"
+    "heartbeat": {
+      "models": "gpt-4o-mini",
+      "strategy": "direct_cheap"
+    },
+    "cron": {
+      "models": "gpt-4o-mini",
+      "strategy": "direct_cheap"
+    }
   },
   "channel_failover": {
     "voice": "heartbeat"

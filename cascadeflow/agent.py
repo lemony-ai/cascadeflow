@@ -185,6 +185,7 @@ class CascadeAgent:
         tenant_rules: Optional[dict[str, Any]] = None,
         channel_models: Optional[dict[str, list[str]]] = None,
         channel_failover: Optional[dict[str, str]] = None,
+        channel_strategies: Optional[dict[str, Any]] = None,
         # ========================================================================
         # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
         # ========================================================================
@@ -216,6 +217,7 @@ class CascadeAgent:
             tenant_rules: Optional per-tenant routing overrides
             channel_models: Optional per-channel model allowlists
             channel_failover: Optional channel->failover mapping
+            channel_strategies: Optional per-channel routing strategy overrides
 
         Deprecated Args (v0.1.x compatibility):
             config: Old CascadeConfig (use quality_config instead)
@@ -397,6 +399,7 @@ class CascadeAgent:
             tenant_rules=tenant_rules,
             channel_models=channel_models,
             channel_failover=channel_failover,
+            channel_strategies=channel_strategies,
             verbose=verbose,
         )
 

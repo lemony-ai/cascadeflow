@@ -29,6 +29,7 @@ class RuleEngine:
         tenant_rules: Optional[dict[str, Any]] = None,
         channel_models: Optional[dict[str, list[str]]] = None,
         channel_failover: Optional[dict[str, str]] = None,
+        channel_strategies: Optional[dict[str, Any]] = None,
         verbose: bool = False,
     ) -> None:
         self.enable_domain_routing = enable_domain_routing
@@ -37,6 +38,7 @@ class RuleEngine:
         self.tenant_rules = tenant_rules or {}
         self.channel_models = channel_models or {}
         self.channel_failover = channel_failover or {}
+        self.channel_strategies = channel_strategies or {}
         self.verbose = verbose
 
     def decide(self, context: RuleContext) -> Optional[RuleDecision]:
@@ -191,11 +193,29 @@ class RuleEngine:
         if not models and not failover:
             return None
 
+        strategy = None
+        strategy_value = self.channel_strategies.get(selected_channel) or self.channel_strategies.get(
+            channel
+        )
+        if strategy_value:
+            try:
+                strategy = (
+                    strategy_value
+                    if isinstance(strategy_value, RoutingStrategy)
+                    else RoutingStrategy(str(strategy_value))
+                )
+            except ValueError:
+                logger.warning("Invalid channel routing strategy: %s", strategy_value)
+
+        if strategy is None and selected_channel in {"heartbeat", "cron"}:
+            strategy = RoutingStrategy.DIRECT_CHEAP
+
         metadata = {
             "rule": "channel_routing",
             "channel": channel,
             "selected_channel": selected_channel,
             "failover_channel": failover,
+            "channel_strategy": strategy.value if strategy else None,
         }
 
         return RuleDecision(
@@ -205,6 +225,7 @@ class RuleEngine:
             allowed_models=list(models or []),
             preferred_channel=selected_channel,
             failover_channel=failover,
+            routing_strategy=strategy,
         )
 
     def _apply_workflow_rules(self, context: RuleContext) -> Optional[RuleDecision]:

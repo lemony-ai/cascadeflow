@@ -69,8 +69,10 @@ The default path always works with only `drafter` + `verifier`.
 - **Explicit tags:** from OpenClaw skill.
 - **Classifier:** pre-router uses method/payload hints (no model call).
 - **If no match:** cascadeflow domain/complexity routing.
- - **Channel mapping:** OpenClaw categories map to channel names (optional) so users can
+- **Channel mapping:** OpenClaw categories map to channel names (optional) so users can
   route trivial system events (e.g., heartbeat/cron) to a smaller model than the drafter.
+- **Per-channel strategy:** allow `strategy` per channel; default heartbeat/cron to `direct_cheap`
+  when a channel model is configured.
 
 ### Cascadeflow domains
 - **Auto-detected** by Cascadeflow domain routing.
@@ -143,7 +145,8 @@ If unmet:
   to route LLM calls to Cascadeflow.
 - OpenClaw skill for explicit tags and guidance.
 - Failover channel support and docs.
- - Optional Cascadeflow config file to map OpenClaw categories → dedicated channel models.
+ - Optional Cascadeflow config file to map OpenClaw categories → dedicated channel models
+   with per-channel strategies.
 
 ### Phase 4 — Validation
 - E2E OpenClaw tests (latency, savings, accuracy).

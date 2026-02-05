@@ -207,3 +207,27 @@ def test_channel_failover_routing():
     assert decision.preferred_channel == "backup"
     assert decision.allowed_models == ["m2"]
     assert decision.failover_channel == "backup"
+
+
+def test_channel_strategy_default_direct_for_system_channels():
+    engine = RuleEngine(channel_models={"heartbeat": ["m1"]})
+    context = RuleContext(query="hi", channel="heartbeat")
+
+    decision = engine.decide(context)
+
+    assert decision is not None
+    assert decision.routing_strategy == RoutingStrategy.DIRECT_CHEAP
+
+
+def test_channel_strategy_override():
+    engine = RuleEngine(
+        channel_models={"cron": ["m1"]},
+        channel_strategies={"cron": "direct_best"},
+    )
+    context = RuleContext(query="hi", channel="cron")
+
+    decision = engine.decide(context)
+
+    assert decision is not None
+    assert decision.routing_strategy == RoutingStrategy.DIRECT_BEST
+    assert decision.metadata.get("channel_strategy") == "direct_best"
