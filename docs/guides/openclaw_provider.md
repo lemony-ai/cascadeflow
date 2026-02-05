@@ -118,3 +118,7 @@ Example:
 ```
 curl http://127.0.0.1:8084/stats | jq .
 ```
+
+Savings fields live under `/stats.summary`:
+- `total_cost`, `baseline_cost`, `total_saved`, `savings_percent`
+- `draft_tokens`, `verifier_tokens`, `total_tokens` (if providers report tokens)
