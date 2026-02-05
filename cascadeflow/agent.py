@@ -90,7 +90,13 @@ from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
-from .utils.messages import get_last_user_message, messages_to_prompt, normalize_messages
+from .tools.formats import normalize_tools
+from .utils.messages import (
+    detect_multi_turn,
+    get_last_user_message,
+    messages_to_prompt,
+    normalize_messages,
+)
 
 # Streaming imports - BOTH managers (v2.4 FIX)
 from .streaming import StreamEvent, StreamEventType, StreamManager
@@ -854,6 +860,7 @@ class CascadeAgent:
         overall_start = time.time()
         timing_breakdown = {}
         query_text, normalized_messages = self._normalize_messages(query, messages)
+        tools = normalize_tools(tools)
 
         # Detect complexity
         complexity_start = time.time()
@@ -1014,7 +1021,7 @@ class CascadeAgent:
             )
 
         # Rule engine decision (domain/tiers/KPIs)
-        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
+        has_multi_turn = detect_multi_turn(query_text, normalized_messages)
         rule_decision = None
         if self.rule_engine:
             rule_context = RuleContext(
@@ -1279,6 +1286,7 @@ class CascadeAgent:
         start_time = time.time()
         timing_breakdown = {}
         query_text, normalized_messages = self._normalize_messages(query, messages)
+        tools = normalize_tools(tools)
 
         # Detect complexity
         complexity_start = time.time()
@@ -1368,7 +1376,7 @@ class CascadeAgent:
                 )
 
         # Rule engine decision (domain/tiers/KPIs)
-        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
+        has_multi_turn = detect_multi_turn(query_text, normalized_messages)
         rule_decision = None
         if self.rule_engine:
             rule_context = RuleContext(
@@ -1555,6 +1563,7 @@ class CascadeAgent:
         """
         # Detect complexity
         query_text, normalized_messages = self._normalize_messages(query, messages)
+        tools = normalize_tools(tools)
         complexity_metadata = {}
         if complexity_hint:
             try:
@@ -1639,7 +1648,7 @@ class CascadeAgent:
                 )
 
         # Rule engine decision (domain/tiers/KPIs)
-        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
+        has_multi_turn = detect_multi_turn(query_text, normalized_messages)
         rule_decision = None
         if self.rule_engine:
             rule_context = RuleContext(

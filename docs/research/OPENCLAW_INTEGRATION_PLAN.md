@@ -98,7 +98,7 @@ The default path always works with only `drafter` + `verifier`.
 ## Savings/Accuracy Targets (Acceptance Criteria)
 For any OpenClaw use case with routing enabled:
 - **Savings target:** >= 60%
-- **Accuracy target:** >= 90%
+- **Accuracy target:** >= 95%
 
 If unmet:
 - Investigate, engineer, and propose a validated solution before launch.
@@ -148,6 +148,12 @@ If unmet:
  - Optional Cascadeflow config file to map OpenClaw categories → dedicated channel models
    with per-channel strategies.
 - Expose `GET /stats` on the OpenAI server for skill-driven savings/latency reporting.
+
+### Phase 3.5 — Multi-turn + Tool Reliability
+- Detect multi-turn prompts even when full message history is not supplied.
+- Boost conversation domain detection for multi-turn formatted prompts.
+- Normalize OpenAI-format tool schemas into Cascadeflow’s universal format.
+- Add regression tests for multi-turn detection and tool normalization.
 
 ### Phase 4 — Validation
 - E2E OpenClaw tests (latency, savings, accuracy).

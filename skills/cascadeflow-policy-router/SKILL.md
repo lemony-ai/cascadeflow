@@ -105,6 +105,40 @@ openclaw:
     general: "claude-3-5-sonnet-20241022"
 ```
 
+## Tested Setups (OpenClaw E2E)
+These configs are validated starting points. Replace model IDs with your provider names.
+
+### 1) Anthropic-only
+| Role      | Model               | Use Case            |
+| --------- | ------------------- | ------------------- |
+| Verifier  | Opus 4.5            | Quality baseline    |
+| Drafter   | Haiku 4.5           | Default fast        |
+| Code      | Sonnet 4            | More capability     |
+| Reasoning | Sonnet 4.5          | Complex logic       |
+| Creative  | Sonnet 4            | Balanced creativity |
+| Heartbeat | Haiku 4 -> Haiku 4.5 | Ultra cheap         |
+
+### 2) OpenAI-only
+| Role      | Model       | Use Case            |
+| --------- | ----------- | ------------------- |
+| Verifier  | GPT-5.2     | Quality baseline    |
+| Drafter   | GPT-5 mini  | Default fast        |
+| Code      | GPT-5       | Strong at code      |
+| Reasoning | o3-mini     | Excellent reasoning |
+| Heartbeat | nano -> mini | Ultra cheap         |
+| Cron      | nano -> mini | Cost efficient      |
+
+### 3) Mixed (Best of Both)
+| Domain       | Drafter    | Verifier   | Why                    |
+| ------------ | ---------- | ---------- | ---------------------- |
+| Default      | GPT-5 mini | Opus 4.5   | Speed + quality        |
+| Code         | GPT-5      | GPT-5.2    | OpenAI excels          |
+| Reasoning    | o3-mini    | Opus 4.5   | o3 + Opus verification |
+| Creative     | Sonnet 4   | Opus 4.5   | Anthropic voice        |
+| Conversation | Haiku 4.5  | Sonnet 4.5 | Natural feel           |
+| Tools        | GPT-5 mini | GPT-5      | OpenAI tool support    |
+| Heartbeat    | nano       | mini       | Cheapest               |
+
 ## Domain Routing Notes
 - OpenClaw-native categories are routed in two ways:
   1) Explicit tags from this skill (deterministic, recommended).
@@ -119,10 +153,10 @@ Cascadeflow exposes runtime metrics at `GET /stats` on the OpenAI server.
 Use this to validate savings, acceptance rate, tool usage, and latency.
 
 Suggested commands:
-- `/cascade stats` → summarize cost savings + acceptance rate
-- `/cascade domains` → per-domain performance
-- `/cascade latency` → overhead analysis
-- `/cascade savings` → cost comparison vs verifier-only baseline
+- `/cascade stats` -> summarize cost savings + acceptance rate
+- `/cascade domains` -> per-domain performance
+- `/cascade latency` -> overhead analysis
+- `/cascade savings` -> cost comparison vs verifier-only baseline
 
 Example:
 ```

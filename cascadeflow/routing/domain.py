@@ -41,6 +41,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from cascadeflow.utils.messages import is_multi_turn_prompt
+
 # Optional ML imports
 try:
     from ..ml.embedding import UnifiedEmbeddingService
@@ -884,6 +886,13 @@ class DomainDetector:
         if is_mcq:
             scores[Domain.CONVERSATION] = max(0, scores.get(Domain.CONVERSATION, 0) - 0.5)
 
+        # Boost conversation domain when multi-turn markers are present
+        multi_turn_detected = is_multi_turn_prompt(query)
+        if multi_turn_detected and not is_mcq:
+            scores[Domain.CONVERSATION] = min(
+                1.0, scores.get(Domain.CONVERSATION, 0) + 0.6
+            )
+
         # Find domain with highest score
         if not scores or max(scores.values()) < self.confidence_threshold:
             # Default to GENERAL if no strong match
@@ -902,6 +911,7 @@ class DomainDetector:
                 "threshold": self.confidence_threshold,
                 "is_mcq": is_mcq,
                 "subject_hint": subject_hint.value if subject_hint else None,
+                "multi_turn_detected": multi_turn_detected,
             },
         )
 
