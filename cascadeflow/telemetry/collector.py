@@ -266,6 +266,13 @@ class MetricsCollector:
         # Keep recent results for rolling metrics (with timestamp)
         if result:
             try:
+                rule_reason = None
+                rule_strategy = None
+                rule_confidence = None
+                if hasattr(result, "metadata") and result.metadata:
+                    rule_reason = result.metadata.get("rule_reason")
+                    rule_strategy = result.metadata.get("rule_strategy")
+                    rule_confidence = result.metadata.get("rule_confidence")
                 self.recent_results.append(
                     {
                         "cost": getattr(result, "total_cost", 0.0),
@@ -282,6 +289,9 @@ class MetricsCollector:
                         "timestamp": datetime.now().isoformat(),
                         "query": str(getattr(result, "content", ""))[:100],  # Truncate for memory
                         "model_used": getattr(result, "model_used", "unknown"),
+                        "rule_reason": rule_reason,
+                        "rule_strategy": rule_strategy,
+                        "rule_confidence": rule_confidence,
                     }
                 )
             except Exception as e:

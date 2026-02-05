@@ -117,6 +117,13 @@ from .schema.domain_config import (
     DOMAIN_STRUCTURED,
 )
 
+# Rule engine (v2.8)
+from .rules import (
+    RuleContext,
+    RuleDecision,
+    RuleEngine,
+)
+
 # Model registry (v0.7.0)
 from .schema.model_registry import (
     ModelRegistry,
