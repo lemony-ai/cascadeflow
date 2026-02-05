@@ -17,8 +17,10 @@ import re
 import time
 from typing import Any, Optional
 
+from cascadeflow import CascadeAgent, ModelConfig
 from .base import Benchmark, BenchmarkResult, BenchmarkSummary
 from .benchmark_config import BenchmarkConfig, BenchmarkMode
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 
 class MMLUCategory:
@@ -601,9 +603,6 @@ class MMLUBenchmark(Benchmark):
         Returns:
             Cascade result dict
         """
-        # Import here to avoid circular imports
-        from cascadeflow import CascadeAgent, ModelConfig
-
         # Get question data from results lookup
         question_data = None
         for qid, qdata in self.load_dataset():
@@ -618,10 +617,23 @@ class MMLUBenchmark(Benchmark):
         formatted_question = self._format_question(question_data)
 
         # Create agent with config
+        drafter_provider = resolve_model_provider(self.drafter_model)
+        verifier_provider = resolve_model_provider(self.verifier_model)
+        drafter_cost = resolve_model_cost(self.drafter_model, 0.00015)
+        verifier_cost = resolve_model_cost(self.verifier_model, 0.0025)
+
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=drafter_provider,
+                    cost=drafter_cost,
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=verifier_provider,
+                    cost=verifier_cost,
+                ),
             ],
             quality_threshold=self.quality_threshold,
             enable_domain_detection=self.config.enable_domain_pipeline,

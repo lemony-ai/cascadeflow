@@ -33,6 +33,7 @@ from typing import Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 # HuggingFace datasets - optional import
 try:
@@ -528,10 +529,23 @@ QUESTION: {question}
 Provide a clear, direct answer based only on the information in the document."""
 
         # Create agent
+        drafter_provider = resolve_model_provider(self.drafter_model)
+        verifier_provider = resolve_model_provider(self.verifier_model)
+        drafter_cost = resolve_model_cost(self.drafter_model, 0.00015)
+        verifier_cost = resolve_model_cost(self.verifier_model, 0.0025)
+
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=drafter_provider,
+                    cost=drafter_cost,
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=verifier_provider,
+                    cost=verifier_cost,
+                ),
             ],
             enable_domain_detection=True,
             use_semantic_domains=True,
@@ -702,8 +716,9 @@ async def main():
     parser.add_argument("--hf", action="store_true", help="Use HuggingFace LongBench dataset")
     parser.add_argument("--hf-subsets", type=str, help="Comma-separated HF subsets (default: all)")
     parser.add_argument("--hf-per-subset", type=int, default=20, help="Max tasks per HF subset")
-    parser.add_argument("--drafter", default="gpt-4o-mini")
-    parser.add_argument("--verifier", default="gpt-4o")
+    default_drafter, default_verifier = resolve_model_pair("gpt-4o-mini", "gpt-4o")
+    parser.add_argument("--drafter", default=default_drafter)
+    parser.add_argument("--verifier", default=default_verifier)
 
     args = parser.parse_args()
 

@@ -29,6 +29,7 @@ from typing import Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 
 @dataclass
@@ -436,10 +437,23 @@ If no tool is needed, explain why and answer directly.
 User request: {prompt}"""
 
         # Create agent
+        drafter_provider = resolve_model_provider(self.drafter_model)
+        verifier_provider = resolve_model_provider(self.verifier_model)
+        drafter_cost = resolve_model_cost(self.drafter_model, 0.00015)
+        verifier_cost = resolve_model_cost(self.verifier_model, 0.0025)
+
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=drafter_provider,
+                    cost=drafter_cost,
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=verifier_provider,
+                    cost=verifier_cost,
+                ),
             ],
             enable_domain_detection=True,
             use_semantic_domains=True,
@@ -572,8 +586,9 @@ async def main():
     parser = argparse.ArgumentParser(description="BFCL-style Function Calling Benchmark")
     parser.add_argument("--sample", type=int, help="Run N tasks")
     parser.add_argument("--full", action="store_true", help="Run all tasks")
-    parser.add_argument("--drafter", default="gpt-4o-mini")
-    parser.add_argument("--verifier", default="gpt-4o")
+    default_drafter, default_verifier = resolve_model_pair("gpt-4o-mini", "gpt-4o")
+    parser.add_argument("--drafter", default=default_drafter)
+    parser.add_argument("--verifier", default=default_verifier)
 
     args = parser.parse_args()
 
