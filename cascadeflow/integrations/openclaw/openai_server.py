@@ -114,6 +114,8 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         server: OpenClawOpenAIServer = self.server.openclaw_server  # type: ignore[attr-defined]
         if self.path.startswith("/stats"):
             return self._handle_stats(server)
+        if self.path == "/health":
+            return self._send_json({"status": "ok"})
 
         self.send_response(404)
         self.end_headers()
@@ -416,15 +418,23 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
     prompt_tokens = None
     completion_tokens = None
     total_tokens = None
+    tool_calls = None
     if hasattr(result, "metadata") and result.metadata:
         prompt_tokens = result.metadata.get("prompt_tokens")
         completion_tokens = result.metadata.get("completion_tokens")
         total_tokens = result.metadata.get("total_tokens")
+        tool_calls = result.metadata.get("tool_calls")
 
     if total_tokens is None:
         prompt_tokens = prompt_tokens or 0
         completion_tokens = completion_tokens or 0
         total_tokens = prompt_tokens + completion_tokens
+
+    message: dict[str, Any] = {"role": "assistant", "content": result.content}
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+
+    finish_reason = "tool_calls" if tool_calls else "stop"
 
     return {
         "id": "chatcmpl-cascadeflow",
@@ -434,8 +444,8 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": result.content},
-                "finish_reason": "stop",
+                "message": message,
+                "finish_reason": finish_reason,
             }
         ],
         "usage": {
