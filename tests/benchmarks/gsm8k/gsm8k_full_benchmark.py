@@ -462,15 +462,13 @@ def analyze_results(results: list[BenchmarkResult], config: ParameterConfig) -> 
     total_cost = sum(r.cost for r in results)
     avg_latency = sum(r.latency_ms for r in results) / total if total > 0 else 0
 
-    # Calculate baseline cost (all verifier)
-    # Cost ratio: Claude Opus 4.5 ($15/1K avg) vs GPT-4o-mini ($0.375/1K avg) = 40x
-    # For OpenAI-only: GPT-4o ($10/1K avg) vs GPT-4o-mini ($0.375/1K avg) = 26.7x
-    verifier_drafter_ratio = 40.0  # Opus 4.5 vs GPT-4o-mini
-    baseline_cost = (
-        total_cost
-        * (1.0 / (draft_accepted / total + (1 - draft_accepted / total) * verifier_drafter_ratio))
-        if draft_accepted > 0
-        else total_cost
+    # Estimate baseline cost if all queries ran on the verifier.
+    drafter, verifier = resolve_model_pair("gpt-4o-mini", "claude-opus-4-5-20251101")
+    drafter_cost = resolve_model_cost(drafter, 0.000375)
+    verifier_cost = resolve_model_cost(verifier, 0.0025)
+    verifier_drafter_ratio = verifier_cost / drafter_cost if drafter_cost > 0 else 1.0
+    baseline_cost = sum(
+        r.cost * verifier_drafter_ratio if r.draft_accepted else r.cost for r in results
     )
 
     return {
