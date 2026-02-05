@@ -245,6 +245,28 @@ class DomainDetector:
             "bonds",
             "yield curve",
         ],
+        "conversation": [
+            "chat",
+            "talk",
+            "discuss",
+            "conversation",
+            "hello",
+            "hi",
+            "hey",
+            "thanks",
+            "thank you",
+            "please",
+            "sorry",
+            "excuse me",
+            "how are you",
+            "what do you think",
+            "opinion",
+            "feel",
+            "believe",
+            "casual",
+            "friendly",
+            "small talk",
+        ],
     }
 
     @staticmethod

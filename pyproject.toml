@@ -85,6 +85,9 @@ semantic = [
     "fastembed>=0.2.0",
 ]
 
+# OpenClaw integration (auto-enables FastEmbed for semantic routing)
+openclaw = ["fastembed>=0.7.0"]
+
 # Development tools (includes rich for terminal output)
 dev = [
     "pytest>=7.4.0",
