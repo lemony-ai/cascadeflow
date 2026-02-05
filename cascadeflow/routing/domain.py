@@ -63,9 +63,11 @@ class Domain(str, Enum):
     CONVERSATION = "conversation"  # Multi-turn dialogue, chatbot
     TOOL = "tool"  # Tool/function calling, external APIs
     CREATIVE = "creative"  # Creative writing, content generation
+    COMPARISON = "comparison"  # X vs Y, compare/contrast
     SUMMARY = "summary"  # Text summarization, condensing
     TRANSLATION = "translation"  # Language translation
     MATH = "math"  # Mathematical reasoning, calculations
+    FACTUAL = "factual"  # Fact checking, verification, sources
     MEDICAL = "medical"  # Healthcare, medicine (high accuracy required)
     LEGAL = "legal"  # Law, contracts, compliance
     FINANCIAL = "financial"  # Financial analysis, market research
@@ -355,6 +357,38 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
         ],
         weak=["create", "make", "new"],
     ),
+    Domain.COMPARISON: DomainKeywords(
+        very_strong=[
+            "compare",
+            "comparison",
+            "versus",
+            "vs",
+            "difference between",
+            "pros and cons",
+            "tradeoffs",
+            "trade-off",
+        ],
+        strong=[
+            "differences",
+            "similarities",
+            "which is better",
+            "better than",
+            "worse than",
+            "advantages",
+            "disadvantages",
+        ],
+        moderate=[
+            "contrast",
+            "relative to",
+            "vs.",
+            "x vs y",
+            "x versus y",
+        ],
+        weak=[
+            "compare to",
+            "compared with",
+        ],
+    ),
     Domain.SUMMARY: DomainKeywords(
         strong=[
             "summarize",
@@ -472,6 +506,36 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "times",
             "plus",
             "minus",
+        ],
+    ),
+    Domain.FACTUAL: DomainKeywords(
+        very_strong=[
+            "fact check",
+            "fact-check",
+            "is it true",
+            "true or false",
+            "verify",
+            "verification",
+        ],
+        strong=[
+            "factual",
+            "accuracy",
+            "accurate",
+            "sources",
+            "citations",
+            "evidence",
+            "debunk",
+        ],
+        moderate=[
+            "confirm",
+            "validate",
+            "myth",
+            "hoax",
+            "misinformation",
+        ],
+        weak=[
+            "correct",
+            "incorrect",
         ],
     ),
     Domain.MEDICAL: DomainKeywords(
@@ -708,6 +772,15 @@ class DomainDetector:
         "biology": Domain.GENERAL,
         "astronomy": Domain.GENERAL,
         "science": Domain.GENERAL,
+        "comparison": Domain.COMPARISON,
+        "compare": Domain.COMPARISON,
+        "versus": Domain.COMPARISON,
+        "vs": Domain.COMPARISON,
+        "factual": Domain.FACTUAL,
+        "fact check": Domain.FACTUAL,
+        "fact-check": Domain.FACTUAL,
+        "verify": Domain.FACTUAL,
+        "verification": Domain.FACTUAL,
         # Medical subjects
         "medicine": Domain.MEDICAL,
         "medical": Domain.MEDICAL,
@@ -951,6 +1024,11 @@ class DomainDetector:
                 {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
                 {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
             ],
+            Domain.COMPARISON: [
+                {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
+                {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
+                {"name": "gpt-4o-mini", "provider": "openai", "cost": 0.00015},
+            ],
             Domain.SUMMARY: [
                 {"name": "claude-3-5-haiku", "provider": "anthropic", "cost": 0.0008},
                 {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
@@ -963,6 +1041,11 @@ class DomainDetector:
             Domain.MATH: [
                 {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
                 {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
+            ],
+            Domain.FACTUAL: [
+                {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
+                {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
+                {"name": "gpt-4o-mini", "provider": "openai", "cost": 0.00015},
             ],
             Domain.MEDICAL: [
                 {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
@@ -1126,6 +1209,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Write dialogue for a mystery novel",
         "Generate creative names for a coffee shop",
     ],
+    Domain.COMPARISON: [
+        "Compare Python vs Java for backend development",
+        "What is the difference between TCP and UDP?",
+        "iPhone vs Android: pros and cons",
+        "Compare AWS and GCP pricing models",
+        "Which is better for ML: PyTorch or TensorFlow?",
+    ],
     Domain.SUMMARY: [
         "Summarize this research paper in 3 sentences",
         "Give me a brief overview of this article",
@@ -1161,6 +1251,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Prove the Pythagorean theorem using geometric reasoning",
         "Compute the area under this curve using integration",
         "Solve the quadratic equation 3x^2 + 5x - 2 = 0",
+    ],
+    Domain.FACTUAL: [
+        "Is this claim true? Provide sources.",
+        "Fact check this statement about vaccines",
+        "Verify whether this statistic is accurate",
+        "Is it true that honey never spoils?",
+        "Debunk this common myth with evidence",
     ],
     Domain.MEDICAL: [
         "Explain the symptoms of diabetes",

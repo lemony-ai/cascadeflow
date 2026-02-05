@@ -41,9 +41,11 @@ Optional Cascadeflow domains (opt-in, auto-detected by Cascadeflow):
 - `conversation`
 - `tool`
 - `creative`
+- `comparison`
 - `summary`
 - `translation`
 - `math`
+- `factual`
 - `medical`
 - `legal`
 - `financial`
@@ -91,9 +93,11 @@ openclaw:
     conversation: "claude-3-5-sonnet-20241022"
     tool: "claude-3-5-sonnet-20241022"
     creative: "claude-3-5-sonnet-20241022"
+    comparison: "claude-3-5-sonnet-20241022"
     summary: "claude-3-5-haiku-20241022"
     translation: "claude-3-5-haiku-20241022"
     math: "deepseek-r1"
+    factual: "gpt-4o"
     medical: "claude-3-5-opus-20240229"
     legal: "claude-3-5-opus-20240229"
     financial: "gpt-4o"

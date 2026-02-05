@@ -62,7 +62,7 @@ The default path always works with only `drafter` + `verifier`.
 
 **Optional Cascadeflow domains (opt-in)**
 - `code`, `data`, `structured`, `rag`, `conversation`, `tool`, `creative`, `summary`,
-  `translation`, `math`, `medical`, `legal`, `financial`, `multimodal`, `general`
+  `comparison`, `translation`, `math`, `factual`, `medical`, `legal`, `financial`, `multimodal`, `general`
 
 ## Routing Rules (Source of Truth)
 ### OpenClaw-native routes
