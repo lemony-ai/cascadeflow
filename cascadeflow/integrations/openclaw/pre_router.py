@@ -56,15 +56,43 @@ class OpenClawRouteHint:
     cascadeflow_domain: Optional[str] = None
 
 
-def extract_explicit_tags(params: Optional[dict[str, Any]], payload: Optional[dict[str, Any]]) -> dict[str, Any]:
+def extract_explicit_tags(
+    params: Optional[dict[str, Any]], payload: Optional[dict[str, Any]]
+) -> dict[str, Any]:
     """Extract explicit cascadeflow tags from OpenClaw params/payload."""
     params = params or {}
     payload = payload or {}
 
+    legacy_keys = {
+        "cascadeflow_category": "category",
+        "cascadeflow_profile": "profile",
+        "cascadeflow_domain": "domain",
+        "cascadeflow_model": "model",
+    }
+
     for source in (params, payload):
+        if not isinstance(source, dict):
+            continue
+
         cascadeflow = source.get("cascadeflow")
-        if isinstance(cascadeflow, dict):
+        if isinstance(cascadeflow, dict) and cascadeflow:
             return cascadeflow
+
+        dot_tags = {}
+        for key, value in source.items():
+            if isinstance(key, str) and key.startswith("cascadeflow."):
+                suffix = key.split(".", 1)[1].strip()
+                if suffix:
+                    dot_tags[suffix] = value
+        if dot_tags:
+            return dot_tags
+
+        legacy_tags = {}
+        for old_key, new_key in legacy_keys.items():
+            if old_key in source:
+                legacy_tags[new_key] = source[old_key]
+        if legacy_tags:
+            return legacy_tags
 
     return {}
 
