@@ -667,6 +667,17 @@ class QualityValidator:
 
             details["trivial_mode"] = True
 
+        # SPECIAL HANDLING FOR SHORT FACTOID QUERIES
+        # Short factoid answers ("Paris", "4", "1997") are valid but fail length checks.
+        elif self._is_short_factoid_query(query):
+            checks["length_appropriate"] = True
+            checks["has_content"] = len(draft_content.strip()) >= 1
+            checks["acceptable_hedging"] = True
+            checks["sufficient_specificity"] = True
+            checks["low_hallucination_risk"] = True
+
+            details["short_factoid_mode"] = True
+
         # SPECIAL HANDLING FOR CLASSIFICATION RESPONSES
         # Classification responses (intent/category) are short by design.
         # They contain a label + brief reasoning, not paragraphs of text.
@@ -874,6 +885,52 @@ class QualityValidator:
         has_currency = bool(re.search(r"\$\d+|\d+\s*dollars?|\d+\s*cents?", query_lower))
         has_math_question = any(indicator in query_lower for indicator in math_indicators)
         return has_currency or has_math_question
+
+    @staticmethod
+    def _is_short_factoid_query(query: str) -> bool:
+        """Detect short, factoid-style queries that expect brief answers."""
+        if not query:
+            return False
+        query_lower = query.strip().lower()
+        tokens = [t for t in re.split(r"\s+", query_lower) if t]
+        if len(tokens) > 8:
+            return False
+
+        disqualifiers = (
+            "explain",
+            "why",
+            "how",
+            "steps",
+            "compare",
+            "difference",
+            "pros",
+            "cons",
+            "summarize",
+            "describe",
+            "write",
+            "generate",
+            "list",
+        )
+        if any(word in query_lower for word in disqualifiers):
+            return False
+
+        starters = (
+            "what",
+            "who",
+            "when",
+            "where",
+            "which",
+            "capital",
+            "time",
+            "date",
+            "currency",
+            "population",
+            "define",
+        )
+        if query_lower.endswith("?") or query_lower.startswith(starters):
+            return True
+
+        return False
 
     @staticmethod
     def _is_creative_query(query: str) -> bool:
