@@ -655,15 +655,29 @@ class QualityValidator:
             "complexity": complexity,
         }
 
-        # SPECIAL HANDLING FOR TRIVIAL QUERIES
+        # HANDLING FOR TRIVIAL QUERIES
+        # P0 fix: No longer auto-passes all checks. Applies lenient thresholds
+        # but still validates content, hedging, and hallucination risk.
         if complexity == "trivial":
-            # For trivial queries, be extremely lenient
-            # Only confidence and basic content matter
-            checks["length_appropriate"] = True  # Any length OK
-            checks["has_content"] = len(draft_content.strip()) >= 1  # Just needs content
-            checks["acceptable_hedging"] = True  # Hedging OK
-            checks["sufficient_specificity"] = True  # No specificity needed
-            checks["low_hallucination_risk"] = True  # Don't check hallucinations
+            # Length: any non-empty content is fine for trivial
+            checks["length_appropriate"] = True
+            checks["has_content"] = len(draft_content.strip()) >= 1
+
+            # Still check hedging - even trivial answers shouldn't be pure uncertainty
+            hedging_analysis = self.analyzer.detect_hedging(draft_content)
+            checks["acceptable_hedging"] = hedging_analysis["acceptable"]
+            details["hedging"] = hedging_analysis
+
+            # Still check hallucination risk for trivial
+            if self.config.enable_hallucination_detection:
+                hallucination_analysis = self.analyzer.detect_hallucinations(draft_content)
+                checks["low_hallucination_risk"] = hallucination_analysis["risk_level"] != "high"
+                details["hallucination"] = hallucination_analysis
+            else:
+                checks["low_hallucination_risk"] = True
+
+            # No specificity needed for trivial
+            checks["sufficient_specificity"] = True
 
             details["trivial_mode"] = True
 

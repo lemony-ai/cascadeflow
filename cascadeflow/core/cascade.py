@@ -1466,6 +1466,31 @@ class WholeResponseCascade:
 
         passed = getattr(validation_result, "passed", False)
 
+        # P0 fix: Forced escalation for complex queries
+        # Expert queries ALWAYS escalate to verifier for quality assurance.
+        # Hard queries escalate unless the quality score is very high (>= 0.85).
+        quality_score = getattr(validation_result, "score", 0.0)
+        if complexity == "expert":
+            passed = False
+            if hasattr(validation_result, "reason"):
+                validation_result.reason = (
+                    f"forced_escalation_expert (complexity={complexity})"
+                )
+            logger.info(
+                f"P0: Forced escalation for expert query "
+                f"(quality_score={quality_score:.2f})"
+            )
+        elif complexity == "hard" and quality_score < 0.85:
+            passed = False
+            if hasattr(validation_result, "reason"):
+                validation_result.reason = (
+                    f"forced_escalation_hard (quality_score={quality_score:.2f} < 0.85)"
+                )
+            logger.info(
+                f"P0: Forced escalation for hard query "
+                f"(quality_score={quality_score:.2f} < 0.85)"
+            )
+
         # Additional semantic quality check if available
         skip_semantic = False
         validation_details = getattr(validation_result, "details", {}) or {}
