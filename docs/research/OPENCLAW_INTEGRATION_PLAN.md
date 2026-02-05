@@ -147,6 +147,7 @@ If unmet:
 - Failover channel support and docs.
  - Optional Cascadeflow config file to map OpenClaw categories → dedicated channel models
    with per-channel strategies.
+- Expose `GET /stats` on the OpenAI server for skill-driven savings/latency reporting.
 
 ### Phase 4 — Validation
 - E2E OpenClaw tests (latency, savings, accuracy).

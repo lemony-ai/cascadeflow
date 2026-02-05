@@ -109,6 +109,14 @@ class OpenClawOpenAIServer:
 class OpenAIRequestHandler(BaseHTTPRequestHandler):
     server_version = "CascadeflowOpenAI/0.1"
 
+    def do_GET(self) -> None:
+        server: OpenClawOpenAIServer = self.server.openclaw_server  # type: ignore[attr-defined]
+        if self.path.startswith("/stats"):
+            return self._handle_stats(server)
+
+        self.send_response(404)
+        self.end_headers()
+
     def do_POST(self) -> None:
         server: OpenClawOpenAIServer = self.server.openclaw_server  # type: ignore[attr-defined]
         length = int(self.headers.get("Content-Length", "0"))
@@ -210,6 +218,14 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         response = _build_openai_response(model, result)
         self._send_json(response)
+
+    def _handle_stats(self, server: OpenClawOpenAIServer) -> None:
+        telemetry = getattr(server.agent, "telemetry", None)
+        if telemetry is None or not hasattr(telemetry, "export_to_dict"):
+            return self._send_openai_error("Metrics export not available", status=404)
+
+        payload = telemetry.export_to_dict()
+        self._send_json(payload)
 
     def _send_openai_stream(
         self,
