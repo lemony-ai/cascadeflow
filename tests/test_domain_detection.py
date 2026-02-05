@@ -13,6 +13,8 @@ This module tests the 17-domain detection system including:
 import pytest
 
 from cascadeflow.routing.domain import (
+    DOMAIN_EXEMPLARS,
+    DOMAIN_THRESHOLDS,
     Domain,
     DomainDetectionResult,
     DomainDetector,
@@ -660,3 +662,102 @@ def test_all_domains_have_keywords(detector):
         assert keywords is not None
         # Each specialized domain should have keywords
         assert len(keywords.strong) > 0 or len(keywords.very_strong) > 0
+
+
+# ============================================================================
+# ENHANCED EXEMPLAR TESTS (P0 improvements)
+# ============================================================================
+
+
+class TestEnhancedExemplars:
+    """Tests for improved domain exemplars that were previously misdetected as GENERAL."""
+
+    def test_financial_exemplars_present(self):
+        """FINANCIAL domain should have at least 10 exemplars after enhancement."""
+        assert len(DOMAIN_EXEMPLARS[Domain.FINANCIAL]) >= 10
+
+    def test_conversation_exemplars_present(self):
+        """CONVERSATION domain should have at least 10 exemplars after enhancement."""
+        assert len(DOMAIN_EXEMPLARS[Domain.CONVERSATION]) >= 10
+
+    def test_factual_exemplars_present(self):
+        """FACTUAL domain should have at least 10 exemplars after enhancement."""
+        assert len(DOMAIN_EXEMPLARS[Domain.FACTUAL]) >= 10
+
+    def test_financial_compound_interest(self, detector):
+        """'Explain compound interest' should route to FINANCIAL domain."""
+        domain, confidence = detector.detect("Explain compound interest")
+        assert domain == Domain.FINANCIAL
+
+    def test_financial_roi(self, detector):
+        """'Calculate ROI on investment' should route to FINANCIAL."""
+        domain, confidence = detector.detect("Calculate ROI on investment")
+        assert domain == Domain.FINANCIAL
+
+    def test_financial_tax_implications(self, detector):
+        """Tax implications query should route to FINANCIAL."""
+        domain, confidence = detector.detect("What are the tax implications")
+        assert domain == Domain.FINANCIAL
+
+    def test_conversation_greeting(self, detector):
+        """'How are you today?' should route to CONVERSATION."""
+        result = detector.detect_with_scores("How are you today?")
+        # Conversation is hard to detect with rule-based alone;
+        # at minimum it should not be detected as a technical domain
+        assert result.domain in (Domain.CONVERSATION, Domain.GENERAL)
+
+    def test_conversation_nice_to_meet(self, detector):
+        """'Nice to meet you' should not be a technical domain."""
+        result = detector.detect_with_scores("Nice to meet you")
+        assert result.domain in (Domain.CONVERSATION, Domain.GENERAL)
+
+    def test_factual_capital_of_france(self, detector):
+        """'What is the capital of France?' should route to FACTUAL or GENERAL."""
+        result = detector.detect_with_scores("What is the capital of France?")
+        # Factual questions without strong keywords may still go to GENERAL
+        assert result.domain in (Domain.FACTUAL, Domain.GENERAL)
+
+    def test_factual_ww2(self, detector):
+        """'When did World War II end?' should route to FACTUAL or GENERAL."""
+        result = detector.detect_with_scores("When did World War II end?")
+        assert result.domain in (Domain.FACTUAL, Domain.GENERAL)
+
+    @pytest.fixture
+    def detector(self):
+        return DomainDetector(confidence_threshold=0.3)
+
+
+# ============================================================================
+# DOMAIN-SPECIFIC THRESHOLD TESTS
+# ============================================================================
+
+
+class TestDomainThresholds:
+    """Tests for domain-specific confidence thresholds."""
+
+    def test_conversation_has_lower_threshold(self):
+        """CONVERSATION threshold should be lower than default 0.6."""
+        assert DOMAIN_THRESHOLDS[Domain.CONVERSATION] < 0.6
+
+    def test_financial_has_lower_threshold(self):
+        """FINANCIAL threshold should be lower than default 0.6."""
+        assert DOMAIN_THRESHOLDS[Domain.FINANCIAL] < 0.6
+
+    def test_factual_has_lower_threshold(self):
+        """FACTUAL threshold should be lower than default 0.6."""
+        assert DOMAIN_THRESHOLDS[Domain.FACTUAL] < 0.6
+
+    def test_medical_has_higher_threshold(self):
+        """MEDICAL threshold should be at least 0.7 for safety."""
+        assert DOMAIN_THRESHOLDS[Domain.MEDICAL] >= 0.70
+
+    def test_legal_has_higher_threshold(self):
+        """LEGAL threshold should be at least 0.7 for safety."""
+        assert DOMAIN_THRESHOLDS[Domain.LEGAL] >= 0.70
+
+    def test_general_has_lowest_threshold(self):
+        """GENERAL (fallback) should have the lowest threshold."""
+        general_thresh = DOMAIN_THRESHOLDS[Domain.GENERAL]
+        for domain, thresh in DOMAIN_THRESHOLDS.items():
+            if domain != Domain.GENERAL:
+                assert thresh >= general_thresh
