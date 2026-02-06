@@ -382,16 +382,31 @@ class BFCLBenchmark:
         response: str,
         expected_func: Optional[str],
         expected_params: Optional[dict] = None,
+        expected_funcs: Optional[list[str]] = None,
     ) -> tuple[bool, bool]:
         """Check if function call is correct."""
+        response_lower = response.lower()
+
+        if expected_funcs:
+            counts = {}
+            for func in expected_funcs:
+                func_key = func.lower()
+                counts[func_key] = counts.get(func_key, 0) + 1
+
+            for func, expected_count in counts.items():
+                func_mentions = response_lower.count(func) + response_lower.count(func.replace("_", " "))
+                if func_mentions < expected_count:
+                    return False, True
+            return True, True
+
         found_func, found_params = self._extract_function_call(response)
 
         if expected_func is None:
             # No tool should be used
             func_correct = (
                 found_func is None
-                or "don't need" in response.lower()
-                or "no tool" in response.lower()
+                or "don't need" in response_lower
+                or "no tool" in response_lower
             )
             return func_correct, True
 
@@ -415,6 +430,7 @@ class BFCLBenchmark:
         tools = task["tools"]
         prompt = task["prompt"]
         expected_func = task.get("expected_function")
+        expected_funcs = task.get("expected_functions")
         expected_params = task.get("expected_params")
 
         # Format tools for prompt
@@ -466,7 +482,10 @@ User request: {prompt}"""
             latency_ms = (time.time() - start_time) * 1000
 
             func_correct, params_correct = self._check_function_correct(
-                result.content, expected_func, expected_params
+                result.content,
+                expected_func,
+                expected_params,
+                expected_funcs,
             )
 
             found_func, _ = self._extract_function_call(result.content)
