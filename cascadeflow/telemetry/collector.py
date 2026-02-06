@@ -279,9 +279,30 @@ class MetricsCollector:
             try:
                 total_cost = float(getattr(result, "total_cost", 0.0))
                 cost_saved = getattr(result, "cost_saved", None)
+                
+                # Get bigonly_cost from result metadata if available
+                bigonly_cost = None
+                if hasattr(result, "metadata") and result.metadata:
+                    bigonly_cost = result.metadata.get("bigonly_cost")
+                
                 if cost_saved is None:
-                    cost_saved = 0.0
-                    self.stats["baseline_cost"] += total_cost
+                    # If no cost_saved, try to get bigonly_cost from metadata
+                    if bigonly_cost is not None:
+                        baseline_cost_for_this_query = float(bigonly_cost)
+                        cost_saved = baseline_cost_for_this_query - total_cost
+                        self.stats["total_saved"] += cost_saved
+                        self.stats["baseline_cost"] += baseline_cost_for_this_query
+                    else:
+                        # Fallback: estimate baseline as 2x total_cost for cascade queries, 1x for direct
+                        # This is a rough approximation when we don't have proper cost breakdown
+                        is_cascade = routing_strategy == "cascade"
+                        if is_cascade:
+                            estimated_baseline = total_cost * 2.0  # Rough estimate that verifier is ~2x more expensive
+                        else:
+                            estimated_baseline = total_cost  # Direct queries already use verifier model
+                        cost_saved = estimated_baseline - total_cost
+                        self.stats["total_saved"] += cost_saved
+                        self.stats["baseline_cost"] += estimated_baseline
                 else:
                     self.stats["total_saved"] += float(cost_saved)
                     # Baseline = actual + saved (can be lower if saved is negative)
