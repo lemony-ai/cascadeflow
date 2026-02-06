@@ -8,6 +8,7 @@ Professional benchmarks to validate CascadeFlow performance across real-world us
 2. **Bitext Customer Support** - Customer service Q&A (27,000+ examples)
 3. **Banking77** - Banking intent classification (13,000+ examples)
 4. **GSM8K** - Grade school math reasoning (8,500+ problems)
+5. **ToolCalls Real-World** - Tool routing with multi-turn context
 
 #### Metrics
 
@@ -16,6 +17,7 @@ Each benchmark measures:
 - **Quality maintenance** (accuracy/pass rate)
 - **Latency** improvements
 - **Escalation rates** (drafter acceptance %)
+- **Direct routing** counts and **cascade overhead** latency
 
 #### Running Benchmarks
 

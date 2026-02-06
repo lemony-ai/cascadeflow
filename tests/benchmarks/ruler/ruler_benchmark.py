@@ -30,14 +30,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from cascadeflow import CascadeAgent
 from cascadeflow.schema.config import ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
+default_drafter, default_verifier = resolve_model_pair("gpt-4o-mini", "gpt-4o")
 DEFAULT_CONFIG = {
-    "drafter": "gpt-4o-mini",
-    "verifier": "gpt-4o",
+    "drafter": default_drafter,
+    "verifier": default_verifier,
     "threshold": 0.6,
     "context_lengths": [1000, 2000, 4000],  # Target word counts
 }
@@ -331,10 +333,22 @@ async def run_benchmark(
     print()
 
     # Create agent
+    drafter_provider = resolve_model_provider(config["drafter"])
+    verifier_provider = resolve_model_provider(config["verifier"])
+    drafter_cost = resolve_model_cost(config["drafter"], 0.00015)
+    verifier_cost = resolve_model_cost(config["verifier"], 0.0025)
     agent = CascadeAgent(
         models=[
-            ModelConfig(name=config["drafter"], provider="openai", cost=0.00015),
-            ModelConfig(name=config["verifier"], provider="openai", cost=0.0025),
+            ModelConfig(
+                name=config["drafter"],
+                provider=drafter_provider,
+                cost=drafter_cost,
+            ),
+            ModelConfig(
+                name=config["verifier"],
+                provider=verifier_provider,
+                cost=verifier_cost,
+            ),
         ],
         enable_domain_detection=True,
         use_semantic_domains=True,

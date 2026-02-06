@@ -124,12 +124,31 @@ class HumanEvalBenchmark(Benchmark):
 
         if self.max_samples is None:
             try:
+                import gzip
                 import json
                 import urllib.request
 
-                url = "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl"
-                with urllib.request.urlopen(url, timeout=30) as response:
-                    payload = response.read().decode("utf-8")
+                urls = [
+                    "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl",
+                    "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl.gz",
+                ]
+                payload = None
+                last_error = None
+                for url in urls:
+                    try:
+                        with urllib.request.urlopen(url, timeout=30) as response:
+                            raw = response.read()
+                        if url.endswith(".gz"):
+                            payload = gzip.decompress(raw).decode("utf-8")
+                        else:
+                            payload = raw.decode("utf-8")
+                        break
+                    except Exception as exc:
+                        last_error = exc
+
+                if payload is None:
+                    raise RuntimeError(last_error or "Failed to download HumanEval dataset")
+
                 full_problems = [json.loads(line) for line in payload.splitlines() if line.strip()]
                 return [(p["prompt"], p) for p in full_problems]
             except Exception as exc:
@@ -207,10 +226,17 @@ class HumanEvalBenchmark(Benchmark):
             "model_used": result.model_used,
             "accepted": result.draft_accepted,
             "quality_score": result.quality_score or 0.0,
+            "routing_strategy": result.routing_strategy,
             "drafter_cost": result.draft_cost or 0.0,
             "verifier_cost": result.verifier_cost or 0.0,
             "total_cost": result.total_cost,
             "latency_ms": result.latency_ms,
+            "cascadeflow_latency_ms": (
+                (result.complexity_detection_ms or 0)
+                + (result.metadata.get("domain_detection_ms", 0) if result.metadata else 0)
+                + (result.metadata.get("tool_complexity_analysis_ms", 0) if result.metadata else 0)
+                + (result.quality_verification_ms or 0)
+            ),
             "tokens_input": result.metadata.get("prompt_tokens", 0),
             "tokens_output": result.metadata.get("completion_tokens", 0),
         }

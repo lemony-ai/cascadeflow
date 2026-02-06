@@ -96,6 +96,7 @@ from .streaming import StreamEvent, StreamEventType, StreamManager
 
 # Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
 from .telemetry import CallbackManager, CostCalculator, MetricsCollector
+from .integrations.litellm import LITELLM_AVAILABLE, LiteLLMCostProvider
 
 logger = logging.getLogger(__name__)
 
@@ -1650,6 +1651,9 @@ class CascadeAgent:
             timing["quality_verification"] = result.metadata.get("quality_check_ms", 0)
             timing["verifier_generation"] = result.metadata.get("verifier_latency_ms", 0)
             timing["cascade_overhead"] = result.metadata.get("cascade_overhead_ms", 0)
+            timing["tool_complexity_analysis_ms"] = result.metadata.get(
+                "tool_complexity_analysis_ms", 0
+            )
         else:
             timing["cascade_total"] = cascade_total
 
@@ -1714,8 +1718,41 @@ class CascadeAgent:
             )
         direct_latency = (time.time() - direct_start) * 1000
 
-        tokens_used = response.tokens_used if hasattr(response, "tokens_used") else max_tokens
-        cost = best_model.cost * (tokens_used / 1000)
+        prompt_tokens = None
+        completion_tokens = None
+        total_tokens = None
+        if hasattr(response, "metadata") and response.metadata:
+            prompt_tokens = response.metadata.get("prompt_tokens")
+            completion_tokens = response.metadata.get("completion_tokens")
+            total_tokens = response.metadata.get("total_tokens")
+            if (
+                total_tokens is None
+                and prompt_tokens is not None
+                and completion_tokens is not None
+            ):
+                total_tokens = prompt_tokens + completion_tokens
+
+        cost = None
+        if (
+            LITELLM_AVAILABLE
+            and prompt_tokens is not None
+            and completion_tokens is not None
+        ):
+            try:
+                provider = LiteLLMCostProvider()
+                cost = provider.calculate_cost(
+                    model=best_model.name,
+                    input_tokens=prompt_tokens,
+                    output_tokens=completion_tokens,
+                )
+            except Exception as exc:
+                logger.warning(f"LiteLLM direct cost failed for {best_model.name}: {exc}")
+
+        if cost is None:
+            tokens_used = response.tokens_used if hasattr(response, "tokens_used") else None
+            if not tokens_used:
+                tokens_used = total_tokens if total_tokens is not None else max_tokens
+            cost = best_model.cost * (tokens_used / 1000)
 
         result = self._create_direct_result(
             response.content,
@@ -1724,6 +1761,9 @@ class CascadeAgent:
             direct_latency,
             reason,
             tool_calls=getattr(response, "tool_calls", None),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
         )
 
         timing = {
@@ -1732,6 +1772,7 @@ class CascadeAgent:
             "quality_verification": 0,
             "verifier_generation": 0,
             "cascade_overhead": 0,
+            "tool_complexity_analysis_ms": 0.0,
         }
 
         return result, timing
@@ -2132,7 +2173,18 @@ class CascadeAgent:
     # HELPER METHODS - WITH TOOL SUPPORT
     # ========================================================================
 
-    def _create_direct_result(self, content, model, cost, latency, reason, tool_calls=None):
+    def _create_direct_result(
+        self,
+        content,
+        model,
+        cost,
+        latency,
+        reason,
+        tool_calls=None,
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        total_tokens: Optional[int] = None,
+    ):
         """
         Create result object for direct routing with tool support.
 
@@ -2142,7 +2194,18 @@ class CascadeAgent:
         class DirectResult:
             """Mimics cascade results for telemetry compatibility."""
 
-            def __init__(self, content, model, cost, latency, reason, tool_calls=None):
+            def __init__(
+                self,
+                content,
+                model,
+                cost,
+                latency,
+                reason,
+                tool_calls=None,
+                prompt_tokens: Optional[int] = None,
+                completion_tokens: Optional[int] = None,
+                total_tokens: Optional[int] = None,
+            ):
                 # Core attributes
                 self.content = content
                 self.model_used = model
@@ -2157,6 +2220,12 @@ class CascadeAgent:
                 self.draft_confidence = None
                 self.verifier_confidence = 0.95
                 self.speedup = 1.0
+
+                token_total = total_tokens
+                if token_total is None and prompt_tokens is not None and completion_tokens is not None:
+                    token_total = prompt_tokens + completion_tokens
+                if token_total is None:
+                    token_total = int(len(content.split()) * 1.3)
 
                 # Complete metadata
                 self.metadata = {
@@ -2184,10 +2253,12 @@ class CascadeAgent:
                     "quality_threshold": None,
                     "quality_check_passed": None,
                     "rejection_reason": None,
+                    "prompt_tokens": prompt_tokens or 0,
+                    "completion_tokens": completion_tokens or 0,
+                    "total_tokens": token_total,
                     "tokens_generated": int(len(content.split()) * 1.3),
-                    "total_tokens": int(len(content.split()) * 1.3),
                     "draft_tokens": 0,
-                    "verifier_tokens": int(len(content.split()) * 1.3),
+                    "verifier_tokens": token_total,
                     "draft_model": None,
                     "verifier_model": model,
                     "tool_calls": tool_calls,
@@ -2216,7 +2287,17 @@ class CascadeAgent:
                     "metadata": self.metadata,
                 }
 
-        return DirectResult(content, model, cost, latency, reason, tool_calls)
+        return DirectResult(
+            content,
+            model,
+            cost,
+            latency,
+            reason,
+            tool_calls,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+        )
 
     def _dict_to_result(self, data):
         """Convert dict to result object."""

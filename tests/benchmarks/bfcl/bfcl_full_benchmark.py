@@ -29,6 +29,7 @@ from typing import Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 
 @dataclass
@@ -381,16 +382,31 @@ class BFCLBenchmark:
         response: str,
         expected_func: Optional[str],
         expected_params: Optional[dict] = None,
+        expected_funcs: Optional[list[str]] = None,
     ) -> tuple[bool, bool]:
         """Check if function call is correct."""
+        response_lower = response.lower()
+
+        if expected_funcs:
+            counts = {}
+            for func in expected_funcs:
+                func_key = func.lower()
+                counts[func_key] = counts.get(func_key, 0) + 1
+
+            for func, expected_count in counts.items():
+                func_mentions = response_lower.count(func) + response_lower.count(func.replace("_", " "))
+                if func_mentions < expected_count:
+                    return False, True
+            return True, True
+
         found_func, found_params = self._extract_function_call(response)
 
         if expected_func is None:
             # No tool should be used
             func_correct = (
                 found_func is None
-                or "don't need" in response.lower()
-                or "no tool" in response.lower()
+                or "don't need" in response_lower
+                or "no tool" in response_lower
             )
             return func_correct, True
 
@@ -414,6 +430,7 @@ class BFCLBenchmark:
         tools = task["tools"]
         prompt = task["prompt"]
         expected_func = task.get("expected_function")
+        expected_funcs = task.get("expected_functions")
         expected_params = task.get("expected_params")
 
         # Format tools for prompt
@@ -436,10 +453,23 @@ If no tool is needed, explain why and answer directly.
 User request: {prompt}"""
 
         # Create agent
+        drafter_provider = resolve_model_provider(self.drafter_model)
+        verifier_provider = resolve_model_provider(self.verifier_model)
+        drafter_cost = resolve_model_cost(self.drafter_model, 0.00015)
+        verifier_cost = resolve_model_cost(self.verifier_model, 0.0025)
+
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=drafter_provider,
+                    cost=drafter_cost,
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=verifier_provider,
+                    cost=verifier_cost,
+                ),
             ],
             enable_domain_detection=True,
             use_semantic_domains=True,
@@ -452,7 +482,10 @@ User request: {prompt}"""
             latency_ms = (time.time() - start_time) * 1000
 
             func_correct, params_correct = self._check_function_correct(
-                result.content, expected_func, expected_params
+                result.content,
+                expected_func,
+                expected_params,
+                expected_funcs,
             )
 
             found_func, _ = self._extract_function_call(result.content)
@@ -572,8 +605,9 @@ async def main():
     parser = argparse.ArgumentParser(description="BFCL-style Function Calling Benchmark")
     parser.add_argument("--sample", type=int, help="Run N tasks")
     parser.add_argument("--full", action="store_true", help="Run all tasks")
-    parser.add_argument("--drafter", default="gpt-4o-mini")
-    parser.add_argument("--verifier", default="gpt-4o")
+    default_drafter, default_verifier = resolve_model_pair("gpt-4o-mini", "gpt-4o")
+    parser.add_argument("--drafter", default=default_drafter)
+    parser.add_argument("--verifier", default=default_verifier)
 
     args = parser.parse_args()
 

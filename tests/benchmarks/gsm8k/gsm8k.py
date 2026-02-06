@@ -390,6 +390,12 @@ class GSM8KBenchmark(Benchmark):
             "total_cost": total_cost,
             "baseline_cost": baseline_cost,  # For accurate savings calculation
             "latency_ms": latency_ms,
+            "cascadeflow_latency_ms": (
+                (result.complexity_detection_ms or 0)
+                + (result.metadata.get("domain_detection_ms", 0) if result.metadata else 0)
+                + (result.metadata.get("tool_complexity_analysis_ms", 0) if result.metadata else 0)
+                + (result.quality_verification_ms or 0)
+            ),
             "tokens_input": prompt_tokens,
             "tokens_output": completion_tokens,
             "routing_strategy": routing_strategy,

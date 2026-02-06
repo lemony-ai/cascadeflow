@@ -38,6 +38,7 @@ from urllib.request import urlopen, urlretrieve
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 from cascadeflow.routing.domain import DomainDetector, SemanticDomainDetector
 
 # Retry configuration
@@ -564,6 +565,7 @@ async def run_cascade_benchmark(
     config: ParameterConfig,
     drafter: str = "gpt-4o-mini",
     verifier: str = "claude-sonnet-4-20250514",
+    concurrency: int = 1,
 ) -> list[BenchmarkResult]:
     """Run cascade benchmark with given parameters.
 
@@ -571,11 +573,11 @@ async def run_cascade_benchmark(
     MMLU covers: math, science, code, medical, financial, legal, general.
     """
 
-    verifier_provider = "anthropic" if "claude" in verifier.lower() else "openai"
-    drafter_cost = 0.000375  # GPT-4o-mini avg ($0.15/$0.60 per 1M)
-    verifier_cost = (
-        0.015 if "opus" in verifier.lower() else 0.003 if "sonnet" in verifier.lower() else 0.0025
-    )
+    drafter, verifier = resolve_model_pair(drafter, verifier)
+    drafter_provider = resolve_model_provider(drafter)
+    verifier_provider = resolve_model_provider(verifier)
+    drafter_cost = resolve_model_cost(drafter, 0.000375)
+    verifier_cost = resolve_model_cost(verifier, 0.0025)
 
     # Configure all domains expected in MMLU
     # Each domain gets same drafter/verifier but optimized thresholds
@@ -636,7 +638,7 @@ async def run_cascade_benchmark(
 
     agent = CascadeAgent(
         models=[
-            ModelConfig(name=drafter, provider="openai", cost=drafter_cost),
+            ModelConfig(name=drafter, provider=drafter_provider, cost=drafter_cost),
             ModelConfig(name=verifier, provider=verifier_provider, cost=verifier_cost),
         ],
         enable_domain_detection=True,
@@ -644,9 +646,9 @@ async def run_cascade_benchmark(
         domain_configs=domain_configs,
     )
 
-    results = []
+    results: list[Optional[BenchmarkResult]] = [None] * len(problems)
 
-    for i, problem in enumerate(problems):
+    async def process_problem(index: int, problem: dict) -> tuple[int, BenchmarkResult, str]:
         query = format_question(problem)
         correct_answer = problem["answer"]
 
@@ -658,45 +660,63 @@ async def run_cascade_benchmark(
             predicted = extract_answer(result.content)
             is_correct = predicted == correct_answer
 
-            results.append(
-                BenchmarkResult(
-                    query=problem["question"][:50] + "...",
-                    subject=problem["subject"],
-                    category=problem["category"],
-                    answer=correct_answer,
-                    predicted=predicted or "N/A",
-                    correct=is_correct,
-                    draft_accepted=result.metadata.get("draft_accepted", False),
-                    domain_detected=result.metadata.get("detected_domain", "unknown"),
-                    cost=result.total_cost,
-                    latency_ms=latency,
-                )
+            benchmark_result = BenchmarkResult(
+                query=problem["question"][:50] + "...",
+                subject=problem["subject"],
+                category=problem["category"],
+                answer=correct_answer,
+                predicted=predicted or "N/A",
+                correct=is_correct,
+                draft_accepted=result.metadata.get("draft_accepted", False),
+                domain_detected=result.metadata.get("detected_domain", "unknown"),
+                cost=result.total_cost,
+                latency_ms=latency,
             )
 
             status = "✓" if is_correct else "✗"
             model_used = "[D]" if result.metadata.get("draft_accepted") else "[V]"
-            print(
-                f"[{i+1}/{len(problems)}] {problem['subject'][:20]:20s}: {status} {model_used} | Cost: ${result.total_cost:.4f}"
+            output = (
+                f"[{index+1}/{len(problems)}] {problem['subject'][:20]:20s}: "
+                f"{status} {model_used} | Cost: ${result.total_cost:.4f}"
             )
-
+            return index, benchmark_result, output
         except Exception as e:
-            print(f"[{i+1}/{len(problems)}] {problem['subject'][:20]:20s}: ⚠️ ERROR: {e}")
-            results.append(
-                BenchmarkResult(
-                    query=problem["question"][:50] + "...",
-                    subject=problem["subject"],
-                    category=problem["category"],
-                    answer=correct_answer,
-                    predicted="ERROR",
-                    correct=False,
-                    draft_accepted=False,
-                    domain_detected="error",
-                    cost=0.0,
-                    latency_ms=0.0,
+            output = (
+                f"[{index+1}/{len(problems)}] {problem['subject'][:20]:20s}: ⚠️ ERROR: {e}"
+            )
+            benchmark_result = BenchmarkResult(
+                query=problem["question"][:50] + "...",
+                subject=problem["subject"],
+                category=problem["category"],
+                answer=correct_answer,
+                predicted="ERROR",
+                correct=False,
+                draft_accepted=False,
+                domain_detected="error",
+                cost=0.0,
+                latency_ms=0.0,
+            )
+            return index, benchmark_result, output
+
+    if concurrency <= 1:
+        for i, problem in enumerate(problems):
+            index, benchmark_result, output = await process_problem(i, problem)
+            results[index] = benchmark_result
+            print(output)
+    else:
+        for start in range(0, len(problems), concurrency):
+            batch = problems[start : start + concurrency]
+            batch_results = await asyncio.gather(
+                *(
+                    process_problem(start + offset, problem)
+                    for offset, problem in enumerate(batch)
                 )
             )
+            for index, benchmark_result, output in batch_results:
+                results[index] = benchmark_result
+                print(output)
 
-    return results
+    return [result for result in results if result is not None]
 
 
 def analyze_results(results: list[BenchmarkResult], config: ParameterConfig) -> dict:
@@ -718,13 +738,13 @@ def analyze_results(results: list[BenchmarkResult], config: ParameterConfig) -> 
             category_stats[r.category]["draft_accepted"] += 1
         category_stats[r.category]["cost"] += r.cost
 
-    # Baseline cost (all verifier)
-    verifier_drafter_ratio = 40.0
-    baseline_cost = (
-        total_cost
-        * (1.0 / (draft_accepted / total + (1 - draft_accepted / total) * verifier_drafter_ratio))
-        if draft_accepted > 0
-        else total_cost
+    # Baseline cost (all verifier) using model cost ratio.
+    drafter, verifier = resolve_model_pair("gpt-4o-mini", "claude-opus-4-5-20251101")
+    drafter_cost = resolve_model_cost(drafter, 0.000375)
+    verifier_cost = resolve_model_cost(verifier, 0.0025)
+    verifier_drafter_ratio = verifier_cost / drafter_cost if drafter_cost > 0 else 1.0
+    baseline_cost = sum(
+        r.cost * verifier_drafter_ratio if r.draft_accepted else r.cost for r in results
     )
 
     return {
@@ -764,6 +784,12 @@ async def main():
     parser.add_argument("--sample", type=int, default=0, help="Number of samples (0=all)")
     parser.add_argument("--full", action="store_true", help="Run full benchmark")
     parser.add_argument("--sweep", action="store_true", help="Run parameter sweep")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Concurrent requests to speed up the run",
+    )
 
     args = parser.parse_args()
 
@@ -797,10 +823,13 @@ async def main():
     print("\n" + "=" * 70)
     print("MMLU BENCHMARK")
     print("=" * 70)
+    drafter, verifier = resolve_model_pair("gpt-4o-mini", "claude-sonnet-4-20250514")
+
     print("\nConfiguration:")
-    print("  Drafter:  gpt-4o-mini")
-    print("  Verifier: claude-sonnet-4-20250514")
+    print(f"  Drafter:  {drafter}")
+    print(f"  Verifier: {verifier}")
     print(f"  Problems: {sample_size}")
+    print(f"  Concurrency: {args.concurrency}")
 
     if args.sweep:
         thresholds = [0.50, 0.60, 0.70]
@@ -809,7 +838,11 @@ async def main():
         for threshold in thresholds:
             config = ParameterConfig(threshold=threshold)
             print(f"\n--- Threshold: {threshold} ---")
-            results = await run_cascade_benchmark(sample_problems, config)
+            results = await run_cascade_benchmark(
+                sample_problems,
+                config,
+                concurrency=args.concurrency,
+            )
             analysis = analyze_results(results, config)
             all_results.append(analysis)
 
@@ -831,7 +864,11 @@ async def main():
         print(f"Cost Savings: {best['cost']['savings_pct']:.1f}%")
     else:
         config = ParameterConfig(threshold=0.60)
-        results = await run_cascade_benchmark(sample_problems, config)
+        results = await run_cascade_benchmark(
+            sample_problems,
+            config,
+            concurrency=args.concurrency,
+        )
         analysis = analyze_results(results, config)
 
         print("\n" + "=" * 70)
