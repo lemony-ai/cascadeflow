@@ -1,0 +1,20 @@
+{
+  "name": "investor-demo",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx src/index.tsx",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ink": "^6.6.0",
+    "react": "^19.2.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
