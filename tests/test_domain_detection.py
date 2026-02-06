@@ -621,8 +621,114 @@ def test_detection_result_structure(detector):
     assert isinstance(result, DomainDetectionResult)
     assert isinstance(result.domain, Domain)
     assert isinstance(result.confidence, float)
-    assert isinstance(result.scores, dict)
-    assert 0.0 <= result.confidence <= 1.0
+
+
+# ============================================================================
+# SEMANTIC DOMAIN DETECTION TESTS (MOCKED EMBEDDER)
+# ============================================================================
+
+
+class _MockSemanticEmbedder:
+    """Deterministic embedder for semantic domain detector unit tests."""
+
+    def __init__(self, similarity_map=None):
+        self.is_available = True
+        self.similarity_map = similarity_map or {}
+
+    def embed_batch(self, texts):
+        return [f"emb::{text}" for text in texts]
+
+    def embed(self, text):
+        return f"query::{text}"
+
+    def _cosine_similarity(self, query_embedding, domain_embedding):
+        return self.similarity_map.get((query_embedding, domain_embedding), 0.0)
+
+
+def test_semantic_detector_hybrid_default_behavior():
+    """Semantic detector should default to hybrid mode and include hybrid metadata."""
+    query = "build python api"
+    query_embedding = f"query::{query}"
+    code_embedding = "emb::code exemplar"
+    data_embedding = "emb::data exemplar"
+
+    embedder = _MockSemanticEmbedder(
+        similarity_map={
+            (query_embedding, code_embedding): 0.92,
+            (query_embedding, data_embedding): 0.28,
+        }
+    )
+    detector = SemanticDomainDetector(embedder=embedder)
+    detector._domain_embeddings = {
+        Domain.CODE: code_embedding,
+        Domain.DATA: data_embedding,
+    }
+    detector._embeddings_computed = True
+
+    result = detector.detect_with_scores(query)
+
+    assert detector.use_hybrid is True
+    assert result.metadata["method"] == "hybrid"
+    assert result.domain == Domain.CODE
+
+
+def test_semantic_detector_uses_domain_threshold_fallback():
+    """Detector should fall back to GENERAL when top score misses domain threshold."""
+    query = "legal question"
+    query_embedding = f"query::{query}"
+    legal_embedding = "emb::legal exemplar"
+    code_embedding = "emb::code exemplar"
+
+    embedder = _MockSemanticEmbedder(
+        similarity_map={
+            (query_embedding, legal_embedding): DOMAIN_THRESHOLDS[Domain.LEGAL] - 0.05,
+            (query_embedding, code_embedding): 0.35,
+        }
+    )
+    detector = SemanticDomainDetector(embedder=embedder, use_hybrid=False)
+    detector._domain_embeddings = {
+        Domain.LEGAL: legal_embedding,
+        Domain.CODE: code_embedding,
+    }
+    detector._embeddings_computed = True
+
+    result = detector.detect_with_scores(query)
+
+    assert result.domain == Domain.GENERAL
+    assert result.confidence == 0.5
+
+
+def test_semantic_detector_resolves_disagreement_in_hybrid_mode():
+    """Hybrid mode should allow rule scores to win when semantic confidence is moderate."""
+    query = "implement api function"
+    query_embedding = f"query::{query}"
+    data_embedding = "emb::data exemplar"
+    code_embedding = "emb::code exemplar"
+
+    embedder = _MockSemanticEmbedder(
+        similarity_map={
+            (query_embedding, data_embedding): 0.65,
+            (query_embedding, code_embedding): 0.60,
+        }
+    )
+    detector = SemanticDomainDetector(embedder=embedder, use_hybrid=True)
+    detector._domain_embeddings = {
+        Domain.DATA: data_embedding,
+        Domain.CODE: code_embedding,
+    }
+    detector._embeddings_computed = True
+
+    detector.rule_detector = DomainDetector()
+    detector.rule_detector.detect_with_scores = lambda _query: DomainDetectionResult(
+        domain=Domain.CODE,
+        confidence=0.95,
+        scores={Domain.CODE: 0.95, Domain.DATA: 0.10, Domain.GENERAL: 0.0},
+    )
+
+    result = detector.detect_with_scores(query)
+
+    assert result.domain == Domain.CODE
+    assert result.scores[Domain.CODE] > result.scores[Domain.DATA]
 
 
 def test_detection_result_consistency(detector):

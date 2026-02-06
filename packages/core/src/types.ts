@@ -97,6 +97,27 @@ export interface ThinkingConfig {
   budget_tokens: number; // Minimum 1024
 }
 
+
+export interface Usage {
+  input_tokens: number;
+  output_tokens: number;
+  cached_input_tokens: number;
+  total_tokens: number;
+}
+
+export function toCanonicalUsage(usage?: Partial<UsageDetails> | Partial<Usage>): Usage {
+  const inputTokens = (usage as any)?.input_tokens ?? (usage as any)?.prompt_tokens ?? 0;
+  const outputTokens = (usage as any)?.output_tokens ?? (usage as any)?.completion_tokens ?? 0;
+  const cachedInputTokens =
+    (usage as any)?.cached_input_tokens ?? (usage as any)?.cache_read_input_tokens ?? 0;
+  return {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cached_input_tokens: cachedInputTokens,
+    total_tokens: inputTokens + outputTokens,
+  };
+}
+
 /**
  * Usage details with reasoning token breakdown
  */
@@ -104,6 +125,9 @@ export interface UsageDetails {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cached_input_tokens?: number;
   reasoning_tokens?: number; // For OpenAI o1/o3 models
   completion_tokens_details?: {
     reasoning_tokens?: number;

@@ -53,6 +53,7 @@ Example:
 """
 
 import logging
+import asyncio
 import sys
 import time
 from collections.abc import AsyncIterator
@@ -70,6 +71,7 @@ from .core.cascade import WholeResponseCascade
 # Phase 2C: Interface module imports
 from .interface import TerminalVisualConsumer
 from .providers import PROVIDER_REGISTRY, get_available_providers
+from .pricing import PricingResolver
 from .quality import QualityConfig
 
 # Phase 3: Tool routing
@@ -90,6 +92,7 @@ from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
+from .schema.usage import Usage
 from .tools.formats import normalize_tools
 from .utils.messages import (
     detect_multi_turn,
@@ -416,6 +419,7 @@ class CascadeAgent:
         self.cost_calculator = CostCalculator(
             drafter=self.models[0], verifier=self.models[-1], verbose=verbose
         )
+        self.pricing_resolver = PricingResolver()
 
         # Connect cost calculator to telemetry (optional)
         if hasattr(self.telemetry, "set_cost_calculator"):
@@ -810,6 +814,31 @@ class CascadeAgent:
             return query_text, normalized
         return query, None
 
+    def _apply_system_prompt(
+        self,
+        messages: Optional[list[dict[str, Any]]],
+        system_prompt: Optional[str],
+    ) -> Optional[list[dict[str, Any]]]:
+        if not system_prompt:
+            return messages
+        base = list(messages or [])
+        if base and base[0].get("role") == "system":
+            base[0] = {"role": "system", "content": system_prompt}
+            return base
+        return [{"role": "system", "content": system_prompt}, *base]
+
+    async def _execute_tool_calls_parallel(
+        self, tool_calls: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        async def _as_result(tool_call: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "tool_call_id": tool_call.get("id"),
+                "name": tool_call.get("function", {}).get("name", "unknown_tool"),
+                "content": '{"status":"not_implemented"}',
+            }
+
+        return await asyncio.gather(*[_as_result(tc) for tc in tool_calls])
+
     # ========================================================================
     # API 1: NON-STREAMING - WITH TOOL SUPPORT
     # ========================================================================
@@ -824,6 +853,7 @@ class CascadeAgent:
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        max_steps: int = 5,
         user_tier: Optional[str] = None,  # 🔄 OPTIONAL: v0.1.x backwards compatibility
         workflow: Optional[str] = None,
         kpi_flags: Optional[dict[str, Any]] = None,
@@ -859,6 +889,8 @@ class CascadeAgent:
         """
         overall_start = time.time()
         timing_breakdown = {}
+        system_prompt = kwargs.pop("system_prompt", None)
+        messages = self._apply_system_prompt(messages, system_prompt)
         query_text, normalized_messages = self._normalize_messages(query, messages)
         tools = normalize_tools(tools)
 
@@ -1174,6 +1206,7 @@ class CascadeAgent:
                 domain_config=domain_config,  # 🆕 v2.6: Pass domain config
                 quality_threshold_override=quality_threshold_override,
                 messages=normalized_messages,
+                max_steps=max_steps,
                 **kwargs,
             )
             timing_breakdown.update(exec_timing)
@@ -1285,6 +1318,8 @@ class CascadeAgent:
         """
         start_time = time.time()
         timing_breakdown = {}
+        system_prompt = kwargs.pop("system_prompt", None)
+        messages = self._apply_system_prompt(messages, system_prompt)
         query_text, normalized_messages = self._normalize_messages(query, messages)
         tools = normalize_tools(tools)
 
@@ -1562,6 +1597,8 @@ class CascadeAgent:
             StreamEvent objects with type, content, and data
         """
         # Detect complexity
+        system_prompt = kwargs.pop("system_prompt", None)
+        messages = self._apply_system_prompt(messages, system_prompt)
         query_text, normalized_messages = self._normalize_messages(query, messages)
         tools = normalize_tools(tools)
         complexity_metadata = {}
@@ -1887,6 +1924,7 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None,
         quality_threshold_override: Optional[float] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        max_steps: int = 5,
         **kwargs,
     ):
         """
@@ -1992,6 +2030,7 @@ class CascadeAgent:
         tools,
         tool_choice,
         messages: Optional[list[dict[str, Any]]] = None,
+        max_steps: int = 5,
         **kwargs,
     ):
         """Execute direct routing with detailed timing and tool support."""
@@ -2008,17 +2047,44 @@ class CascadeAgent:
             logger.info(f"Tool calling enabled with {len(tools)} tools")
 
         direct_start = time.time()
+        transcript: list[dict[str, Any]] = []
         if tools and hasattr(provider, "complete_with_tools"):
-            tool_messages = messages or [{"role": "user", "content": query}]
-            response = await provider.complete_with_tools(
-                messages=tool_messages,
-                tools=tools,
-                tool_choice=tool_choice,
-                model=best_model.name,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs,
-            )
+            tool_messages = list(messages or [{"role": "user", "content": query}])
+            response = None
+            for step in range(max_steps):
+                response = await provider.complete_with_tools(
+                    messages=tool_messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    model=best_model.name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    **kwargs,
+                )
+                step_usage = self.pricing_resolver.extract_usage(response)
+                tool_calls_found = getattr(response, "tool_calls", None) or []
+                transcript.append(
+                    {
+                        "step": step + 1,
+                        "role": "assistant",
+                        "content": response.content,
+                        "tool_calls": tool_calls_found,
+                        "usage": step_usage.to_dict(),
+                    }
+                )
+                if not tool_calls_found:
+                    break
+                tool_results = await self._execute_tool_calls_parallel(tool_calls_found)
+                for tool_result in tool_results:
+                    tool_messages.append({"role": "tool", **tool_result})
+                transcript.append(
+                    {
+                        "step": step + 1,
+                        "role": "tool",
+                        "tool_results": tool_results,
+                    }
+                )
+            assert response is not None
         else:
             prompt = messages_to_prompt(messages) if messages else query
             response = await provider.complete(
@@ -2032,8 +2098,17 @@ class CascadeAgent:
             )
         direct_latency = (time.time() - direct_start) * 1000
 
-        tokens_used = response.tokens_used if hasattr(response, "tokens_used") else max_tokens
-        cost = best_model.cost * (tokens_used / 1000)
+        usage = self.pricing_resolver.extract_usage(response)
+        provider_cost = getattr(response, "cost", None)
+        tokens_used = (
+            response.tokens_used if hasattr(response, "tokens_used") and response.tokens_used else usage.total_tokens
+        )
+        cost = self.pricing_resolver.resolve_cost(
+            model=best_model.name,
+            usage=usage,
+            provider_cost=provider_cost,
+            fallback_rate_per_1k=best_model.cost,
+        )
 
         result = self._create_direct_result(
             response.content,
@@ -2042,6 +2117,8 @@ class CascadeAgent:
             direct_latency,
             reason,
             tool_calls=getattr(response, "tool_calls", None),
+            usage=usage,
+            transcript=transcript,
         )
 
         timing = {
@@ -2400,6 +2477,10 @@ class CascadeAgent:
 
         # Copy token counts from provider response if available (for LiteLLM integration)
         if hasattr(spec_result, "metadata") and spec_result.metadata:
+            if "usage" in spec_result.metadata:
+                metadata["usage"] = spec_result.metadata["usage"]
+            if "transcript" in spec_result.metadata:
+                metadata["transcript"] = spec_result.metadata["transcript"]
             if "prompt_tokens" in spec_result.metadata:
                 metadata["prompt_tokens"] = spec_result.metadata["prompt_tokens"]
             if "completion_tokens" in spec_result.metadata:
@@ -2471,7 +2552,17 @@ class CascadeAgent:
     # HELPER METHODS - WITH TOOL SUPPORT
     # ========================================================================
 
-    def _create_direct_result(self, content, model, cost, latency, reason, tool_calls=None):
+    def _create_direct_result(
+        self,
+        content,
+        model,
+        cost,
+        latency,
+        reason,
+        tool_calls=None,
+        usage: Optional[Usage] = None,
+        transcript: Optional[list[dict[str, Any]]] = None,
+    ):
         """
         Create result object for direct routing with tool support.
 
@@ -2481,13 +2572,24 @@ class CascadeAgent:
         class DirectResult:
             """Mimics cascade results for telemetry compatibility."""
 
-            def __init__(self, content, model, cost, latency, reason, tool_calls=None):
+            def __init__(
+                self,
+                content,
+                model,
+                cost,
+                latency,
+                reason,
+                tool_calls=None,
+                usage: Optional[Usage] = None,
+                transcript: Optional[list[dict[str, Any]]] = None,
+            ):
                 # Core attributes
                 self.content = content
                 self.model_used = model
                 self.total_cost = cost
                 self.latency_ms = latency
                 self.tool_calls = tool_calls
+                self.usage = usage or Usage()
 
                 # Cascade attributes
                 self.draft_accepted = False
@@ -2523,14 +2625,16 @@ class CascadeAgent:
                     "quality_threshold": None,
                     "quality_check_passed": None,
                     "rejection_reason": None,
-                    "tokens_generated": int(len(content.split()) * 1.3),
-                    "total_tokens": int(len(content.split()) * 1.3),
+                    "tokens_generated": self.usage.output_tokens,
+                    "total_tokens": self.usage.total_tokens,
+                    "usage": self.usage.to_dict(),
                     "draft_tokens": 0,
-                    "verifier_tokens": int(len(content.split()) * 1.3),
+                    "verifier_tokens": self.usage.total_tokens,
                     "draft_model": None,
                     "verifier_model": model,
                     "tool_calls": tool_calls,
                     "has_tool_calls": bool(tool_calls),
+                    "transcript": transcript or [],
                 }
 
             def __repr__(self):
@@ -2555,7 +2659,7 @@ class CascadeAgent:
                     "metadata": self.metadata,
                 }
 
-        return DirectResult(content, model, cost, latency, reason, tool_calls)
+        return DirectResult(content, model, cost, latency, reason, tool_calls, usage, transcript)
 
     def _dict_to_result(self, data):
         """Convert dict to result object."""
