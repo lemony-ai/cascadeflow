@@ -1,0 +1,26 @@
+{
+  "name": "@cascadeflow/demo",
+  "version": "1.0.0",
+  "description": "CascadeFlow Investor Demo CLI",
+  "type": "module",
+  "bin": {
+    "cascadeflow-demo": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/index.js",
+    "dev": "tsx src/index.tsx"
+  },
+  "dependencies": {
+    "ink": "^5.1.0",
+    "ink-spinner": "^5.0.0",
+    "react": "^18.3.1",
+    "conf": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  }
+}
