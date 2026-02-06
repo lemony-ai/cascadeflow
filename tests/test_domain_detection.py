@@ -905,7 +905,7 @@ def _semantic_detector_for_test(query_vectors: dict[str, tuple[float, float]]) -
     detector = SemanticDomainDetector(
         embedder=_FakeEmbedder(query_vectors),
         use_hybrid=True,
-        model_name="intfloat/e5-large-v2",
+        model_name="BAAI/bge-base-en-v1.5",
     )
     detector._domain_embeddings = {
         Domain.CODE: (1.0, 0.0),
@@ -918,7 +918,7 @@ def _semantic_detector_for_test(query_vectors: dict[str, tuple[float, float]]) -
 
 def test_fastembed_candidate_models_declared():
     """Semantic detector should expose benchmarked FastEmbed candidate models."""
-    assert "intfloat/e5-large-v2" in FASTEMBED_DOMAIN_MODELS
+    assert "BAAI/bge-base-en-v1.5" in FASTEMBED_DOMAIN_MODELS
     assert "BAAI/bge-large-en-v1.5" in FASTEMBED_DOMAIN_MODELS
     assert "sentence-transformers/all-MiniLM-L6-v2" in FASTEMBED_DOMAIN_MODELS
 

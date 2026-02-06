@@ -1408,7 +1408,7 @@ DOMAIN_THRESHOLDS: dict[Domain, float] = {
 # Candidate models benchmarked for semantic domain detection quality.
 # Keep the default aligned with investigation report findings.
 FASTEMBED_DOMAIN_MODELS: tuple[str, ...] = (
-    "intfloat/e5-large-v2",
+    "BAAI/bge-base-en-v1.5",
     "BAAI/bge-large-en-v1.5",
     "sentence-transformers/all-MiniLM-L6-v2",
 )
@@ -1445,7 +1445,7 @@ class SemanticDomainDetector:
         embedder: Optional["UnifiedEmbeddingService"] = None,
         confidence_threshold: float = 0.6,
         use_hybrid: bool = True,
-        model_name: str = "intfloat/e5-large-v2",
+        model_name: str = "BAAI/bge-base-en-v1.5",
     ):
         """
         Initialize semantic domain detector.
