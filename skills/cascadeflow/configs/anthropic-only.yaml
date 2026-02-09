@@ -1,0 +1,114 @@
+# CascadeFlow Configuration: Anthropic-Only
+# Drafter: Haiku 4.5 (fast, cheap)
+# Verifier: Opus 4.5 (highest quality)
+
+models:
+  # Anthropic models
+  - name: claude-haiku-4-5
+    provider: anthropic
+    cost: 0.001
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: claude-haiku-4
+    provider: anthropic
+    cost: 0.0008
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: claude-sonnet-4
+    provider: anthropic
+    cost: 0.003
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-sonnet-4-5
+    provider: anthropic
+    cost: 0.003
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-opus-4-5
+    provider: anthropic
+    cost: 0.015
+    supports_tools: true
+    max_tokens: 8192
+
+domains:
+  code:
+    drafter: claude-sonnet-4
+    verifier: claude-opus-4-5
+    threshold: 0.65
+    temperature: 0.2
+    validation_method: syntax
+
+  math:
+    drafter: claude-haiku-4-5
+    verifier: claude-opus-4-5
+    threshold: 0.60
+    temperature: 0.1
+    validation_method: quality
+
+  general:
+    drafter: claude-haiku-4-5
+    verifier: claude-opus-4-5
+    threshold: 0.55
+    temperature: 0.7
+    validation_method: quality
+
+  conversation:
+    drafter: claude-haiku-4-5
+    verifier: claude-sonnet-4-5
+    threshold: 0.50
+    temperature: 0.8
+    validation_method: quality
+
+  comparison:
+    drafter: claude-haiku-4-5
+    verifier: claude-opus-4-5
+    threshold: 0.60
+    temperature: 0.5
+    validation_method: quality
+
+  factual:
+    drafter: claude-haiku-4-5
+    verifier: claude-opus-4-5
+    threshold: 0.55
+    temperature: 0.3
+    validation_method: quality
+
+  reasoning:
+    drafter: claude-sonnet-4-5
+    verifier: claude-opus-4-5
+    threshold: 0.70
+    temperature: 0.3
+    validation_method: quality
+
+  creative:
+    drafter: claude-sonnet-4
+    verifier: claude-opus-4-5
+    threshold: 0.50
+    temperature: 0.9
+    validation_method: quality
+
+channels:
+  heartbeat: claude-haiku-4
+  cron: claude-haiku-4
+  voice: claude-opus-4-5
+  image_understanding: claude-opus-4-5
+  web_search: claude-haiku-4-5
+  brain: claude-opus-4-5
+  coding: claude-sonnet-4
+  content: claude-haiku-4-5
+
+channel_failover:
+  heartbeat: cron
+  cron: content
+  coding: brain
+
+settings:
+  enable_cascade: true
+  enable_domain_detection: true
+  verbose: true
+  default_drafter: claude-haiku-4-5
+  default_verifier: claude-opus-4-5

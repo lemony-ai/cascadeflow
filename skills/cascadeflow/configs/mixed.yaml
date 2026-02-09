@@ -1,0 +1,80 @@
+# CascadeFlow Config: Mixed (OpenAI + Anthropic)
+# Drafter: GPT-4o-mini | Verifier: Claude Sonnet
+# With expanded OpenClaw tags and domains
+
+models:
+  - name: gpt-4o-mini
+    provider: openai
+    cost: 0.00015
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: gpt-4o
+    provider: openai
+    cost: 0.005
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-3-5-haiku-20241022
+    provider: anthropic
+    cost: 0.001
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: claude-3-5-sonnet-20241022
+    provider: anthropic
+    cost: 0.003
+    supports_tools: true
+    max_tokens: 8192
+
+domains:
+  general:
+    drafter: gpt-4o-mini
+    verifier: claude-3-5-sonnet-20241022
+    threshold: 0.55
+
+  code:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.60
+
+  conversation:
+    drafter: claude-3-5-haiku-20241022
+    verifier: claude-3-5-sonnet-20241022
+    threshold: 0.50
+
+  reasoning:
+    drafter: gpt-4o-mini
+    verifier: claude-3-5-sonnet-20241022
+    threshold: 0.70
+
+  structured:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.65
+
+  math:
+    drafter: gpt-4o-mini
+    verifier: claude-3-5-sonnet-20241022
+    threshold: 0.65
+
+  factual:
+    drafter: gpt-4o-mini
+    verifier: claude-3-5-sonnet-20241022
+    threshold: 0.55
+
+channels:
+  heartbeat: gpt-4o-mini
+  cron: gpt-4o-mini
+  brain: claude-3-5-sonnet-20241022
+  coding: gpt-4o-mini
+  agentic: claude-3-5-sonnet-20241022
+  long_context: claude-3-5-sonnet-20241022
+  structured_output: gpt-4o
+  image_understanding: gpt-4o
+
+settings:
+  enable_cascade: true
+  enable_domain_detection: true
+  default_drafter: gpt-4o-mini
+  default_verifier: claude-3-5-sonnet-20241022

@@ -1,0 +1,27 @@
+# OpenClaw Provider Configuration for CascadeFlow
+# Add this to your openclaw.yaml under 'providers'
+
+# Example 1: CascadeFlow as a custom provider
+providers:
+  cascadeflow:
+    type: openai
+    baseUrl: "http://localhost:8084/v1"
+    # apiKey: "optional-if-required"
+    models:
+      cascadeflow:
+        name: cascadeflow
+        displayName: CascadeFlow Router
+        contextWindow: 128000
+        maxOutput: 8192
+        pricing:
+          input: 0.001   # Effective rate after cascade savings
+          output: 0.003
+
+# Example 2: Using CascadeFlow model in your config
+# models:
+#   default: cascadeflow/cascadeflow
+#   chat: cascadeflow/cascadeflow
+
+# Example 3: CascadeFlow with alias
+# aliases:
+#   cascade: cascadeflow/cascadeflow

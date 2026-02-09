@@ -1,0 +1,107 @@
+# CascadeFlow Configuration: OpenAI-Only
+# Using REAL OpenAI model names
+
+models:
+  # OpenAI models (real names)
+  - name: gpt-4o-mini
+    provider: openai
+    cost: 0.00015
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: gpt-4o
+    provider: openai
+    cost: 0.005
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: gpt-4-turbo
+    provider: openai
+    cost: 0.01
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: o3-mini
+    provider: openai
+    cost: 0.001
+    supports_tools: true
+    max_tokens: 8192
+
+domains:
+  code:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.60
+    temperature: 0.2
+    validation_method: syntax
+
+  math:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.60
+    temperature: 0.1
+    validation_method: quality
+
+  general:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.55
+    temperature: 0.7
+    validation_method: quality
+
+  conversation:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o-mini
+    threshold: 0.50
+    temperature: 0.8
+    validation_method: quality
+
+  comparison:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.55
+    temperature: 0.5
+    validation_method: quality
+
+  factual:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.55
+    temperature: 0.3
+    validation_method: quality
+
+  reasoning:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.65
+    temperature: 0.3
+    validation_method: quality
+
+  creative:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.45
+    temperature: 0.9
+    validation_method: quality
+
+channels:
+  heartbeat: gpt-4o-mini
+  cron: gpt-4o-mini
+  voice: gpt-4o
+  image_understanding: gpt-4o
+  web_search: gpt-4o-mini
+  brain: gpt-4o
+  coding: gpt-4o-mini
+  content: gpt-4o-mini
+
+channel_failover:
+  heartbeat: cron
+  cron: content
+  coding: brain
+
+settings:
+  enable_cascade: true
+  enable_domain_detection: true
+  verbose: true
+  default_drafter: gpt-4o-mini
+  default_verifier: gpt-4o
