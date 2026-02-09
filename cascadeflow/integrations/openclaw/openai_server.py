@@ -21,7 +21,6 @@ from cascadeflow.utils.messages import get_last_user_message
 
 from .adapter import build_routing_decision
 from .pre_router import CATEGORY_TO_DOMAIN
-from .wrapper import OpenClawAdapterConfig
 
 
 @dataclass
@@ -344,7 +343,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                     }
                 ],
             }
-            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
             self.wfile.flush()
 
         try:
@@ -395,7 +394,6 @@ def _run_agent(
     tenant_id: Optional[str],
     channel: Optional[str],
 ):
-    import asyncio
 
     return server.run_coroutine(
         server.agent.run(
@@ -498,7 +496,9 @@ def main() -> None:
         default="balanced",
         help="Cascadeflow preset (balanced, cost_optimized, speed_optimized, quality_optimized, development)",
     )
-    parser.add_argument("--no-classifier", action="store_true", help="Disable pre-router classifier")
+    parser.add_argument(
+        "--no-classifier", action="store_true", help="Disable pre-router classifier"
+    )
     parser.add_argument("--no-stream", action="store_true", help="Disable streaming responses")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
@@ -510,7 +510,9 @@ def main() -> None:
     else:
         from cascadeflow.utils.presets import auto_agent
 
-        agent = auto_agent(preset=args.preset, verbose=args.verbose, enable_cascade=True, use_hybrid=True)
+        agent = auto_agent(
+            preset=args.preset, verbose=args.verbose, enable_cascade=True, use_hybrid=True
+        )
     server = OpenClawOpenAIServer(
         agent,
         OpenClawOpenAIConfig(

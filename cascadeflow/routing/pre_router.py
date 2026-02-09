@@ -26,7 +26,7 @@ from typing import Any, Optional
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 
 from .base import Router, RoutingDecision, RoutingStrategy
-from .task_detector import TaskDetector, TaskType
+from .task_detector import TaskDetector
 
 logger = logging.getLogger(__name__)
 

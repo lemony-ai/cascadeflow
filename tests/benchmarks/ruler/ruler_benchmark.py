@@ -322,7 +322,7 @@ async def run_benchmark(
     print("=" * 70)
     print("RULER-STYLE LONG CONTEXT BENCHMARK")
     print("=" * 70)
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Drafter:  {config['drafter']}")
     print(f"  Verifier: {config['verifier']}")
     print(f"  Threshold: {config['threshold']}")
@@ -376,7 +376,7 @@ async def run_benchmark(
     by_length = {}
     for r in results:
         length = r["context_length"]
-        bucket = f"{length//1000}K" if length >= 1000 else f"<1K"
+        bucket = f"{length//1000}K" if length >= 1000 else "<1K"
         if bucket not in by_length:
             by_length[bucket] = {"correct": 0, "total": 0, "draft_accepted": 0}
         by_length[bucket]["total"] += 1
@@ -404,24 +404,24 @@ async def run_benchmark(
     print("\n" + "=" * 70)
     print("BENCHMARK SUMMARY")
     print("=" * 70)
-    print(f"\nOverall Performance:")
+    print("\nOverall Performance:")
     print(f"  Accuracy:         {correct/total*100:.1f}% ({correct}/{total})")
     print(f"  Draft Acceptance: {drafts_accepted/total*100:.1f}%")
     print(f"  Total Cost:       ${total_cost:.4f}")
 
-    print(f"\nBy Task Type:")
+    print("\nBy Task Type:")
     for t, stats in sorted(by_type.items()):
         acc = stats["correct"] / stats["total"] * 100
         draft = stats["draft_accepted"] / stats["total"] * 100
         print(f"  {t:15s} {acc:5.1f}% acc | {draft:5.1f}% draft | {stats['total']} tasks")
 
-    print(f"\nBy Context Length:")
+    print("\nBy Context Length:")
     for length, stats in sorted(by_length.items()):
         acc = stats["correct"] / stats["total"] * 100
         draft = stats["draft_accepted"] / stats["total"] * 100
         print(f"  {length:6s} {acc:5.1f}% acc | {draft:5.1f}% draft | {stats['total']} tasks")
 
-    print(f"\nBy Needle Position:")
+    print("\nBy Needle Position:")
     for pos, stats in by_position.items():
         if stats["total"] > 0:
             acc = stats["correct"] / stats["total"] * 100

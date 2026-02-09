@@ -43,12 +43,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Optional
 
+from ..utils.messages import messages_to_prompt, normalize_messages
 from .utils import (
     JSONParseState,
     ProgressiveJSONParser,
     ToolCallValidator,
 )
-from ..utils.messages import messages_to_prompt, normalize_messages
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +439,6 @@ class ToolStreamManager:
             draft_output_tokens = 0
             verifier_input_tokens = 0
             verifier_output_tokens = 0
-            multi_turn_used = False
 
             logger.info(f"Starting tool streaming for query: {query_text[:50]}...")
 
@@ -772,7 +771,6 @@ class ToolStreamManager:
                 turn_index = 1
 
                 while tool_calls_found and turn_index < max_turns:
-                    multi_turn_used = True
                     current_messages = self._append_tool_results_to_messages(
                         current_messages, tool_calls_found, tool_results
                     )
@@ -1048,7 +1046,6 @@ class ToolStreamManager:
                     turn_index = 1
 
                     while verifier_tool_calls and turn_index < max_turns:
-                        multi_turn_used = True
                         current_messages = self._append_tool_results_to_messages(
                             current_messages, verifier_tool_calls, tool_results
                         )

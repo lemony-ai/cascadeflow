@@ -380,77 +380,85 @@ class AnthropicProvider(BaseProvider):
     ) -> tuple[list[dict[str, Any]], Optional[str]]:
         """
         Convert OpenAI-format messages to Anthropic format.
-        
+
         Handles:
         - role: "tool" → role: "user" with tool_result content block
         - assistant with tool_calls → assistant with tool_use content blocks
         - Extracts system message (Anthropic wants it separate)
-        
+
         Args:
             messages: Messages in OpenAI format
-            
+
         Returns:
             Tuple of (converted_messages, system_prompt)
         """
         import json as _json
-        
+
         converted: list[dict[str, Any]] = []
         system_prompt: Optional[str] = None
-        
+
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content")
-            
+
             # Extract system message
             if role == "system":
                 system_prompt = content if isinstance(content, str) else str(content or "")
                 continue
-            
+
             # Convert tool result message (OpenAI: role="tool")
             if role == "tool":
                 tool_call_id = msg.get("tool_call_id", "unknown")
-                tool_content = content if isinstance(content, str) else _json.dumps(content) if content else ""
-                converted.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": tool_call_id,
-                        "content": tool_content
-                    }]
-                })
+                tool_content = (
+                    content if isinstance(content, str) else _json.dumps(content) if content else ""
+                )
+                converted.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_call_id,
+                                "content": tool_content,
+                            }
+                        ],
+                    }
+                )
                 continue
-            
+
             # Convert assistant message with tool_calls
             if role == "assistant" and msg.get("tool_calls"):
                 content_blocks: list[dict[str, Any]] = []
-                
+
                 # Add text content if present
                 if content and content != "null" and str(content).strip():
                     content_blocks.append({"type": "text", "text": str(content)})
-                
+
                 # Convert tool_calls to tool_use blocks
                 for tc in msg.get("tool_calls", []):
                     func = tc.get("function", {})
                     tool_name = func.get("name") or tc.get("name", "unknown")
                     tool_args = func.get("arguments") or tc.get("arguments", "{}")
-                    
+
                     # Parse arguments if string
                     if isinstance(tool_args, str):
                         try:
                             tool_args = _json.loads(tool_args)
                         except _json.JSONDecodeError:
                             tool_args = {"raw": tool_args}
-                    
-                    content_blocks.append({
-                        "type": "tool_use",
-                        "id": tc.get("id", f"tool_{len(content_blocks)}"),
-                        "name": tool_name,
-                        "input": tool_args
-                    })
-                
+
+                    content_blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc.get("id", f"tool_{len(content_blocks)}"),
+                            "name": tool_name,
+                            "input": tool_args,
+                        }
+                    )
+
                 converted.append({"role": "assistant", "content": content_blocks})
                 continue
-            
+
             # Regular message - ensure content is properly formatted
             if role in ("user", "assistant"):
                 if isinstance(content, list):
@@ -464,10 +472,10 @@ class AnthropicProvider(BaseProvider):
                 else:
                     converted.append({"role": role, "content": str(content)})
                 continue
-            
+
             # Unknown role - try to preserve as user
             converted.append({"role": "user", "content": str(content or "")})
-        
+
         # Anthropic requires alternating user/assistant messages
         # Merge consecutive same-role messages
         merged: list[dict[str, Any]] = []
@@ -476,20 +484,23 @@ class AnthropicProvider(BaseProvider):
                 # Merge content
                 prev_content = merged[-1]["content"]
                 curr_content = msg["content"]
-                
+
                 if isinstance(prev_content, list) and isinstance(curr_content, list):
                     merged[-1]["content"] = prev_content + curr_content
                 elif isinstance(prev_content, list):
-                    merged[-1]["content"] = prev_content + [{"type": "text", "text": str(curr_content)}]
+                    merged[-1]["content"] = prev_content + [
+                        {"type": "text", "text": str(curr_content)}
+                    ]
                 elif isinstance(curr_content, list):
-                    merged[-1]["content"] = [{"type": "text", "text": str(prev_content)}] + curr_content
+                    merged[-1]["content"] = [
+                        {"type": "text", "text": str(prev_content)}
+                    ] + curr_content
                 else:
                     merged[-1]["content"] = f"{prev_content}\n{curr_content}"
             else:
                 merged.append(msg)
-        
-        return merged, system_prompt
 
+        return merged, system_prompt
 
     async def complete_with_tools(
         self,
@@ -592,7 +603,7 @@ class AnthropicProvider(BaseProvider):
 
         # Convert messages from OpenAI format to Anthropic format
         anthropic_messages, extracted_system = self._convert_messages_to_anthropic(messages)
-        
+
         # Build request payload
         payload = {
             "model": model,
@@ -601,7 +612,7 @@ class AnthropicProvider(BaseProvider):
             "messages": anthropic_messages,
             **kwargs,
         }
-        
+
         # Add system prompt if extracted from messages
         if extracted_system:
             payload["system"] = extracted_system

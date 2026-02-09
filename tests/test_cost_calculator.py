@@ -81,6 +81,8 @@ def test_fallback_cost_estimates_anthropic(monkeypatch):
     model = ModelConfig(name="claude-sonnet-4", provider="anthropic", cost=0.0)
     calculator = CostCalculator(drafter=model, verifier=model, verbose=False)
 
-    cost = calculator._calculate_model_cost(model, tokens=2000, input_tokens=1200, output_tokens=800)
+    cost = calculator._calculate_model_cost(
+        model, tokens=2000, input_tokens=1200, output_tokens=800
+    )
 
     assert cost > 0

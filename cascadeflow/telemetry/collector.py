@@ -279,12 +279,12 @@ class MetricsCollector:
             try:
                 total_cost = float(getattr(result, "total_cost", 0.0))
                 cost_saved = getattr(result, "cost_saved", None)
-                
+
                 # Get bigonly_cost from result metadata if available
                 bigonly_cost = None
                 if hasattr(result, "metadata") and result.metadata:
                     bigonly_cost = result.metadata.get("bigonly_cost")
-                
+
                 if cost_saved is None:
                     # If no cost_saved, try to get bigonly_cost from metadata
                     if bigonly_cost is not None:
@@ -301,7 +301,7 @@ class MetricsCollector:
                         is_cascade = routing_strategy == "cascade"
                         meta = getattr(result, "metadata", {}) or {}
                         draft_accepted = meta.get("draft_accepted", False)
-                        
+
                         if is_cascade and draft_accepted:
                             # Draft accepted: saved the verifier cost
                             estimated_baseline = total_cost * COST_RATIO
@@ -311,7 +311,7 @@ class MetricsCollector:
                         else:
                             # Direct: no savings possible
                             estimated_baseline = total_cost
-                            
+
                         cost_saved = estimated_baseline - total_cost
                         self.stats["total_saved"] += cost_saved
                         self.stats["baseline_cost"] += estimated_baseline
@@ -337,7 +337,11 @@ class MetricsCollector:
                         verifier_tokens = (verifier_prompt or 0) + (verifier_completion or 0)
 
                 total_tokens = metadata.get("total_tokens")
-                if total_tokens is None and draft_tokens is not None and verifier_tokens is not None:
+                if (
+                    total_tokens is None
+                    and draft_tokens is not None
+                    and verifier_tokens is not None
+                ):
                     total_tokens = draft_tokens + verifier_tokens
 
                 if isinstance(draft_tokens, (int, float)):
@@ -447,9 +451,7 @@ class MetricsCollector:
         total = self.stats["total_queries"]
         cascade_total = self.stats["cascade_used"]
         total_saved = self.stats.get("total_saved", 0.0)
-        baseline_cost = self.stats.get(
-            "baseline_cost", self.stats["total_cost"] + total_saved
-        )
+        baseline_cost = self.stats.get("baseline_cost", self.stats["total_cost"] + total_saved)
         savings_percent = (total_saved / baseline_cost * 100) if baseline_cost > 0 else 0.0
 
         # Calculate rates
@@ -539,7 +541,6 @@ class MetricsCollector:
             MetricsSnapshot with current metrics
         """
         total = self.stats["total_queries"]
-        cascade_total = self.stats["cascade_used"]
 
         if total == 0:
             return MetricsSnapshot(

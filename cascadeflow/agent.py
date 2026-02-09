@@ -52,8 +52,8 @@ Example:
     >>> print(f"Verifier: ${result.verifier_cost:.6f}") # $0.001500 ✅
 """
 
-import logging
 import asyncio
+import logging
 import sys
 import time
 from collections.abc import AsyncIterator
@@ -65,20 +65,15 @@ if TYPE_CHECKING:
     from .core.batch import BatchResult
     from .core.batch_config import BatchConfig
     from .profiles import UserProfile
+    from .rules.decision import RuleDecision
 
 from .core.cascade import WholeResponseCascade
 
 # Phase 2C: Interface module imports
 from .interface import TerminalVisualConsumer
-from .providers import PROVIDER_REGISTRY, get_available_providers
 from .pricing import PricingResolver
+from .providers import PROVIDER_REGISTRY, get_available_providers
 from .quality import QualityConfig
-
-# Phase 3: Tool routing
-# Phase 2A: Routing module imports
-# Phase 3.2: Domain detection (NEW)
-# Phase 4: Tool complexity routing (NEW - v19)
-from .rules import RuleContext, RuleEngine
 from .routing import (
     ComplexityRouter,
     DomainDetector,
@@ -88,11 +83,23 @@ from .routing import (
     ToolRouter,
     ToolRoutingDecision,
 )
+
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+# Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
+from .rules import RuleContext, RuleEngine
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
 from .schema.usage import Usage
+
+# Streaming imports - BOTH managers (v2.4 FIX)
+from .streaming import StreamEvent, StreamEventType, StreamManager
+
+# Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
+from .telemetry import CallbackManager, CostCalculator, MetricsCollector
 from .tools.formats import normalize_tools
 from .utils.messages import (
     detect_multi_turn,
@@ -100,12 +107,6 @@ from .utils.messages import (
     messages_to_prompt,
     normalize_messages,
 )
-
-# Streaming imports - BOTH managers (v2.4 FIX)
-from .streaming import StreamEvent, StreamEventType, StreamManager
-
-# Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
-from .telemetry import CallbackManager, CostCalculator, MetricsCollector
 
 logger = logging.getLogger(__name__)
 
@@ -869,6 +870,7 @@ class CascadeAgent:
                     "name": tc.get("function", {}).get("name", "unknown_tool"),
                     "content": '{"error":"no_executor_registered","hint":"Pass tool_executor to CascadeAgent to enable tool execution"}',
                 }
+
             return list(await asyncio.gather(*[_stub(tc) for tc in tool_calls]))
 
         async def _run_one(tc: dict[str, Any]) -> dict[str, Any]:
@@ -878,12 +880,17 @@ class CascadeAgent:
                 # Support both ToolExecutor instances and plain callables
                 if hasattr(self._tool_executor, "execute"):
                     from .tools.call import ToolCall as _ToolCall
+
                     parsed = _ToolCall.from_provider("openai", tc)
                     result = await self._tool_executor.execute(parsed)
                     return {
                         "tool_call_id": call_id,
                         "name": name,
-                        "content": str(result.result) if result.success else f'{{"error":"{result.error}"}}',
+                        "content": (
+                            str(result.result)
+                            if result.success
+                            else f'{{"error":"{result.error}"}}'
+                        ),
                     }
                 else:
                     # Plain async callable: (tool_call_dict) -> str | Any
@@ -1002,7 +1009,9 @@ class CascadeAgent:
 
         if domain_hint:
             detected_domain = domain_hint
-            domain_confidence = domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
             domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
                 detected_domain
             )
@@ -1155,27 +1164,33 @@ class CascadeAgent:
                 logger.info(
                     "Rule decision (stream_events): %s (strategy=%s, confidence=%.2f)",
                     rule_decision.reason or "rule_engine",
-                    rule_decision.routing_strategy.value
-                    if rule_decision.routing_strategy
-                    else "none",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
                     rule_decision.confidence,
                 )
             if self.verbose:
                 logger.info(
                     "Rule decision (streaming): %s (strategy=%s, confidence=%.2f)",
                     rule_decision.reason or "rule_engine",
-                    rule_decision.routing_strategy.value
-                    if rule_decision.routing_strategy
-                    else "none",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
                     rule_decision.confidence,
                 )
             if self.verbose:
                 logger.info(
                     "Rule decision: %s (strategy=%s, confidence=%.2f)",
                     rule_decision.reason or "rule_engine",
-                    rule_decision.routing_strategy.value
-                    if rule_decision.routing_strategy
-                    else "none",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
                     rule_decision.confidence,
                 )
 
@@ -1421,7 +1436,9 @@ class CascadeAgent:
 
         if domain_hint:
             detected_domain = domain_hint
-            domain_confidence = domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
             domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
                 detected_domain
             )
@@ -1622,18 +1639,6 @@ class CascadeAgent:
             channel=channel,
         )
 
-        # Record metrics with corrected cost values from CostCalculator
-        self.telemetry.record(
-            result=cascade_result,
-            routing_strategy=routing_strategy,
-            complexity=complexity.value,
-            timing_breakdown=timing_breakdown,
-            streaming=False,
-            has_tools=bool(tools),
-        )
-
-        return cascade_result
-
     # ========================================================================
     # API 3: ASYNC ITERATOR - WITH INTELLIGENT MANAGER SELECTION
     # ========================================================================
@@ -1709,7 +1714,9 @@ class CascadeAgent:
 
         if domain_hint:
             detected_domain = domain_hint
-            domain_confidence = domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
             domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
                 detected_domain
             )
@@ -2065,9 +2072,7 @@ class CascadeAgent:
         if quality_threshold_override is not None:
             cascade_kwargs["quality_threshold"] = quality_threshold_override
             if self.verbose:
-                logger.info(
-                    f"Using rule-based quality threshold: {quality_threshold_override}"
-                )
+                logger.info(f"Using rule-based quality threshold: {quality_threshold_override}")
         elif domain_config and domain_config.threshold:
             cascade_kwargs["quality_threshold"] = domain_config.threshold
             if self.verbose:
@@ -2187,9 +2192,6 @@ class CascadeAgent:
 
         usage = self.pricing_resolver.extract_usage(response)
         provider_cost = getattr(response, "cost", None)
-        tokens_used = (
-            response.tokens_used if hasattr(response, "tokens_used") and response.tokens_used else usage.total_tokens
-        )
         cost = self.pricing_resolver.resolve_cost(
             model=best_model.name,
             usage=usage,

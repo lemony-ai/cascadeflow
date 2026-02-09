@@ -569,9 +569,7 @@ class QualityValidator:
             threshold = self.config.confidence_thresholds.get(complexity, 0.70)
             # Apply adaptive adjustment if learning is enabled
             if self.adaptive_manager is not None:
-                threshold = self.adaptive_manager.get_threshold(
-                    complexity, threshold
-                )
+                threshold = self.adaptive_manager.get_threshold(complexity, threshold)
 
         # Initialize checks and details
         checks = {}

@@ -185,7 +185,7 @@ The Industrial Revolution transformed society in fundamental ways. It changed ho
     {
         "task_id": "code_understanding_1",
         "task_type": "code_understanding",
-        "context": """
+        "context": r"""
 ```python
 # Authentication Service Implementation
 import hashlib

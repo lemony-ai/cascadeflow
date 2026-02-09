@@ -1,6 +1,6 @@
+import asyncio
 from unittest.mock import Mock, patch
 
-import asyncio
 import pytest
 
 from cascadeflow.agent import CascadeAgent
@@ -67,5 +67,6 @@ def test_run_direct_uses_provider_usage_and_emits_transcript():
 
     assert result.total_cost == pytest.approx(0.66)
     transcript = result.metadata.get("transcript")
-    assert transcript and len(transcript) >= 2
+    assert transcript
+    assert len(transcript) >= 2
     assert result.metadata.get("usage", {}).get("input_tokens") == 12

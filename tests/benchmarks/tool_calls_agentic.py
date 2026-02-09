@@ -11,7 +11,6 @@ from cascadeflow import CascadeAgent, ModelConfig
 
 from .base import Benchmark
 
-
 WEATHER_TOOL = {
     "type": "function",
     "function": {

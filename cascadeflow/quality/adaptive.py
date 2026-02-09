@@ -133,12 +133,7 @@ class AdaptiveThresholdManager:
 
         # Phase 2: Store embeddings of queries where draft was rejected AND
         # verifier produced a better result (confirmed hard queries)
-        if (
-            self.enable_embeddings
-            and not accepted
-            and verifier_agreed is False
-            and query
-        ):
+        if self.enable_embeddings and not accepted and verifier_agreed is False and query:
             self._store_hard_query(query, domain)
 
         # Auto-adjust every min_samples records per domain

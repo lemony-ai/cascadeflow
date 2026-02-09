@@ -97,7 +97,7 @@ class TestAdaptiveThresholdManager:
 # ============================================================================
 # Semantic Cache Deduplication
 # ============================================================================
-from cascadeflow.utils.caching import ResponseCache, SEMANTIC_SIMILARITY_THRESHOLD
+from cascadeflow.utils.caching import SEMANTIC_SIMILARITY_THRESHOLD, ResponseCache
 
 
 class TestSemanticCache:
@@ -221,7 +221,7 @@ class TestAlignmentSemanticFallback:
 # ============================================================================
 # PriceBook
 # ============================================================================
-from cascadeflow.pricing.pricebook import PriceBook, PricingResolver, ModelPrice
+from cascadeflow.pricing.pricebook import ModelPrice, PriceBook, PricingResolver
 from cascadeflow.schema.usage import Usage
 
 
@@ -257,10 +257,12 @@ class TestPriceBook:
     def test_update_batch(self):
         """Batch price update works."""
         pb = PriceBook()
-        pb.update_batch({
-            "model-a": {"input_per_1k": 0.01, "output_per_1k": 0.02},
-            "model-b": {"input_per_1k": 0.03, "output_per_1k": 0.04},
-        })
+        pb.update_batch(
+            {
+                "model-a": {"input_per_1k": 0.01, "output_per_1k": 0.02},
+                "model-b": {"input_per_1k": 0.03, "output_per_1k": 0.04},
+            }
+        )
         assert pb.get("model-a").input_per_1k == 0.01
         assert pb.get("model-b").output_per_1k == 0.04
 
@@ -337,7 +339,7 @@ class TestPricingResolver:
 # ============================================================================
 # Cost Calculator (verify negative savings)
 # ============================================================================
-from cascadeflow.telemetry.cost_calculator import CostCalculator, CostBreakdown
+from cascadeflow.telemetry.cost_calculator import CostBreakdown, CostCalculator
 
 
 class TestCostCalculatorNegativeSavings:
@@ -345,6 +347,7 @@ class TestCostCalculatorNegativeSavings:
 
     def _make_calculator(self):
         from cascadeflow.schema.config import ModelConfig
+
         drafter = ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015)
         verifier = ModelConfig(name="gpt-4o", provider="openai", cost=0.00625)
         return CostCalculator(drafter=drafter, verifier=verifier)
@@ -383,15 +386,19 @@ class TestCostCalculatorNegativeSavings:
 
         # Accepted case
         b1 = calc.calculate_from_tokens(
-            draft_output_tokens=50, verifier_output_tokens=0,
-            draft_accepted=True, query_input_tokens=20,
+            draft_output_tokens=50,
+            verifier_output_tokens=0,
+            draft_accepted=True,
+            query_input_tokens=20,
         )
         assert b1.bigonly_cost > 0
 
         # Rejected case
         b2 = calc.calculate_from_tokens(
-            draft_output_tokens=50, verifier_output_tokens=80,
-            draft_accepted=False, query_input_tokens=20,
+            draft_output_tokens=50,
+            verifier_output_tokens=80,
+            draft_accepted=False,
+            query_input_tokens=20,
         )
         assert b2.bigonly_cost == b2.verifier_cost
 
@@ -400,14 +407,17 @@ class TestCostCalculatorNegativeSavings:
 # List-of-messages DX
 # ============================================================================
 
+
 class TestListMessagesDX:
     """Test that agent.run() accepts list of dicts as query."""
 
     def test_list_query_normalization(self):
         """When query is a list, it's treated as messages."""
-        from cascadeflow.agent import CascadeAgent
         # Verify the method signature accepts Union[str, list]
         import inspect
+
+        from cascadeflow.agent import CascadeAgent
+
         sig = inspect.signature(CascadeAgent.run)
         query_param = sig.parameters["query"]
         # The annotation should allow list
@@ -418,12 +428,14 @@ class TestListMessagesDX:
 # OpenClaw Integration
 # ============================================================================
 
+
 class TestOpenClawIntegration:
     """Test OpenClaw adapter routing and flags."""
 
     def test_build_routing_decision_explicit(self):
         """Explicit domain tag is respected."""
         from cascadeflow.integrations.openclaw.adapter import build_routing_decision
+
         decision = build_routing_decision(
             method="getCompletion",
             event="generate",
@@ -435,6 +447,7 @@ class TestOpenClawIntegration:
     def test_build_routing_decision_heartbeat(self):
         """Heartbeat methods are classified."""
         from cascadeflow.integrations.openclaw.adapter import build_routing_decision
+
         decision = build_routing_decision(
             method="last-heartbeat",
             event="check",
@@ -445,6 +458,7 @@ class TestOpenClawIntegration:
     def test_build_routing_decision_voice(self):
         """Voice methods detected."""
         from cascadeflow.integrations.openclaw.adapter import build_routing_decision
+
         decision = build_routing_decision(
             method="tts.generate",
             event="speak",
@@ -454,6 +468,7 @@ class TestOpenClawIntegration:
     def test_build_routing_decision_no_tags(self):
         """Generic method without tags gets classifier hint."""
         from cascadeflow.integrations.openclaw.adapter import build_routing_decision
+
         decision = build_routing_decision(
             method="someCustomMethod",
             event="custom",
@@ -464,7 +479,7 @@ class TestOpenClawIntegration:
 # ============================================================================
 # Domain Detection Accuracy (production eval)
 # ============================================================================
-from cascadeflow.routing.domain import DomainDetector, Domain
+from cascadeflow.routing.domain import Domain, DomainDetector
 
 
 class TestDomainDetectionProduction:
@@ -911,16 +926,14 @@ class TestStreamManagerHelpers:
     def test_estimate_confidence_from_content_normal(self):
         mgr = self._make_manager()
         conf = mgr._estimate_confidence_from_content(
-            "This is a detailed answer with multiple sentences.",
-            "What is AI?"
+            "This is a detailed answer with multiple sentences.", "What is AI?"
         )
         assert 0.50 <= conf <= 0.85
 
     def test_estimate_confidence_from_content_uncertain(self):
         mgr = self._make_manager()
         conf = mgr._estimate_confidence_from_content(
-            "I'm not sure about this but maybe it's related to neural networks.",
-            "What is AI?"
+            "I'm not sure about this but maybe it's related to neural networks.", "What is AI?"
         )
         assert conf < 0.75  # Penalty for uncertainty markers
 
@@ -958,12 +971,16 @@ class TestStreamManagerHelpers:
     def test_calculate_costs_includes_input_tokens(self):
         mgr = self._make_manager()
         costs_no_query = mgr._calculate_costs(
-            draft_content="Response", verifier_content=None,
-            draft_accepted=True, query_text="",
+            draft_content="Response",
+            verifier_content=None,
+            draft_accepted=True,
+            query_text="",
         )
         costs_with_query = mgr._calculate_costs(
-            draft_content="Response", verifier_content=None,
-            draft_accepted=True, query_text="This is a long query with many words to increase token count",
+            draft_content="Response",
+            verifier_content=None,
+            draft_accepted=True,
+            query_text="This is a long query with many words to increase token count",
         )
         assert costs_with_query["draft_cost"] > costs_no_query["draft_cost"]
         assert costs_with_query["draft_tokens"] > costs_no_query["draft_tokens"]
@@ -1041,9 +1058,7 @@ class TestToolStreamManagerHelpers:
 
     def test_calculate_costs_from_token_totals(self):
         mgr = self._make_manager()
-        costs = mgr._calculate_costs_from_token_totals(
-            draft_tokens=100, verifier_tokens=200
-        )
+        costs = mgr._calculate_costs_from_token_totals(draft_tokens=100, verifier_tokens=200)
         assert costs["draft_cost"] > 0
         assert costs["verifier_cost"] > 0
         assert costs["total_cost"] == costs["draft_cost"] + costs["verifier_cost"]
@@ -1053,9 +1068,7 @@ class TestToolStreamManagerHelpers:
 
     def test_calculate_costs_from_token_totals_zero_verifier(self):
         mgr = self._make_manager()
-        costs = mgr._calculate_costs_from_token_totals(
-            draft_tokens=100, verifier_tokens=0
-        )
+        costs = mgr._calculate_costs_from_token_totals(draft_tokens=100, verifier_tokens=0)
         assert costs["verifier_cost"] == 0.0
         assert costs["cost_saved"] > 0  # bigonly_cost > draft_cost
 
@@ -1291,9 +1304,11 @@ class TestToolStreamManagerStream:
         provider = MagicMock()
         response = MagicMock()
         response.content = "I'll check the weather for you."
-        response.tool_calls = [
-            {"name": "get_weather", "arguments": {"location": "Paris"}, "id": "tc_1"}
-        ] if draft_valid else []
+        response.tool_calls = (
+            [{"name": "get_weather", "arguments": {"location": "Paris"}, "id": "tc_1"}]
+            if draft_valid
+            else []
+        )
         provider.complete_with_tools = AsyncMock(return_value=response)
         # No stream_with_tools — triggers non-streaming path
         if hasattr(provider, "stream_with_tools"):
@@ -1393,8 +1408,9 @@ class TestToolStreamManagerStream:
 
         events = []
         async for event in mgr.stream(
-            "test", tools=[{"type": "function", "function": {"name": "t", "parameters": {}}}],
-            max_tokens=50
+            "test",
+            tools=[{"type": "function", "function": {"name": "t", "parameters": {}}}],
+            max_tokens=50,
         ):
             events.append(event)
 
@@ -1420,8 +1436,11 @@ class TestToolStreamManagerStream:
 
         events = []
         async for event in mgr.stream(
-            "What's the weather?", tools=tools, execute_tools=True,
-            max_tokens=50, max_turns=1,
+            "What's the weather?",
+            tools=tools,
+            execute_tools=True,
+            max_tokens=50,
+            max_turns=1,
         ):
             events.append(event)
 
@@ -1449,8 +1468,11 @@ class TestToolStreamManagerStream:
 
         events = []
         async for event in mgr.stream(
-            "What's the weather?", tools=tools, execute_tools=True,
-            max_tokens=50, max_turns=1,
+            "What's the weather?",
+            tools=tools,
+            execute_tools=True,
+            max_tokens=50,
+            max_turns=1,
         ):
             events.append(event)
 
@@ -1497,6 +1519,7 @@ class TestExecuteToolCallsParallel:
     @pytest.mark.asyncio
     async def test_callable_executor(self):
         """Async callable executor is used correctly."""
+
         async def my_executor(tc):
             name = tc.get("function", {}).get("name", "")
             return f'{{"result":"executed_{name}"}}'
@@ -1516,8 +1539,8 @@ class TestExecuteToolCallsParallel:
     @pytest.mark.asyncio
     async def test_tool_executor_instance(self):
         """ToolExecutor instance is used correctly."""
-        from cascadeflow.tools.executor import ToolExecutor
         from cascadeflow.tools.config import ToolConfig
+        from cascadeflow.tools.executor import ToolExecutor
 
         def get_weather(location: str) -> dict:
             return {"temp": 22, "city": location}
@@ -1549,6 +1572,7 @@ class TestExecuteToolCallsParallel:
     @pytest.mark.asyncio
     async def test_executor_error_handling(self):
         """Executor errors are caught and returned as error content."""
+
         async def failing_executor(tc):
             raise ValueError("Bad arguments")
 

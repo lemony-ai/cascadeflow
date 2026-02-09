@@ -14,7 +14,6 @@ import pytest
 from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
 from cascadeflow.quality.quality import QualityConfig, QualityValidator
 
-
 # ============================================================================
 # 1. COMPLEXITY SIGNAL DETECTION
 # ============================================================================
@@ -47,23 +46,17 @@ class TestComplexitySignals:
         assert complexity in (QueryComplexity.HARD, QueryComplexity.EXPERT)
 
     def test_show_that(self):
-        complexity, _ = self.detector.detect(
-            "Show that every bounded monotonic sequence converges"
-        )
+        complexity, _ = self.detector.detect("Show that every bounded monotonic sequence converges")
         assert complexity in (QueryComplexity.HARD, QueryComplexity.EXPERT)
 
     # -- mathematical signals --
 
     def test_irrational_proof(self):
-        complexity, _ = self.detector.detect(
-            "Prove that the square root of 3 is irrational"
-        )
+        complexity, _ = self.detector.detect("Prove that the square root of 3 is irrational")
         assert complexity in (QueryComplexity.HARD, QueryComplexity.EXPERT)
 
     def test_convergence_divergence(self):
-        complexity, _ = self.detector.detect(
-            "Determine whether the series converges or diverges"
-        )
+        complexity, _ = self.detector.detect("Determine whether the series converges or diverges")
         assert complexity in (
             QueryComplexity.MODERATE,
             QueryComplexity.HARD,
@@ -73,9 +66,7 @@ class TestComplexitySignals:
     # -- implementation signals --
 
     def test_from_scratch(self):
-        complexity, _ = self.detector.detect(
-            "Build a neural network from scratch in Python"
-        )
+        complexity, _ = self.detector.detect("Build a neural network from scratch in Python")
         # "from scratch" alone (implementation signal) boosts to at least MODERATE;
         # combined with expert keywords like "neural network" it may reach HARD+
         assert complexity in (
@@ -91,9 +82,7 @@ class TestComplexitySignals:
         assert complexity in (QueryComplexity.HARD, QueryComplexity.EXPERT)
 
     def test_thread_safe(self):
-        complexity, _ = self.detector.detect(
-            "Implement a thread-safe queue in C++"
-        )
+        complexity, _ = self.detector.detect("Implement a thread-safe queue in C++")
         assert complexity in (QueryComplexity.HARD, QueryComplexity.EXPERT)
 
     # -- combined signals → EXPERT --
@@ -115,9 +104,7 @@ class TestComplexitySignals:
     # -- metadata includes signals --
 
     def test_signals_in_metadata(self):
-        _, _, metadata = self.detector.detect(
-            "Prove sqrt(2) is irrational", return_metadata=True
-        )
+        _, _, metadata = self.detector.detect("Prove sqrt(2) is irrational", return_metadata=True)
         assert "complexity_signals" in metadata
         assert "proof_required" in metadata["complexity_signals"]
         assert "signal_boost" in metadata

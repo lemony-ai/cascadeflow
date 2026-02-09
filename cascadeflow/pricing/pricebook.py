@@ -70,9 +70,7 @@ class PriceBook:
 
             pricebook.update("gpt-5-turbo", input_per_1k=0.002, output_per_1k=0.008)
         """
-        self._prices[model] = ModelPrice(
-            input_per_1k=input_per_1k, output_per_1k=output_per_1k
-        )
+        self._prices[model] = ModelPrice(input_per_1k=input_per_1k, output_per_1k=output_per_1k)
 
     def update_batch(self, prices: dict[str, dict[str, float]]) -> None:
         """Bulk update pricing.
