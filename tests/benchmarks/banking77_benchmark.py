@@ -394,6 +394,9 @@ Intent: [exact_intent_name]"""
         prompt_tokens = result.metadata.get("prompt_tokens", 0)
         completion_tokens = result.metadata.get("completion_tokens", 0)
 
+        cost_saved = result.cost_saved or 0.0
+        baseline_cost = result.total_cost + cost_saved
+
         return {
             "prediction": result.content,
             "model_used": result.model_used,
@@ -402,6 +405,8 @@ Intent: [exact_intent_name]"""
             "drafter_cost": result.draft_cost,
             "verifier_cost": result.verifier_cost,
             "total_cost": result.total_cost,
+            "cost_saved": cost_saved,
+            "baseline_cost": baseline_cost,
             "latency_ms": latency_ms,
             "tokens_input": prompt_tokens,
             "tokens_output": completion_tokens,
