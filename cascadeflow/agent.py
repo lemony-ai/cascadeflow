@@ -1234,18 +1234,8 @@ class CascadeAgent:
             if hasattr(result, "tool_calls") and result.tool_calls:
                 print(f"[Tool calls: {len(result.tool_calls)}]")
 
-        # Record metrics
-        self.telemetry.record(
-            result=result,
-            routing_strategy=routing_strategy,
-            complexity=complexity.value,
-            timing_breakdown=timing_breakdown,
-            streaming=False,
-            has_tools=bool(tools),
-        )
-
-        # Build result
-        return self._build_cascade_result(
+        # Build result first (contains corrected cost calculations)
+        cascade_result = self._build_cascade_result(
             spec_result=result,
             query=query_text,
             complexity=complexity.value,
@@ -1264,6 +1254,18 @@ class CascadeAgent:
             tenant_id=tenant_id,
             channel=channel,
         )
+
+        # Record metrics with corrected cost values from CostCalculator
+        self.telemetry.record(
+            result=cascade_result,
+            routing_strategy=routing_strategy,
+            complexity=complexity.value,
+            timing_breakdown=timing_breakdown,
+            streaming=False,
+            has_tools=bool(tools),
+        )
+
+        return cascade_result
 
     # ========================================================================
     # API 2: STREAMING WITH VISUALS - WITH INTELLIGENT MANAGER SELECTION
@@ -1548,6 +1550,18 @@ class CascadeAgent:
             tenant_id=tenant_id,
             channel=channel,
         )
+
+        # Record metrics with corrected cost values from CostCalculator
+        self.telemetry.record(
+            result=cascade_result,
+            routing_strategy=routing_strategy,
+            complexity=complexity.value,
+            timing_breakdown=timing_breakdown,
+            streaming=False,
+            has_tools=bool(tools),
+        )
+
+        return cascade_result
 
     # ========================================================================
     # API 3: ASYNC ITERATOR - WITH INTELLIGENT MANAGER SELECTION
