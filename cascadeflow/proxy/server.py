@@ -487,6 +487,38 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             return path[len("/v1") :]
         return path
 
+    def _extract_agent_hints(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Optional cascadeflow-specific hints. These are non-standard and safe to ignore.
+
+        They are intended to improve DX by enabling opt-in routing hints without
+        changing the OpenAI/Anthropic request schema.
+        """
+
+        hints: dict[str, Any] = {}
+
+        domain_hint = self.headers.get("X-Cascadeflow-Domain")
+        complexity_hint = self.headers.get("X-Cascadeflow-Complexity")
+
+        cf = payload.get("cascadeflow")
+        if isinstance(cf, dict):
+            if not domain_hint:
+                domain_hint = cf.get("domain_hint") or cf.get("domain")
+            if not complexity_hint:
+                complexity_hint = cf.get("complexity_hint") or cf.get("complexity")
+
+        if domain_hint:
+            value = str(domain_hint).strip().lower()
+            if value:
+                hints["domain_hint"] = value
+
+        if complexity_hint:
+            value = str(complexity_hint).strip().lower()
+            if value:
+                hints["complexity_hint"] = value
+
+        return hints
+
     def do_OPTIONS(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
         self._set_gateway_context(proxy, api="gateway", endpoint="options")
@@ -636,6 +668,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if not isinstance(messages, list) or not messages:
             return self._send_openai_error("Messages are required", status=400)
 
+        hints = self._extract_agent_hints(payload)
+
         model = payload.get("model", "cascadeflow")
         if not isinstance(model, str) or not model:
             model = "cascadeflow"
@@ -660,6 +694,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
+                complexity_hint=hints.get("complexity_hint"),
+                domain_hint=hints.get("domain_hint"),
             )
 
         try:
@@ -671,6 +707,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
+                **hints,
             )
         except Exception as exc:
             return self._send_openai_error(str(exc), status=500)
@@ -744,6 +781,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         temperature = payload.get("temperature", 0.7)
         max_tokens = payload.get("max_tokens", 100)
         messages = [{"role": "user", "content": prompt}]
+        hints = self._extract_agent_hints(payload)
 
         try:
             result = proxy._maybe_call_agent(
@@ -754,6 +792,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 tools=None,
                 tool_choice=None,
+                **hints,
             )
         except Exception as exc:
             return self._send_openai_error(str(exc), status=500)
@@ -834,6 +873,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         max_tokens: int,
         tools: list[dict[str, Any]] | None,
         tool_choice: str | None,
+        complexity_hint: str | None = None,
+        domain_hint: str | None = None,
     ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -853,6 +894,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    complexity_hint=complexity_hint,
+                    domain_hint=domain_hint,
                     tools=tools,
                     tool_choice=tool_choice,
                 ):
@@ -958,6 +1001,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if not isinstance(model, str) or not model:
             return self._send_anthropic_error("model is required", status=400)
 
+        hints = self._extract_agent_hints(payload)
+
         messages = _anthropic_payload_to_openai_messages(payload)
         if not messages:
             return self._send_anthropic_error("messages are required", status=400)
@@ -980,6 +1025,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
+                complexity_hint=hints.get("complexity_hint"),
+                domain_hint=hints.get("domain_hint"),
             )
 
         try:
@@ -991,6 +1038,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
+                **hints,
             )
         except Exception as exc:
             return self._send_anthropic_error(str(exc), status=500)
@@ -1008,6 +1056,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         max_tokens: int,
         tools: list[dict[str, Any]] | None,
         tool_choice: str | None,
+        complexity_hint: str | None = None,
+        domain_hint: str | None = None,
     ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -1038,6 +1088,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                complexity_hint=complexity_hint,
+                domain_hint=domain_hint,
                 tools=tools,
                 tool_choice=tool_choice,
             ):

@@ -84,9 +84,35 @@ const resp = await client.chat.completions.create({
 console.log(resp.choices[0].message.content);
 ```
 
-### Anthropic SDK
+### Vercel AI SDK (OpenAI-Compatible)
 
-Point the Anthropic client at the gateway base URL, then call `messages.create` as usual.
+If you already use Vercel AI SDK's OpenAI adapter, you can typically switch by setting `baseURL`.
+
+```ts
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+const result = await generateText({
+  model: openai("cascadeflow", { baseURL: "http://127.0.0.1:8084/v1" }),
+  prompt: "Hello",
+});
+console.log(result.text);
+```
+
+### Anthropic (HTTP / SDK)
+
+If your Anthropic client supports overriding `base_url`, point it at the gateway and call
+`messages.create` as usual. Otherwise, use raw HTTP against `POST /v1/messages`.
+
+See: `examples/gateway_client_anthropic.py`
+
+### Optional Routing Hints (No Schema Changes)
+
+The gateway supports opt-in hint headers. If you don't set these, cascadeflow will auto-detect
+complexity and domains.
+
+- `X-Cascadeflow-Complexity: trivial|simple|moderate|hard|expert`
+- `X-Cascadeflow-Domain: code|math|legal|medical|...`
 
 ## 3) Quick Validation Checklist
 
