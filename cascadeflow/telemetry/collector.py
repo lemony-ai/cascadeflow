@@ -415,6 +415,7 @@ class MetricsCollector:
                 # Routing stats - ALWAYS PRESENT
                 "cascade_rate": 0.0,
                 "acceptance_rate": 0.0,
+                "cascade_acceptance_rate": 0.0,
                 "streaming_rate": 0.0,
                 "cascade_used": 0,
                 "direct_routed": 0,
@@ -453,7 +454,9 @@ class MetricsCollector:
 
         # Calculate rates
         cascade_rate = cascade_total / total * 100
-        acceptance_rate = (
+        # acceptance_rate should remain stable even when traffic is mostly direct-routed.
+        acceptance_rate = self.stats["draft_accepted"] / total * 100 if total > 0 else 0
+        cascade_acceptance_rate = (
             self.stats["draft_accepted"] / cascade_total * 100 if cascade_total > 0 else 0
         )
         streaming_rate = self.stats["streaming_used"] / total * 100
@@ -501,6 +504,7 @@ class MetricsCollector:
             # Routing stats
             "cascade_rate": round(cascade_rate, 1),
             "acceptance_rate": round(acceptance_rate, 1),
+            "cascade_acceptance_rate": round(cascade_acceptance_rate, 1),
             "streaming_rate": round(streaming_rate, 1),
             "cascade_used": self.stats["cascade_used"],
             "direct_routed": self.stats["direct_routed"],
@@ -551,8 +555,8 @@ class MetricsCollector:
                 avg_tools_per_query=0.0,
             )
 
-        # Calculate acceptance rate
-        acceptance_rate = self.stats["draft_accepted"] / cascade_total if cascade_total > 0 else 0
+        # Calculate acceptance rate (stable across direct + cascade traffic)
+        acceptance_rate = self.stats["draft_accepted"] / total if total > 0 else 0
 
         # Calculate average speedup
         avg_speedup = self._calculate_avg_speedup()

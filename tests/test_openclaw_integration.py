@@ -14,7 +14,16 @@ from typing import Any
 import httpx
 import pytest
 
-BASE_URL = os.getenv("OPENCLAW_BASE_URL", "http://192.168.0.147:8084")
+# This suite validates a running OpenClaw-compatible server end-to-end. It is
+# intentionally opt-in because it depends on external state (a server process,
+# provider keys, network reliability).
+RUN_OPENCLAW = os.getenv("CASCADEFLOW_E2E_OPENCLAW") == "1"
+if not RUN_OPENCLAW:
+    pytestmark = pytest.mark.skip(
+        reason="Set CASCADEFLOW_E2E_OPENCLAW=1 (and OPENCLAW_BASE_URL if needed) to run"
+    )
+
+BASE_URL = os.getenv("OPENCLAW_BASE_URL", "http://127.0.0.1:8084")
 CHAT_URL = f"{BASE_URL.rstrip('/')}/v1/chat/completions"
 STATS_URL = f"{BASE_URL.rstrip('/')}/stats"
 REQUEST_TIMEOUT = float(os.getenv("OPENCLAW_REQUEST_TIMEOUT", "45"))
