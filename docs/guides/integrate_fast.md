@@ -73,4 +73,7 @@ console.log(result.content);
 
 - The `useChat` integration streams text via the Vercel AI SDK **data stream** protocol.
 - Token usage is not currently emitted in the stream (cascadeflow doesn’t expose it mid-stream yet).
-- Tool-call streaming in the UI protocol is not implemented yet (works best for text-first chat).
+- Tool-call streaming is supported when cascadeflow emits tool calls during streaming:
+  - AI SDK v4: `tool_call_streaming_start` / `tool_call_delta` / `tool_call`
+  - AI SDK v5+/v6: `tool-input-*` chunks
+  - Tool execution is still up to your app (cascadeflow emits tool calls; it does not run your tools).

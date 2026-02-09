@@ -24,5 +24,7 @@ export ANTHROPIC_API_KEY=...
 
 ## How It Works
 
-- `app/api/chat/route.ts` uses `VercelAI.createChatHandler(...)` with `protocol: 'data'` to return the Vercel AI SDK **UI message stream** SSE protocol (default for `useChat`).
-- `app/page.tsx` uses `useChat({ api: '/api/chat' })`.
+- `app/api/chat/route.ts` uses `VercelAI.createChatHandler(...)` with `protocol: 'data'`.
+  - On AI SDK v4, this emits the **data stream protocol** expected by `useChat`.
+  - On newer AI SDK versions, the handler automatically uses the **UI message stream** when available.
+- `app/page.tsx` uses `useChat()` (default route is `/api/chat`).

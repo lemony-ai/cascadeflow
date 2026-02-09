@@ -8,7 +8,9 @@ This document captures the current approach for integrating **cascadeflow** with
    - cascadeflow can access additional providers (Perplexity, xAI, Fireworks, etc.) through the Vercel AI SDK by using `VercelAISDKProvider` internally when you pick a provider name that isn't implemented natively.
 
 2. **UI streaming for `useChat` (client-side)**
-   - cascadeflow can act as the backend for `useChat` by returning the Vercel AI SDK **UI message stream** SSE protocol.
+   - cascadeflow can act as the backend for `useChat` by returning an AI SDK-compatible streaming `Response`:
+     - AI SDK v4: **data stream protocol**
+     - AI SDK v5+/v6: **UI message stream**
    - The helper lives under `@cascadeflow/core` as `VercelAI.createChatHandler(...)`.
 
 ## Next.js App Router Example (Edge)
@@ -40,7 +42,7 @@ On the client:
 import { useChat } from '@ai-sdk/react';
 
 export default function Page() {
-  const { messages, input, handleInputChange, handleSubmit } = useChat({ api: '/api/chat' });
+  const { messages, sendMessage, status } = useChat(); // default route: /api/chat
   // ...
 }
 ```

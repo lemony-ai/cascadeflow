@@ -1,5 +1,13 @@
 # Vercel AI SDK Integration - Winning Developer Experience (Planning)
 
+## Status (February 2026)
+This doc started as a planning note. As of February 2026, cascadeflow ships a **tomorrow-ready** integration for Vercel AI SDK UI hooks via:
+- `@cascadeflow/core` -> `VercelAI.createChatHandler(...)` (Next.js `useChat` drop-in backend)
+
+For the recommended “ship tomorrow” path, see:
+- `docs/guides/integrate_fast.md`
+- `examples/vercel-ai-nextjs/`
+
 ## 1. Vercel AI SDK Architecture Overview
 
 **What it is**
@@ -37,8 +45,7 @@
 - The TypeScript quickstart explicitly states cascadeflow runs in Node.js, browser, and edge runtimes with the same import, which aligns with Vercel’s mixed runtime environment.【F:docs/guides/quickstart-typescript.md†L677-L691】
 
 **What’s missing today**
-- No dedicated `@cascadeflow/*` package targeting the Vercel AI SDK model interface.
-- No documented integration for `useChat`/`useCompletion` with cascadeflow routing.
+- No dedicated cascadeflow package that implements the AI SDK **model interface** (so users can pass cascadeflow directly as `model` into `streamText` / `generateText`).
 - No native mapping from cascadeflow costs/metadata into Vercel AI SDK’s response metadata conventions.
 
 ## 3. Integration Options (A/B/C)
@@ -159,30 +166,33 @@ export async function POST(req: Request) {
 
 ### Quickstart (Next.js App Router)
 ```bash
-pnpm add @cascadeflow/vercel-ai ai @ai-sdk/openai
+pnpm add @cascadeflow/core ai @ai-sdk/react
 ```
 
 ```ts
 // app/api/chat/route.ts
-import { createCascadeFlow } from '@cascadeflow/vercel-ai';
-import { streamText } from 'ai';
+import { CascadeAgent, VercelAI } from '@cascadeflow/core';
 
 export const runtime = 'edge';
 
-const cascadeflow = createCascadeFlow({ models: [cheap, expensive] });
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.15, apiKey: process.env.OPENAI_API_KEY },
+    { name: 'gpt-4o', provider: 'openai', cost: 2.5, apiKey: process.env.OPENAI_API_KEY },
+  ],
+});
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
-  return streamText({ model: cascadeflow('auto'), messages });
+  return VercelAI.createChatHandler(agent, { protocol: 'data' })(req);
 }
 ```
 
 ### Client Hook (React)
 ```ts
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 
 export function Chat() {
-  const { messages, input, handleInputChange, handleSubmit } = useChat();
+  const { messages, sendMessage, status } = useChat(); // default route: /api/chat
   return (...);
 }
 ```
