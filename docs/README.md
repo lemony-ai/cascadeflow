@@ -17,6 +17,8 @@ Welcome to cascadeflow documentation! 🌊
 ### Core Features
 - [Streaming](guides/streaming.md) - Stream responses from cascade agents
 - [Tools](guides/tools.md) - Function calling and tool usage with cascades
+- [Agentic Patterns (Python)](guides/agentic-python.md) - Tool loops and multi-agent orchestration in Python
+- [Agentic Patterns (TypeScript)](guides/agentic-typescript.md) - Tool loops, multi-agent orchestration, and message best practices
 - [Cost Tracking](guides/cost_tracking.md) - Track and analyze API costs across queries
 - [Proxy Routing](guides/proxy.md) - Route requests through provider-aware proxy plans
 

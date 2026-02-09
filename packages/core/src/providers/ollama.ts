@@ -153,12 +153,17 @@ export class OllamaProvider extends BaseProvider {
       } else if (msg.role === 'user') {
         ollamaMessages.push({ role: 'user', content: msg.content });
       } else if (msg.role === 'assistant') {
-        ollamaMessages.push({ role: 'assistant', content: msg.content });
+        const assistantMsg: any = { role: 'assistant', content: msg.content };
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          assistantMsg.tool_calls = msg.tool_calls;
+        }
+        ollamaMessages.push(assistantMsg);
       } else if (msg.role === 'tool') {
         // Ollama tool result format
         ollamaMessages.push({
           role: 'tool',
           content: msg.content,
+          tool_call_id: msg.tool_call_id || '',
         });
       }
     }

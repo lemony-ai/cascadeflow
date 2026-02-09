@@ -58,6 +58,14 @@ export interface Message {
   content: string;
   name?: string;
   tool_call_id?: string;
+  /**
+   * Assistant tool call requests (OpenAI-style).
+   *
+   * This enables multi-turn tool loops by allowing callers to persist the assistant
+   * message that contains `tool_calls`, then append tool result messages (role="tool")
+   * before the next model call.
+   */
+  tool_calls?: ToolCall[];
 }
 
 /**

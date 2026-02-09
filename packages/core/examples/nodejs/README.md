@@ -33,6 +33,7 @@ npx tsx examples/nodejs/basic-usage.ts
 | **basic-usage.ts** | Learn cascading basics | ⭐ Easy | 5 min | First-time users |
 | **streaming-text.ts** | Real-time streaming | ⭐⭐ Medium | 10 min | Interactive apps |
 | **tool-execution.ts** | Function calling | ⭐⭐ Medium | 15 min | Agent builders |
+| **agentic-multi-agent.ts** | Tool loops + multi-agent | ⭐⭐⭐ Advanced | 20 min | Agentic apps |
 | **cost-tracking-example.ts** | Budget management | ⭐⭐ Medium | 15 min | Cost optimization |
 | **multi-provider-example.ts** | Mix AI providers | ⭐⭐ Medium | 10 min | Multi-cloud |
 | **express-integration.ts** | REST API server | ⭐⭐⭐ Advanced | 20 min | Production APIs |
@@ -48,7 +49,7 @@ npx tsx examples/nodejs/basic-usage.ts
 
 **I want to...**
 - **Stream responses?** → `streaming-text.ts`, `streaming-tools.ts`
-- **Use tools/functions?** → `tool-execution.ts`, `streaming-tools.ts`
+- **Use tools/functions?** → `tool-execution.ts`, `agentic-multi-agent.ts`, `streaming-tools.ts`
 - **Track costs?** → `cost-tracking-example.ts`, `user-profiles.ts`
 - **Use multiple providers?** → `multi-provider-example.ts`, `groq-provider-example.ts`, `together-example.ts`
 - **Deploy to production?** → `express-integration.ts`, `vercel-edge.ts`
@@ -64,7 +65,7 @@ npx tsx examples/nodejs/basic-usage.ts
 ## 📋 Table of Contents
 
 - [🌟 Core Examples](#-core-examples-6-examples---start-here) - Basic usage, streaming, quality validation
-- [🔧 Tools & Functions](#-tools--functions-2-examples) - Tool calling and execution
+- [🔧 Tools & Functions](#-tools--functions-3-examples) - Tool calling, execution, and tool loops
 - [💰 Cost Management](#-cost-management-3-examples) - Budgets and tracking
 - [🏭 Production](#-production--integration-2-examples) - Deployment patterns
 - [🌐 Browser & Runtime](#-browser--runtime-support-3-examples) - Browser, Deno, Edge
@@ -183,7 +184,7 @@ Query 6/8: Explain quantum entanglement...
 </details>
 
 <details>
-<summary><h3>🔧 Tools & Functions (2 examples)</h3></summary>
+<summary><h3>🔧 Tools & Functions (3 examples)</h3></summary>
 
 Learn how to use tools and functions with cascadeflow.
 
@@ -257,6 +258,23 @@ function executeToolCall(toolName: string, args: any): any {
 2. Multi-step calculation workflow
 3. Parallel tool calls
 4. Complex tool orchestration
+
+---
+
+#### 3. Agentic + Multi-Agent Tool Loop 🤖
+**File:** [`agentic-multi-agent.ts`](agentic-multi-agent.ts)
+**Time:** 20 minutes
+**What you'll learn:**
+- Multi-turn tool loop (persist assistant `tool_calls` + tool results)
+- Executing tools with `ToolExecutor`
+- Multi-agent orchestration with an “agent-as-a-tool” (`delegate_to_researcher`)
+- Message list best practices (system prompt + tool history)
+
+**Key pattern (tool loop):**
+```typescript
+messages.push({ role: 'assistant', content: result.content ?? '', tool_calls: result.toolCalls });
+messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(toolOutput) });
+```
 
 </details>
 

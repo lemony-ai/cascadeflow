@@ -481,10 +481,42 @@ export class AnthropicProvider extends BaseProvider {
           content: msg.content,
         });
       } else if (msg.role === 'assistant') {
-        anthropicMessages.push({
-          role: 'assistant',
-          content: msg.content,
-        });
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          const blocks: any[] = [];
+
+          if (msg.content && msg.content.trim().length > 0) {
+            blocks.push({ type: 'text', text: msg.content });
+          }
+
+          for (const tc of msg.tool_calls) {
+            let input: any = {};
+            try {
+              input =
+                typeof tc.function?.arguments === 'string'
+                  ? JSON.parse(tc.function.arguments)
+                  : tc.function?.arguments ?? {};
+            } catch {
+              input = {};
+            }
+
+            blocks.push({
+              type: 'tool_use',
+              id: tc.id,
+              name: tc.function?.name,
+              input,
+            });
+          }
+
+          anthropicMessages.push({
+            role: 'assistant',
+            content: blocks,
+          });
+        } else {
+          anthropicMessages.push({
+            role: 'assistant',
+            content: msg.content,
+          });
+        }
       } else if (msg.role === 'tool') {
         // Anthropic format for tool results
         anthropicMessages.push({

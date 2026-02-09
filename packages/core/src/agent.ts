@@ -15,6 +15,7 @@ import { VercelAISDKProvider, VERCEL_AI_PROVIDER_NAMES } from './providers/verce
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
 import type { Message, Tool, UserProfile, TierLevel } from './types';
+import { ToolCall as ParsedToolCall, ToolExecutor } from './tools';
 import {
   type StreamEvent,
   StreamEventType,
@@ -55,6 +56,33 @@ for (const providerName of VERCEL_AI_PROVIDER_NAMES) {
   }
 }
 
+function normalizeSystemPromptFromMessages(
+  messages: Message[],
+  explicitSystemPrompt?: string
+): { messages: Message[]; systemPrompt?: string } {
+  const systemParts: string[] = [];
+  const nonSystem: Message[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      systemParts.push(msg.content);
+    } else {
+      nonSystem.push(msg);
+    }
+  }
+
+  const combined: string[] = [];
+  if (explicitSystemPrompt) {
+    combined.push(explicitSystemPrompt);
+  }
+  combined.push(...systemParts);
+
+  return {
+    messages: nonSystem,
+    systemPrompt: combined.length > 0 ? combined.join('\n\n') : undefined,
+  };
+}
+
 /**
  * Run options for agent
  */
@@ -70,6 +98,18 @@ export interface RunOptions {
 
   /** Tools/functions available */
   tools?: Tool[];
+
+  /**
+   * Optional tool executor for multi-turn tool loops.
+   *
+   * If provided (or configured on the agent) and `tools` are present, the agent
+   * can automatically execute tool calls and continue until the model stops
+   * requesting tools or `maxSteps` is reached.
+   */
+  toolExecutor?: ToolExecutor;
+
+  /** Maximum tool-loop steps (model calls) when tool execution is enabled */
+  maxSteps?: number;
 
   /** Provider-specific options forwarded to the provider (e.g. OpenAI `tool_choice`) */
   extra?: Record<string, any>;
@@ -113,6 +153,7 @@ export class CascadeAgent {
   private domainRouter: DomainRouter;
   private domainConfigs: DomainConfigMap;
   private enableDomainDetection: boolean;
+  private toolExecutor?: ToolExecutor;
 
   /**
    * Create a new cascadeflow agent
@@ -230,6 +271,9 @@ export class CascadeAgent {
 
     // CallbackManager: Optional lifecycle event monitoring
     this.callbackManager = config.callbacks;
+
+    // Optional tool executor (enables agent-side tool loops)
+    this.toolExecutor = config.toolExecutor;
   }
 
   // ==================== PRIVATE HELPERS ====================
@@ -249,6 +293,16 @@ export class CascadeAgent {
         console.warn(`Callback error for ${event}:`, error);
       }
     }
+  }
+
+  private async executeToolCalls(
+    executor: ToolExecutor,
+    providerName: string,
+    rawToolCalls: any[]
+  ): Promise<{ toolResults: any[]; parsedCalls: ParsedToolCall[] }> {
+    const parsedCalls = rawToolCalls.map((tc) => ParsedToolCall.fromProvider(providerName, tc));
+    const toolResults = await executor.executeParallel(parsedCalls);
+    return { toolResults, parsedCalls };
   }
 
   // ==================== FACTORY METHODS ====================
@@ -560,14 +614,14 @@ export class CascadeAgent {
     // Cloud providers (openai, anthropic, etc.): 1000 tokens
     const maxTokens = options.maxTokens ?? this.getDefaultMaxTokens();
 
-    // Normalize input to messages
-    const messages: Message[] =
+    const rawMessages: Message[] =
       typeof input === 'string' ? [{ role: 'user', content: input }] : input;
+    const normalized = normalizeSystemPromptFromMessages(rawMessages, options.systemPrompt);
+    const messages = normalized.messages;
+    const executor = options.toolExecutor ?? this.toolExecutor;
 
-    // Extract query text for complexity detection
-    const queryText = typeof input === 'string'
-      ? input
-      : input.map(m => m.content).join('\n');
+    // Extract query text for complexity detection (exclude system messages)
+    const queryText = typeof input === 'string' ? input : messages.map((m) => m.content).join('\n');
 
     // Trigger QUERY_START event
     this.triggerCallback(CallbackEvent.QUERY_START, queryText, { options });
@@ -589,6 +643,103 @@ export class CascadeAgent {
       }
 
       availableModels = toolFilterResult.models;
+    }
+
+    // === OPTIONAL: TOOL LOOP (AUTO-EXECUTION) ===
+    // When a ToolExecutor is configured and tools are present, we run a multi-step
+    // tool loop using the best available tool-capable model. This matches the
+    // Python DX: providing a tool executor enables agent-side tool execution.
+    if (options.tools && options.tools.length > 0 && executor) {
+      const maxSteps = options.maxSteps ?? 5;
+
+      const bestModelConfig = availableModels[availableModels.length - 1];
+      const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
+
+      const loopMessages: Message[] = [...messages];
+      let finalContent = '';
+      let modelUsed = bestModelConfig.name;
+      let totalLoopCost = 0;
+      let finalToolCalls: any[] | undefined;
+      let stepsExecuted = 0;
+
+      for (let step = 0; step < maxSteps; step++) {
+        stepsExecuted = step + 1;
+
+        const response = await provider.generate({
+          messages: loopMessages,
+          model: bestModelConfig.name,
+          maxTokens,
+          temperature: options.temperature,
+          systemPrompt: normalized.systemPrompt,
+          tools: options.tools,
+          extra: options.extra,
+        });
+
+        modelUsed = response.model;
+        finalContent = response.content;
+        finalToolCalls = response.tool_calls;
+
+        if (response.usage) {
+          totalLoopCost += provider.calculateCost(
+            response.usage.prompt_tokens,
+            response.usage.completion_tokens,
+            response.model
+          );
+        }
+
+        const assistantMsg: Message = { role: 'assistant', content: response.content || '' };
+        if (response.tool_calls && response.tool_calls.length > 0) {
+          assistantMsg.tool_calls = response.tool_calls as any;
+        }
+        loopMessages.push(assistantMsg);
+
+        if (!response.tool_calls || response.tool_calls.length === 0) {
+          break;
+        }
+
+        const { toolResults, parsedCalls } = await this.executeToolCalls(
+          executor,
+          bestModelConfig.provider,
+          response.tool_calls
+        );
+
+        for (let i = 0; i < toolResults.length; i++) {
+          const tr = toolResults[i];
+          const call = parsedCalls[i];
+          loopMessages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify(tr.success ? tr.result : { error: tr.error }),
+          });
+        }
+      }
+
+      const latencyMs = Date.now() - startTime;
+
+      return {
+        content: finalContent,
+        modelUsed,
+        totalCost: totalLoopCost,
+        latencyMs,
+        complexity: this.complexityDetector.detect(queryText).complexity,
+        cascaded: false,
+        draftAccepted: false,
+        routingStrategy: 'direct',
+        reason:
+          finalToolCalls && finalToolCalls.length > 0
+            ? `Direct tool loop (maxSteps reached: ${stepsExecuted}/${maxSteps})`
+            : `Direct tool loop (${stepsExecuted} step${stepsExecuted === 1 ? '' : 's'})`,
+        toolCalls: finalToolCalls,
+        hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,
+        draftModel: undefined,
+        draftCost: 0,
+        draftLatencyMs: 0,
+        verifierModel: undefined,
+        verifierCost: 0,
+        verifierLatencyMs: 0,
+        costSaved: 0,
+        savingsPercentage: 0,
+      };
     }
 
     // Step 1b: Filter by user tier if specified
@@ -686,7 +837,7 @@ export class CascadeAgent {
           model: bestModelConfig.name,
           maxTokens: maxTokens,
           temperature: options.temperature,
-          systemPrompt: options.systemPrompt,
+          systemPrompt: normalized.systemPrompt,
           tools: options.tools,
           extra: options.extra,
         });
@@ -746,7 +897,7 @@ export class CascadeAgent {
         model: draftModelConfig.name,
         maxTokens: maxTokens,
         temperature: options.temperature,
-        systemPrompt: options.systemPrompt,
+        systemPrompt: normalized.systemPrompt,
         tools: options.tools,
         extra: options.extra,
       });
@@ -835,7 +986,7 @@ export class CascadeAgent {
         model: verifierModelConfig.name,
         maxTokens: maxTokens,
         temperature: options.temperature,
-        systemPrompt: options.systemPrompt,
+        systemPrompt: normalized.systemPrompt,
         tools: options.tools,
         extra: options.extra,
       });
@@ -1021,14 +1172,13 @@ export class CascadeAgent {
     // Set default max_tokens based on hosting type if not specified
     const maxTokens = options.maxTokens ?? this.getDefaultMaxTokens();
 
-    // Normalize input to messages
-    const messages: Message[] =
+    const rawMessages: Message[] =
       typeof input === 'string' ? [{ role: 'user', content: input }] : input;
+    const normalized = normalizeSystemPromptFromMessages(rawMessages, options.systemPrompt);
+    const messages = normalized.messages;
 
-    // Extract query text for complexity detection
-    const queryText = typeof input === 'string'
-      ? input
-      : input.map(m => m.content).join('\n');
+    // Extract query text for complexity detection (exclude system messages)
+    const queryText = typeof input === 'string' ? input : messages.map((m) => m.content).join('\n');
 
     // === STEP 1: MODEL FILTERING ===
     let availableModels = [...this.models]; // Start with all models
@@ -1147,8 +1297,9 @@ export class CascadeAgent {
           const result = await this.run(input, {
             maxTokens: maxTokens,
             temperature: options.temperature,
-            systemPrompt: options.systemPrompt,
+            systemPrompt: normalized.systemPrompt,
             tools: options.tools,
+            extra: options.extra,
             forceDirect: true,
           });
           yield createStreamEvent(StreamEventType.CHUNK, result.content, {
@@ -1169,7 +1320,7 @@ export class CascadeAgent {
           model: bestModelConfig.name,
           maxTokens: maxTokens,
           temperature: options.temperature,
-          systemPrompt: options.systemPrompt,
+          systemPrompt: normalized.systemPrompt,
           tools: options.tools,
           extra: options.extra,
         })) {
@@ -1250,7 +1401,7 @@ export class CascadeAgent {
         model: draftModelConfig.name,
         maxTokens: maxTokens,
         temperature: options.temperature,
-        systemPrompt: options.systemPrompt,
+        systemPrompt: normalized.systemPrompt,
         tools: options.tools,
         extra: options.extra,
       })) {
@@ -1390,7 +1541,7 @@ export class CascadeAgent {
             model: verifierModelConfig.name,
             maxTokens: maxTokens,
             temperature: options.temperature,
-            systemPrompt: options.systemPrompt,
+            systemPrompt: normalized.systemPrompt,
             tools: options.tools,
             extra: options.extra,
           })) {
@@ -1423,8 +1574,9 @@ export class CascadeAgent {
             model: verifierModelConfig.name,
             maxTokens: maxTokens,
             temperature: options.temperature,
-            systemPrompt: options.systemPrompt,
+            systemPrompt: normalized.systemPrompt,
             tools: options.tools,
+            extra: options.extra,
           });
           verifierContent = verifierResponse.content;
           verifierToolCalls = verifierResponse.tool_calls;
