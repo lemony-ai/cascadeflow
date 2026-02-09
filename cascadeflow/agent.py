@@ -855,7 +855,7 @@ class CascadeAgent:
 
     async def run(
         self,
-        query: str,
+        query: "str | list[dict[str, Any]]",
         max_tokens: int = 100,
         temperature: float = 0.7,
         complexity_hint: Optional[str] = None,
@@ -877,7 +877,10 @@ class CascadeAgent:
         Run query (NON-STREAMING) with comprehensive diagnostics and tool support.
 
         Args:
-            query: User query
+            query: User query string, OR a list of message dicts
+                   (e.g. [{"role": "user", "content": "hi"}]).
+                   When a list is passed it is treated as the messages parameter
+                   and the string query is derived automatically.
             max_tokens: Max tokens to generate
             temperature: Sampling temperature
             complexity_hint: Override complexity detection
@@ -897,6 +900,12 @@ class CascadeAgent:
         Returns:
             CascadeResult with content, cost, latency, tool_calls, and full diagnostics
         """
+        # Accept query as list[dict] for DX convenience:
+        #   agent.run([{"role": "user", "content": "hi"}])
+        if isinstance(query, list):
+            messages = query if messages is None else messages + query
+            query = ""
+
         overall_start = time.time()
         timing_breakdown = {}
         system_prompt = kwargs.pop("system_prompt", None)

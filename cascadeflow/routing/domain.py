@@ -1445,7 +1445,7 @@ class SemanticDomainDetector:
         embedder: Optional["UnifiedEmbeddingService"] = None,
         confidence_threshold: float = 0.6,
         use_hybrid: bool = True,
-        model_name: str = "BAAI/bge-base-en-v1.5",
+        model_name: str = "BAAI/bge-small-en-v1.5",
     ):
         """
         Initialize semantic domain detector.

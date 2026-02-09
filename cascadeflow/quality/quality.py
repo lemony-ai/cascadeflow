@@ -52,6 +52,14 @@ except ImportError:
     DIFFICULTY_AVAILABLE = False
     logger.warning("query_difficulty.py not available - difficulty estimation disabled")
 
+# Import adaptive threshold manager (RELATIVE IMPORT)
+try:
+    from .adaptive import AdaptiveThresholdManager
+
+    ADAPTIVE_AVAILABLE = True
+except ImportError:
+    ADAPTIVE_AVAILABLE = False
+
 
 @dataclass
 class ValidationResult:
@@ -525,6 +533,15 @@ class QualityValidator:
             self.difficulty_estimator = None
             logger.warning("⚠️  Difficulty estimator not available")
 
+        # Adaptive threshold learning (self-improving over time)
+        if self.config.enable_adaptive and ADAPTIVE_AVAILABLE:
+            self.adaptive_manager = AdaptiveThresholdManager(
+                enable_embeddings=True,
+            )
+            logger.info("✅ Adaptive threshold learning enabled")
+        else:
+            self.adaptive_manager = None
+
     def validate(
         self,
         draft_content: str,
@@ -550,6 +567,11 @@ class QualityValidator:
             threshold = threshold_override
         else:
             threshold = self.config.confidence_thresholds.get(complexity, 0.70)
+            # Apply adaptive adjustment if learning is enabled
+            if self.adaptive_manager is not None:
+                threshold = self.adaptive_manager.get_threshold(
+                    complexity, threshold
+                )
 
         # Initialize checks and details
         checks = {}
@@ -856,9 +878,20 @@ class QualityValidator:
                     f"  Content: {draft_content[:100]}"
                 )
 
-        return ValidationResult(
+        result = ValidationResult(
             passed=passed, score=score, reason=reason, checks=checks, details=details
         )
+
+        # Record outcome for adaptive learning
+        if self.adaptive_manager is not None:
+            self.adaptive_manager.record(
+                domain=complexity,
+                confidence=confidence,
+                accepted=passed,
+                query=query,
+            )
+
+        return result
 
     @staticmethod
     def _is_math_query(query: str) -> bool:
