@@ -43,7 +43,7 @@ cascadeflow integrates the **Vercel AI SDK** so you can use a wider set of provi
 
 **Setup (TypeScript):**
 ```bash
-npm install ai @ai-sdk/openai @ai-sdk/anthropic
+pnpm add @cascadeflow/core @cascadeflow/vercel-ai ai @ai-sdk/openai @ai-sdk/anthropic
 ```
 
 ```ts
@@ -65,7 +65,8 @@ const agent = new CascadeAgent({
 If you want to use **Vercel AI SDK UI hooks** (for example `useChat`) with cascadeflow, you can return a Vercel AI SDK-compatible stream from your route handler. The handler defaults to the AI SDK v4 **data stream** protocol and automatically uses the **UI message stream** when available on newer AI SDK versions.
 
 ```ts
-import { CascadeAgent, VercelAI } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
+import { createChatHandler } from '@cascadeflow/vercel-ai';
 
 export const runtime = 'edge';
 
@@ -76,7 +77,7 @@ const agent = new CascadeAgent({
   ],
 });
 
-const handler = VercelAI.createChatHandler(agent);
+const handler = createChatHandler(agent);
 
 export async function POST(req: Request) {
   return handler(req);

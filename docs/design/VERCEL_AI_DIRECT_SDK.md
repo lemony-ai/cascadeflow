@@ -11,12 +11,13 @@ This document captures the current approach for integrating **cascadeflow** with
    - cascadeflow can act as the backend for `useChat` by returning an AI SDK-compatible streaming `Response`:
      - AI SDK v4: **data stream protocol**
      - AI SDK v5+/v6: **UI message stream**
-   - The helper lives under `@cascadeflow/core` as `VercelAI.createChatHandler(...)`.
+   - Install the integration helper: `@cascadeflow/vercel-ai` and use `createChatHandler(...)`.
 
 ## Next.js App Router Example (Edge)
 
 ```ts
-import { CascadeAgent, VercelAI } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
+import { createChatHandler } from '@cascadeflow/vercel-ai';
 
 export const runtime = 'edge';
 
@@ -27,7 +28,7 @@ const agent = new CascadeAgent({
   ],
 });
 
-const handler = VercelAI.createChatHandler(agent, { protocol: 'data' });
+const handler = createChatHandler(agent, { protocol: 'data' });
 
 export async function POST(req: Request) {
   return handler(req);

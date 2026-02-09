@@ -6,8 +6,14 @@ This guide is optimized for teams who already have an app (Next.js, an agent, or
 
 Best when you already use Vercel AI SDK UI hooks like `useChat`.
 
+Install:
+```bash
+pnpm add @cascadeflow/core @cascadeflow/vercel-ai ai @ai-sdk/react
+```
+
 ```ts
-import { CascadeAgent, VercelAI } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
+import { createChatHandler } from '@cascadeflow/vercel-ai';
 
 export const runtime = 'edge';
 
@@ -18,7 +24,7 @@ const agent = new CascadeAgent({
   ],
 });
 
-const handler = VercelAI.createChatHandler(agent); // default: `protocol: 'data'`
+const handler = createChatHandler(agent); // default: `protocol: 'data'`
 
 export async function POST(req: Request) {
   return handler(req);

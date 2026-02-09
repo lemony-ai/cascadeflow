@@ -2,7 +2,7 @@
 
 ## Status (February 2026)
 This doc started as a planning note. As of February 2026, cascadeflow ships a **tomorrow-ready** integration for Vercel AI SDK UI hooks via:
-- `@cascadeflow/core` -> `VercelAI.createChatHandler(...)` (Next.js `useChat` drop-in backend)
+- `@cascadeflow/vercel-ai` -> `createChatHandler(...)` (Next.js `useChat` drop-in backend)
 
 For the recommended “ship tomorrow” path, see:
 - `docs/guides/integrate_fast.md`
@@ -111,7 +111,8 @@ pnpm add @cascadeflow/core ai @ai-sdk/react
 
 ```ts
 // app/api/chat/route.ts
-import { CascadeAgent, VercelAI } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
+import { createChatHandler } from '@cascadeflow/vercel-ai';
 
 export const runtime = 'edge';
 
@@ -123,7 +124,7 @@ const agent = new CascadeAgent({
 });
 
 export async function POST(req: Request) {
-  return VercelAI.createChatHandler(agent)(req);
+  return createChatHandler(agent)(req);
 }
 ```
 

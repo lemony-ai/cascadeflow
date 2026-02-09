@@ -1,4 +1,5 @@
-import { CascadeAgent, VercelAI } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
+import { createChatHandler } from '@cascadeflow/vercel-ai';
 
 export const runtime = 'edge';
 
@@ -20,7 +21,7 @@ const agent = new CascadeAgent({
   ],
 });
 
-const handler = VercelAI.createChatHandler(agent, {
+const handler = createChatHandler(agent, {
   // Default `useChat` stream protocol in Vercel AI SDK v4.
   protocol: 'data',
 });
@@ -28,4 +29,3 @@ const handler = VercelAI.createChatHandler(agent, {
 export async function POST(req: Request) {
   return handler(req);
 }
-
