@@ -16,6 +16,7 @@ dist/
 # VIRTUAL ENVIRONMENTS
 # ============================================================================
 .venv/
+.venv-base/
 venv/
 env/
 ENV/
