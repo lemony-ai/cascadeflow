@@ -79,7 +79,15 @@ def _stop_gateway(proc: subprocess.Popen) -> None:
 
 def test_gateway_cli_mock_e2e_with_metadata():
     proc, port = _start_gateway(
-        "--mode", "mock", "--host", "127.0.0.1", "--port", "0", "--include-gateway-metadata"
+        "--mode",
+        "mock",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "0",
+        "--include-gateway-metadata",
+        "--advertise-model",
+        "gpt-4o-mini",
     )
     try:
         base = f"http://127.0.0.1:{port}"
@@ -92,6 +100,10 @@ def test_gateway_cli_mock_e2e_with_metadata():
         models = httpx.get(f"{base}/v1/models", timeout=5.0)
         assert models.status_code == 200
         assert models.headers.get("X-Cascadeflow-Gateway-Endpoint") == "models.list"
+        model_ids = {
+            item.get("id") for item in models.json().get("data", []) if isinstance(item, dict)
+        }
+        assert "gpt-4o-mini" in model_ids
 
         chat = httpx.post(
             f"{base}/v1/chat/completions",

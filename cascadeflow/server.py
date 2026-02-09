@@ -54,6 +54,26 @@ def main() -> None:
         action="store_true",
         help="Include gateway debug metadata in JSON responses (optional; headers are always on by default).",
     )
+    parser.add_argument(
+        "--advertise-model",
+        action="append",
+        default=[],
+        metavar="MODEL_ID",
+        help=(
+            "Advertise additional model IDs in GET /v1/models (repeatable). "
+            "Useful for clients that validate model IDs."
+        ),
+    )
+    parser.add_argument(
+        "--virtual-model",
+        action="append",
+        default=[],
+        metavar="ALIAS=TARGET",
+        help=(
+            "Add or override a virtual model mapping (repeatable). "
+            "Affects GET /v1/models and mock-mode model resolution."
+        ),
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
@@ -72,6 +92,28 @@ def main() -> None:
 
             agent = auto_agent(preset=args.preset, verbose=args.verbose, enable_cascade=True)
 
+    virtual_models = ProxyConfig().virtual_models
+    for model_id in args.advertise_model:
+        if isinstance(model_id, str):
+            model_id = model_id.strip()
+            if model_id:
+                virtual_models.setdefault(model_id, model_id)
+
+    for mapping in args.virtual_model:
+        if not isinstance(mapping, str):
+            continue
+        raw = mapping.strip()
+        if not raw:
+            continue
+        if "=" not in raw:
+            raise SystemExit(f"Invalid --virtual-model '{mapping}' (expected ALIAS=TARGET)")
+        alias, target = raw.split("=", 1)
+        alias = alias.strip()
+        target = target.strip()
+        if not alias or not target:
+            raise SystemExit(f"Invalid --virtual-model '{mapping}' (expected ALIAS=TARGET)")
+        virtual_models[alias] = target
+
     server = RoutingProxy(
         agent=agent,
         config=ProxyConfig(
@@ -79,6 +121,7 @@ def main() -> None:
             port=args.port,
             allow_streaming=not args.no_stream,
             include_gateway_metadata=bool(args.include_gateway_metadata),
+            virtual_models=virtual_models,
         ),
     )
     port = server.start()

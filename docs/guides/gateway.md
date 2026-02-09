@@ -49,6 +49,7 @@ Common options:
 - `--preset balanced|cost_optimized|speed_optimized|quality_optimized|development`
 - `--config /path/to/cascadeflow.yaml` (override models/channels via config file)
 - `--no-stream` to disable streaming
+- `--advertise-model gpt-4o-mini` (repeat to add more model IDs to `GET /v1/models` for clients that validate models)
 
 ### Mock mode (no keys needed)
 
