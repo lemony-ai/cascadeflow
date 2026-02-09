@@ -1,6 +1,5 @@
-# CascadeFlow Config: Mixed (OpenAI + Anthropic)
-# Drafter: GPT-4o-mini | Verifier: Claude Sonnet
-# With expanded OpenClaw tags and domains
+# cascadeflow Configuration: Mixed (OpenAI + Anthropic)
+# Updated 2026-02-10: Mini/Haiku for trivial, Sonnet for critical
 
 models:
   - name: gpt-4o-mini
@@ -17,64 +16,92 @@ models:
 
   - name: claude-3-5-haiku-20241022
     provider: anthropic
-    cost: 0.001
+    cost: 0.0008
     supports_tools: true
-    max_tokens: 4096
+    max_tokens: 8192
 
-  - name: claude-3-5-sonnet-20241022
+  - name: claude-sonnet-4-20250514
     provider: anthropic
     cost: 0.003
     supports_tools: true
     max_tokens: 8192
 
 domains:
-  general:
+  # Trivial - cheapest models only (no verification needed)
+  heartbeat:
     drafter: gpt-4o-mini
-    verifier: claude-3-5-sonnet-20241022
-    threshold: 0.55
+    verifier: gpt-4o-mini
+    threshold: 0.30
+    temperature: 0.3
 
+  cron:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o-mini
+    threshold: 0.40
+    temperature: 0.5
+
+  conversation:
+    drafter: claude-3-5-haiku-20241022
+    verifier: claude-3-5-haiku-20241022
+    threshold: 0.50
+    temperature: 0.8
+
+  # Standard - Sonnet/GPT-4o verifier
   code:
     drafter: gpt-4o-mini
     verifier: gpt-4o
     threshold: 0.60
-
-  conversation:
-    drafter: claude-3-5-haiku-20241022
-    verifier: claude-3-5-sonnet-20241022
-    threshold: 0.50
-
-  reasoning:
-    drafter: gpt-4o-mini
-    verifier: claude-3-5-sonnet-20241022
-    threshold: 0.70
-
-  structured:
-    drafter: gpt-4o-mini
-    verifier: gpt-4o
-    threshold: 0.65
+    temperature: 0.2
 
   math:
     drafter: gpt-4o-mini
-    verifier: claude-3-5-sonnet-20241022
-    threshold: 0.65
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.60
+    temperature: 0.1
+
+  general:
+    drafter: gpt-4o-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.55
+    temperature: 0.7
 
   factual:
     drafter: gpt-4o-mini
-    verifier: claude-3-5-sonnet-20241022
+    verifier: claude-sonnet-4-20250514
     threshold: 0.55
+    temperature: 0.3
 
-channels:
-  heartbeat: gpt-4o-mini
-  cron: gpt-4o-mini
-  brain: claude-3-5-sonnet-20241022
-  coding: gpt-4o-mini
-  agentic: claude-3-5-sonnet-20241022
-  long_context: claude-3-5-sonnet-20241022
-  structured_output: gpt-4o
-  image_understanding: gpt-4o
+  reasoning:
+    drafter: gpt-4o-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.65
+    temperature: 0.3
+
+  creative:
+    drafter: claude-3-5-haiku-20241022
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.45
+    temperature: 0.9
+
+  medical:
+    drafter: gpt-4o-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.70
+    temperature: 0.1
+
+  legal:
+    drafter: gpt-4o-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.70
+    temperature: 0.2
+
+  translation:
+    drafter: claude-3-5-haiku-20241022
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.55
+    temperature: 0.3
 
 settings:
   enable_cascade: true
   enable_domain_detection: true
-  default_drafter: gpt-4o-mini
-  default_verifier: claude-3-5-sonnet-20241022
+  verbose: true
