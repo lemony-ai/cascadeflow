@@ -1220,7 +1220,7 @@ If you need to respond to the user, call generate_response after any lookup/sear
             draft_diff = (natural_draft / natural_total) - (explicit_draft / explicit_total)
             if draft_diff > 0:
                 print(f"\n  ⬆ Natural prompts have {draft_diff:.1%} HIGHER draft acceptance")
-                print(f"    → Simpler models CAN handle natural 2-tool dependencies")
+                print("    → Simpler models CAN handle natural 2-tool dependencies")
             elif draft_diff < 0:
                 print(f"\n  ⬇ Explicit prompts have {-draft_diff:.1%} higher draft acceptance")
         print("-" * 70)

@@ -9,6 +9,10 @@ Provides optional integrations with:
 All integrations are optional and gracefully degrade if dependencies unavailable.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 # Try to import LiteLLM integration
 try:
     from .litellm import (
@@ -86,6 +90,52 @@ except ImportError:
     extract_token_usage = None
     MODEL_PRICING = None
 
+# OpenClaw integration helpers (no external deps)
+try:
+    from .openclaw import (
+        OpenClawRouteHint,
+        OPENCLAW_NATIVE_CATEGORIES,
+        CATEGORY_TO_DOMAIN,
+        extract_explicit_tags,
+        classify_openclaw_frame,
+        OpenClawRoutingDecision,
+        build_routing_decision,
+        OpenClawAdapter,
+        OpenClawAdapterConfig,
+        OpenClawGatewayAdapter,
+    )
+
+    OPENCLAW_AVAILABLE = True
+except ImportError:
+    OPENCLAW_AVAILABLE = False
+    OpenClawRouteHint = None
+    OPENCLAW_NATIVE_CATEGORIES = None
+    CATEGORY_TO_DOMAIN = None
+    extract_explicit_tags = None
+    classify_openclaw_frame = None
+    OpenClawRoutingDecision = None
+    build_routing_decision = None
+    OpenClawAdapter = None
+    OpenClawAdapterConfig = None
+    OpenClawGatewayAdapter = None
+    OpenClawOpenAIServer = None
+    OpenClawOpenAIConfig = None
+
+# Avoid importing the OpenAI-compatible HTTP server at module import time.
+# This keeps `python -m cascadeflow.integrations.openclaw.openai_server` clean
+# and reduces import-time side effects for users that don't need the server.
+if TYPE_CHECKING:  # pragma: no cover
+    from .openclaw import OpenClawOpenAIServer, OpenClawOpenAIConfig  # noqa: F401
+
+
+def __getattr__(name: str):
+    if name in {"OpenClawOpenAIServer", "OpenClawOpenAIConfig"}:
+        from .openclaw import OpenClawOpenAIServer, OpenClawOpenAIConfig
+
+        return OpenClawOpenAIServer if name == "OpenClawOpenAIServer" else OpenClawOpenAIConfig
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = []
 
 if LITELLM_AVAILABLE:
@@ -131,11 +181,30 @@ if LANGCHAIN_AVAILABLE:
         ]
     )
 
+    if OPENCLAW_AVAILABLE:
+        __all__.extend(
+            [
+                "OpenClawRouteHint",
+                "OPENCLAW_NATIVE_CATEGORIES",
+                "CATEGORY_TO_DOMAIN",
+                "extract_explicit_tags",
+                "classify_openclaw_frame",
+                "OpenClawRoutingDecision",
+                "build_routing_decision",
+                "OpenClawAdapter",
+                "OpenClawAdapterConfig",
+                "OpenClawGatewayAdapter",
+                "OpenClawOpenAIServer",
+                "OpenClawOpenAIConfig",
+            ]
+        )
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
     "opentelemetry": OPENTELEMETRY_AVAILABLE,
     "langchain": LANGCHAIN_AVAILABLE,
+    "openclaw": OPENCLAW_AVAILABLE,
 }
 
 
@@ -157,4 +226,5 @@ def get_integration_info():
         "litellm_available": LITELLM_AVAILABLE,
         "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
         "langchain_available": LANGCHAIN_AVAILABLE,
+        "openclaw_available": OPENCLAW_AVAILABLE,
     }

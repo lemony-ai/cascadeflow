@@ -1,0 +1,82 @@
+# CascadeFlow Configuration: Mixed OpenAI + Anthropic
+# Updated 2026-02-09: Best of both providers, fixed medical/legal
+# OpenAI for drafting (fast/cheap), Anthropic for verification (quality)
+
+models:
+  - name: gpt-5-mini
+    provider: openai
+    cost: 0.00025
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-sonnet-4-20250514
+    provider: anthropic
+    cost: 0.003
+    supports_tools: true
+    max_tokens: 8192
+
+domains:
+  code:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.60
+    temperature: 0.2
+
+  math:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.60
+    temperature: 0.1
+
+  general:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.55
+    temperature: 0.7
+
+  conversation:
+    drafter: gpt-5-mini
+    verifier: gpt-5-mini
+    threshold: 0.50
+    temperature: 0.8
+
+  factual:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.55
+    temperature: 0.3
+
+  reasoning:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.65
+    temperature: 0.3
+
+  creative:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.45
+    temperature: 0.9
+
+  medical:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.70
+    temperature: 0.1
+
+  legal:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.70
+    temperature: 0.2
+
+  translation:
+    drafter: gpt-5-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.55
+    temperature: 0.3
+
+settings:
+  enable_cascade: true
+  enable_domain_detection: true
+  verbose: true

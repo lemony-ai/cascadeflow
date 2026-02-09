@@ -145,9 +145,13 @@ const result = await agent.run('What\'s the weather?', { tools });
 
 ```python
 # Python
-from cascadeflow import PRESET_BEST_OVERALL, PRESET_ULTRA_FAST
+from cascadeflow import auto_agent
 
-agent = CascadeAgent.from_preset(PRESET_BEST_OVERALL)
+# Balanced performance
+agent = auto_agent(preset="balanced")
+
+# Optimized for speed
+agent_fast = auto_agent(preset="speed_optimized")
 ```
 
 ```typescript

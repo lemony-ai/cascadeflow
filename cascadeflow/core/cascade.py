@@ -94,6 +94,19 @@ def _check_tool_routing_available():
         return False
 
 
+def _has_tool_result_in_messages(messages: Optional[list[dict[str, Any]]]) -> bool:
+    """
+    Check if messages contain a tool result (role='tool').
+
+    In agent loops, when tool results are provided, the model should respond
+    with TEXT summarizing the results, not generate more tool_calls.
+    This prevents the 'no_tool_calls_generated' false rejection.
+    """
+    if not messages:
+        return False
+    return any(msg.get("role") == "tool" for msg in messages)
+
+
 class DeferralStrategy(Enum):
     """Deferral strategies for whole-response cascade."""
 
@@ -762,7 +775,7 @@ class WholeResponseCascade:
         # === PHASE 4: Tool Quality Validation ===
         quality_start = time.time()
         should_accept, quality_score, rejection_reason = self._should_accept_tool_draft(
-            draft_result, query, tools, complexity
+            draft_result, query, tools, complexity, messages=messages
         )
         timing["quality_check_ms"] = (time.time() - quality_start) * 1000
 
@@ -929,7 +942,12 @@ class WholeResponseCascade:
             )
 
     def _should_accept_tool_draft(
-        self, draft_result: dict[str, Any], query: str, tools: list[dict[str, Any]], complexity: str
+        self,
+        draft_result: dict[str, Any],
+        query: str,
+        tools: list[dict[str, Any]],
+        complexity: str,
+        messages: Optional[list[dict[str, Any]]] = None,
     ) -> tuple[bool, float, Optional[str]]:
         """
         Validate tool call draft using ToolQualityValidator.
@@ -938,6 +956,16 @@ class WholeResponseCascade:
             Tuple of (should_accept, quality_score, rejection_reason)
         """
         draft_tool_calls = draft_result.get("tool_calls")
+        draft_content = draft_result.get("content", "")
+
+        # AGENT LOOP FIX: If messages contain tool results (role='tool'),
+        # expect TEXT response, not more tool_calls
+        if _has_tool_result_in_messages(messages):
+            # In agent loop context - text response is valid
+            if draft_content and not draft_tool_calls:
+                # Has text content, no tool calls - this is correct behavior
+                draft_confidence = draft_result.get("confidence", 0.8)
+                return True, draft_confidence, None
 
         # If no tool calls in draft, reject (query asked for tools)
         if not draft_tool_calls:
@@ -1437,6 +1465,28 @@ class WholeResponseCascade:
         )
 
         passed = getattr(validation_result, "passed", False)
+
+        # P0 fix: Forced escalation for complex queries
+        # Expert queries ALWAYS escalate to verifier for quality assurance.
+        # Hard queries escalate unless the quality score is very high (>= 0.85).
+        quality_score = getattr(validation_result, "score", 0.0)
+        if complexity == "expert":
+            passed = False
+            if hasattr(validation_result, "reason"):
+                validation_result.reason = f"forced_escalation_expert (complexity={complexity})"
+            logger.info(
+                f"P0: Forced escalation for expert query " f"(quality_score={quality_score:.2f})"
+            )
+        elif complexity == "hard" and quality_score < 0.85:
+            passed = False
+            if hasattr(validation_result, "reason"):
+                validation_result.reason = (
+                    f"forced_escalation_hard (quality_score={quality_score:.2f} < 0.85)"
+                )
+            logger.info(
+                f"P0: Forced escalation for hard query "
+                f"(quality_score={quality_score:.2f} < 0.85)"
+            )
 
         # Additional semantic quality check if available
         skip_semantic = False

@@ -174,6 +174,12 @@ export interface AlignmentAnalysis {
 
     /** Whether off-topic penalty applied */
     offTopicPenalty?: boolean;
+
+    /** Whether semantic fallback was used (v15 Python parity) */
+    semanticFallback?: boolean;
+
+    /** Semantic alignment score if computed (v15 Python parity) */
+    semanticScore?: number;
   };
 
   /** Human-readable reasoning */
@@ -206,6 +212,29 @@ export class QueryResponseAlignmentScorer {
   private readonly BASELINE_STANDARD = 0.20;
   private readonly BASELINE_TRIVIAL = 0.25;
   private readonly OFF_TOPIC_CAP = 0.15;
+
+  // v15 Python parity: Semantic fallback thresholds
+  private readonly SEMANTIC_FALLBACK_LOW = 0.35;
+  private readonly SEMANTIC_FALLBACK_HIGH = 0.55;
+
+  /**
+   * Whether to attempt semantic fallback scoring when the rule-based
+   * score lands in the uncertain zone (0.35-0.55).
+   *
+   * Requires a ``getSemanticScore`` callback to be provided in the
+   * constructor. When no callback is set, semantic fallback is a no-op
+   * even if this flag is true.
+   */
+  private useSemanticFallback: boolean;
+
+  /**
+   * Optional callback that returns a semantic alignment score (0-1).
+   * When provided, the scorer uses it as a second opinion for uncertain
+   * rule-based scores, blending 70% rule + 30% semantic.
+   *
+   * Signature: (query: string, response: string) => number | null
+   */
+  private getSemanticScoreFn: ((query: string, response: string) => number | null) | null;
 
   // Stopwords to filter out
   private readonly stopwords: Set<string> = new Set([
@@ -325,6 +354,38 @@ export class QueryResponseAlignmentScorer {
     database: ['db', 'data store', 'storage'],
     implement: ['implementation', 'build', 'create', 'develop'],
   };
+
+  /**
+   * Create a new alignment scorer.
+   *
+   * @param options - Configuration options
+   * @param options.useSemanticFallback - Enable semantic fallback for uncertain
+   *        scores in the 0.35-0.55 range (default: false). Requires
+   *        ``getSemanticScore`` callback to be effective.
+   * @param options.getSemanticScore - Optional callback that returns a semantic
+   *        alignment score (0-1). Used as a second opinion when the rule-based
+   *        score is uncertain. The callback should accept ``(query, response)``
+   *        and return a number (0-1) or null if unavailable.
+   *
+   * @example
+   * ```ts
+   * // Basic (no semantic fallback)
+   * const scorer = new QueryResponseAlignmentScorer();
+   *
+   * // With semantic fallback via external embedding service
+   * const scorer = new QueryResponseAlignmentScorer({
+   *   useSemanticFallback: true,
+   *   getSemanticScore: (q, r) => embeddingService.cosineSimilarity(q, r),
+   * });
+   * ```
+   */
+  constructor(options?: {
+    useSemanticFallback?: boolean;
+    getSemanticScore?: (query: string, response: string) => number | null;
+  }) {
+    this.useSemanticFallback = options?.useSemanticFallback ?? false;
+    this.getSemanticScoreFn = options?.getSemanticScore ?? null;
+  }
 
   /**
    * Extract keywords from text using production-optimized approach.
@@ -2007,7 +2068,26 @@ export class QueryResponseAlignmentScorer {
     }
 
     // Clamp to [0, 1]
-    const finalScore = Math.max(0.0, Math.min(1.0, score));
+    let finalScore = Math.max(0.0, Math.min(1.0, score));
+
+    // v15 Python parity: Semantic fallback for uncertain scores (0.35-0.55)
+    // When the rule-based score is in the "coin-flip zone", use semantic
+    // embeddings as a second opinion to break the tie.
+    if (
+      this.useSemanticFallback &&
+      this.getSemanticScoreFn &&
+      finalScore >= this.SEMANTIC_FALLBACK_LOW &&
+      finalScore <= this.SEMANTIC_FALLBACK_HIGH
+    ) {
+      const semanticScore = this.getSemanticScoreFn(query, response);
+      if (semanticScore !== null && semanticScore !== undefined) {
+        // Blend: 70% rule-based + 30% semantic (matches Python v15)
+        finalScore = 0.70 * finalScore + 0.30 * semanticScore;
+        finalScore = Math.max(0.0, Math.min(1.0, finalScore));
+        features.semanticFallback = true;
+        features.semanticScore = semanticScore;
+      }
+    }
 
     if (verbose) {
       return {

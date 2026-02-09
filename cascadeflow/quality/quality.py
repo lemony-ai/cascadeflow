@@ -52,6 +52,14 @@ except ImportError:
     DIFFICULTY_AVAILABLE = False
     logger.warning("query_difficulty.py not available - difficulty estimation disabled")
 
+# Import adaptive threshold manager (RELATIVE IMPORT)
+try:
+    from .adaptive import AdaptiveThresholdManager
+
+    ADAPTIVE_AVAILABLE = True
+except ImportError:
+    ADAPTIVE_AVAILABLE = False
+
 
 @dataclass
 class ValidationResult:
@@ -525,6 +533,15 @@ class QualityValidator:
             self.difficulty_estimator = None
             logger.warning("⚠️  Difficulty estimator not available")
 
+        # Adaptive threshold learning (self-improving over time)
+        if self.config.enable_adaptive and ADAPTIVE_AVAILABLE:
+            self.adaptive_manager = AdaptiveThresholdManager(
+                enable_embeddings=True,
+            )
+            logger.info("✅ Adaptive threshold learning enabled")
+        else:
+            self.adaptive_manager = None
+
     def validate(
         self,
         draft_content: str,
@@ -550,6 +567,9 @@ class QualityValidator:
             threshold = threshold_override
         else:
             threshold = self.config.confidence_thresholds.get(complexity, 0.70)
+            # Apply adaptive adjustment if learning is enabled
+            if self.adaptive_manager is not None:
+                threshold = self.adaptive_manager.get_threshold(complexity, threshold)
 
         # Initialize checks and details
         checks = {}
@@ -655,17 +675,42 @@ class QualityValidator:
             "complexity": complexity,
         }
 
-        # SPECIAL HANDLING FOR TRIVIAL QUERIES
+        # HANDLING FOR TRIVIAL QUERIES
+        # P0 fix: No longer auto-passes all checks. Applies lenient thresholds
+        # but still validates content, hedging, and hallucination risk.
         if complexity == "trivial":
-            # For trivial queries, be extremely lenient
-            # Only confidence and basic content matter
-            checks["length_appropriate"] = True  # Any length OK
-            checks["has_content"] = len(draft_content.strip()) >= 1  # Just needs content
-            checks["acceptable_hedging"] = True  # Hedging OK
-            checks["sufficient_specificity"] = True  # No specificity needed
-            checks["low_hallucination_risk"] = True  # Don't check hallucinations
+            # Length: any non-empty content is fine for trivial
+            checks["length_appropriate"] = True
+            checks["has_content"] = len(draft_content.strip()) >= 1
+
+            # Still check hedging - even trivial answers shouldn't be pure uncertainty
+            hedging_analysis = self.analyzer.detect_hedging(draft_content)
+            checks["acceptable_hedging"] = hedging_analysis["acceptable"]
+            details["hedging"] = hedging_analysis
+
+            # Still check hallucination risk for trivial
+            if self.config.enable_hallucination_detection:
+                hallucination_analysis = self.analyzer.detect_hallucinations(draft_content)
+                checks["low_hallucination_risk"] = hallucination_analysis["risk_level"] != "high"
+                details["hallucination"] = hallucination_analysis
+            else:
+                checks["low_hallucination_risk"] = True
+
+            # No specificity needed for trivial
+            checks["sufficient_specificity"] = True
 
             details["trivial_mode"] = True
+
+        # SPECIAL HANDLING FOR SHORT FACTOID QUERIES
+        # Short factoid answers ("Paris", "4", "1997") are valid but fail length checks.
+        elif self._is_short_factoid_query(query):
+            checks["length_appropriate"] = True
+            checks["has_content"] = len(draft_content.strip()) >= 1
+            checks["acceptable_hedging"] = True
+            checks["sufficient_specificity"] = True
+            checks["low_hallucination_risk"] = True
+
+            details["short_factoid_mode"] = True
 
         # SPECIAL HANDLING FOR CLASSIFICATION RESPONSES
         # Classification responses (intent/category) are short by design.
@@ -831,9 +876,20 @@ class QualityValidator:
                     f"  Content: {draft_content[:100]}"
                 )
 
-        return ValidationResult(
+        result = ValidationResult(
             passed=passed, score=score, reason=reason, checks=checks, details=details
         )
+
+        # Record outcome for adaptive learning
+        if self.adaptive_manager is not None:
+            self.adaptive_manager.record(
+                domain=complexity,
+                confidence=confidence,
+                accepted=passed,
+                query=query,
+            )
+
+        return result
 
     @staticmethod
     def _is_math_query(query: str) -> bool:
@@ -874,6 +930,52 @@ class QualityValidator:
         has_currency = bool(re.search(r"\$\d+|\d+\s*dollars?|\d+\s*cents?", query_lower))
         has_math_question = any(indicator in query_lower for indicator in math_indicators)
         return has_currency or has_math_question
+
+    @staticmethod
+    def _is_short_factoid_query(query: str) -> bool:
+        """Detect short, factoid-style queries that expect brief answers."""
+        if not query:
+            return False
+        query_lower = query.strip().lower()
+        tokens = [t for t in re.split(r"\s+", query_lower) if t]
+        if len(tokens) > 8:
+            return False
+
+        disqualifiers = (
+            "explain",
+            "why",
+            "how",
+            "steps",
+            "compare",
+            "difference",
+            "pros",
+            "cons",
+            "summarize",
+            "describe",
+            "write",
+            "generate",
+            "list",
+        )
+        if any(word in query_lower for word in disqualifiers):
+            return False
+
+        starters = (
+            "what",
+            "who",
+            "when",
+            "where",
+            "which",
+            "capital",
+            "time",
+            "date",
+            "currency",
+            "population",
+            "define",
+        )
+        if query_lower.endswith("?") or query_lower.startswith(starters):
+            return True
+
+        return False
 
     @staticmethod
     def _is_creative_query(query: str) -> bool:

@@ -40,10 +40,12 @@ DOMAIN_RAG = "rag"
 DOMAIN_CONVERSATION = "conversation"
 DOMAIN_TOOL = "tool"
 DOMAIN_CREATIVE = "creative"
+DOMAIN_COMPARISON = "comparison"
 DOMAIN_SUMMARY = "summary"
 DOMAIN_TRANSLATION = "translation"
 DOMAIN_MATH = "math"
 DOMAIN_SCIENCE = "science"
+DOMAIN_FACTUAL = "factual"
 DOMAIN_MEDICAL = "medical"
 DOMAIN_LEGAL = "legal"
 DOMAIN_FINANCIAL = "financial"
@@ -217,22 +219,22 @@ BUILTIN_DOMAIN_CONFIGS: dict[str, DomainConfig] = {
         description="Math reasoning with 8-shot CoT (GSM8K: 93.6% accuracy, 98.2% draft acceptance)",
     ),
     DOMAIN_MEDICAL: DomainConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - better accuracy ($0.25/M)
-        verifier="claude-opus-4-5-20251101",  # Highest accuracy needed
-        threshold=0.95,
+        drafter="gpt-5-mini",
+        verifier="gpt-5",  # Use consistent verifier, cascade handles quality
+        threshold=0.70,  # Lowered - cascade will verify if needed
         validation_method=DomainValidationMethod.FACT,
         temperature=0.1,
-        require_verifier=True,  # Always verify medical content
-        description="High-accuracy medical responses with mandatory Opus 4.5 verification",
+        require_verifier=False,  # Let cascade decide
+        description="Medical domain with cascade verification",
     ),
     DOMAIN_LEGAL: DomainConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - better accuracy ($0.25/M)
-        verifier="claude-opus-4-5-20251101",  # Best reasoning for legal
-        threshold=0.90,
+        drafter="gpt-5-mini",
+        verifier="gpt-5",  # Use consistent verifier
+        threshold=0.70,  # Lowered - cascade will verify if needed
         validation_method=DomainValidationMethod.FACT,
         temperature=0.2,
-        require_verifier=True,  # Legal requires high accuracy
-        description="Legal domain with Opus 4.5 fact-checking",
+        require_verifier=False,  # Let cascade decide
+        description="Legal domain with cascade verification",
     ),
     DOMAIN_FINANCIAL: DomainConfig(
         drafter="gpt-5-mini",  # GPT-5 Mini - strong at calculations ($0.25/M)
@@ -268,11 +270,20 @@ BUILTIN_DOMAIN_CONFIGS: dict[str, DomainConfig] = {
         verifier="claude-sonnet-4-5-20250929",  # Claude Sonnet 4.5 - excellent creative quality ($3/$15)
         # Research (Dec 2025): Claude models have "the most soul in writing" - vivid characters,
         # consistent narrative voice. Lower threshold since Haiku 4.5 excels at creative tasks.
-        threshold=0.55,
+        threshold=0.50,
         validation_method=DomainValidationMethod.QUALITY,
         temperature=0.9,  # High temperature for creative variance
         cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
         description="Creative writing with Claude Haiku 4.5 ($1/$5) and Sonnet 4.5 verifier ($3/$15). Best for narrative, character, engaging voice.",
+    ),
+    DOMAIN_COMPARISON: DomainConfig(
+        drafter="gpt-5-mini",  # Fast/cheap comparisons
+        verifier="gpt-5",  # High-quality analysis
+        threshold=0.52,
+        validation_method=DomainValidationMethod.QUALITY,
+        temperature=0.5,
+        cascade_complexities=["trivial", "simple", "moderate", "hard"],
+        description="Comparison tasks (X vs Y) with lower threshold to avoid over-escalation.",
     ),
     DOMAIN_GENERAL: DomainConfig(
         drafter="claude-3-5-haiku-20241022",  # Fast, cheap, good quality
@@ -345,6 +356,16 @@ BUILTIN_DOMAIN_CONFIGS: dict[str, DomainConfig] = {
         temperature=0.4,
         cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
         description="Multimodal with GPT-5 Mini drafter and Opus 4.5 verification",
+    ),
+    DOMAIN_FACTUAL: DomainConfig(
+        drafter="gpt-5-mini",
+        verifier="gpt-5",
+        threshold=0.9,
+        validation_method=DomainValidationMethod.QUALITY,
+        temperature=0.2,
+        require_verifier=True,
+        cascade_complexities=["trivial", "simple", "moderate", "hard", "expert"],
+        description="Factual verification routed to verifier for accuracy.",
     ),
 }
 

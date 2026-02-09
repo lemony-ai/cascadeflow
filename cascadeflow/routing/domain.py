@@ -41,6 +41,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from cascadeflow.utils.messages import is_multi_turn_prompt
+
 # Optional ML imports
 try:
     from ..ml.embedding import UnifiedEmbeddingService
@@ -63,9 +65,11 @@ class Domain(str, Enum):
     CONVERSATION = "conversation"  # Multi-turn dialogue, chatbot
     TOOL = "tool"  # Tool/function calling, external APIs
     CREATIVE = "creative"  # Creative writing, content generation
+    COMPARISON = "comparison"  # X vs Y, compare/contrast
     SUMMARY = "summary"  # Text summarization, condensing
     TRANSLATION = "translation"  # Language translation
     MATH = "math"  # Mathematical reasoning, calculations
+    FACTUAL = "factual"  # Fact checking, verification, sources
     MEDICAL = "medical"  # Healthcare, medicine (high accuracy required)
     LEGAL = "legal"  # Law, contracts, compliance
     FINANCIAL = "financial"  # Financial analysis, market research
@@ -90,7 +94,7 @@ class DomainKeywords:
     weak: list[str] = field(default_factory=list)
 
 
-# Built-in domain keyword mappings (15 production domains)
+# Built-in domain keyword mappings (17 production domains)
 DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
     Domain.CODE: DomainKeywords(
         very_strong=[  # Highly discriminative (Research: 77% accuracy)
@@ -263,11 +267,22 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
         weak=[],  # Removed generic question words
     ),
     Domain.CONVERSATION: DomainKeywords(
-        very_strong=[  # Multi-turn indicators
+        very_strong=[  # Multi-turn indicators AND greeting patterns
             "remember",
             "you said",
             "earlier you mentioned",
             "back to",
+            "hello",
+            "hi there",
+            "hey there",
+            "good morning",
+            "good afternoon",
+            "good evening",
+            "good night",
+            "how are you",
+            "nice to meet",
+            "thanks for",
+            "thank you",
         ],
         strong=[
             "chat",
@@ -279,6 +294,17 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "earlier",
             "dialogue",
             "multi-turn",
+            "hey",
+            "hi",
+            "bye",
+            "goodbye",
+            "see you",
+            "thanks",
+            "sorry",
+            "please",
+            "excuse me",
+            "what's up",
+            "how's it going",
         ],
         moderate=[
             "help",
@@ -286,10 +312,13 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "assist",
             "question",
             "clarify",
-            "explain",
             "understand",
             "context",
             "referring to",
+            "opinion",
+            "think about",
+            "feel about",
+            "believe",
         ],
         weak=[],  # Removed generic question words
     ),
@@ -354,6 +383,38 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "social media",
         ],
         weak=["create", "make", "new"],
+    ),
+    Domain.COMPARISON: DomainKeywords(
+        very_strong=[
+            "compare",
+            "comparison",
+            "versus",
+            "vs",
+            "difference between",
+            "pros and cons",
+            "tradeoffs",
+            "trade-off",
+        ],
+        strong=[
+            "differences",
+            "similarities",
+            "which is better",
+            "better than",
+            "worse than",
+            "advantages",
+            "disadvantages",
+        ],
+        moderate=[
+            "contrast",
+            "relative to",
+            "vs.",
+            "x vs y",
+            "x versus y",
+        ],
+        weak=[
+            "compare to",
+            "compared with",
+        ],
     ),
     Domain.SUMMARY: DomainKeywords(
         strong=[
@@ -474,6 +535,61 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "minus",
         ],
     ),
+    Domain.FACTUAL: DomainKeywords(
+        very_strong=[
+            "fact check",
+            "fact-check",
+            "is it true",
+            "true or false",
+            "verify",
+            "verification",
+            "what is the capital",
+            "who invented",
+            "when was",
+            "where is",
+            "how many",
+            "population of",
+        ],
+        strong=[
+            "factual",
+            "accuracy",
+            "accurate",
+            "sources",
+            "citations",
+            "evidence",
+            "debunk",
+            "history",
+            "geography",
+            "country",
+            "city",
+            "planet",
+            "continent",
+            "ocean",
+            "mountain",
+            "river",
+            "founded",
+            "discovered",
+            "born",
+            "died",
+        ],
+        moderate=[
+            "confirm",
+            "validate",
+            "myth",
+            "hoax",
+            "misinformation",
+            "explain",
+            "describe",
+            "definition",
+            "what is",
+            "who is",
+            "tell me about",
+        ],
+        weak=[
+            "correct",
+            "incorrect",
+        ],
+    ),
     Domain.MEDICAL: DomainKeywords(
         very_strong=[  # Highly discriminative medical terms
             "symptoms of",
@@ -503,6 +619,10 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "prognosis",
             "chronic",
             "acute",
+            "anatomy",
+            "physiology",
+            "organ",
+            "body",
         ],
         moderate=[
             "health",
@@ -516,6 +636,11 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "protocol",
             "interact",  # medication interactions
             "side effect",
+            "heart",
+            "liver",
+            "kidney",
+            "brain",
+            "lung",
         ],
         weak=["feel", "hurt", "sick", "ill"],
     ),
@@ -548,6 +673,14 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
         weak=["rule", "requirement", "must"],
     ),
     Domain.FINANCIAL: DomainKeywords(
+        very_strong=[
+            "compound interest",
+            "tax implications",
+            "p/e ratio",
+            "retirement savings",
+            "401k",
+            "ira",
+        ],
         strong=[
             "financial",
             "investment",
@@ -570,6 +703,16 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "yield",
             "coupon",
             "fixed income",
+            "interest",
+            "tax",
+            "inflation",
+            "mutual fund",
+            "diversification",
+            "retirement",
+            "savings",
+            "pension",
+            "etf",
+            "hedge fund",
         ],
         moderate=[
             "analysis",
@@ -583,43 +726,30 @@ DOMAIN_KEYWORDS: dict[Domain, DomainKeywords] = {
             "risk-return",
             "rate environment",
             "yield curve",
+            "mortgage",
+            "loan",
+            "credit",
+            "debt",
         ],
         weak=["money", "cost", "price", "pay"],
     ),
-    # GENERAL domain for factual/knowledge queries
+    # GENERAL domain - fallback for queries that don't match specific domains
     Domain.GENERAL: DomainKeywords(
-        very_strong=[
-            "what is the capital",  # Geography questions
-            "who invented",
-            "when was",
+        very_strong=[],  # No very_strong - let specific domains win
+        strong=[
             "how does",
             "explain how",
-            "tell me about",
-        ],
-        strong=[
-            "fact",
-            "history",
-            "geography",
-            "science",
-            "explain",
-            "describe",
-            "definition",
-            "famous",
-            "country",
-            "city",
-            "world",
-        ],
-        moderate=[
-            "what is",
-            "who is",
-            "where is",
             "why does",
             "information about",
+        ],
+        moderate=[
             "knowledge",
             "encyclopedia",
             "trivia",
+            "general",
+            "miscellaneous",
         ],
-        weak=["simple", "basic", "general"],
+        weak=["simple", "basic"],
     ),
     Domain.MULTIMODAL: DomainKeywords(
         strong=[
@@ -708,6 +838,15 @@ class DomainDetector:
         "biology": Domain.GENERAL,
         "astronomy": Domain.GENERAL,
         "science": Domain.GENERAL,
+        "comparison": Domain.COMPARISON,
+        "compare": Domain.COMPARISON,
+        "versus": Domain.COMPARISON,
+        "vs": Domain.COMPARISON,
+        "factual": Domain.FACTUAL,
+        "fact check": Domain.FACTUAL,
+        "fact-check": Domain.FACTUAL,
+        "verify": Domain.FACTUAL,
+        "verification": Domain.FACTUAL,
         # Medical subjects
         "medicine": Domain.MEDICAL,
         "medical": Domain.MEDICAL,
@@ -811,6 +950,11 @@ class DomainDetector:
         if is_mcq:
             scores[Domain.CONVERSATION] = max(0, scores.get(Domain.CONVERSATION, 0) - 0.5)
 
+        # Boost conversation domain when multi-turn markers are present
+        multi_turn_detected = is_multi_turn_prompt(query)
+        if multi_turn_detected and not is_mcq:
+            scores[Domain.CONVERSATION] = min(1.0, scores.get(Domain.CONVERSATION, 0) + 0.6)
+
         # Find domain with highest score
         if not scores or max(scores.values()) < self.confidence_threshold:
             # Default to GENERAL if no strong match
@@ -829,6 +973,7 @@ class DomainDetector:
                 "threshold": self.confidence_threshold,
                 "is_mcq": is_mcq,
                 "subject_hint": subject_hint.value if subject_hint else None,
+                "multi_turn_detected": multi_turn_detected,
             },
         )
 
@@ -915,7 +1060,7 @@ class DomainDetector:
         Returns:
             List of recommended models (sorted by relevance)
         """
-        # Default domain-specific model recommendations (15 domains)
+        # Default domain-specific model recommendations (17 domains)
         domain_models = {
             Domain.CODE: [
                 {"name": "deepseek-coder", "provider": "deepseek", "cost": 0.0014},
@@ -951,6 +1096,11 @@ class DomainDetector:
                 {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
                 {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
             ],
+            Domain.COMPARISON: [
+                {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
+                {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
+                {"name": "gpt-4o-mini", "provider": "openai", "cost": 0.00015},
+            ],
             Domain.SUMMARY: [
                 {"name": "claude-3-5-haiku", "provider": "anthropic", "cost": 0.0008},
                 {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
@@ -963,6 +1113,11 @@ class DomainDetector:
             Domain.MATH: [
                 {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
                 {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
+            ],
+            Domain.FACTUAL: [
+                {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
+                {"name": "claude-3-5-sonnet", "provider": "anthropic", "cost": 0.003},
+                {"name": "gpt-4o-mini", "provider": "openai", "cost": 0.00015},
             ],
             Domain.MEDICAL: [
                 {"name": "gpt-4o", "provider": "openai", "cost": 0.0025},
@@ -1111,6 +1266,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Have a dialogue about book recommendations",
         "Chat about weekend activities",
         "Discuss pros and cons of remote work",
+        "How are you today?",
+        "Nice to meet you",
+        "Let's chat about something",
+        "What do you think?",
+        "Tell me more",
+        "Good morning, how's it going?",
+        "Thanks for your help",
     ],
     Domain.TOOL: [
         "Call the weather API for New York",
@@ -1125,6 +1287,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Create a poem about autumn",
         "Write dialogue for a mystery novel",
         "Generate creative names for a coffee shop",
+    ],
+    Domain.COMPARISON: [
+        "Compare Python vs Java for backend development",
+        "What is the difference between TCP and UDP?",
+        "iPhone vs Android: pros and cons",
+        "Compare AWS and GCP pricing models",
+        "Which is better for ML: PyTorch or TensorFlow?",
     ],
     Domain.SUMMARY: [
         "Summarize this research paper in 3 sentences",
@@ -1162,6 +1331,20 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Compute the area under this curve using integration",
         "Solve the quadratic equation 3x^2 + 5x - 2 = 0",
     ],
+    Domain.FACTUAL: [
+        "Is this claim true? Provide sources.",
+        "Fact check this statement about vaccines",
+        "Verify whether this statistic is accurate",
+        "Is it true that honey never spoils?",
+        "Debunk this common myth with evidence",
+        "What is the capital of France?",
+        "When did World War II end?",
+        "Who invented the telephone?",
+        "What is the population of China?",
+        "Is it true that the Earth is round?",
+        "What year was the Declaration of Independence signed?",
+        "How far is the Moon from Earth?",
+    ],
     Domain.MEDICAL: [
         "Explain the symptoms of diabetes",
         "What are treatment options for hypertension?",
@@ -1182,6 +1365,13 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Explain the concept of compound interest",
         "Evaluate risk for this portfolio",
         "Forecast revenue based on historical data",
+        "Explain compound interest",
+        "Calculate ROI on investment",
+        "What are the tax implications",
+        "Portfolio diversification strategy",
+        "Explain P/E ratio",
+        "How does inflation affect savings?",
+        "What is a mutual fund?",
     ],
     Domain.MULTIMODAL: [
         "Describe what's in this image",
@@ -1191,13 +1381,41 @@ DOMAIN_EXEMPLARS: dict[Domain, list[str]] = {
         "Interpret this diagram and explain it",
     ],
     Domain.GENERAL: [
-        "What is the capital of France?",
-        "Who invented the telephone?",
+        "Tell me something interesting",
         "Explain how photosynthesis works",
         "What are the benefits of exercise?",
         "Describe the water cycle",
+        "Help me with something",
     ],
 }
+
+# Domain-specific confidence thresholds for semantic detection.
+# Some domains (conversation, financial, factual) are harder to detect
+# and benefit from lower thresholds to avoid falling back to GENERAL.
+DOMAIN_THRESHOLDS: dict[Domain, float] = {
+    Domain.CODE: 0.65,
+    Domain.MEDICAL: 0.70,
+    Domain.LEGAL: 0.70,
+    Domain.CONVERSATION: 0.50,
+    Domain.FINANCIAL: 0.55,
+    Domain.FACTUAL: 0.50,
+    Domain.GENERAL: 0.40,
+}
+
+
+# Candidate models benchmarked for semantic domain detection quality.
+# Keep the default aligned with investigation report findings.
+FASTEMBED_DOMAIN_MODELS: tuple[str, ...] = (
+    "BAAI/bge-base-en-v1.5",
+    "BAAI/bge-large-en-v1.5",
+    "sentence-transformers/all-MiniLM-L6-v2",
+)
+
+# Hybrid tuning constants
+HYBRID_RULE_LOCK_CONFIDENCE = 0.82
+HYBRID_RULE_LOCK_MARGIN = 0.20
+HYBRID_SEMANTIC_HIGH_CONFIDENCE = 0.74
+HYBRID_SEMANTIC_MIN_MARGIN = 0.08
 
 
 class SemanticDomainDetector:
@@ -1224,7 +1442,8 @@ class SemanticDomainDetector:
         self,
         embedder: Optional["UnifiedEmbeddingService"] = None,
         confidence_threshold: float = 0.6,
-        use_hybrid: bool = False,
+        use_hybrid: bool = True,
+        model_name: str = "BAAI/bge-small-en-v1.5",
     ):
         """
         Initialize semantic domain detector.
@@ -1232,16 +1451,18 @@ class SemanticDomainDetector:
         Args:
             embedder: Optional UnifiedEmbeddingService (creates new if None)
             confidence_threshold: Minimum similarity for detection (default: 0.6)
-            use_hybrid: Whether to combine with rule-based detection (default: False)
+            use_hybrid: Whether to combine with rule-based detection (default: True)
+            model_name: FastEmbed model used when embedder is not supplied
         """
         self.confidence_threshold = confidence_threshold
         self.use_hybrid = use_hybrid
+        self.model_name = model_name
 
         # Use provided embedder or create new one
         if embedder is not None:
             self.embedder = embedder
         elif HAS_ML:
-            self.embedder = UnifiedEmbeddingService()
+            self.embedder = UnifiedEmbeddingService(model_name=model_name)
         else:
             self.embedder = None
 
@@ -1343,21 +1564,64 @@ class SemanticDomainDetector:
             similarity = self.embedder._cosine_similarity(query_embedding, domain_embedding)
             scores[domain] = float(similarity) if similarity is not None else 0.0
 
-        # Find best match
-        if not scores or max(scores.values()) < self.confidence_threshold:
+        def _top_domain_margin(domain_scores: dict[Domain, float]) -> tuple[Domain, float, float]:
+            if not domain_scores:
+                return Domain.GENERAL, 0.0, 0.0
+            ranked = sorted(domain_scores.items(), key=lambda item: item[1], reverse=True)
+            top_domain, top_score = ranked[0]
+            second_score = ranked[1][1] if len(ranked) > 1 else 0.0
+            return top_domain, top_score, max(0.0, top_score - second_score)
+
+        # Find best match using domain-specific thresholds
+        detected_domain = max(scores, key=scores.get) if scores else Domain.GENERAL
+        confidence = scores.get(detected_domain, 0.0)
+        domain_threshold = DOMAIN_THRESHOLDS.get(detected_domain, self.confidence_threshold)
+        if not scores or confidence < domain_threshold:
             detected_domain = Domain.GENERAL
             confidence = 0.5
-        else:
-            detected_domain = max(scores, key=scores.get)
-            confidence = scores[detected_domain]
 
         # Optionally combine with rule-based (hybrid mode)
         if self.use_hybrid and self.rule_detector:
             rule_result = self.rule_detector.detect_with_scores(query)
 
-            # Weighted average: favor semantic when confident, rules for tie-breaking
-            # If semantic is confident (>0.7), weight it 70/30; otherwise 50/50
-            ml_weight = 0.7 if confidence > 0.7 else 0.5
+            semantic_domain, semantic_confidence, semantic_margin = _top_domain_margin(scores)
+            rule_domain, rule_confidence, rule_margin = _top_domain_margin(rule_result.scores)
+
+            # Rule detector is currently strongest. Preserve high-confidence rule decisions.
+            if (
+                rule_domain != Domain.GENERAL
+                and rule_confidence >= HYBRID_RULE_LOCK_CONFIDENCE
+                and rule_margin >= HYBRID_RULE_LOCK_MARGIN
+            ):
+                return DomainDetectionResult(
+                    domain=rule_result.domain,
+                    confidence=rule_result.confidence,
+                    scores=rule_result.scores,
+                    metadata={
+                        "method": "hybrid",
+                        "source": "rule_lock",
+                        "model_name": self.model_name,
+                    },
+                )
+
+            # When semantic is confidently differentiating a domain, trust it more.
+            semantic_override = (
+                semantic_domain != Domain.GENERAL
+                and semantic_confidence >= HYBRID_SEMANTIC_HIGH_CONFIDENCE
+                and semantic_margin >= HYBRID_SEMANTIC_MIN_MARGIN
+            )
+
+            # Adaptive blending: semantic adds value primarily when rule confidence is weak
+            # or when both methods agree.
+            if semantic_override:
+                ml_weight = 0.72
+            elif rule_confidence < 0.62:
+                ml_weight = 0.62
+            elif semantic_domain == rule_domain:
+                ml_weight = 0.58
+            else:
+                ml_weight = 0.40
+
             rule_weight = 1.0 - ml_weight
 
             hybrid_scores = {}
@@ -1378,5 +1642,6 @@ class SemanticDomainDetector:
                 "method": "hybrid" if self.use_hybrid else "semantic",
                 "query_length": len(query),
                 "threshold": self.confidence_threshold,
+                "model_name": self.model_name,
             },
         )

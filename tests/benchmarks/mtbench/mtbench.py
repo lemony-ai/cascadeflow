@@ -308,6 +308,7 @@ class MTBenchmark(Benchmark):
         total_prompt_tokens = 0
         total_completion_tokens = 0
         drafter_accepted_count = 0
+        baseline_cost = 0.0
 
         # Execute each turn in sequence
         for turn_data in turns:
@@ -340,6 +341,10 @@ class MTBenchmark(Benchmark):
             total_prompt_tokens += result.metadata.get("prompt_tokens", 0)
             total_completion_tokens += result.metadata.get("completion_tokens", 0)
 
+            # Baseline = verifier-only for each turn. Prefer cascadeflow's cost_saved semantics.
+            cost_saved_turn = getattr(result, "cost_saved", 0.0) or 0.0
+            baseline_cost += result.total_cost + cost_saved_turn
+
             turn_used_drafter = result.draft_accepted or result.model_used == self.drafter_model
             if turn_used_drafter:
                 drafter_accepted_count += 1
@@ -353,9 +358,7 @@ class MTBenchmark(Benchmark):
         num_turns = len(turns)
         avg_quality = total_quality / num_turns
         avg_latency = total_latency / num_turns
-
-        # Baseline cost (all turns use verifier)
-        baseline_cost = self.calculate_baseline_cost(conversation_data)
+        cost_saved = baseline_cost - total_cost
 
         accepted = drafter_accepted_count == num_turns
         model_used = self.drafter_model if accepted else self.verifier_model
@@ -368,6 +371,7 @@ class MTBenchmark(Benchmark):
             "drafter_cost": total_draft_cost,
             "verifier_cost": total_verifier_cost,
             "total_cost": total_cost,
+            "cost_saved": cost_saved,
             "baseline_cost": baseline_cost,
             "latency_ms": avg_latency,
             "tokens_input": total_prompt_tokens,

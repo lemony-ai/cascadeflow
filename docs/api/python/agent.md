@@ -109,29 +109,21 @@ async for event in agent.stream("Tell me a story"):
 
 ---
 
-### `from_preset()`
+### Presets
 
-Create agent from built-in preset configuration.
+Create an agent from a production preset.
 
-```python
-@classmethod
-def from_preset(cls, preset: PresetConfig) -> CascadeAgent
-```
-
-**Parameters:**
-- `preset` (`PresetConfig`): Preset configuration (e.g., `PRESET_BEST_OVERALL`)
-
-**Returns:** `CascadeAgent` - Configured agent instance
+**Recommended API:** `auto_agent(preset=...)`
 
 **Example:**
 ```python
-from cascadeflow import CascadeAgent, PRESET_BEST_OVERALL, PRESET_ULTRA_FAST
+from cascadeflow import auto_agent
 
 # Balanced performance
-agent = CascadeAgent.from_preset(PRESET_BEST_OVERALL)
+agent = auto_agent(preset="balanced")
 
 # Optimized for speed
-agent_fast = CascadeAgent.from_preset(PRESET_ULTRA_FAST)
+agent_fast = auto_agent(preset="speed_optimized")
 ```
 
 ---

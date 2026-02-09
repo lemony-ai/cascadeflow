@@ -2,7 +2,11 @@
 
 import pytest
 
-from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
+from cascadeflow.quality.complexity import (
+    ComplexityDetector,
+    QueryComplexity,
+    SemanticComplexityDetector,
+)
 
 
 class TestComplexityDetector:
@@ -155,3 +159,92 @@ class TestComplexityDetector:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class _MockComplexityEmbedder:
+    """Deterministic embedder for semantic complexity unit tests."""
+
+    def __init__(self, similarity_map=None):
+        self.is_available = True
+        self.similarity_map = similarity_map or {}
+
+    def embed_batch(self, texts):
+        return [f"emb::{text}" for text in texts]
+
+    def embed(self, text):
+        return f"query::{text}"
+
+    def _cosine_similarity(self, query_embedding, complexity_embedding):
+        return self.similarity_map.get((query_embedding, complexity_embedding), 0.0)
+
+
+class TestSemanticComplexityDetector:
+    """Semantic complexity detector tests without FastEmbed runtime dependency."""
+
+    def test_semantic_exemplar_detection(self):
+        """Semantic similarity should pick the closest complexity exemplar."""
+        query = "multi-step theorem proof"
+        query_embedding = f"query::{query}"
+        expert_embedding = "emb::expert exemplar"
+        simple_embedding = "emb::simple exemplar"
+
+        embedder = _MockComplexityEmbedder(
+            similarity_map={
+                (query_embedding, expert_embedding): 0.93,
+                (query_embedding, simple_embedding): 0.15,
+            }
+        )
+        detector = SemanticComplexityDetector(embedder=embedder, use_hybrid=False)
+        detector._complexity_embeddings = {
+            QueryComplexity.EXPERT: expert_embedding,
+            QueryComplexity.SIMPLE: simple_embedding,
+        }
+        detector._embeddings_computed = True
+
+        complexity, confidence = detector.detect(query)
+
+        assert complexity == QueryComplexity.EXPERT
+        assert confidence == 0.93
+
+    def test_semantic_hybrid_detection(self):
+        """Hybrid mode should blend ML and rule-based complexity signals."""
+        query = "implement oauth with threat model"
+        query_embedding = f"query::{query}"
+        moderate_embedding = "emb::moderate exemplar"
+        simple_embedding = "emb::simple exemplar"
+
+        embedder = _MockComplexityEmbedder(
+            similarity_map={
+                (query_embedding, moderate_embedding): 0.80,
+                (query_embedding, simple_embedding): 0.20,
+            }
+        )
+        detector = SemanticComplexityDetector(embedder=embedder, use_hybrid=True)
+        detector._complexity_embeddings = {
+            QueryComplexity.MODERATE: moderate_embedding,
+            QueryComplexity.SIMPLE: simple_embedding,
+        }
+        detector._embeddings_computed = True
+        detector.rule_detector = ComplexityDetector()
+        detector.rule_detector.detect = lambda _query: (QueryComplexity.EXPERT, 0.90)
+
+        complexity, confidence = detector.detect(query)
+
+        assert complexity == QueryComplexity.HARD
+        assert 0.0 <= confidence <= 1.0
+
+    def test_semantic_edge_case_embedding_failure(self):
+        """Embedding failure should gracefully return fallback complexity."""
+
+        class _FailingEmbedder(_MockComplexityEmbedder):
+            def embed(self, text):
+                return None
+
+        detector = SemanticComplexityDetector(embedder=_FailingEmbedder(), use_hybrid=False)
+        detector._complexity_embeddings = {QueryComplexity.SIMPLE: "emb::simple exemplar"}
+        detector._embeddings_computed = True
+
+        complexity, confidence = detector.detect("any query")
+
+        assert complexity == QueryComplexity.MODERATE
+        assert confidence == 0.5

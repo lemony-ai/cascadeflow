@@ -692,6 +692,70 @@ class ComplexityDetector:
     # These patterns detect function-calling prompts which should route
     # through cascade for cost savings (the actual task is usually simple)
 
+    # =====================================================================
+    # COMPLEXITY SIGNALS (P0 Quality Fix)
+    # =====================================================================
+    # Patterns that indicate inherently complex queries requiring
+    # higher-tier models. These boost complexity regardless of keyword
+    # matching because the TASK itself demands deep reasoning.
+
+    COMPLEXITY_SIGNALS = {
+        "proof_required": [
+            r"\bprove\b",
+            r"\bproof\b",
+            r"\bderive\b",
+            r"\bderivation\b",
+            r"\bdemonstrate\s+that\b",
+            r"\bshow\s+that\b",
+            r"\bverify\s+that\b",
+            r"\bestablish\s+that\b",
+            r"\bby\s+contradiction\b",
+            r"\bby\s+induction\b",
+            r"\bqed\b",
+        ],
+        "mathematical": [
+            r"\birrational\b",
+            r"\brational\b.*\bproof\b",
+            r"\bsqrt\b",
+            r"\bprime\b.*\binfinite\b",
+            r"\bconverge[s]?\b",
+            r"\bdiverge[s]?\b",
+            r"\bcontinuous\b.*\bdifferentiable\b",
+            r"\bbijection\b",
+            r"\bisomorphi[sc]",
+            r"\bhomomorphi[sc]",
+            r"\biff\b",
+            r"\bif\s+and\s+only\s+if\b",
+            r"\bnecessary\s+and\s+sufficient\b",
+        ],
+        "implementation": [
+            r"\bfrom\s+scratch\b",
+            r"\bproduction[\s-]ready\b",
+            r"\bend[\s-]to[\s-]end\b",
+            r"\bfull[\s-]stack\b",
+            r"\bthread[\s-]safe\b",
+            r"\block[\s-]free\b",
+            r"\bwait[\s-]free\b",
+            r"\breal[\s-]time\b.*\bsystem\b",
+        ],
+        "expert_knowledge": [
+            r"\btrade[\s-]offs?\s+between\b",
+            r"\bwhen\s+would\s+you\s+(choose|prefer|use)\b",
+            r"\bcompare\s+and\s+contrast\b.*\b(approaches|methods|algorithms)\b",
+            r"\bstate[\s-]of[\s-]the[\s-]art\b",
+            r"\bcutting[\s-]edge\b",
+            r"\bnovel\s+approach\b",
+        ],
+        "synthesis": [
+            r"\bcombine\b.*\bwith\b.*\bto\b",
+            r"\bintegrate\b.*\binto\b",
+            r"\bdesign\s+a\s+system\b",
+            r"\barchitect\b",
+            r"\bformulate\b",
+            r"\bpropose\s+a\b",
+        ],
+    }
+
     FUNCTION_CALL_INDICATORS = [
         # Tool definition patterns
         r"you have access to.*(?:tool|function)s?",
@@ -801,7 +865,7 @@ class ComplexityDetector:
         metadata["is_function_call"] = is_function_call
         if is_function_call:
             self.stats["function_call_detected"] = self.stats.get("function_call_detected", 0) + 1
-            logger.debug(f"v14: Function call format detected in query")
+            logger.debug("v14: Function call format detected in query")
 
         # 3. Detect technical terms
         tech_terms, domain_scores = self._detect_technical_terms(query_lower)
@@ -891,6 +955,32 @@ class ComplexityDetector:
         if is_comparison and moderate_matches == 0:
             moderate_matches = 1
 
+        # 8.5. Complexity signal detection (P0 quality fix)
+        # Check COMPLEXITY_SIGNALS for patterns that indicate inherently
+        # hard or expert tasks (proofs, derivations, synthesis, etc.)
+        signal_boost = 0.0
+        matched_signals = {}
+        for signal_category, patterns in self.COMPLEXITY_SIGNALS.items():
+            for pattern in patterns:
+                if re.search(pattern, query_lower):
+                    matched_signals[signal_category] = True
+                    break
+
+        # Each matched signal category contributes to complexity boost
+        num_signal_categories = len(matched_signals)
+        if num_signal_categories >= 2:
+            # Two or more signal categories → expert-level
+            signal_boost = 3.0
+        elif num_signal_categories == 1:
+            # proof_required or mathematical alone → hard-level minimum
+            if "proof_required" in matched_signals or "mathematical" in matched_signals:
+                signal_boost = 2.0
+            else:
+                signal_boost = 1.5
+
+        metadata["complexity_signals"] = matched_signals
+        metadata["signal_boost"] = signal_boost
+
         # 9. Determine base complexity
         # CRITICAL: Technical terms STRONGLY influence complexity
         #
@@ -958,7 +1048,21 @@ class ComplexityDetector:
                 final_complexity = QueryComplexity.HARD
                 final_confidence = 0.6
 
-        # 10. Apply technical boost to complexity
+        # 10. Apply complexity signal boost (P0 quality fix)
+        # Proofs, derivations, and other inherently hard tasks MUST escalate
+        if signal_boost >= 3.0:
+            final_complexity = QueryComplexity.EXPERT
+            final_confidence = max(final_confidence, 0.90)
+        elif signal_boost >= 2.0:
+            if final_complexity.value in ("trivial", "simple", "moderate"):
+                final_complexity = QueryComplexity.HARD
+            final_confidence = max(final_confidence, 0.85)
+        elif signal_boost >= 1.5:
+            if final_complexity.value in ("trivial", "simple"):
+                final_complexity = QueryComplexity.MODERATE
+            final_confidence = max(final_confidence, 0.80)
+
+        # 10.5. Apply technical boost to complexity
         if tech_boost >= 1.5:
             if final_complexity == QueryComplexity.SIMPLE:
                 final_complexity = QueryComplexity.HARD
