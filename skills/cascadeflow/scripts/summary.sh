@@ -1,9 +1,10 @@
 #!/bin/bash
 # Generate formatted summary from CascadeFlow stats
 # Usage: summary.sh [host] [port]
+# Environment: CASCADEFLOW_HOST, CASCADEFLOW_PORT
 
-HOST="${1:-192.168.0.147}"
-PORT="${2:-8084}"
+HOST="${1:-${CASCADEFLOW_HOST:-localhost}}"
+PORT="${2:-${CASCADEFLOW_PORT:-8084}}"
 
 STATS=$(curl -s "http://${HOST}:${PORT}/stats")
 

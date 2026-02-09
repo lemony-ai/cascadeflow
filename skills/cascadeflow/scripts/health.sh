@@ -1,9 +1,10 @@
 #!/bin/bash
 # CascadeFlow health check
 # Usage: health.sh [host] [port]
+# Environment: CASCADEFLOW_HOST, CASCADEFLOW_PORT
 
-HOST="${1:-192.168.0.147}"
-PORT="${2:-8084}"
+HOST="${1:-${CASCADEFLOW_HOST:-localhost}}"
+PORT="${2:-${CASCADEFLOW_PORT:-8084}}"
 
 HEALTH=$(curl -s --connect-timeout 3 "http://${HOST}:${PORT}/health" 2>/dev/null)
 

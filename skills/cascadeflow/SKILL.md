@@ -1,30 +1,34 @@
 # CascadeFlow Skill
 
-Cost-optimized LLM routing using drafter/verifier cascade pattern.
+Cost-optimized LLM routing using drafter/verifier cascade pattern. Save 50-80% on LLM costs while maintaining quality.
 
-## Quick Start
+## Prerequisites
+
+1. **CascadeFlow server** running (see [CascadeFlow GitHub](https://github.com/lemony-ai/cascadeflow))
+2. **API keys** for your LLM providers (Anthropic, OpenAI, etc.)
+
+## Quick Setup
+
+### 1. Deploy CascadeFlow Server
 
 ```bash
-# Check health
-/cascade health
+# Clone and setup
+git clone https://github.com/lemony-ai/cascadeflow.git
+cd cascadeflow
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
 
-# View stats summary
-/cascade
+# Configure API keys
+echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
+echo "OPENAI_API_KEY=sk-proj-..." >> .env
 
-# Detailed savings report
-/cascade savings
+# Start server
+export $(grep -v "^#" .env | xargs)
+python -m cascadeflow.integrations.openclaw.openai_server \
+  --config anthropic-only.yaml --host 0.0.0.0 --port 8084
 ```
 
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `/cascade` | Stats summary (queries, acceptance, savings) |
-| `/cascade savings` | Detailed cost breakdown by complexity |
-| `/cascade health` | Server health check |
-| `/cascade config` | Show current config (drafter/verifier models) |
-
-## OpenClaw Provider Setup
+### 2. Configure OpenClaw
 
 Add to your `openclaw.json`:
 
@@ -41,7 +45,7 @@ Add to your `openclaw.json`:
           "name": "CascadeFlow",
           "reasoning": false,
           "input": ["text"],
-          "cost": {"input": 0.0008, "output": 0.0024},
+          "cost": {"input": 0, "output": 0},
           "contextWindow": 200000,
           "maxTokens": 8192
         }]
@@ -58,108 +62,111 @@ Add to your `openclaw.json`:
 }
 ```
 
-Then use: `/model cascade`
-
-## Scripts
-
-Scripts are in `scripts/` directory. Default host: `192.168.0.147:8084`
+### 3. Set Environment (for scripts)
 
 ```bash
-# Raw JSON stats
-./scripts/stats.sh [host] [port]
-
-# Formatted summary (for /cascade command)
-./scripts/summary.sh [host] [port]
-
-# Detailed savings (for /cascade savings)
-./scripts/savings.sh [host] [port]
-
-# Health check (for /cascade health)
-./scripts/health.sh [host] [port]
+export CASCADEFLOW_HOST="your-server-ip"
+export CASCADEFLOW_PORT="8084"
 ```
 
-## Metrics Explained
+Or add to your workspace's TOOLS.md:
+```markdown
+## CascadeFlow
+- **Host:** your-server-ip
+- **Port:** 8084
+```
 
-| Metric | Description |
-|--------|-------------|
-| **Draft Acceptance** | % of queries where drafter response was good enough |
-| **Cascade Used** | % of queries that went through cascade (vs direct routing) |
-| **Savings** | Cost saved vs using verifier for everything |
-| **Quality Mean** | Average quality score (1.0 = perfect) |
+## Commands
 
-## Response Format
+| Command | Description |
+|---------|-------------|
+| `/model cascade` | Switch to CascadeFlow |
+| `/cascade` | Stats summary (queries, acceptance, savings) |
+| `/cascade savings` | Detailed cost breakdown by complexity |
+| `/cascade health` | Server health check |
+
+## Example Output
 
 **`/cascade`:**
 ```
 📊 CascadeFlow Stats
 ━━━━━━━━━━━━━━━━━━━━━━━
-📈 Queries: 38 total
-✅ Draft Accepted: 33/34 (86%)
-🔀 Cascade Used: 34 (89%)
-💰 Total Saved: $0.023
-📉 Savings: 70%
-🎯 Quality Mean: 0.99
+📈 Queries: 150 total
+✅ Draft Accepted: 127/142 (89%)
+🔀 Cascade Used: 142 (94%)
+💰 Total Saved: $0.089
+📉 Savings: 72%
+🎯 Quality Mean: 0.98
 ```
 
 **`/cascade savings`:**
 ```
 💰 CascadeFlow Savings Report
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total Queries: 38
-Draft Acceptance: 86%
+Total Queries: 150
+Draft Acceptance: 89%
 
 💵 Cost Comparison:
-  Baseline (verifier-only): $0.0337
-  With Cascade:             $0.0099
+  Baseline (verifier-only): $0.124
+  With Cascade:             $0.035
   ━━━━━━━━━━━━━━━━━━━━━━━
-  Savings:                  $0.0237 (70%)
+  Savings:                  $0.089 (72%)
 
 📊 By Complexity:
-  Trivial:  8 queries
-  Simple:   9 queries
-  Moderate: 10 queries
-  Hard:     7 queries
+  Trivial:  45 queries
+  Simple:   52 queries
+  Moderate: 38 queries
+  Hard:     15 queries
 ```
 
-## Presets
+## Available Configs
 
-CascadeFlow supports multiple model configurations:
+Pre-built configs in `configs/` directory:
 
-### Anthropic-only
-- Drafter: `claude-3-5-haiku-20241022`
-- Verifier: `claude-sonnet-4-20250514` or `claude-opus-4-20250514`
+| Config | Drafter | Verifier | Best For |
+|--------|---------|----------|----------|
+| `anthropic-only.yaml` | Haiku 3.5 | Sonnet 4 | Anthropic users |
+| `openai-only.yaml` | GPT-4o-mini | GPT-4o | OpenAI users |
+| `mixed.yaml` | GPT-4o-mini | Claude Opus | Best quality/cost |
 
-### OpenAI-only
-- Drafter: `gpt-4o-mini`
-- Verifier: `gpt-4o`
+## How It Works
 
-### Mixed (recommended)
-- Drafter: `gpt-4o-mini` (fast, cheap)
-- Verifier: `claude-opus-4-20250514` (quality)
+1. **Query arrives** → CascadeFlow analyzes complexity
+2. **Drafter responds** → Fast, cheap model (e.g., Haiku)
+3. **Quality check** → Verify response meets threshold
+4. **Accept or escalate** → Good enough? Done! Otherwise → Verifier
 
-## Environment
+**Result:** Simple queries use cheap model, complex queries get premium model. You only pay for what you need.
 
-CascadeFlow server needs API keys in `.env`:
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-proj-...
-```
+## Metrics Explained
+
+| Metric | Description |
+|--------|-------------|
+| **Draft Acceptance** | % where drafter was good enough |
+| **Cascade Used** | % that went through cascade |
+| **Savings** | Cost saved vs verifier-only |
+| **Quality Mean** | Average quality score (1.0 = perfect) |
 
 ## Troubleshooting
 
-**CascadeFlow offline:**
+**Server not responding:**
 ```bash
-./scripts/health.sh
-# Check if server is running on mgmt02
-ssh cluster@192.168.0.147 'pgrep -a cascadeflow'
+./scripts/health.sh your-host 8084
 ```
 
-**Start server:**
+**Check server logs:**
 ```bash
-ssh cluster@192.168.0.147 'cd ~/Projects/cascadeflow && export $(grep -v "^#" .env | xargs) && source .venv/bin/activate && nohup python -m cascadeflow.integrations.openclaw.openai_server --config anthropic-only.yaml --host 0.0.0.0 --port 8084 > /tmp/cascadeflow.log 2>&1 &'
+tail -f /tmp/cascadeflow.log
+```
+
+**Restart server:**
+```bash
+pkill -f cascadeflow
+# Then start again with the command above
 ```
 
 ## Links
 
 - [CascadeFlow GitHub](https://github.com/lemony-ai/cascadeflow)
 - [OpenClaw Docs](https://docs.openclaw.ai)
+- [ClaWHub](https://clawhub.com)
