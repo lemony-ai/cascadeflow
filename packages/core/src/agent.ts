@@ -645,103 +645,6 @@ export class CascadeAgent {
       availableModels = toolFilterResult.models;
     }
 
-    // === OPTIONAL: TOOL LOOP (AUTO-EXECUTION) ===
-    // When a ToolExecutor is configured and tools are present, we run a multi-step
-    // tool loop using the best available tool-capable model. This matches the
-    // Python DX: providing a tool executor enables agent-side tool execution.
-    if (options.tools && options.tools.length > 0 && executor) {
-      const maxSteps = options.maxSteps ?? 5;
-
-      const bestModelConfig = availableModels[availableModels.length - 1];
-      const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
-
-      const loopMessages: Message[] = [...messages];
-      let finalContent = '';
-      let modelUsed = bestModelConfig.name;
-      let totalLoopCost = 0;
-      let finalToolCalls: any[] | undefined;
-      let stepsExecuted = 0;
-
-      for (let step = 0; step < maxSteps; step++) {
-        stepsExecuted = step + 1;
-
-        const response = await provider.generate({
-          messages: loopMessages,
-          model: bestModelConfig.name,
-          maxTokens,
-          temperature: options.temperature,
-          systemPrompt: normalized.systemPrompt,
-          tools: options.tools,
-          extra: options.extra,
-        });
-
-        modelUsed = response.model;
-        finalContent = response.content;
-        finalToolCalls = response.tool_calls;
-
-        if (response.usage) {
-          totalLoopCost += provider.calculateCost(
-            response.usage.prompt_tokens,
-            response.usage.completion_tokens,
-            response.model
-          );
-        }
-
-        const assistantMsg: Message = { role: 'assistant', content: response.content || '' };
-        if (response.tool_calls && response.tool_calls.length > 0) {
-          assistantMsg.tool_calls = response.tool_calls as any;
-        }
-        loopMessages.push(assistantMsg);
-
-        if (!response.tool_calls || response.tool_calls.length === 0) {
-          break;
-        }
-
-        const { toolResults, parsedCalls } = await this.executeToolCalls(
-          executor,
-          bestModelConfig.provider,
-          response.tool_calls
-        );
-
-        for (let i = 0; i < toolResults.length; i++) {
-          const tr = toolResults[i];
-          const call = parsedCalls[i];
-          loopMessages.push({
-            role: 'tool',
-            tool_call_id: call.id,
-            content: JSON.stringify(tr.success ? tr.result : { error: tr.error }),
-          });
-        }
-      }
-
-      const latencyMs = Date.now() - startTime;
-
-      return {
-        content: finalContent,
-        modelUsed,
-        totalCost: totalLoopCost,
-        latencyMs,
-        complexity: this.complexityDetector.detect(queryText).complexity,
-        cascaded: false,
-        draftAccepted: false,
-        routingStrategy: 'direct',
-        reason:
-          finalToolCalls && finalToolCalls.length > 0
-            ? `Direct tool loop (maxSteps reached: ${stepsExecuted}/${maxSteps})`
-            : `Direct tool loop (${stepsExecuted} step${stepsExecuted === 1 ? '' : 's'})`,
-        toolCalls: finalToolCalls,
-        hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,
-        draftModel: undefined,
-        draftCost: 0,
-        draftLatencyMs: 0,
-        verifierModel: undefined,
-        verifierCost: 0,
-        verifierLatencyMs: 0,
-        costSaved: 0,
-        savingsPercentage: 0,
-      };
-    }
-
     // Step 1b: Filter by user tier if specified
     if (options.userTier) {
       // For tier filtering, we would need tier configuration
@@ -831,6 +734,99 @@ export class CascadeAgent {
 
       try {
         const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
+
+        // Optional: tool loop (auto-execution) when a ToolExecutor is configured.
+        // This matches Python's agent DX (`tool_executor` + `max_steps`) while keeping
+        // existing routing decisions (we only loop in the direct path).
+        if (options.tools && options.tools.length > 0 && executor) {
+          const maxSteps = options.maxSteps ?? 5;
+          const loopMessages: Message[] = [...messages];
+
+          let finalContent = '';
+          let modelUsed = bestModelConfig.name;
+          let totalLoopCost = 0;
+          let finalToolCalls: any[] | undefined;
+          let stepsExecuted = 0;
+
+          for (let step = 0; step < maxSteps; step++) {
+            stepsExecuted = step + 1;
+
+            const response = await provider.generate({
+              messages: loopMessages,
+              model: bestModelConfig.name,
+              maxTokens: maxTokens,
+              temperature: options.temperature,
+              systemPrompt: normalized.systemPrompt,
+              tools: options.tools,
+              extra: options.extra,
+            });
+
+            modelUsed = response.model;
+            finalContent = response.content;
+            finalToolCalls = response.tool_calls;
+
+            if (response.usage) {
+              totalLoopCost += provider.calculateCost(
+                response.usage.prompt_tokens,
+                response.usage.completion_tokens,
+                response.model
+              );
+            }
+
+            const assistantMsg: Message = { role: 'assistant', content: response.content || '' };
+            if (response.tool_calls && response.tool_calls.length > 0) {
+              assistantMsg.tool_calls = response.tool_calls as any;
+            }
+            loopMessages.push(assistantMsg);
+
+            if (!response.tool_calls || response.tool_calls.length === 0) {
+              break;
+            }
+
+            const { toolResults, parsedCalls } = await this.executeToolCalls(
+              executor,
+              bestModelConfig.provider,
+              response.tool_calls
+            );
+
+            for (let i = 0; i < toolResults.length; i++) {
+              const tr = toolResults[i];
+              const call = parsedCalls[i];
+              loopMessages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                content: JSON.stringify(tr.success ? tr.result : { error: tr.error }),
+              });
+            }
+          }
+
+          const latencyMs = Date.now() - startTime;
+
+          return {
+            content: finalContent,
+            modelUsed,
+            totalCost: totalLoopCost,
+            latencyMs,
+            complexity: complexity,
+            cascaded: false,
+            draftAccepted: false,
+            routingStrategy: 'direct',
+            reason:
+              finalToolCalls && finalToolCalls.length > 0
+                ? `Direct tool loop (maxSteps reached: ${stepsExecuted}/${maxSteps})`
+                : `Direct tool loop (${stepsExecuted} step${stepsExecuted === 1 ? '' : 's'})`,
+            toolCalls: finalToolCalls,
+            hasToolCalls: !!finalToolCalls && finalToolCalls.length > 0,
+            draftModel: undefined,
+            draftCost: 0,
+            draftLatencyMs: 0,
+            verifierModel: undefined,
+            verifierCost: 0,
+            verifierLatencyMs: 0,
+            costSaved: 0,
+            savingsPercentage: 0,
+          };
+        }
 
         const response = await provider.generate({
           messages,

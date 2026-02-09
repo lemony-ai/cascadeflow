@@ -19,7 +19,7 @@ Complete guide to AI providers supported by cascadeflow and how to mix them effe
 
 ## Overview
 
-cascadeflow supports native providers plus **17+ additional providers** through the Vercel AI SDK integration. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
+cascadeflow supports native providers and can also (optionally) use the Vercel AI SDK provider ecosystem. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
 
 ### Why Mix Providers?
 
@@ -33,13 +33,15 @@ cascadeflow supports native providers plus **17+ additional providers** through 
 
 ## Supported Providers
 
-### Vercel AI SDK (17+ Providers)
+### Vercel AI SDK (Optional Provider Ecosystem)
 
 cascadeflow integrates the **Vercel AI SDK** so you can use a wider set of providers with the same cascadeflow API. Supported Vercel SDK providers include:
 
-- OpenAI, Anthropic, Azure OpenAI, Google Gemini, Mistral, Cohere
-- Groq, Together AI, OpenRouter, Perplexity, xAI, Fireworks
-- AWS Bedrock, Replicate, DeepSeek, Ollama, Cerebras
+- OpenAI, Anthropic, Azure OpenAI, Google, Mistral, Cohere
+- Groq, Together AI, Perplexity, xAI, Fireworks
+- AWS Bedrock, Google Vertex, Replicate, DeepSeek, Cerebras
+
+> Note: `openrouter` and `ollama` are supported natively by cascadeflow; they are not part of the Vercel AI SDK provider list used here.
 
 **Setup (TypeScript):**
 ```bash

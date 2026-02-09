@@ -82,4 +82,5 @@ console.log(result.content);
 - Tool-call streaming is supported when cascadeflow emits tool calls during streaming:
   - AI SDK v4: `tool_call_streaming_start` / `tool_call_delta` / `tool_call`
   - AI SDK v5+/v6: `tool-input-*` chunks
-  - Tool execution is still up to your app (cascadeflow emits tool calls; it does not run your tools).
+- The `useChat` handler does not execute tools: it can stream tool calls, but tool execution is still up to your app.
+  - If you want server-side tool execution loops, use the agent tool-loop APIs (`toolExecutor` in TypeScript, `tool_executor` in Python) for non-streaming runs.

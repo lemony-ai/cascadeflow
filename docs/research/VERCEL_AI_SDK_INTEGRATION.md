@@ -106,7 +106,7 @@ Reasoning:
 
 ### Quickstart (Next.js App Router)
 ```bash
-pnpm add @cascadeflow/core ai @ai-sdk/react
+pnpm add @cascadeflow/core @cascadeflow/vercel-ai ai @ai-sdk/react
 ```
 
 ```ts
@@ -118,8 +118,8 @@ export const runtime = 'edge';
 
 const agent = new CascadeAgent({
   models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.15, apiKey: process.env.OPENAI_API_KEY },
-    { name: 'gpt-4o', provider: 'openai', cost: 2.5, apiKey: process.env.OPENAI_API_KEY },
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: process.env.OPENAI_API_KEY },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625, apiKey: process.env.OPENAI_API_KEY },
   ],
 });
 

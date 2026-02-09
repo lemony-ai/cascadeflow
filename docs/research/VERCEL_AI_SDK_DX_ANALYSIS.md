@@ -31,7 +31,7 @@ Keep the client unchanged and swap the server route implementation to cascadeflo
 - no provider-interface work required
 
 This is implemented in `@cascadeflow/core` as:
-- `VercelAI.createChatHandler(agent, { protocol })`
+- `@cascadeflow/vercel-ai` -> `createChatHandler(agent, { protocol })`
 
 ### Option 3: AI SDK provider adapter (native `streamText({ model })` integration)
 This would let developers pass cascadeflow as an AI SDK “model” and keep all `ai` server helpers.
@@ -49,18 +49,23 @@ Deliver Option 2 as the default:
 Server route:
 ```ts
 // app/api/chat/route.ts
-import { CascadeAgent, VercelAI } from '@cascadeflow/core';
+import { CascadeAgent } from '@cascadeflow/core';
+import { createChatHandler } from '@cascadeflow/vercel-ai';
 
 export const runtime = 'edge'; // optional; works in Node too
 
 const agent = new CascadeAgent({
   models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.15 },
-    { name: 'gpt-4o', provider: 'openai', cost: 2.5 },
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
   ],
 });
 
-export const POST = VercelAI.createChatHandler(agent, { protocol: 'data' });
+const handler = createChatHandler(agent, { protocol: 'data' });
+
+export async function POST(req: Request) {
+  return handler(req);
+}
 ```
 
 Client:
@@ -77,4 +82,3 @@ export function Chat() {
 - This integration is **handler-level** (it returns the streaming `Response` `useChat` expects).
 - It does not require Vercel marketplace approvals because it is just OSS libraries + a Next route.
 - Developers can adopt incrementally by switching only one route and leaving the rest of their app unchanged.
-
