@@ -178,7 +178,8 @@ class CascadeAgent:
         # ========================================================================
         domain_configs: Optional[dict[str, DomainConfig]] = None,  # Per-domain cascade config
         enable_domain_detection: bool = False,  # Auto-detect query domain
-        use_semantic_domains: bool = True,  # 🆕 Use ML-based semantic detection (hybrid)
+        use_semantic_domains: bool = True,  # 🆕 Use ML-based semantic detection
+        use_hybrid: bool = False,  # 🆕 Combine ML + rule-based (OpenClaw-only)
         # ========================================================================
         # 🆕 v19: Tool Complexity Routing (Phase 1)
         # ========================================================================
@@ -379,6 +380,7 @@ class CascadeAgent:
         # 🆕 v2.6: Initialize domain detection
         self.enable_domain_detection = enable_domain_detection
         self.use_semantic_domains = use_semantic_domains
+        self.use_hybrid = use_hybrid
         self.domain_configs = domain_configs or {}
 
         # 🆕 v2.6: Semantic domain detection with hybrid mode
@@ -386,8 +388,8 @@ class CascadeAgent:
         if enable_domain_detection:
             if use_semantic_domains:
                 self.domain_detector = SemanticDomainDetector(
-                    use_hybrid=True,  # Combines ML + rule-based for best accuracy
-                    confidence_threshold=0.5,  # Lower threshold for hybrid mode
+                    use_hybrid=self.use_hybrid,  # OpenClaw passes True, standard uses False
+                    confidence_threshold=0.5,
                 )
                 if self.domain_detector.is_available:
                     logger.info("Domain detection: SEMANTIC (hybrid ML + rules)")
@@ -677,7 +679,7 @@ class CascadeAgent:
 
         if use_semantic:
             self.domain_detector = SemanticDomainDetector(
-                use_hybrid=True,
+                use_hybrid=self.use_hybrid,
                 confidence_threshold=0.5,
             )
             if not self.domain_detector.is_available:

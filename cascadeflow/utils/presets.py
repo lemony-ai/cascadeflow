@@ -68,6 +68,7 @@ def _detect_available_providers() -> dict[str, bool]:
 def get_cost_optimized_agent(
     verbose: bool = False,
     enable_cascade: bool = True,
+    use_hybrid: bool = False,
 ):
     """
     Get cost-optimized agent configuration.
@@ -194,6 +195,7 @@ def get_cost_optimized_agent(
 def get_balanced_agent(
     verbose: bool = False,
     enable_cascade: bool = True,
+    use_hybrid: bool = False,
 ):
     """
     Get balanced agent configuration.
@@ -304,6 +306,7 @@ def get_balanced_agent(
 def get_speed_optimized_agent(
     verbose: bool = False,
     enable_cascade: bool = True,
+    use_hybrid: bool = False,
 ):
     """
     Get speed-optimized agent configuration.
@@ -413,6 +416,7 @@ def get_speed_optimized_agent(
 def get_quality_optimized_agent(
     verbose: bool = False,
     enable_cascade: bool = True,
+    use_hybrid: bool = False,
 ):
     """
     Get quality-optimized agent configuration.
@@ -526,6 +530,7 @@ def get_quality_optimized_agent(
 def get_development_agent(
     verbose: bool = True,  # Verbose by default in dev
     enable_cascade: bool = True,
+    use_hybrid: bool = False,
 ):
     """
     Get development agent configuration.
@@ -625,6 +630,7 @@ def auto_agent(
     preset: str = "balanced",
     verbose: bool = False,
     enable_cascade: bool = True,
+    use_hybrid: bool = False,
 ):
     """
     Automatically create agent with specified preset.
@@ -633,6 +639,7 @@ def auto_agent(
         preset: Preset name (cost_optimized, balanced, speed_optimized, quality_optimized, development)
         verbose: Enable verbose logging
         enable_cascade: Enable cascade system
+        use_hybrid: Enable hybrid domain detection (OpenClaw only)
 
     Returns:
         Configured CascadeAgent
@@ -652,7 +659,7 @@ def auto_agent(
     if preset not in presets:
         raise ValueError(f"Unknown preset '{preset}'. Available: {list(presets.keys())}")
 
-    return presets[preset](verbose=verbose, enable_cascade=enable_cascade)
+    return presets[preset](verbose=verbose, enable_cascade=enable_cascade, use_hybrid=use_hybrid)
 
 
 __all__ = [

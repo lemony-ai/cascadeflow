@@ -488,7 +488,7 @@ def main() -> None:
     else:
         from cascadeflow.utils.presets import auto_agent
 
-        agent = auto_agent(preset=args.preset, verbose=args.verbose, enable_cascade=True)
+        agent = auto_agent(preset=args.preset, verbose=args.verbose, enable_cascade=True, use_hybrid=True)
     server = OpenClawOpenAIServer(
         agent,
         OpenClawOpenAIConfig(
