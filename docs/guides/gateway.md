@@ -23,6 +23,12 @@ No framework changes, no approvals, no SDK rewrite.
 python -m cascadeflow.server --mode agent --port 8084
 ```
 
+If installed via pip, you can also use:
+
+```bash
+cascadeflow-gateway --mode agent --port 8084
+```
+
 Common options:
 - `--preset balanced|cost_optimized|speed_optimized|quality_optimized|development`
 - `--config /path/to/cascadeflow.yaml` (override models/channels via config file)
@@ -90,4 +96,3 @@ curl -s http://127.0.0.1:8084/v1/chat/completions \
 - **Agent mode** only requires provider keys you already have (OpenAI/Anthropic/Groq/etc).
 - If a specific model requires org verification (for example streaming for certain models),
   switch the gateway preset/config to models you already have access to.
-
