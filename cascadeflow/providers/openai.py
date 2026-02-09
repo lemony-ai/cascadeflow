@@ -946,14 +946,33 @@ class OpenAIProvider(BaseProvider):
         messages.append({"role": "user", "content": prompt})
 
         # Build request payload
+        # GPT-5 models have special requirements:
+        # - max_completion_tokens instead of max_tokens
+        # - no logprobs support
+        # - temperature only supports 1 (default)
+        is_gpt5 = model.lower().startswith("gpt-5")
+        
+        if is_gpt5:
+            # Remove unsupported params for GPT-5
+            kwargs.pop("logprobs", None)
+            kwargs.pop("top_logprobs", None)
+        
         payload = {
             "model": model,
             "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
             "stream": True,  # Enable streaming
             **kwargs,
         }
+        
+        # GPT-5: only default temperature (1) allowed
+        if not is_gpt5:
+            payload["temperature"] = temperature
+        
+        # GPT-5: max_completion_tokens instead of max_tokens
+        if is_gpt5:
+            payload["max_completion_tokens"] = max_tokens
+        else:
+            payload["max_tokens"] = max_tokens
 
         try:
             # Make streaming API request (retry handled by parent class)
