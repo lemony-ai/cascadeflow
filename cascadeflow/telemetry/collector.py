@@ -293,13 +293,25 @@ class MetricsCollector:
                         self.stats["total_saved"] += cost_saved
                         self.stats["baseline_cost"] += baseline_cost_for_this_query
                     else:
-                        # Fallback: estimate baseline as 2x total_cost for cascade queries, 1x for direct
-                        # This is a rough approximation when we don't have proper cost breakdown
+                        # Fallback: use actual model cost ratios
+                        # GPT-5-mini ($0.00025) vs GPT-5 ($0.015) = 60x ratio
+                        # Haiku ($0.0008) vs Sonnet ($0.003) = 3.75x ratio
+                        # Use 60x as default (OpenAI typical ratio)
+                        COST_RATIO = 60.0
                         is_cascade = routing_strategy == "cascade"
-                        if is_cascade:
-                            estimated_baseline = total_cost * 2.0  # Rough estimate that verifier is ~2x more expensive
+                        meta = getattr(result, "metadata", {}) or {}
+                        draft_accepted = meta.get("draft_accepted", False)
+                        
+                        if is_cascade and draft_accepted:
+                            # Draft accepted: saved the verifier cost
+                            estimated_baseline = total_cost * COST_RATIO
+                        elif is_cascade:
+                            # Draft rejected: paid both, baseline is verifier portion
+                            estimated_baseline = total_cost * (COST_RATIO / (COST_RATIO + 1))
                         else:
-                            estimated_baseline = total_cost  # Direct queries already use verifier model
+                            # Direct: no savings possible
+                            estimated_baseline = total_cost
+                            
                         cost_saved = estimated_baseline - total_cost
                         self.stats["total_saved"] += cost_saved
                         self.stats["baseline_cost"] += estimated_baseline
