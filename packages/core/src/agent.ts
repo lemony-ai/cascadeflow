@@ -1572,7 +1572,7 @@ export class CascadeAgent {
    * - Complete result with costs and metadata
    * - Tool support with automatic routing
    *
-   * @param query - User query to process
+   * @param input - User query to process (string or message array)
    * @param options - Streaming options
    * @returns Complete CascadeResult with all metadata
    *
@@ -1639,7 +1639,7 @@ export class CascadeAgent {
    * - IF tools provided → ToolStreamManager (handles tool calls)
    * - ELSE → StreamManager (standard text streaming)
    *
-   * @param query - User query to process
+   * @param input - User query to process (string or message array)
    * @param options - Streaming options
    * @yields StreamEvent objects with type, content, and data
    *
@@ -1658,12 +1658,12 @@ export class CascadeAgent {
    * ```
    */
   async *streamEvents(
-    query: string,
+    input: string | Message[],
     options: StreamEventsOptions = {}
   ): AsyncIterable<StreamEvent> {
     // TODO: Full implementation with StreamManager/ToolStreamManager in future milestone
     // For now, delegate to existing runStream
-    for await (const event of this.runStream(query, options)) {
+    for await (const event of this.runStream(input, options)) {
       yield event;
     }
   }
@@ -1674,7 +1674,7 @@ export class CascadeAgent {
    * This is a simpler alias for streamEvents() that matches the documented API.
    * Use this method for most streaming needs.
    *
-   * @param prompt - User query or prompt
+   * @param input - User query to process (string or message array)
    * @param options - Streaming options
    * @yields StreamEvent objects with incremental content
    *
@@ -1690,11 +1690,11 @@ export class CascadeAgent {
    * ```
    */
   async *stream(
-    prompt: string,
+    input: string | Message[],
     options: StreamOptions = {}
   ): AsyncIterable<StreamEvent> {
     // Simple alias that delegates to streamEvents
-    for await (const event of this.streamEvents(prompt, options)) {
+    for await (const event of this.streamEvents(input, options)) {
       yield event;
     }
   }
