@@ -207,6 +207,10 @@ class CascadeAgent:
         enable_caching: bool = False,  # DEPRECATED - caching system being re-implemented
         cache_size: int = 1000,  # DEPRECATED - caching system being re-implemented
         enable_callbacks: bool = True,  # DEPRECATED - callbacks now always enabled
+        # ========================================================================
+        # 🆕 v2.9: Tool Execution
+        # ========================================================================
+        tool_executor: Optional[Any] = None,  # ToolExecutor instance or async callable
     ):
         """
         Initialize cascade agent with dual streaming managers and cost calculator.
@@ -228,6 +232,11 @@ class CascadeAgent:
             channel_models: Optional per-channel model allowlists
             channel_failover: Optional channel->failover mapping
             channel_strategies: Optional per-channel routing strategy overrides
+            tool_executor: Optional tool executor for running tool calls.
+                          Can be a :class:`~cascadeflow.tools.executor.ToolExecutor`
+                          instance or an async callable ``(tool_call_dict) -> str``.
+                          When not set, tool calls are returned to the caller without
+                          execution.
 
         Deprecated Args (v0.1.x compatibility):
             config: Old CascadeConfig (use quality_config instead)
@@ -338,6 +347,9 @@ class CascadeAgent:
         self.models = sorted(models, key=lambda m: m.cost)
         self.enable_cascade = enable_cascade
         self.verbose = verbose
+
+        # 🆕 v2.9: Tool execution support
+        self._tool_executor = tool_executor
 
         # Setup logging
         if verbose:
@@ -840,14 +852,56 @@ class CascadeAgent:
     async def _execute_tool_calls_parallel(
         self, tool_calls: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        async def _as_result(tool_call: dict[str, Any]) -> dict[str, Any]:
-            return {
-                "tool_call_id": tool_call.get("id"),
-                "name": tool_call.get("function", {}).get("name", "unknown_tool"),
-                "content": '{"status":"not_implemented"}',
-            }
+        """Execute tool calls in parallel using the registered tool executor.
 
-        return await asyncio.gather(*[_as_result(tc) for tc in tool_calls])
+        When a ``tool_executor`` callback or :class:`ToolExecutor` is
+        registered (via ``__init__``), each tool call is dispatched to it.
+        Otherwise the raw tool calls are returned with a descriptive
+        ``no_executor_registered`` message so the caller can handle
+        execution externally.
+        """
+        if self._tool_executor is None:
+            # No executor registered – return informative stub so the
+            # model understands the tool was not executed.
+            async def _stub(tc: dict[str, Any]) -> dict[str, Any]:
+                return {
+                    "tool_call_id": tc.get("id"),
+                    "name": tc.get("function", {}).get("name", "unknown_tool"),
+                    "content": '{"error":"no_executor_registered","hint":"Pass tool_executor to CascadeAgent to enable tool execution"}',
+                }
+            return list(await asyncio.gather(*[_stub(tc) for tc in tool_calls]))
+
+        async def _run_one(tc: dict[str, Any]) -> dict[str, Any]:
+            name = tc.get("function", {}).get("name", "unknown_tool")
+            call_id = tc.get("id", "")
+            try:
+                # Support both ToolExecutor instances and plain callables
+                if hasattr(self._tool_executor, "execute"):
+                    from .tools.call import ToolCall as _ToolCall
+                    parsed = _ToolCall.from_provider("openai", tc)
+                    result = await self._tool_executor.execute(parsed)
+                    return {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": str(result.result) if result.success else f'{{"error":"{result.error}"}}',
+                    }
+                else:
+                    # Plain async callable: (tool_call_dict) -> str | Any
+                    result = await self._tool_executor(tc)
+                    return {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": str(result) if not isinstance(result, str) else result,
+                    }
+            except Exception as exc:
+                logger.error(f"Tool execution failed for {name}: {exc}")
+                return {
+                    "tool_call_id": call_id,
+                    "name": name,
+                    "content": f'{{"error":"{type(exc).__name__}: {exc}"}}',
+                }
+
+        return list(await asyncio.gather(*[_run_one(tc) for tc in tool_calls]))
 
     # ========================================================================
     # API 1: NON-STREAMING - WITH TOOL SUPPORT
