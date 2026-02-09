@@ -162,6 +162,26 @@ class CascadeResult:
             "metadata": self.metadata,
         }
 
+    @property
+    def baseline_cost(self) -> Optional[float]:
+        """
+        Estimated baseline cost for a verifier-only approach.
+
+        cascadeflow tracks `cost_saved` as baseline_cost - total_cost (can be negative when
+        draft is rejected and you pay for both draft + verifier).
+        """
+        if self.cost_saved is None:
+            return None
+        return self.total_cost + self.cost_saved
+
+    @property
+    def cost_saved_percentage(self) -> float:
+        """Savings percentage vs baseline (0-100+, can be negative when cascade is more expensive)."""
+        baseline = self.baseline_cost
+        if not baseline or baseline == 0:
+            return 0.0
+        return (self.cost_saved or 0.0) / baseline * 100
+
 
 # ==================== EXPORTS ====================
 
