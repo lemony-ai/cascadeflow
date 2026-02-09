@@ -785,8 +785,16 @@ class CascadeAgent:
                     f"for model '{model.name}': {e}"
                 )
 
+        # Allow agent construction without configured API keys. This keeps config loading,
+        # routing, and offline validation workflows usable in CI and local dev.
+        #
+        # Actual execution will fail later with a clearer error when a model is selected
+        # but its provider instance is missing.
         if not providers:
-            raise cascadeflowError("No providers could be initialized. Check your API keys.")
+            logger.warning(
+                "No providers could be initialized. "
+                "Agent will be created, but running queries will fail until API keys/base_urls are configured."
+            )
 
         # Store model-to-provider mapping for multi-instance lookups
         self.model_providers = model_providers
