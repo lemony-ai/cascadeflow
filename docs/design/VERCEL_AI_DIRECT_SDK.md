@@ -49,6 +49,5 @@ export default function Page() {
 
 - cascadeflow streaming is currently driven by `CascadeAgent.runStream(...)`. `CascadeAgent.stream(...)` now accepts both `string` and `Message[]` for chat use cases.
 - The UI helper supports:
-  - `protocol: 'data'` (default Vercel AI SDK UI stream protocol)
+  - `protocol: 'data'` (default Vercel AI SDK stream protocol for `useChat`)
   - `protocol: 'text'` (plain text streaming, requires `useChat({ streamProtocol: 'text' })`)
-

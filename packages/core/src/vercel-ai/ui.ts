@@ -6,14 +6,14 @@ export type VercelAIStreamProtocol = 'data' | 'text';
 
 export interface VercelAIChatHandlerOptions {
   /**
-   * Streaming protocol expected by the client.
-   * - `data`: Vercel AI SDK "UI message stream" SSE protocol (default for `useChat`)
-   * - `text`: plain text streaming
+   * Streaming protocol expected by the Vercel AI SDK hooks.
+   * - `data` (default): Vercel AI SDK data stream protocol (default for `useChat`).
+   * - `text`: plain text streaming (requires `useChat({ streamProtocol: 'text' })`).
    */
   protocol?: VercelAIStreamProtocol;
 
   /**
-   * Disable streaming and return a single JSON response.
+   * Disable streaming and return JSON.
    * Useful for debugging or non-streaming clients.
    */
   stream?: boolean;
@@ -23,13 +23,21 @@ export interface VercelAIChatHandlerOptions {
   temperature?: number;
 }
 
-function randomId(prefix: string): string {
-  // Edge runtimes typically have crypto.randomUUID(). Node >=18 does too.
-  const uuid = (globalThis.crypto as any)?.randomUUID?.();
-  if (uuid) {
-    return `${prefix}_${uuid}`;
+type DataStreamFormatter = <T extends string>(type: T, value: any) => string;
+
+async function getFormatDataStreamPart(): Promise<DataStreamFormatter> {
+  // `ai` is an optional peer for @cascadeflow/core.
+  // For Vercel AI SDK integrations it will be installed, and using its formatter
+  // keeps us aligned with the exact stream protocol.
+  const mod = await import('ai');
+  if (typeof (mod as any).formatDataStreamPart !== 'function') {
+    throw new Error("Missing 'formatDataStreamPart' export from 'ai'.");
   }
-  return `${prefix}_${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`;
+  return (mod as any).formatDataStreamPart as DataStreamFormatter;
+}
+
+function encodeUtf8(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
 }
 
 function toCoreMessages(input: any): Message[] {
@@ -43,7 +51,6 @@ function toCoreMessages(input: any): Message[] {
       if (typeof role !== 'string' || typeof content !== 'string') {
         return null;
       }
-      // cascadeflow core MessageRole is a string union; validate to avoid runtime surprises.
       if (role !== 'system' && role !== 'user' && role !== 'assistant' && role !== 'tool') {
         return null;
       }
@@ -52,32 +59,19 @@ function toCoreMessages(input: any): Message[] {
     .filter(Boolean) as Message[];
 }
 
-function sseEncode(data: unknown): Uint8Array {
-  const encoder = new TextEncoder();
-  return encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
+function toTextPrompt(input: any): string {
+  if (typeof input?.prompt === 'string') {
+    return input.prompt;
+  }
+  return '';
 }
 
-function sseDone(): Uint8Array {
-  const encoder = new TextEncoder();
-  return encoder.encode('data: [DONE]\n\n');
-}
-
-function textEncode(text: string): Uint8Array {
-  const encoder = new TextEncoder();
-  return encoder.encode(text);
-}
-
-function baseSseHeaders(): Record<string, string> {
-  return {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-    // Required by Vercel AI SDK `useChat` default stream parser.
-    'x-vercel-ai-ui-message-stream': 'v1',
-  };
-}
-
-async function runTextStream(agent: CascadeAgent, input: string | Message[], options: VercelAIChatHandlerOptions, signal?: AbortSignal) {
+async function runTextStream(
+  agent: CascadeAgent,
+  input: string | Message[],
+  options: VercelAIChatHandlerOptions,
+  signal?: AbortSignal
+) {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
@@ -90,11 +84,11 @@ async function runTextStream(agent: CascadeAgent, input: string | Message[], opt
             break;
           }
           if (event.type === StreamEventType.CHUNK) {
-            controller.enqueue(textEncode(event.content));
+            controller.enqueue(encodeUtf8(event.content));
           }
         }
       } catch (err: any) {
-        controller.enqueue(textEncode(`\n[error] ${err?.message ?? String(err)}`));
+        controller.enqueue(encodeUtf8(`\n[error] ${err?.message ?? String(err)}`));
       } finally {
         controller.close();
       }
@@ -102,28 +96,19 @@ async function runTextStream(agent: CascadeAgent, input: string | Message[], opt
   });
 }
 
-async function runVercelAIDataStream(agent: CascadeAgent, messages: Message[], options: VercelAIChatHandlerOptions, signal?: AbortSignal) {
-  const messageId = randomId('msg');
-  const textId = randomId('txt');
+async function runDataStream(
+  agent: CascadeAgent,
+  messages: Message[],
+  options: VercelAIChatHandlerOptions,
+  signal?: AbortSignal
+) {
+  const formatDataStreamPart = await getFormatDataStreamPart();
+  const messageId = `msg_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        controller.enqueue(sseEncode({ type: 'start', messageId }));
-        controller.enqueue(
-          sseEncode({
-            type: 'message',
-            message: {
-              id: messageId,
-              role: 'assistant',
-              content: [{ type: 'text', text: '' }],
-            },
-          })
-        );
-        controller.enqueue(sseEncode({ type: 'text-start', id: textId }));
-
-        let finishReason: string | undefined;
-        let usage: any | undefined;
+        controller.enqueue(encodeUtf8(formatDataStreamPart('start_step', { messageId })));
 
         for await (const event of agent.stream(messages, {
           systemPrompt: options.systemPrompt,
@@ -133,31 +118,28 @@ async function runVercelAIDataStream(agent: CascadeAgent, messages: Message[], o
           if (signal?.aborted) {
             break;
           }
+
           if (event.type === StreamEventType.CHUNK) {
-            controller.enqueue(sseEncode({ type: 'text-delta', id: textId, delta: event.content }));
-          } else if (event.type === StreamEventType.COMPLETE) {
-            // StreamEventData.result is not strongly typed; best effort extraction.
-            const result = event.data?.result ?? {};
-            finishReason = result.finishReason ?? result.finish_reason;
-            usage = result.usage ?? result.raw?.usage;
+            controller.enqueue(encodeUtf8(formatDataStreamPart('text', event.content)));
           } else if (event.type === StreamEventType.ERROR) {
-            controller.enqueue(sseEncode({ type: 'error', errorText: event.data?.error ?? 'Unknown error' }));
+            controller.enqueue(
+              encodeUtf8(formatDataStreamPart('error', event.data?.error ?? 'Unknown error'))
+            );
           }
         }
 
-        controller.enqueue(sseEncode({ type: 'text-end', id: textId }));
+        // cascadeflow does not currently expose token usage in stream results, so we omit it.
         controller.enqueue(
-          sseEncode({
-            type: 'finish',
-            finishReason: finishReason ?? 'stop',
-            ...(usage ? { usage } : {}),
-          })
+          encodeUtf8(formatDataStreamPart('finish_message', { finishReason: 'stop' }))
         );
-        controller.enqueue(sseDone());
+        controller.enqueue(
+          encodeUtf8(formatDataStreamPart('finish_step', { isContinued: false, finishReason: 'stop' }))
+        );
       } catch (err: any) {
-        controller.enqueue(sseEncode({ type: 'error', errorText: err?.message ?? String(err) }));
-        controller.enqueue(sseEncode({ type: 'finish', finishReason: 'error' }));
-        controller.enqueue(sseDone());
+        controller.enqueue(encodeUtf8(formatDataStreamPart('error', err?.message ?? String(err))));
+        controller.enqueue(
+          encodeUtf8(formatDataStreamPart('finish_message', { finishReason: 'error' }))
+        );
       } finally {
         controller.close();
       }
@@ -188,8 +170,8 @@ export function createChatHandler(
       return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
 
-    const stream = await runVercelAIDataStream(agent, messages, options, request.signal);
-    return new Response(stream, { headers: baseSseHeaders() });
+    const stream = await runDataStream(agent, messages, options, request.signal);
+    return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   };
 }
 
@@ -199,7 +181,7 @@ export function createCompletionHandler(
 ): (request: Request) => Promise<Response> {
   return async (request: Request) => {
     const body = (await request.json().catch(() => ({}))) as any;
-    const prompt = typeof body?.prompt === 'string' ? body.prompt : '';
+    const prompt = toTextPrompt(body);
 
     if (options.stream === false) {
       const result = await agent.run(prompt, {
@@ -218,7 +200,8 @@ export function createCompletionHandler(
 
     // Completion endpoint maps to a single user message.
     const messages: Message[] = [{ role: 'user', content: prompt }];
-    const stream = await runVercelAIDataStream(agent, messages, options, request.signal);
-    return new Response(stream, { headers: baseSseHeaders() });
+    const stream = await runDataStream(agent, messages, options, request.signal);
+    return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   };
 }
+
