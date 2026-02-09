@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import queue
+import secrets
 import threading
 import time
 from dataclasses import dataclass
@@ -30,6 +31,13 @@ class OpenClawOpenAIConfig:
     enable_classifier: bool = True
     default_domain_confidence: float = 0.8
     allow_streaming: bool = True
+    # Optional auth. If unset, server behaves as before (no auth), which is ideal for localhost.
+    auth_token: Optional[str] = None
+    # If unset, /stats uses auth_token when auth_token is set; otherwise /stats is public.
+    stats_auth_token: Optional[str] = None
+    # Request hardening (production-friendly defaults, should not break local usage).
+    max_body_bytes: int = 2_000_000
+    socket_timeout_s: float = 30.0
 
 
 class OpenClawOpenAIServer:
@@ -109,9 +117,36 @@ class OpenClawOpenAIServer:
 class OpenAIRequestHandler(BaseHTTPRequestHandler):
     server_version = "CascadeflowOpenAI/0.1"
 
+    def _get_presented_token(self) -> Optional[str]:
+        auth = self.headers.get("Authorization")
+        if isinstance(auth, str) and auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+            return token or None
+        api_key = self.headers.get("X-API-Key")
+        if isinstance(api_key, str) and api_key.strip():
+            return api_key.strip()
+        return None
+
+    def _require_auth(self, expected: Optional[str]) -> bool:
+        if not expected:
+            return True
+        presented = self._get_presented_token()
+        if isinstance(presented, str) and secrets.compare_digest(presented, expected):
+            return True
+        self._send_openai_error(
+            "Unauthorized",
+            status=401,
+            error_type="authentication_error",
+            extra_headers={"WWW-Authenticate": "Bearer"},
+        )
+        return False
+
     def do_GET(self) -> None:
         server: OpenClawOpenAIServer = self.server.openclaw_server  # type: ignore[attr-defined]
         if self.path.startswith("/stats"):
+            expected = server.config.stats_auth_token or server.config.auth_token
+            if not self._require_auth(expected):
+                return
             return self._handle_stats(server)
         if self.path == "/health":
             return self._send_json({"status": "ok"})
@@ -121,7 +156,24 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         server: OpenClawOpenAIServer = self.server.openclaw_server  # type: ignore[attr-defined]
+        if not self._require_auth(server.config.auth_token):
+            return
+
+        # Prevent slowloris and accidental huge requests.
+        try:
+            if server.config.socket_timeout_s:
+                self.connection.settimeout(server.config.socket_timeout_s)
+        except Exception:
+            pass  # pragma: no cover - best effort only
+
+        transfer_encoding = self.headers.get("Transfer-Encoding", "")
+        if isinstance(transfer_encoding, str) and transfer_encoding.lower().strip() == "chunked":
+            return self._send_openai_error("Chunked requests are not supported", status=400)
+
         length = int(self.headers.get("Content-Length", "0"))
+        if server.config.max_body_bytes and length > server.config.max_body_bytes:
+            return self._send_openai_error("Request too large", status=413)
+
         raw_body = self.rfile.read(length) if length else b""
         try:
             payload = json.loads(raw_body.decode("utf-8") or "{}")
@@ -361,24 +413,43 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         body = json.dumps(payload).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except BrokenPipeError:  # pragma: no cover - client disconnected
+            return
 
-    def _send_openai_error(self, message: str, status: int = 400) -> None:
+    def _send_openai_error(
+        self,
+        message: str,
+        status: int = 400,
+        error_type: str = "invalid_request_error",
+        extra_headers: Optional[dict[str, str]] = None,
+    ) -> None:
         body = {
             "error": {
                 "message": message,
-                "type": "invalid_request_error",
+                "type": error_type,
                 "code": None,
             }
         }
         encoded = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
-        self.wfile.write(encoded)
+        try:
+            self.wfile.write(encoded)
+        except BrokenPipeError:  # pragma: no cover - client disconnected
+            return
 
 
 def _run_agent(
@@ -500,6 +571,28 @@ def main() -> None:
         "--no-classifier", action="store_true", help="Disable pre-router classifier"
     )
     parser.add_argument("--no-stream", action="store_true", help="Disable streaming responses")
+    parser.add_argument(
+        "--auth-token",
+        default=None,
+        help="Optional shared secret. If set, require Authorization: Bearer <token> (or X-API-Key).",
+    )
+    parser.add_argument(
+        "--stats-auth-token",
+        default=None,
+        help="Optional separate token for GET /stats (defaults to --auth-token if set).",
+    )
+    parser.add_argument(
+        "--max-body-bytes",
+        type=int,
+        default=2_000_000,
+        help="Max request body size in bytes (default: 2000000).",
+    )
+    parser.add_argument(
+        "--socket-timeout",
+        type=float,
+        default=30.0,
+        help="Socket read timeout in seconds (default: 30).",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
@@ -520,6 +613,10 @@ def main() -> None:
             port=args.port,
             enable_classifier=not args.no_classifier,
             allow_streaming=not args.no_stream,
+            auth_token=args.auth_token,
+            stats_auth_token=args.stats_auth_token,
+            max_body_bytes=args.max_body_bytes,
+            socket_timeout_s=args.socket_timeout,
         ),
     )
     port = server.start()
