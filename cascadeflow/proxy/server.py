@@ -557,7 +557,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
-                metadata=_parse_metadata(payload.get("metadata")),
             )
         except Exception as exc:
             return self._send_openai_error(str(exc), status=500)
@@ -730,7 +729,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
-                metadata=_parse_metadata(payload.get("metadata")),
             )
         except Exception as exc:
             return self._send_anthropic_error(str(exc), status=500)
