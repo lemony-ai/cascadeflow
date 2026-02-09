@@ -50,6 +50,8 @@ Common options:
 - `--config /path/to/cascadeflow.yaml` (override models/channels via config file)
 - `--no-stream` to disable streaming
 - `--advertise-model gpt-4o-mini` (repeat to add more model IDs to `GET /v1/models` for clients that validate models)
+- `--env-file .env` to load provider keys (no extra dependencies)
+- `--cors-allow-origin https://your-app.example` or `--disable-cors`
 
 ### Mock mode (no keys needed)
 

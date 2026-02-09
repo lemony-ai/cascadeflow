@@ -27,9 +27,53 @@ def _has_any_provider_key() -> bool:
     )
 
 
+def _load_env_file(path: str, *, override: bool = False) -> None:
+    """
+    Minimal .env loader to keep the gateway CLI dependency-light.
+
+    Supports:
+    - KEY=value
+    - export KEY=value
+    - quoted values with single/double quotes
+    - ignores empty lines and comments starting with '#'
+    """
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError as exc:
+        raise SystemExit(f"Failed to read --env-file {path!r}: {exc}") from exc
+
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+
+        if not override and key in os.environ:
+            continue
+        os.environ[key] = value
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="cascadeflow gateway server (OpenAI/Anthropic compatible)"
+    )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Print cascadeflow version and exit",
     )
     parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8084, help="Bind port (default: 8084)")
@@ -38,6 +82,15 @@ def main() -> None:
         choices=("auto", "mock", "agent"),
         default="auto",
         help="auto=agent if keys/config present, else mock (default: auto)",
+    )
+    parser.add_argument(
+        "--env-file",
+        help="Optional .env file to load before starting the gateway (dependency-free parser).",
+    )
+    parser.add_argument(
+        "--env-override",
+        action="store_true",
+        help="Allow --env-file to override already-set environment variables.",
     )
     parser.add_argument(
         "--config",
@@ -53,6 +106,27 @@ def main() -> None:
         "--include-gateway-metadata",
         action="store_true",
         help="Include gateway debug metadata in JSON responses (optional; headers are always on by default).",
+    )
+    parser.add_argument(
+        "--no-gateway-headers",
+        action="store_true",
+        help="Disable X-Cascadeflow-* response headers.",
+    )
+    parser.add_argument(
+        "--cors-allow-origin",
+        default="*",
+        help="Value for Access-Control-Allow-Origin (default: '*').",
+    )
+    parser.add_argument(
+        "--disable-cors",
+        action="store_true",
+        help="Disable CORS headers entirely.",
+    )
+    parser.add_argument(
+        "--token-cost",
+        type=float,
+        default=ProxyConfig().token_cost,
+        help="Mock-mode token cost multiplier for cost tracking (default: %(default)s).",
     )
     parser.add_argument(
         "--advertise-model",
@@ -76,6 +150,15 @@ def main() -> None:
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
+
+    if args.version:
+        from cascadeflow import __version__
+
+        print(__version__)
+        return
+
+    if args.env_file:
+        _load_env_file(args.env_file, override=bool(args.env_override))
 
     mode = args.mode
     if mode == "auto":
@@ -120,6 +203,9 @@ def main() -> None:
             host=args.host,
             port=args.port,
             allow_streaming=not args.no_stream,
+            token_cost=float(args.token_cost),
+            cors_allow_origin=None if args.disable_cors else str(args.cors_allow_origin),
+            include_gateway_headers=not args.no_gateway_headers,
             include_gateway_metadata=bool(args.include_gateway_metadata),
             virtual_models=virtual_models,
         ),

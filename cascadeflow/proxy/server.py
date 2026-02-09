@@ -1256,7 +1256,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_header(
             "Access-Control-Allow-Headers",
             "Authorization, Content-Type, X-API-Key, anthropic-version, "
-            "OpenAI-Organization, OpenAI-Project",
+            "OpenAI-Organization, OpenAI-Project, X-Cascadeflow-Domain, X-Cascadeflow-Complexity, "
+            "X-Correlation-Id",
         )
         self.send_header(
             "Access-Control-Expose-Headers",

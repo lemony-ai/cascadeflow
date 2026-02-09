@@ -86,8 +86,14 @@ def test_gateway_cli_mock_e2e_with_metadata():
         "--port",
         "0",
         "--include-gateway-metadata",
+        "--cors-allow-origin",
+        "https://example.com",
+        "--token-cost",
+        "0",
         "--advertise-model",
         "gpt-4o-mini",
+        "--virtual-model",
+        "cascadeflow-auto=test-virtual",
     )
     try:
         base = f"http://127.0.0.1:{port}"
@@ -96,6 +102,7 @@ def test_gateway_cli_mock_e2e_with_metadata():
         assert health.status_code == 200
         assert health.headers.get("X-Cascadeflow-Gateway") == "cascadeflow"
         assert health.headers.get("X-Cascadeflow-Gateway-Mode") == "mock"
+        assert health.headers.get("Access-Control-Allow-Origin") == "https://example.com"
 
         models = httpx.get(f"{base}/v1/models", timeout=5.0)
         assert models.status_code == 200
@@ -113,7 +120,9 @@ def test_gateway_cli_mock_e2e_with_metadata():
         assert chat.status_code == 200
         assert chat.headers.get("X-Cascadeflow-Gateway-API") == "openai"
         payload = chat.json()
+        assert payload["model"] == "test-virtual"
         assert payload["choices"][0]["message"]["content"]
+        assert payload["cascadeflow"]["cost"] == 0.0
         assert payload["cascadeflow"]["gateway"]["endpoint"] == "chat.completions"
 
         anth = httpx.post(
@@ -133,5 +142,34 @@ def test_gateway_cli_mock_e2e_with_metadata():
         data = embed.json()
         assert len(data["data"]) == 2
         assert len(data["data"][0]["embedding"]) == 384
+    finally:
+        _stop_gateway(proc)
+
+
+def test_gateway_cli_mock_e2e_without_headers_or_cors():
+    proc, port = _start_gateway(
+        "--mode",
+        "mock",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "0",
+        "--no-gateway-headers",
+        "--disable-cors",
+    )
+    try:
+        base = f"http://127.0.0.1:{port}"
+
+        health = httpx.get(f"{base}/health", timeout=5.0)
+        assert health.status_code == 200
+        assert health.headers.get("X-Cascadeflow-Gateway") is None
+        assert health.headers.get("Access-Control-Allow-Origin") is None
+
+        chat = httpx.post(
+            f"{base}/v1/chat/completions",
+            json={"model": "cascadeflow", "messages": [{"role": "user", "content": "Hello"}]},
+            timeout=5.0,
+        )
+        assert chat.status_code == 200
     finally:
         _stop_gateway(proc)
