@@ -89,13 +89,13 @@ from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
-from .utils.messages import get_last_user_message, messages_to_prompt, normalize_messages
 
 # Streaming imports - BOTH managers (v2.4 FIX)
 from .streaming import StreamEvent, StreamEventType, StreamManager
 
 # Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
 from .telemetry import CallbackManager, CostCalculator, MetricsCollector
+from .utils.messages import get_last_user_message, messages_to_prompt, normalize_messages
 
 logger = logging.getLogger(__name__)
 

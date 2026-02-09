@@ -801,7 +801,7 @@ class ComplexityDetector:
         metadata["is_function_call"] = is_function_call
         if is_function_call:
             self.stats["function_call_detected"] = self.stats.get("function_call_detected", 0) + 1
-            logger.debug(f"v14: Function call format detected in query")
+            logger.debug("v14: Function call format detected in query")
 
         # 3. Detect technical terms
         tech_terms, domain_scores = self._detect_technical_terms(query_lower)
