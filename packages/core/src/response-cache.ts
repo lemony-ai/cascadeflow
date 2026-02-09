@@ -34,8 +34,27 @@
  * console.log(`Hit rate: ${stats.hitRate.toFixed(2)}`);
  * ```
  */
+/**
+ * Hash helper for cache keys.
+ *
+ * We intentionally avoid Node-only builtins (`crypto`) so that @cascadeflow/core
+ * can be bundled for Edge runtimes (e.g. Next.js `runtime = 'edge'`).
+ *
+ * FNV-1a 64-bit is fast, deterministic, and sufficiently collision-resistant
+ * for an in-memory LRU cache.
+ */
+function fnv1a64Hex(input: string): string {
+  let hash = 0xcbf29ce484222325n;
+  const prime = 0x100000001b3n;
 
-import { createHash } from 'crypto';
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= BigInt(input.charCodeAt(i));
+    hash = (hash * prime) & 0xffffffffffffffffn;
+  }
+
+  // 64-bit hex, fixed width.
+  return hash.toString(16).padStart(16, '0');
+}
 
 /**
  * Cache entry structure
@@ -212,8 +231,7 @@ export class ResponseCache {
     // Stringify with sorted keys
     const keyStr = JSON.stringify(keyData);
 
-    // Generate SHA-256 hash
-    return createHash('sha256').update(keyStr).digest('hex');
+    return fnv1a64Hex(keyStr);
   }
 
   /**
