@@ -25,6 +25,30 @@ export interface VercelAIChatHandlerOptions {
 
 type DataStreamFormatter = <T extends string>(type: T, value: any) => string;
 
+type UIMessageWriter = {
+  write: (chunk: any) => void;
+};
+
+type UIMessageStreamFactory = (options: { execute: (args: { writer: UIMessageWriter }) => Promise<void> | void; onError?: (error: unknown) => string }) => ReadableStream<any>;
+type UIMessageStreamResponseFactory = (options: { stream: ReadableStream<any>; status?: number; statusText?: string; headers?: any }) => Response;
+
+async function tryGetUiStreamFactories(): Promise<{
+  createUIMessageStream: UIMessageStreamFactory;
+  createUIMessageStreamResponse: UIMessageStreamResponseFactory;
+} | null> {
+  try {
+    const mod = await import('ai');
+    const createUIMessageStream = (mod as any).createUIMessageStream;
+    const createUIMessageStreamResponse = (mod as any).createUIMessageStreamResponse;
+    if (typeof createUIMessageStream === 'function' && typeof createUIMessageStreamResponse === 'function') {
+      return { createUIMessageStream, createUIMessageStreamResponse };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function getFormatDataStreamPart(): Promise<DataStreamFormatter> {
   // `ai` is an optional peer for @cascadeflow/core.
   // For Vercel AI SDK integrations it will be installed, and using its formatter
@@ -102,6 +126,36 @@ async function runDataStream(
   options: VercelAIChatHandlerOptions,
   signal?: AbortSignal
 ) {
+  // AI SDK v5+ prefers UI Message Streams (SSE + start/delta/end chunks).
+  const uiFactories = await tryGetUiStreamFactories();
+  if (uiFactories) {
+    const { createUIMessageStream } = uiFactories;
+    const textId = `txt_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
+    return createUIMessageStream({
+      onError: (err) => (err instanceof Error ? err.message : String(err)),
+      async execute({ writer }) {
+        writer.write({ type: 'text-start', id: textId });
+        try {
+          for await (const event of agent.stream(messages, {
+            systemPrompt: options.systemPrompt,
+            maxTokens: options.maxTokens,
+            temperature: options.temperature,
+          })) {
+            if (signal?.aborted) {
+              break;
+            }
+            if (event.type === StreamEventType.CHUNK) {
+              writer.write({ type: 'text-delta', id: textId, delta: event.content });
+            }
+          }
+        } finally {
+          writer.write({ type: 'text-end', id: textId });
+        }
+      },
+    });
+  }
+
+  // AI SDK v4 fallback: "data" stream protocol (newline-delimited parts).
   const formatDataStreamPart = await getFormatDataStreamPart();
   const messageId = `msg_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
 
@@ -128,18 +182,13 @@ async function runDataStream(
           }
         }
 
-        // cascadeflow does not currently expose token usage in stream results, so we omit it.
-        controller.enqueue(
-          encodeUtf8(formatDataStreamPart('finish_message', { finishReason: 'stop' }))
-        );
+        controller.enqueue(encodeUtf8(formatDataStreamPart('finish_message', { finishReason: 'stop' })));
         controller.enqueue(
           encodeUtf8(formatDataStreamPart('finish_step', { isContinued: false, finishReason: 'stop' }))
         );
       } catch (err: any) {
         controller.enqueue(encodeUtf8(formatDataStreamPart('error', err?.message ?? String(err))));
-        controller.enqueue(
-          encodeUtf8(formatDataStreamPart('finish_message', { finishReason: 'error' }))
-        );
+        controller.enqueue(encodeUtf8(formatDataStreamPart('finish_message', { finishReason: 'error' })));
       } finally {
         controller.close();
       }
@@ -170,7 +219,12 @@ export function createChatHandler(
       return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
 
+    // Prefer UI message stream response when available (AI SDK v5+).
+    const uiFactories = await tryGetUiStreamFactories();
     const stream = await runDataStream(agent, messages, options, request.signal);
+    if (uiFactories) {
+      return uiFactories.createUIMessageStreamResponse({ stream });
+    }
     return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   };
 }
@@ -200,8 +254,11 @@ export function createCompletionHandler(
 
     // Completion endpoint maps to a single user message.
     const messages: Message[] = [{ role: 'user', content: prompt }];
+    const uiFactories = await tryGetUiStreamFactories();
     const stream = await runDataStream(agent, messages, options, request.signal);
+    if (uiFactories) {
+      return uiFactories.createUIMessageStreamResponse({ stream });
+    }
     return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   };
 }
-
