@@ -291,6 +291,11 @@ test_semantic_*.py
 test_milestone*.py
 comprehensive_test.py
 
+# Local demos and packaged artifacts (keep out of main)
+investor-demo/
+investor-demo-claude/
+investor-demo-codex/
+
 # ============================================================================
 # BENCHMARK RESULTS (keep scripts, ignore outputs)
 # ============================================================================
