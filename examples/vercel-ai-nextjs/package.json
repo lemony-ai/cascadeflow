@@ -1,0 +1,23 @@
+{
+  "name": "cascadeflow-vercel-ai-nextjs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@ai-sdk/react": "^3.0.0",
+    "@cascadeflow/core": "file:../../packages/core",
+    "ai": "^6.0.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.13",
+    "typescript": "5.9.3"
+  }
+}

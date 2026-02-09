@@ -81,13 +81,6 @@ export const VERCEL_AI_PROVIDER_SPECS: Record<string, VercelAISDKProviderSpec> =
     apiKeyEnv: 'TOGETHER_API_KEY',
     requiresApiKey: true,
   },
-  openrouter: {
-    packageName: '@ai-sdk/openrouter',
-    exportName: 'openrouter',
-    createExportName: 'createOpenRouter',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
-    requiresApiKey: true,
-  },
   perplexity: {
     packageName: '@ai-sdk/perplexity',
     exportName: 'perplexity',
@@ -110,9 +103,15 @@ export const VERCEL_AI_PROVIDER_SPECS: Record<string, VercelAISDKProviderSpec> =
     requiresApiKey: true,
   },
   bedrock: {
-    packageName: '@ai-sdk/bedrock',
+    packageName: '@ai-sdk/amazon-bedrock',
     exportName: 'bedrock',
-    createExportName: 'createBedrock',
+    createExportName: 'createAmazonBedrock',
+    requiresApiKey: false,
+  },
+  vertex: {
+    packageName: '@ai-sdk/google-vertex',
+    exportName: 'vertex',
+    createExportName: 'createVertex',
     requiresApiKey: false,
   },
   replicate: {
@@ -128,13 +127,6 @@ export const VERCEL_AI_PROVIDER_SPECS: Record<string, VercelAISDKProviderSpec> =
     createExportName: 'createDeepSeek',
     apiKeyEnv: 'DEEPSEEK_API_KEY',
     requiresApiKey: true,
-  },
-  ollama: {
-    packageName: '@ai-sdk/ollama',
-    exportName: 'ollama',
-    createExportName: 'createOllama',
-    requiresApiKey: false,
-    supportsBaseUrl: true,
   },
   cerebras: {
     packageName: '@ai-sdk/cerebras',

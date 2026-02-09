@@ -60,6 +60,31 @@ const agent = new CascadeAgent({
 
 > **Note:** For Vercel AI SDK providers, install the matching `@ai-sdk/*` package and set the provider-specific API key (for example `PERPLEXITY_API_KEY` for Perplexity).
 
+#### Next.js `useChat` (Vercel AI SDK UI)
+
+If you want to use **Vercel AI SDK UI hooks** (for example `useChat`) with cascadeflow, you can return a Vercel AI SDK-compatible stream from your route handler. The handler defaults to the AI SDK v4 **data stream** protocol and automatically uses the **UI message stream** when available on newer AI SDK versions.
+
+```ts
+import { CascadeAgent, VercelAI } from '@cascadeflow/core';
+
+export const runtime = 'edge';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: process.env.OPENAI_API_KEY },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625, apiKey: process.env.OPENAI_API_KEY },
+  ],
+});
+
+const handler = VercelAI.createChatHandler(agent);
+
+export async function POST(req: Request) {
+  return handler(req);
+}
+```
+
+See the full example in `examples/vercel-ai-nextjs/`.
+
 ### 1. OpenAI
 
 **Models**: GPT-4o, GPT-4o-mini, GPT-4 Turbo

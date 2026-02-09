@@ -71,6 +71,9 @@ export interface RunOptions {
   /** Tools/functions available */
   tools?: Tool[];
 
+  /** Provider-specific options forwarded to the provider (e.g. OpenAI `tool_choice`) */
+  extra?: Record<string, any>;
+
   /** Force direct execution (skip cascade) */
   forceDirect?: boolean;
 
@@ -685,6 +688,7 @@ export class CascadeAgent {
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
+          extra: options.extra,
         });
 
         modelUsed = response.model;
@@ -744,6 +748,7 @@ export class CascadeAgent {
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
+        extra: options.extra,
       });
 
       draftLatency = Date.now() - draftStart;
@@ -825,14 +830,15 @@ export class CascadeAgent {
           verifierModelConfig
         );
 
-        const verifierResponse = await verifierProvider.generate({
-          messages,
-          model: verifierModelConfig.name,
-          maxTokens: maxTokens,
-          temperature: options.temperature,
-          systemPrompt: options.systemPrompt,
-          tools: options.tools,
-        });
+      const verifierResponse = await verifierProvider.generate({
+        messages,
+        model: verifierModelConfig.name,
+        maxTokens: maxTokens,
+        temperature: options.temperature,
+        systemPrompt: options.systemPrompt,
+        tools: options.tools,
+        extra: options.extra,
+      });
 
         verifierLatency = Date.now() - verifierStart;
         verifierModel = verifierResponse.model;
@@ -1165,6 +1171,7 @@ export class CascadeAgent {
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
+          extra: options.extra,
         })) {
           directContent += chunk.content;
 
@@ -1176,6 +1183,7 @@ export class CascadeAgent {
             model: bestModelConfig.name,
             phase: 'direct',
             provider: bestModelConfig.provider,
+            tool_calls: chunk.tool_calls,
           });
 
           if (chunk.done) {
@@ -1244,6 +1252,7 @@ export class CascadeAgent {
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
+        extra: options.extra,
       })) {
         draftContent += chunk.content;
 
@@ -1262,6 +1271,7 @@ export class CascadeAgent {
           model: draftModel,
           phase: 'draft',
           provider: draftModelConfig.provider,
+          tool_calls: chunk.tool_calls,
         });
 
         if (chunk.done) {
@@ -1382,6 +1392,7 @@ export class CascadeAgent {
             temperature: options.temperature,
             systemPrompt: options.systemPrompt,
             tools: options.tools,
+            extra: options.extra,
           })) {
             verifierContent += chunk.content;
 
@@ -1395,6 +1406,7 @@ export class CascadeAgent {
               model: verifierModel,
               phase: 'verifier',
               provider: verifierModelConfig.provider,
+              tool_calls: chunk.tool_calls,
             });
 
             if (chunk.done) {
@@ -1572,7 +1584,7 @@ export class CascadeAgent {
    * - Complete result with costs and metadata
    * - Tool support with automatic routing
    *
-   * @param query - User query to process
+   * @param input - User query to process (string or message array)
    * @param options - Streaming options
    * @returns Complete CascadeResult with all metadata
    *
@@ -1639,7 +1651,7 @@ export class CascadeAgent {
    * - IF tools provided → ToolStreamManager (handles tool calls)
    * - ELSE → StreamManager (standard text streaming)
    *
-   * @param query - User query to process
+   * @param input - User query to process (string or message array)
    * @param options - Streaming options
    * @yields StreamEvent objects with type, content, and data
    *
@@ -1658,12 +1670,12 @@ export class CascadeAgent {
    * ```
    */
   async *streamEvents(
-    query: string,
+    input: string | Message[],
     options: StreamEventsOptions = {}
   ): AsyncIterable<StreamEvent> {
     // TODO: Full implementation with StreamManager/ToolStreamManager in future milestone
     // For now, delegate to existing runStream
-    for await (const event of this.runStream(query, options)) {
+    for await (const event of this.runStream(input, options)) {
       yield event;
     }
   }
@@ -1674,7 +1686,7 @@ export class CascadeAgent {
    * This is a simpler alias for streamEvents() that matches the documented API.
    * Use this method for most streaming needs.
    *
-   * @param prompt - User query or prompt
+   * @param input - User query to process (string or message array)
    * @param options - Streaming options
    * @yields StreamEvent objects with incremental content
    *
@@ -1690,11 +1702,11 @@ export class CascadeAgent {
    * ```
    */
   async *stream(
-    prompt: string,
+    input: string | Message[],
     options: StreamOptions = {}
   ): AsyncIterable<StreamEvent> {
     // Simple alias that delegates to streamEvents
-    for await (const event of this.streamEvents(prompt, options)) {
+    for await (const event of this.streamEvents(input, options)) {
       yield event;
     }
   }
