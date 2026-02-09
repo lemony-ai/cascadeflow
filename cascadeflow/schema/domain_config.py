@@ -219,22 +219,22 @@ BUILTIN_DOMAIN_CONFIGS: dict[str, DomainConfig] = {
         description="Math reasoning with 8-shot CoT (GSM8K: 93.6% accuracy, 98.2% draft acceptance)",
     ),
     DOMAIN_MEDICAL: DomainConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - better accuracy ($0.25/M)
-        verifier="claude-opus-4-5-20251101",  # Highest accuracy needed
-        threshold=0.95,
+        drafter="gpt-5-mini",
+        verifier="gpt-5",  # Use consistent verifier, cascade handles quality
+        threshold=0.70,  # Lowered - cascade will verify if needed
         validation_method=DomainValidationMethod.FACT,
         temperature=0.1,
-        require_verifier=True,  # Always verify medical content
-        description="High-accuracy medical responses with mandatory Opus 4.5 verification",
+        require_verifier=False,  # Let cascade decide
+        description="Medical domain with cascade verification",
     ),
     DOMAIN_LEGAL: DomainConfig(
-        drafter="gpt-5-mini",  # GPT-5 Mini - better accuracy ($0.25/M)
-        verifier="claude-opus-4-5-20251101",  # Best reasoning for legal
-        threshold=0.90,
+        drafter="gpt-5-mini",
+        verifier="gpt-5",  # Use consistent verifier
+        threshold=0.70,  # Lowered - cascade will verify if needed
         validation_method=DomainValidationMethod.FACT,
         temperature=0.2,
-        require_verifier=True,  # Legal requires high accuracy
-        description="Legal domain with Opus 4.5 fact-checking",
+        require_verifier=False,  # Let cascade decide
+        description="Legal domain with cascade verification",
     ),
     DOMAIN_FINANCIAL: DomainConfig(
         drafter="gpt-5-mini",  # GPT-5 Mini - strong at calculations ($0.25/M)
