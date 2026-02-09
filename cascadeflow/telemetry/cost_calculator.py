@@ -823,18 +823,26 @@ class CostCalculator:
         try:
             from cascadeflow.integrations.litellm import LITELLM_AVAILABLE, LiteLLMCostProvider
 
+            # If only total tokens are known, approximate a split for cost estimation.
+            in_tokens = input_tokens
+            out_tokens = output_tokens
+            if (in_tokens == 0 and out_tokens == 0) and tokens:
+                # Typical prompt/response split; used only for cost estimation fallback.
+                in_tokens = int(tokens * 0.3)
+                out_tokens = max(0, int(tokens) - in_tokens)
+
             if (LITELLM_AVAILABLE or getattr(model, "cost", None) == 0) and (
-                input_tokens > 0 or output_tokens > 0
+                in_tokens > 0 or out_tokens > 0
             ):
                 provider = LiteLLMCostProvider()
                 cost = provider.calculate_cost(
                     model=model.name,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
+                    input_tokens=in_tokens,
+                    output_tokens=out_tokens,
                 )
                 if self.verbose:
                     logger.debug(
-                        f"LiteLLM cost for {model.name}: ${cost:.6f} ({input_tokens} in, {output_tokens} out)"
+                        f"LiteLLM cost for {model.name}: ${cost:.6f} ({in_tokens} in, {out_tokens} out)"
                     )
                 return cost
         except Exception as e:
