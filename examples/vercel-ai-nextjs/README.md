@@ -10,6 +10,11 @@ pnpm install
 pnpm dev
 ```
 
+## Requirements
+
+- `ai` + `@ai-sdk/react` already in your app (this example includes them).
+- Any provider keys you want to use (for example `OPENAI_API_KEY`).
+
 ## Environment Variables
 
 ```bash
@@ -21,4 +26,3 @@ export ANTHROPIC_API_KEY=...
 
 - `app/api/chat/route.ts` uses `VercelAI.createChatHandler(...)` with `protocol: 'data'` to return the Vercel AI SDK **UI message stream** SSE protocol (default for `useChat`).
 - `app/page.tsx` uses `useChat({ api: '/api/chat' })`.
-

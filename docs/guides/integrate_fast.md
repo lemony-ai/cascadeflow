@@ -2,7 +2,7 @@
 
 This guide is optimized for teams who already have an app (Next.js, an agent, or an API route) and want to try cascadeflow with minimal change.
 
-## Option 1: Next.js `useChat` Drop-In (Vercel AI SDK)
+## Option 1 (Recommended): Next.js `useChat` Drop-In (Vercel AI SDK)
 
 Best when you already use Vercel AI SDK UI hooks like `useChat`.
 
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
 Why it’s fast:
 - No provider rewrite.
-- Compatible with `useChat` default `streamProtocol: 'data'`.
+- Compatible with `useChat` default `streamProtocol: 'data'` (AI SDK v4). On newer AI SDK versions, the handler automatically uses the UI message stream when available.
 
 See: `examples/vercel-ai-nextjs/`.
 
@@ -74,4 +74,3 @@ console.log(result.content);
 - The `useChat` integration streams text via the Vercel AI SDK **data stream** protocol.
 - Token usage is not currently emitted in the stream (cascadeflow doesn’t expose it mid-stream yet).
 - Tool-call streaming in the UI protocol is not implemented yet (works best for text-first chat).
-

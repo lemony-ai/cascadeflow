@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@cascadeflow/core": "file:../../packages/core",
-    "@ai-sdk/react": "^2.0.0",
-    "ai": "^5.0.0",
+    "@ai-sdk/react": "^3.0.0",
+    "ai": "^6.0.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
