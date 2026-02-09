@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -190,3 +192,28 @@ def test_openai_base_url_without_v1(proxy_server):
 
     response = httpx.post(url, json=payload, timeout=5.0)
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_concurrent_requests_cost_tracking(proxy_server):
+    proxy, cost_tracker = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/chat/completions"
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+
+        async def _one(i: int) -> float:
+            payload = {
+                "model": "cascadeflow-auto",
+                "messages": [{"role": "user", "content": f"Hello concurrent {i}"}],
+            }
+            resp = await client.post(url, json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            return float(data["cascadeflow"]["cost"])
+
+        n = 40
+        costs = await asyncio.gather(*[_one(i) for i in range(n)])
+
+    assert len(costs) == n
+    assert len(cost_tracker.entries) == n
+    assert cost_tracker.total_cost == pytest.approx(sum(costs), rel=1e-9, abs=1e-9)
