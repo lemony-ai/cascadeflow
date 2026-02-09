@@ -7,7 +7,7 @@ OpenClaw code changes.
 ## 1) Start the Cascadeflow OpenAI server
 
 ```bash
-python -m cascadeflow.integrations.openclaw.openai_server --port 8084
+python -m cascadeflow.server --mode agent --port 8084
 ```
 
 Common options:
@@ -15,6 +15,12 @@ Common options:
 - `--config /path/to/cascadeflow.yaml` (override models + channels via config file)
 - `--no-classifier` to disable the OpenClaw pre-router classifier
 - `--no-stream` to disable streaming responses
+
+Compatibility:
+```bash
+# Legacy entrypoint (still supported)
+python -m cascadeflow.integrations.openclaw.openai_server --port 8084
+```
 
 ## 2) Configure OpenClaw custom provider
 
