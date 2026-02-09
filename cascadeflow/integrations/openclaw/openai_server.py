@@ -375,6 +375,22 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         future = server.submit_coroutine(_produce())
 
+        initial_chunk = {
+            "id": "chatcmpl-cascadeflow",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": ""},
+                    "finish_reason": None,
+                }
+            ],
+        }
+        self.wfile.write(f"data: {json.dumps(initial_chunk)}\n\n".encode())
+        self.wfile.flush()
+
         while True:
             item = event_queue.get()
             if item is sentinel:
@@ -405,6 +421,22 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         if "error" in error_box:
             self.log_error("Streaming error: %s", error_box["error"])
+
+        final_chunk = {
+            "id": "chatcmpl-cascadeflow",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {},
+                    "finish_reason": "stop",
+                }
+            ],
+        }
+        self.wfile.write(f"data: {json.dumps(final_chunk)}\n\n".encode())
+        self.wfile.flush()
 
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
