@@ -54,6 +54,9 @@ dependencies = [
     "rich>=13.0.0",
 ]
 
+[project.scripts]
+cascadeflow-gateway = "cascadeflow.server:main"
+
 [project.optional-dependencies]
 # Individual providers (API-based - require API keys)
 openai = ["openai>=1.0.0"]

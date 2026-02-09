@@ -1,16 +1,28 @@
 """
-Minimal routing proxy for cascadeflow.
+Minimal HTTP gateway for cascadeflow-compatible APIs.
 
-Provides OpenAI- and Anthropic-compatible endpoints for local testing and validation:
-- POST /v1/chat/completions (OpenAI format)
-- POST /v1/messages (Anthropic format)
+Goals:
+- "Ship tomorrow" developer experience: run locally, point existing OpenAI/Anthropic clients at it.
+- Dependency-light: uses `http.server` (no FastAPI/Flask required).
 
-This implementation is intentionally lightweight and dependency-free.
+Modes:
+- Mock mode (default): deterministic local responses (no API keys required).
+- Agent mode: if an `agent` is provided, route requests through `agent.run()` and
+  optionally `agent.stream_events()` (OpenAI-style streaming).
+
+Endpoints:
+- POST /v1/chat/completions  (OpenAI-compatible)
+- POST /v1/messages          (Anthropic-compatible)
+- GET  /health
+- GET  /stats                (best-effort: `agent.telemetry.export_to_dict()` if available)
 """
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
+import queue
 import threading
 import time
 from dataclasses import dataclass, field
@@ -22,10 +34,11 @@ from cascadeflow.telemetry.cost_tracker import CostTracker
 
 @dataclass
 class ProxyConfig:
-    """Configuration for the routing proxy."""
+    """Configuration for the gateway server."""
 
     host: str = "127.0.0.1"
     port: int = 0
+    allow_streaming: bool = True
     token_cost: float = 0.00001
     virtual_models: dict[str, str] = field(
         default_factory=lambda: {
@@ -38,20 +51,24 @@ class ProxyConfig:
 
 
 class RoutingProxy:
-    """Lightweight routing proxy with OpenAI and Anthropic endpoints."""
+    """HTTP server exposing OpenAI and Anthropic endpoints."""
 
     def __init__(
         self,
         config: ProxyConfig | None = None,
         cost_tracker: CostTracker | None = None,
+        agent: Any | None = None,
     ) -> None:
         self.config = config or ProxyConfig()
         self.cost_tracker = cost_tracker or CostTracker()
+        self.agent = agent
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._loop_thread: threading.Thread | None = None
 
     def start(self) -> int:
-        """Start the proxy server. Returns the bound port."""
+        """Start the server. Returns the bound port."""
         if self._server:
             return self.port
 
@@ -65,13 +82,20 @@ class RoutingProxy:
         return self.port
 
     def stop(self) -> None:
-        """Stop the proxy server."""
+        """Stop the server."""
         if not self._server:
             return
         self._server.shutdown()
         self._server.server_close()
         self._server = None
         self._thread = None
+
+        if self._loop:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            if self._loop_thread:
+                self._loop_thread.join(timeout=1)
+            self._loop = None
+            self._loop_thread = None
 
     @property
     def host(self) -> str:
@@ -89,22 +113,63 @@ class RoutingProxy:
             return self.config.virtual_models[model]
         return model if model else None
 
+    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop and self._loop.is_running():
+            return self._loop
+
+        loop = asyncio.new_event_loop()
+
+        def _run_loop() -> None:
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        thread = threading.Thread(target=_run_loop, daemon=True)
+        thread.start()
+        self._loop = loop
+        self._loop_thread = thread
+        return loop
+
+    def run_coroutine(self, coro):
+        loop = self._ensure_loop()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()
+
+    def submit_coroutine(self, coro):
+        loop = self._ensure_loop()
+        return asyncio.run_coroutine_threadsafe(coro, loop)
+
+    def _agent_query(self, messages: list[dict[str, Any]]) -> str:
+        try:
+            from cascadeflow.utils.messages import get_last_user_message
+
+            return get_last_user_message(messages) or self.extract_prompt_text(messages)
+        except Exception:
+            return self.extract_prompt_text(messages)
+
+    def _maybe_call_agent(self, func_name: str, **kwargs):
+        if not self.agent or not hasattr(self.agent, func_name):
+            raise RuntimeError(f"Agent does not support '{func_name}'")
+        fn = getattr(self.agent, func_name)
+        result = fn(**kwargs)
+        if inspect.isawaitable(result):
+            return self.run_coroutine(result)
+        return result
+
+    # ---------------------------------------------------------------------
+    # Mock mode helpers (used when agent is None)
+    # ---------------------------------------------------------------------
+
     def decide_draft_acceptance(self, prompt: str) -> bool:
-        """Simulate draft acceptance based on prompt heuristics."""
         lowered = prompt.lower()
         return not any(keyword in lowered for keyword in ("hard", "complex", "difficult"))
 
     def build_response_text(self, prompt: str) -> str:
-        """Generate a deterministic response string."""
         return f"Proxy response: {prompt.strip()[:80]}".strip()
 
     def estimate_tokens(self, text: str) -> int:
-        """Estimate token count using a simple word heuristic."""
-        words = [w for w in text.split() if w]
-        return len(words)
+        return len([w for w in text.split() if w])
 
     def extract_prompt_text(self, messages: list[dict[str, Any]]) -> str:
-        """Extract text content from a list of message objects."""
         parts: list[str] = []
         for message in messages:
             content = message.get("content", "")
@@ -146,10 +211,228 @@ class RoutingProxy:
         return cost
 
 
-class ProxyRequestHandler(BaseHTTPRequestHandler):
-    """HTTP handler for the routing proxy."""
+def _parse_metadata(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, dict):
+            return dict(parsed)
+    return {}
 
-    server_version = "CascadeFlowProxy/0.1"
+
+def _normalize_result_metadata(result: Any) -> dict[str, Any]:
+    meta: dict[str, Any] = {}
+    if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+        meta = dict(result.metadata)
+
+    # Stable minimal contract for clients.
+    meta.setdefault("draft_accepted", bool(getattr(result, "draft_accepted", False)))
+    meta.setdefault("quality_score", getattr(result, "quality_score", None))
+    meta.setdefault("complexity", getattr(result, "complexity", None))
+
+    if "cascade_overhead" not in meta:
+        overhead = meta.get("cascade_overhead_ms")
+        if overhead is None:
+            overhead = getattr(result, "cascade_overhead_ms", None)
+        meta["cascade_overhead"] = 0 if overhead is None else overhead
+
+    return meta
+
+
+def _build_openai_response(model: str, result: Any) -> dict[str, Any]:
+    meta = _normalize_result_metadata(result)
+
+    prompt_tokens = meta.get("prompt_tokens")
+    completion_tokens = meta.get("completion_tokens")
+    total_tokens = meta.get("total_tokens")
+    tool_calls = meta.get("tool_calls")
+
+    if total_tokens is None:
+        prompt_tokens = prompt_tokens or 0
+        completion_tokens = completion_tokens or 0
+        total_tokens = prompt_tokens + completion_tokens
+
+    message: dict[str, Any] = {"role": "assistant", "content": getattr(result, "content", "")}
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+
+    finish_reason = "tool_calls" if tool_calls else "stop"
+
+    return {
+        "id": "chatcmpl-cascadeflow",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+        },
+        "cascadeflow": {
+            "model_used": getattr(result, "model_used", None),
+            "metadata": meta,
+        },
+    }
+
+
+def _build_anthropic_response(model: str, result: Any) -> dict[str, Any]:
+    meta = _normalize_result_metadata(result)
+    input_tokens = meta.get("prompt_tokens", meta.get("input_tokens", 0)) or 0
+    output_tokens = meta.get("completion_tokens", meta.get("output_tokens", 0)) or 0
+
+    content_blocks: list[dict[str, Any]] = []
+    text = getattr(result, "content", "")
+    if isinstance(text, str) and text:
+        content_blocks.append({"type": "text", "text": text})
+
+    # Best-effort: translate OpenAI-style tool_calls to Anthropic tool_use blocks.
+    tool_calls = meta.get("tool_calls")
+    if isinstance(tool_calls, list):
+        for idx, call in enumerate(tool_calls):
+            if not isinstance(call, dict):
+                continue
+            call_id = call.get("id") or f"toolu_{idx}"
+            fn = call.get("function") if isinstance(call.get("function"), dict) else None
+            name = (fn.get("name") if fn else None) or call.get("name")
+            if not isinstance(name, str) or not name:
+                continue
+
+            args: Any = {}
+            raw_args = fn.get("arguments") if fn else None
+            if isinstance(raw_args, str) and raw_args.strip():
+                try:
+                    args = json.loads(raw_args)
+                except json.JSONDecodeError:
+                    args = {"raw": raw_args}
+            elif isinstance(raw_args, dict):
+                args = raw_args
+
+            content_blocks.append({"type": "tool_use", "id": call_id, "name": name, "input": args})
+
+    return {
+        "id": "msg_cascadeflow",
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": content_blocks,
+        "stop_reason": "tool_use" if tool_calls else "end_turn",
+        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+        "cascadeflow": {"model_used": getattr(result, "model_used", None), "metadata": meta},
+    }
+
+
+def _extract_openai_tools(
+    payload: dict[str, Any]
+) -> tuple[list[dict[str, Any]] | None, str | None]:
+    tools_payload = payload.get("tools")
+    if tools_payload is None and isinstance(payload.get("functions"), list):
+        tools_payload = [
+            {"type": "function", "function": func}
+            for func in payload.get("functions", [])
+            if isinstance(func, dict)
+        ]
+
+    tool_choice_value = payload.get("tool_choice")
+    tool_choice: str | None = None
+    if isinstance(tool_choice_value, str):
+        tool_choice = tool_choice_value
+    elif isinstance(tool_choice_value, dict):
+        fn = (
+            tool_choice_value.get("function")
+            if isinstance(tool_choice_value.get("function"), dict)
+            else None
+        )
+        name = fn.get("name") if fn else None
+        if isinstance(name, str) and name:
+            tool_choice = name
+
+    if tool_choice is None and "function_call" in payload:
+        legacy_choice = payload.get("function_call")
+        if isinstance(legacy_choice, str):
+            tool_choice = legacy_choice
+        elif isinstance(legacy_choice, dict):
+            name = legacy_choice.get("name")
+            if isinstance(name, str) and name:
+                tool_choice = name
+
+    if tools_payload is None:
+        return None, tool_choice
+
+    try:
+        from cascadeflow.tools.formats import normalize_tools
+
+        return normalize_tools(tools_payload), tool_choice
+    except Exception:
+        return tools_payload, tool_choice
+
+
+def _anthropic_content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+            elif isinstance(item, str):
+                parts.append(item)
+        return " ".join(p for p in parts if p).strip()
+    return ""
+
+
+def _anthropic_payload_to_openai_messages(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+
+    system_value = payload.get("system")
+    if system_value is not None:
+        system_text = _anthropic_content_to_text(system_value)
+        if system_text:
+            messages.append({"role": "system", "content": system_text})
+
+    raw_messages = payload.get("messages", [])
+    if isinstance(raw_messages, list):
+        for msg in raw_messages:
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role")
+            if role not in {"user", "assistant"}:
+                continue
+            content = _anthropic_content_to_text(msg.get("content"))
+            messages.append({"role": role, "content": content})
+
+    return messages
+
+
+class ProxyRequestHandler(BaseHTTPRequestHandler):
+    server_version = "CascadeFlowGateway/0.1"
+
+    def do_GET(self) -> None:
+        proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
+
+        if self.path == "/health":
+            return self._send_json({"status": "ok"})
+
+        if self.path.startswith("/stats"):
+            telemetry = getattr(proxy.agent, "telemetry", None) if proxy.agent else None
+            if telemetry is None or not hasattr(telemetry, "export_to_dict"):
+                self.send_response(404)
+                self.end_headers()
+                return
+            try:
+                payload = telemetry.export_to_dict()
+            except Exception as exc:
+                return self._send_openai_error(f"Metrics export failed: {exc}", status=500)
+            return self._send_json(payload)
+
+        self.send_response(404)
+        self.end_headers()
 
     def do_POST(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
@@ -163,6 +446,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/v1/chat/completions":
             self._handle_openai(proxy, payload)
             return
+
         if self.path == "/v1/messages":
             self._handle_anthropic(proxy, payload)
             return
@@ -170,7 +454,16 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+    # ------------------------------------------------------------------
+    # OpenAI endpoint
+    # ------------------------------------------------------------------
+
     def _handle_openai(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
+        if proxy.agent is not None:
+            return self._handle_openai_agent(proxy, payload)
+        return self._handle_openai_mock(proxy, payload)
+
+    def _handle_openai_mock(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
         model = payload.get("model", "")
         resolved = proxy.resolve_model(model)
         if not resolved:
@@ -222,10 +515,137 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 "cost": cost,
             },
         }
-
         self._send_json(response)
 
+    def _handle_openai_agent(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
+        messages = payload.get("messages", [])
+        if not isinstance(messages, list) or not messages:
+            return self._send_openai_error("Messages are required", status=400)
+
+        model = payload.get("model", "cascadeflow")
+        if not isinstance(model, str) or not model:
+            model = "cascadeflow"
+
+        temperature = payload.get("temperature", 0.7)
+        max_tokens = payload.get("max_tokens")
+        if max_tokens is None:
+            max_tokens = payload.get("max_completion_tokens", 100)
+
+        tools, tool_choice = _extract_openai_tools(payload)
+
+        if payload.get("stream"):
+            if not proxy.config.allow_streaming:
+                return self._send_openai_error("Streaming not enabled", status=400)
+            if not hasattr(proxy.agent, "stream_events"):
+                return self._send_openai_error("Streaming not supported by agent", status=400)
+            return self._send_openai_agent_stream(
+                proxy,
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+            )
+
+        try:
+            result = proxy._maybe_call_agent(
+                "run",
+                query=proxy._agent_query(messages),
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+                metadata=_parse_metadata(payload.get("metadata")),
+            )
+        except Exception as exc:
+            return self._send_openai_error(str(exc), status=500)
+
+        response = _build_openai_response(model, result)
+        self._send_json(response)
+
+    def _send_openai_agent_stream(
+        self,
+        proxy: RoutingProxy,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float,
+        max_tokens: int,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | None,
+    ) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+
+        event_queue: queue.Queue[object] = queue.Queue()
+        sentinel = object()
+        error_box: dict[str, Exception] = {}
+
+        async def _produce() -> None:
+            try:
+                async for event in proxy.agent.stream_events(
+                    query=proxy._agent_query(messages),
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                ):
+                    event_queue.put(event)
+            except Exception as exc:  # pragma: no cover
+                error_box["error"] = exc
+            finally:
+                event_queue.put(sentinel)
+
+        future = proxy.submit_coroutine(_produce())
+
+        while True:
+            item = event_queue.get()
+            if item is sentinel:
+                break
+            event = item
+            if getattr(getattr(event, "type", None), "value", None) != "chunk":
+                continue
+
+            content = getattr(event, "content", None)
+            if not isinstance(content, str):
+                continue
+
+            chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}],
+            }
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            self.wfile.flush()
+
+        try:
+            future.result(timeout=1)
+        except Exception as exc:  # pragma: no cover
+            error_box.setdefault("error", exc)
+
+        if "error" in error_box:  # pragma: no cover
+            self.log_error("Streaming error: %s", error_box["error"])
+
+        self.wfile.write(b"data: [DONE]\n\n")
+        self.wfile.flush()
+
+    # ------------------------------------------------------------------
+    # Anthropic endpoint
+    # ------------------------------------------------------------------
+
     def _handle_anthropic(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
+        if proxy.agent is not None:
+            return self._handle_anthropic_agent(proxy, payload)
+        return self._handle_anthropic_mock(proxy, payload)
+
+    def _handle_anthropic_mock(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
         model = payload.get("model", "")
         resolved = proxy.resolve_model(model)
         if not resolved:
@@ -270,8 +690,131 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 "cost": cost,
             },
         }
-
         self._send_json(response)
+
+    def _handle_anthropic_agent(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
+        model = payload.get("model", "")
+        if not isinstance(model, str) or not model:
+            return self._send_anthropic_error("model is required", status=400)
+
+        messages = _anthropic_payload_to_openai_messages(payload)
+        if not messages:
+            return self._send_anthropic_error("messages are required", status=400)
+
+        temperature = payload.get("temperature", 0.7)
+        max_tokens = payload.get("max_tokens", 100)
+
+        tools, tool_choice = _extract_openai_tools(payload)
+
+        if payload.get("stream"):
+            if not proxy.config.allow_streaming:
+                return self._send_anthropic_error("streaming not enabled", status=400)
+            if not hasattr(proxy.agent, "stream_events"):
+                return self._send_anthropic_error("streaming not supported by agent", status=400)
+            return self._send_anthropic_agent_stream(
+                proxy,
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+            )
+
+        try:
+            result = proxy._maybe_call_agent(
+                "run",
+                query=proxy._agent_query(messages),
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+                metadata=_parse_metadata(payload.get("metadata")),
+            )
+        except Exception as exc:
+            return self._send_anthropic_error(str(exc), status=500)
+
+        response = _build_anthropic_response(model, result)
+        self._send_json(response)
+
+    def _send_anthropic_agent_stream(
+        self,
+        proxy: RoutingProxy,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float,
+        max_tokens: int,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | None,
+    ) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+
+        start_event = {
+            "type": "message_start",
+            "message": {
+                "id": "msg_cascadeflow",
+                "type": "message",
+                "role": "assistant",
+                "model": model,
+                "content": [],
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        }
+        self._send_event("message_start", start_event)
+
+        event_queue: queue.Queue[object] = queue.Queue()
+        sentinel = object()
+
+        async def _produce() -> None:
+            async for event in proxy.agent.stream_events(
+                query=proxy._agent_query(messages),
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+            ):
+                event_queue.put(event)
+            event_queue.put(sentinel)
+
+        future = proxy.submit_coroutine(_produce())
+
+        while True:
+            item = event_queue.get()
+            if item is sentinel:
+                break
+            event = item
+            if getattr(getattr(event, "type", None), "value", None) != "chunk":
+                continue
+
+            content = getattr(event, "content", None)
+            if not isinstance(content, str):
+                continue
+
+            delta_event = {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": content},
+            }
+            self._send_event("content_block_delta", delta_event)
+
+        try:
+            future.result(timeout=1)
+        except Exception:  # pragma: no cover
+            pass
+
+        self._send_event("message_stop", {"type": "message_stop"})
+        self.wfile.write(b"data: [DONE]\n\n")
+        self.wfile.flush()
+
+    # ------------------------------------------------------------------
+    # Streaming helpers (mock mode)
+    # ------------------------------------------------------------------
 
     def _send_openai_stream(
         self, resolved: str, response_text: str, draft_accepted: bool, virtual_model: str
@@ -338,15 +881,17 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         }
         self._send_event("content_block_delta", delta_event)
 
-        stop_event = {"type": "message_stop"}
-        self._send_event("message_stop", stop_event)
-
+        self._send_event("message_stop", {"type": "message_stop"})
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 
     def _send_event(self, event_type: str, payload: dict[str, Any]) -> None:
         self.wfile.write(f"event: {event_type}\n".encode())
         self.wfile.write(f"data: {json.dumps(payload)}\n\n".encode())
+
+    # ------------------------------------------------------------------
+    # Error + JSON helpers
+    # ------------------------------------------------------------------
 
     def _send_openai_error(self, message: str, status: int = 400) -> None:
         payload = {
@@ -363,8 +908,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         payload = {"error": {"type": "invalid_request_error", "message": message}}
         self._send_json(payload, status=status)
 
-    def _send_json(self, payload: dict[str, Any], status: int = 200) -> None:
-        data = json.dumps(payload).encode()
+    def _send_json(self, payload: Any, status: int = 200) -> None:
+        data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
