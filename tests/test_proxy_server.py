@@ -135,3 +135,54 @@ def test_virtual_model_names(proxy_server):
     data = response.json()
     assert data["cascadeflow"]["virtual_model"] == "cascadeflow-fast"
     assert data["cascadeflow"]["resolved_model"] == proxy.config.virtual_models["cascadeflow-fast"]
+
+
+def test_models_list(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/models"
+    response = httpx.get(url, timeout=5.0)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["object"] == "list"
+    ids = {item["id"] for item in data["data"]}
+    assert "cascadeflow" in ids
+    assert "cascadeflow-auto" in ids
+
+
+def test_openai_legacy_completions(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/completions"
+    payload = {"model": "cascadeflow-auto", "prompt": "Hello legacy completions"}
+    response = httpx.post(url, json=payload, timeout=5.0)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["object"] == "text_completion"
+    assert data["choices"][0]["text"]
+
+
+def test_openai_embeddings(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/embeddings"
+    payload = {"model": "cascadeflow", "input": "hello embeddings"}
+    response = httpx.post(url, json=payload, timeout=5.0)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["object"] == "list"
+    assert data["data"]
+    assert isinstance(data["data"][0]["embedding"], list)
+    assert len(data["data"][0]["embedding"]) == 384
+
+
+def test_openai_base_url_without_v1(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/chat/completions"
+    payload = {
+        "model": "cascadeflow-auto",
+        "messages": [{"role": "user", "content": "Hello without /v1 base_url"}],
+    }
+
+    response = httpx.post(url, json=payload, timeout=5.0)
+    assert response.status_code == 200

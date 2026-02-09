@@ -8,12 +8,19 @@ No framework changes, no SDK rewrite.
 ## What You Get
 
 - OpenAI-compatible endpoint: `POST /v1/chat/completions`
+- OpenAI-compatible endpoint: `POST /v1/embeddings`
+- OpenAI-compatible endpoint: `POST /v1/completions` (legacy)
+- OpenAI-compatible endpoint: `GET /v1/models`
 - Anthropic-compatible endpoint: `POST /v1/messages`
 - Health check: `GET /health`
 - Metrics (best-effort): `GET /stats`
 - Two modes:
   - **mock**: no API keys required, deterministic responses (validate wiring quickly)
   - **agent**: routes through a real `CascadeAgent` (uses your provider keys/config)
+
+Notes:
+- The `/v1` prefix is optional. If your SDK can't set `base_url` to include `/v1`, you can use `http://127.0.0.1:8084` and the gateway will accept both `/chat/completions` and `/v1/chat/completions` (same for other endpoints).
+- `/v1/embeddings` is implemented locally for fast integration tests. If `fastembed` is installed, it uses `UnifiedEmbeddingService`; otherwise it falls back to deterministic embeddings with the same shape.
 
 ## 1) Start The Gateway
 
@@ -77,6 +84,7 @@ Point the Anthropic client at the gateway base URL, then call `messages.create` 
 ```bash
 curl -s http://127.0.0.1:8084/health
 curl -s http://127.0.0.1:8084/stats
+curl -s http://127.0.0.1:8084/v1/models | jq .
 ```
 
 And a smoke call:
@@ -87,3 +95,10 @@ curl -s http://127.0.0.1:8084/v1/chat/completions \
   -d '{"model":"cascadeflow","messages":[{"role":"user","content":"hello"}]}' | jq .
 ```
 
+Embeddings smoke call:
+
+```bash
+curl -s http://127.0.0.1:8084/v1/embeddings \
+  -H 'content-type: application/json' \
+  -d '{"model":"cascadeflow","input":"hello"}' | jq .
+```

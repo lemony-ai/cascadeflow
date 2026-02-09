@@ -165,3 +165,24 @@ def test_anthropic_agent_streaming(agent_proxy):
     assert any(line.startswith("event: message_start") for line in lines)
     assert any(line.startswith("event: message_stop") for line in lines)
     assert any(line == "data: [DONE]" for line in lines)
+
+
+def test_models_list_agent(agent_proxy):
+    url = f"http://{agent_proxy.host}:{agent_proxy.port}/v1/models"
+    resp = httpx.get(url, timeout=5.0)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["object"] == "list"
+    ids = {item["id"] for item in data["data"]}
+    assert "cascadeflow" in ids
+
+
+def test_openai_embeddings_agent(agent_proxy):
+    url = f"http://{agent_proxy.host}:{agent_proxy.port}/v1/embeddings"
+    payload = {"model": "cascadeflow", "input": ["hello", "world"]}
+    resp = httpx.post(url, json=payload, timeout=5.0)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["object"] == "list"
+    assert len(data["data"]) == 2
+    assert len(data["data"][0]["embedding"]) == 384

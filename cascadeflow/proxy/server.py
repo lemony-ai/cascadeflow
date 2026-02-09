@@ -12,6 +12,9 @@ Modes:
 
 Endpoints:
 - POST /v1/chat/completions  (OpenAI-compatible)
+- POST /v1/embeddings        (OpenAI-compatible)
+- POST /v1/completions       (OpenAI-compatible, legacy)
+- GET  /v1/models            (OpenAI-compatible)
 - POST /v1/messages          (Anthropic-compatible)
 - GET  /health
 - GET  /stats                (best-effort: `agent.telemetry.export_to_dict()` if available)
@@ -20,6 +23,7 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import json
 import queue
@@ -28,6 +32,7 @@ import time
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import urlparse
 
 from cascadeflow.telemetry.cost_tracker import CostTracker
 
@@ -40,6 +45,7 @@ class ProxyConfig:
     port: int = 0
     allow_streaming: bool = True
     token_cost: float = 0.00001
+    cors_allow_origin: str | None = "*"
     virtual_models: dict[str, str] = field(
         default_factory=lambda: {
             "cascadeflow-auto": "cascadeflow-auto-resolved",
@@ -62,6 +68,7 @@ class RoutingProxy:
         self.config = config or ProxyConfig()
         self.cost_tracker = cost_tracker or CostTracker()
         self.agent = agent
+        self._embedder: Any | None = None
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -209,6 +216,53 @@ class RoutingProxy:
             },
         )
         return cost
+
+    # ---------------------------------------------------------------------
+    # Embeddings helpers
+    # ---------------------------------------------------------------------
+
+    def _deterministic_embedding(self, text: str, dim: int = 384) -> list[float]:
+        # Deterministic, dependency-free fallback for quick integration tests.
+        # We intentionally don't normalize; most clients only require stable shape.
+        buf = bytearray()
+        seed = text.encode("utf-8", errors="replace")
+        digest = hashlib.sha256(seed).digest()
+        while len(buf) < dim:
+            buf.extend(digest)
+            digest = hashlib.sha256(digest).digest()
+        vals = [(b - 127.5) / 127.5 for b in buf[:dim]]
+        return [float(v) for v in vals]
+
+    def _ensure_embedder(self) -> Any | None:
+        if self._embedder is not None:
+            return self._embedder
+        try:
+            from cascadeflow.ml.embedding import UnifiedEmbeddingService
+
+            embedder = UnifiedEmbeddingService()
+            if embedder.is_available:
+                self._embedder = embedder
+                return self._embedder
+        except Exception:
+            return None
+        return None
+
+    def embed_texts(self, texts: list[str], dim: int = 384) -> tuple[list[list[float]], str]:
+        embedder = self._ensure_embedder()
+        if embedder is not None:
+            try:
+                vectors = embedder.embed_batch(texts)
+            except Exception:
+                vectors = None
+            if vectors is not None and len(vectors) == len(texts):
+                out: list[list[float]] = []
+                for vec in vectors:
+                    if hasattr(vec, "tolist"):
+                        out.append([float(x) for x in vec.tolist()])
+                    else:
+                        out.append([float(x) for x in list(vec)])
+                return out, "fastembed"
+        return [self._deterministic_embedding(t, dim=dim) for t in texts], "deterministic"
 
 
 def _parse_metadata(value: Any) -> dict[str, Any]:
@@ -413,16 +467,38 @@ def _anthropic_payload_to_openai_messages(payload: dict[str, Any]) -> list[dict[
 class ProxyRequestHandler(BaseHTTPRequestHandler):
     server_version = "CascadeFlowGateway/0.1"
 
+    def _request_path(self) -> str:
+        # Drop query string. Many SDKs add no query params, but this keeps routing safe.
+        return urlparse(self.path).path
+
+    def _normalize_api_path(self) -> str:
+        # Accept both styles:
+        # - base_url="http://host:port/v1"  -> requests to /v1/...
+        # - base_url="http://host:port"     -> requests to /...
+        path = self._request_path()
+        if path.startswith("/v1/"):
+            return path[len("/v1") :]
+        return path
+
+    def do_OPTIONS(self) -> None:
+        proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
+        self.send_response(204)
+        self._send_cors_headers(proxy)
+        self.end_headers()
+
     def do_GET(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
+        path = self._request_path()
+        normalized = self._normalize_api_path()
 
-        if self.path == "/health":
+        if path == "/health":
             return self._send_json({"status": "ok"})
 
-        if self.path.startswith("/stats"):
+        if path.startswith("/stats"):
             telemetry = getattr(proxy.agent, "telemetry", None) if proxy.agent else None
             if telemetry is None or not hasattr(telemetry, "export_to_dict"):
                 self.send_response(404)
+                self._send_cors_headers(proxy)
                 self.end_headers()
                 return
             try:
@@ -431,11 +507,20 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 return self._send_openai_error(f"Metrics export failed: {exc}", status=500)
             return self._send_json(payload)
 
+        if normalized == "/models":
+            return self._send_json(self._build_openai_models_list(proxy))
+
+        if normalized.startswith("/models/"):
+            model_id = normalized[len("/models/") :]
+            return self._send_json(self._build_openai_model_object(model_id))
+
         self.send_response(404)
+        self._send_cors_headers(proxy)
         self.end_headers()
 
     def do_POST(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
+        normalized = self._normalize_api_path()
         length = int(self.headers.get("Content-Length", "0"))
         raw_body = self.rfile.read(length) if length else b""
         try:
@@ -443,15 +528,24 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self._send_openai_error("Invalid JSON payload", status=400)
 
-        if self.path == "/v1/chat/completions":
+        if normalized == "/chat/completions":
             self._handle_openai(proxy, payload)
             return
 
-        if self.path == "/v1/messages":
+        if normalized == "/messages":
             self._handle_anthropic(proxy, payload)
             return
 
+        if normalized == "/completions":
+            self._handle_openai_completions(proxy, payload)
+            return
+
+        if normalized == "/embeddings":
+            self._handle_openai_embeddings(proxy, payload)
+            return
+
         self.send_response(404)
+        self._send_cors_headers(proxy)
         self.end_headers()
 
     # ------------------------------------------------------------------
@@ -564,6 +658,152 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         response = _build_openai_response(model, result)
         self._send_json(response)
 
+    # ------------------------------------------------------------------
+    # OpenAI legacy completions endpoint
+    # ------------------------------------------------------------------
+
+    def _handle_openai_completions(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
+        if proxy.agent is not None:
+            return self._handle_openai_completions_agent(proxy, payload)
+        return self._handle_openai_completions_mock(proxy, payload)
+
+    def _handle_openai_completions_mock(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
+        model = payload.get("model", "")
+        resolved = proxy.resolve_model(model)
+        if not resolved:
+            return self._send_openai_error("Model is required", status=400)
+
+        prompt_value = payload.get("prompt", "")
+        if isinstance(prompt_value, list):
+            prompt = "\n".join(str(p) for p in prompt_value if p is not None)
+        else:
+            prompt = str(prompt_value or "")
+        if not prompt.strip():
+            return self._send_openai_error("Prompt is required", status=400)
+
+        response_text = proxy.build_response_text(prompt)
+        input_tokens = proxy.estimate_tokens(prompt)
+        output_tokens = proxy.estimate_tokens(response_text)
+
+        response = {
+            "id": "cmpl-proxy",
+            "object": "text_completion",
+            "created": int(time.time()),
+            "model": resolved,
+            "choices": [
+                {
+                    "text": response_text,
+                    "index": 0,
+                    "logprobs": None,
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": input_tokens,
+                "completion_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            },
+        }
+        self._send_json(response)
+
+    def _handle_openai_completions_agent(
+        self, proxy: RoutingProxy, payload: dict[str, Any]
+    ) -> None:
+        prompt_value = payload.get("prompt", "")
+        if isinstance(prompt_value, list):
+            prompt = "\n".join(str(p) for p in prompt_value if p is not None)
+        else:
+            prompt = str(prompt_value or "")
+        if not prompt.strip():
+            return self._send_openai_error("Prompt is required", status=400)
+
+        model = payload.get("model", "cascadeflow")
+        if not isinstance(model, str) or not model:
+            model = "cascadeflow"
+
+        temperature = payload.get("temperature", 0.7)
+        max_tokens = payload.get("max_tokens", 100)
+        messages = [{"role": "user", "content": prompt}]
+
+        try:
+            result = proxy._maybe_call_agent(
+                "run",
+                query=prompt,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=None,
+                tool_choice=None,
+            )
+        except Exception as exc:
+            return self._send_openai_error(str(exc), status=500)
+
+        meta = _normalize_result_metadata(result)
+        prompt_tokens = meta.get("prompt_tokens", 0) or 0
+        completion_tokens = meta.get("completion_tokens", 0) or 0
+        total_tokens = meta.get("total_tokens")
+        if total_tokens is None:
+            total_tokens = prompt_tokens + completion_tokens
+
+        response = {
+            "id": "cmpl-cascadeflow",
+            "object": "text_completion",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "text": getattr(result, "content", ""),
+                    "index": 0,
+                    "logprobs": None,
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+            },
+            "cascadeflow": {
+                "model_used": getattr(result, "model_used", None),
+                "metadata": meta,
+            },
+        }
+        self._send_json(response)
+
+    # ------------------------------------------------------------------
+    # OpenAI embeddings endpoint
+    # ------------------------------------------------------------------
+
+    def _handle_openai_embeddings(self, proxy: RoutingProxy, payload: dict[str, Any]) -> None:
+        model = payload.get("model", "cascadeflow")
+        if not isinstance(model, str) or not model:
+            model = "cascadeflow"
+
+        input_value = payload.get("input")
+        if isinstance(input_value, list):
+            texts = [str(x) for x in input_value]
+        elif input_value is None:
+            texts = []
+        else:
+            texts = [str(input_value)]
+        if not texts:
+            return self._send_openai_error("Input is required", status=400)
+
+        vectors, source = proxy.embed_texts(texts)
+        prompt_tokens = proxy.estimate_tokens(" ".join(texts))
+
+        response = {
+            "object": "list",
+            "data": [
+                {"object": "embedding", "embedding": vec, "index": idx}
+                for idx, vec in enumerate(vectors)
+            ],
+            "model": model,
+            "usage": {"prompt_tokens": prompt_tokens, "total_tokens": prompt_tokens},
+            "cascadeflow": {"embedding_source": source},
+        }
+        self._send_json(response)
+
     def _send_openai_agent_stream(
         self,
         proxy: RoutingProxy,
@@ -578,6 +818,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self._send_cors_headers(proxy)
         self.end_headers()
 
         event_queue: queue.Queue[object] = queue.Queue()
@@ -750,6 +991,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self._send_cors_headers(proxy)
         self.end_headers()
 
         start_event = {
@@ -817,9 +1059,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     def _send_openai_stream(
         self, resolved: str, response_text: str, draft_accepted: bool, virtual_model: str
     ) -> None:
+        proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self._send_cors_headers(proxy)
         self.end_headers()
 
         chunk = {
@@ -849,9 +1093,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     def _send_anthropic_stream(
         self, resolved: str, response_text: str, draft_accepted: bool, virtual_model: str
     ) -> None:
+        proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self._send_cors_headers(proxy)
         self.end_headers()
 
         start_event = {
@@ -907,9 +1153,42 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self._send_json(payload, status=status)
 
     def _send_json(self, payload: Any, status: int = 200) -> None:
+        proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
+        self._send_cors_headers(proxy)
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_cors_headers(self, proxy: RoutingProxy) -> None:
+        allow_origin = proxy.config.cors_allow_origin
+        if not allow_origin:
+            return
+        self.send_header("Access-Control-Allow-Origin", allow_origin)
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Authorization, Content-Type, X-API-Key, anthropic-version, "
+            "OpenAI-Organization, OpenAI-Project",
+        )
+        self.send_header("Access-Control-Max-Age", "86400")
+
+    def _build_openai_models_list(self, proxy: RoutingProxy) -> dict[str, Any]:
+        now = int(time.time())
+        ids = ["cascadeflow", *sorted(proxy.config.virtual_models.keys())]
+        return {
+            "object": "list",
+            "data": [self._build_openai_model_object(model_id, created=now) for model_id in ids],
+        }
+
+    def _build_openai_model_object(
+        self, model_id: str, created: int | None = None
+    ) -> dict[str, Any]:
+        return {
+            "id": model_id,
+            "object": "model",
+            "created": int(time.time()) if created is None else created,
+            "owned_by": "cascadeflow",
+        }
