@@ -2171,6 +2171,18 @@ class CascadeAgent:
                 )
                 if not tool_calls_found:
                     break
+
+                # Preserve the assistant tool-call turn in the message history.
+                # Anthropic (and some other providers) require a preceding tool_use/tool_calls
+                # message before any tool_result messages are provided.
+                tool_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": response.content or "",
+                        "tool_calls": tool_calls_found,
+                    }
+                )
+
                 tool_results = await self._execute_tool_calls_parallel(tool_calls_found)
                 for tool_result in tool_results:
                     tool_messages.append({"role": "tool", **tool_result})
