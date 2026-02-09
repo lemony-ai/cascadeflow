@@ -49,6 +49,11 @@ def main() -> None:
         help="Preset (balanced, cost_optimized, speed_optimized, quality_optimized, development)",
     )
     parser.add_argument("--no-stream", action="store_true", help="Disable streaming")
+    parser.add_argument(
+        "--include-gateway-metadata",
+        action="store_true",
+        help="Include gateway debug metadata in JSON responses (optional; headers are always on by default).",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
@@ -69,7 +74,12 @@ def main() -> None:
 
     server = RoutingProxy(
         agent=agent,
-        config=ProxyConfig(host=args.host, port=args.port, allow_streaming=not args.no_stream),
+        config=ProxyConfig(
+            host=args.host,
+            port=args.port,
+            allow_streaming=not args.no_stream,
+            include_gateway_metadata=bool(args.include_gateway_metadata),
+        ),
     )
     port = server.start()
 

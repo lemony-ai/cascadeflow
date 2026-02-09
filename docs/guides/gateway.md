@@ -22,6 +22,15 @@ Notes:
 - The `/v1` prefix is optional. If your SDK can't set `base_url` to include `/v1`, you can use `http://127.0.0.1:8084` and the gateway will accept both `/chat/completions` and `/v1/chat/completions` (same for other endpoints).
 - `/v1/embeddings` is implemented locally for fast integration tests. If `fastembed` is installed, it uses `UnifiedEmbeddingService`; otherwise it falls back to deterministic embeddings with the same shape.
 
+Optional debug info (no client changes required):
+- By default, the gateway adds response headers:
+  - `X-Cascadeflow-Gateway-*` (API, endpoint, mode, version)
+- If you want the same info inside JSON responses, start the server with:
+
+```bash
+python -m cascadeflow.server --include-gateway-metadata
+```
+
 ## 1) Start The Gateway
 
 ### Agent mode (real cascade)

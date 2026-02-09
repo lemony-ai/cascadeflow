@@ -81,6 +81,7 @@ def test_health(agent_proxy):
     url = f"http://{agent_proxy.host}:{agent_proxy.port}/health"
     resp = httpx.get(url, timeout=5.0)
     assert resp.status_code == 200
+    assert resp.headers.get("X-Cascadeflow-Gateway-Endpoint") == "health"
     assert resp.json()["status"] == "ok"
 
 

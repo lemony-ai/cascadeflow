@@ -46,6 +46,8 @@ class ProxyConfig:
     allow_streaming: bool = True
     token_cost: float = 0.00001
     cors_allow_origin: str | None = "*"
+    include_gateway_headers: bool = True
+    include_gateway_metadata: bool = False
     virtual_models: dict[str, str] = field(
         default_factory=lambda: {
             "cascadeflow-auto": "cascadeflow-auto-resolved",
@@ -467,6 +469,11 @@ def _anthropic_payload_to_openai_messages(payload: dict[str, Any]) -> list[dict[
 class ProxyRequestHandler(BaseHTTPRequestHandler):
     server_version = "CascadeFlowGateway/0.1"
 
+    def _set_gateway_context(self, proxy: RoutingProxy, *, api: str, endpoint: str) -> None:
+        self._gateway_api = api
+        self._gateway_endpoint = endpoint
+        self._gateway_mode = "agent" if proxy.agent is not None else "mock"
+
     def _request_path(self) -> str:
         # Drop query string. Many SDKs add no query params, but this keeps routing safe.
         return urlparse(self.path).path
@@ -482,8 +489,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
+        self._set_gateway_context(proxy, api="gateway", endpoint="options")
         self.send_response(204)
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
 
     def do_GET(self) -> None:
@@ -492,13 +501,16 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         normalized = self._normalize_api_path()
 
         if path == "/health":
+            self._set_gateway_context(proxy, api="gateway", endpoint="health")
             return self._send_json({"status": "ok"})
 
         if path.startswith("/stats"):
+            self._set_gateway_context(proxy, api="gateway", endpoint="stats")
             telemetry = getattr(proxy.agent, "telemetry", None) if proxy.agent else None
             if telemetry is None or not hasattr(telemetry, "export_to_dict"):
                 self.send_response(404)
                 self._send_cors_headers(proxy)
+                self._send_gateway_headers(proxy)
                 self.end_headers()
                 return
             try:
@@ -508,14 +520,17 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             return self._send_json(payload)
 
         if normalized == "/models":
+            self._set_gateway_context(proxy, api="openai", endpoint="models.list")
             return self._send_json(self._build_openai_models_list(proxy))
 
         if normalized.startswith("/models/"):
+            self._set_gateway_context(proxy, api="openai", endpoint="models.retrieve")
             model_id = normalized[len("/models/") :]
             return self._send_json(self._build_openai_model_object(model_id))
 
         self.send_response(404)
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
 
     def do_POST(self) -> None:
@@ -529,23 +544,28 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             return self._send_openai_error("Invalid JSON payload", status=400)
 
         if normalized == "/chat/completions":
+            self._set_gateway_context(proxy, api="openai", endpoint="chat.completions")
             self._handle_openai(proxy, payload)
             return
 
         if normalized == "/messages":
+            self._set_gateway_context(proxy, api="anthropic", endpoint="messages")
             self._handle_anthropic(proxy, payload)
             return
 
         if normalized == "/completions":
+            self._set_gateway_context(proxy, api="openai", endpoint="completions")
             self._handle_openai_completions(proxy, payload)
             return
 
         if normalized == "/embeddings":
+            self._set_gateway_context(proxy, api="openai", endpoint="embeddings")
             self._handle_openai_embeddings(proxy, payload)
             return
 
         self.send_response(404)
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
 
     # ------------------------------------------------------------------
@@ -819,6 +839,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
 
         event_queue: queue.Queue[object] = queue.Queue()
@@ -992,6 +1013,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
 
         start_event = {
@@ -1064,6 +1086,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
 
         chunk = {
@@ -1098,6 +1121,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
 
         start_event = {
@@ -1154,11 +1178,20 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def _send_json(self, payload: Any, status: int = 200) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
+        if proxy.config.include_gateway_metadata and isinstance(payload, dict):
+            info = self._gateway_info(proxy)
+            cf = payload.get("cascadeflow")
+            if isinstance(cf, dict):
+                cf.setdefault("gateway", info)
+            else:
+                payload.setdefault("cascadeflow_gateway", info)
+
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self._send_cors_headers(proxy)
+        self._send_gateway_headers(proxy)
         self.end_headers()
         self.wfile.write(data)
 
@@ -1173,7 +1206,37 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             "Authorization, Content-Type, X-API-Key, anthropic-version, "
             "OpenAI-Organization, OpenAI-Project",
         )
+        self.send_header(
+            "Access-Control-Expose-Headers",
+            "X-Cascadeflow-Gateway, X-Cascadeflow-Gateway-Version, X-Cascadeflow-Gateway-Mode, "
+            "X-Cascadeflow-Gateway-API, X-Cascadeflow-Gateway-Endpoint",
+        )
         self.send_header("Access-Control-Max-Age", "86400")
+
+    def _send_gateway_headers(self, proxy: RoutingProxy) -> None:
+        if not proxy.config.include_gateway_headers:
+            return
+        info = self._gateway_info(proxy)
+        self.send_header("X-Cascadeflow-Gateway", "cascadeflow")
+        self.send_header("X-Cascadeflow-Gateway-Version", info["version"])
+        self.send_header("X-Cascadeflow-Gateway-Mode", info["mode"])
+        self.send_header("X-Cascadeflow-Gateway-API", info["api"])
+        self.send_header("X-Cascadeflow-Gateway-Endpoint", info["endpoint"])
+
+    def _gateway_info(self, proxy: RoutingProxy) -> dict[str, str]:
+        api = getattr(self, "_gateway_api", None) or "gateway"
+        endpoint = getattr(self, "_gateway_endpoint", None) or self._normalize_api_path().lstrip(
+            "/"
+        )
+        mode = getattr(self, "_gateway_mode", None) or (
+            "agent" if proxy.agent is not None else "mock"
+        )
+        return {
+            "api": str(api),
+            "endpoint": str(endpoint),
+            "mode": str(mode),
+            "version": str(self.server_version),
+        }
 
     def _build_openai_models_list(self, proxy: RoutingProxy) -> dict[str, Any]:
         now = int(time.time())

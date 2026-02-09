@@ -33,6 +33,9 @@ def test_openai_request(proxy_server):
 
     response = httpx.post(url, json=payload, timeout=5.0)
     assert response.status_code == 200
+    assert response.headers.get("X-Cascadeflow-Gateway") == "cascadeflow"
+    assert response.headers.get("X-Cascadeflow-Gateway-API") == "openai"
+    assert response.headers.get("X-Cascadeflow-Gateway-Endpoint") == "chat.completions"
 
     data = response.json()
     assert data["model"] == proxy.config.virtual_models["cascadeflow-auto"]
@@ -142,6 +145,7 @@ def test_models_list(proxy_server):
     url = f"http://{proxy.host}:{proxy.port}/v1/models"
     response = httpx.get(url, timeout=5.0)
     assert response.status_code == 200
+    assert response.headers.get("X-Cascadeflow-Gateway-Endpoint") == "models.list"
 
     data = response.json()
     assert data["object"] == "list"
