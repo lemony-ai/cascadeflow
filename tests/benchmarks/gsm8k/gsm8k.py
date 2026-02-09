@@ -336,58 +336,31 @@ class GSM8KBenchmark(Benchmark):
         routing_strategy = result.metadata.get("routing_strategy", "unknown")
         is_direct = result.metadata.get("direct_routing", False)
 
-        # Get actual token counts from LiteLLM
-        prompt_tokens = result.metadata.get("prompt_tokens", 0)
-        completion_tokens = result.metadata.get("completion_tokens", 0)
+        # Token counts from providers (if available via LiteLLM integration)
+        prompt_tokens = result.metadata.get("prompt_tokens", 0) or 0
+        completion_tokens = result.metadata.get("completion_tokens", 0) or 0
 
-        # Calculate costs using LiteLLM pricing
-        # GPT-4o-mini: $0.15/1M input, $0.60/1M output
-        # GPT-4o: $2.50/1M input, $10.00/1M output
-        gpt4o_mini_input_rate = 0.15 / 1_000_000
-        gpt4o_mini_output_rate = 0.60 / 1_000_000
-        gpt4o_input_rate = 2.50 / 1_000_000
-        gpt4o_output_rate = 10.00 / 1_000_000
-
-        # Actual total cost from cascade
+        # Trust cascadeflow's aggregated cost breakdown whenever possible.
         total_cost = result.total_cost
+        drafter_cost = result.draft_cost or 0.0
+        verifier_cost = result.verifier_cost or 0.0
 
-        if draft_accepted:
-            # Drafter accepted - only drafter cost incurred
-            drafter_cost = total_cost
-            verifier_cost = 0.0
-            # Baseline: what verifier would have cost
-            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (
-                completion_tokens * gpt4o_output_rate
-            )
-        elif is_direct:
-            # Direct routing - only verifier cost
-            drafter_cost = 0.0
-            verifier_cost = total_cost
-            # Baseline = actual cost (no savings)
-            baseline_cost = total_cost
-        else:
-            # Cascade rejection - drafter tried, then verifier called
-            # Estimate split based on token ratios
-            drafter_cost = (prompt_tokens * gpt4o_mini_input_rate) + (
-                completion_tokens * gpt4o_mini_output_rate
-            )
-            verifier_cost = total_cost - drafter_cost
-            # Baseline: what verifier alone would have cost
-            baseline_cost = (prompt_tokens * gpt4o_input_rate) + (
-                completion_tokens * gpt4o_output_rate
-            )
+        # Baseline = verifier-only for the same query. Prefer cascadeflow's own cost_saved semantics.
+        cost_saved = result.cost_saved or 0.0
+        baseline_cost = total_cost + cost_saved
 
-        # Store for accurate baseline calculation
+        # Keep compatibility with older reporting paths.
         self._last_verifier_cost = baseline_cost
 
         return {
             "prediction": result.content,
-            "model_used": "drafter" if draft_accepted else "verifier",
+            "model_used": result.model_used,
             "accepted": draft_accepted,
             "quality_score": result.metadata.get("quality_score", 0.7),
             "drafter_cost": drafter_cost,
             "verifier_cost": verifier_cost,
             "total_cost": total_cost,
+            "cost_saved": cost_saved,
             "baseline_cost": baseline_cost,  # For accurate savings calculation
             "latency_ms": latency_ms,
             "tokens_input": prompt_tokens,
