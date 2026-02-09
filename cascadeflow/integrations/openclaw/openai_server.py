@@ -414,16 +414,38 @@ def _run_agent(
     )
 
 
+def _normalize_result_metadata(result) -> dict[str, Any]:
+    """
+    Ensure a stable cascadeflow.metadata contract for the OpenClaw OpenAI server.
+
+    External clients (and our integration tests) expect these keys to exist even for
+    direct-routed (non-cascaded) responses and when upstream providers omit fields.
+    """
+    meta: dict[str, Any] = {}
+    if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+        meta = dict(result.metadata)
+
+    meta.setdefault("draft_accepted", bool(getattr(result, "draft_accepted", False)))
+    meta.setdefault("quality_score", getattr(result, "quality_score", None))
+    meta.setdefault("complexity", getattr(result, "complexity", None))
+
+    # Tests expect "cascade_overhead" (no units specified). Prefer *_ms if present.
+    if "cascade_overhead" not in meta:
+        overhead = meta.get("cascade_overhead_ms")
+        if overhead is None:
+            overhead = getattr(result, "cascade_overhead_ms", None)
+        meta["cascade_overhead"] = 0 if overhead is None else overhead
+
+    return meta
+
+
 def _build_openai_response(model: str, result) -> dict[str, Any]:
-    prompt_tokens = None
-    completion_tokens = None
-    total_tokens = None
-    tool_calls = None
-    if hasattr(result, "metadata") and result.metadata:
-        prompt_tokens = result.metadata.get("prompt_tokens")
-        completion_tokens = result.metadata.get("completion_tokens")
-        total_tokens = result.metadata.get("total_tokens")
-        tool_calls = result.metadata.get("tool_calls")
+    meta = _normalize_result_metadata(result)
+
+    prompt_tokens = meta.get("prompt_tokens")
+    completion_tokens = meta.get("completion_tokens")
+    total_tokens = meta.get("total_tokens")
+    tool_calls = meta.get("tool_calls")
 
     if total_tokens is None:
         prompt_tokens = prompt_tokens or 0
@@ -455,7 +477,7 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
         },
         "cascadeflow": {
             "model_used": result.model_used,
-            "metadata": result.metadata,
+            "metadata": meta,
         },
     }
 
