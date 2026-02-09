@@ -1,6 +1,6 @@
 import type { CascadeAgent } from '../agent';
 import { StreamEventType } from '../streaming';
-import type { Message } from '../types';
+import type { Message, Tool } from '../types';
 
 export type VercelAIStreamProtocol = 'data' | 'text';
 
@@ -21,6 +21,13 @@ export interface VercelAIChatHandlerOptions {
   systemPrompt?: string;
   maxTokens?: number;
   temperature?: number;
+
+  /**
+   * Tools to expose to the underlying cascadeflow agent.
+   *
+   * Note: tools should generally be server-defined (do not trust client input).
+   */
+  tools?: Tool[];
 }
 
 type DataStreamFormatter = <T extends string>(type: T, value: any) => string;
@@ -64,6 +71,137 @@ function encodeUtf8(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
 
+type NormalizedToolCall = {
+  id: string;
+  name: string;
+  argsText: string;
+};
+
+function normalizeToolCalls(input: any): NormalizedToolCall[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((tc, idx) => {
+      const id = typeof tc?.id === 'string' && tc.id.length > 0 ? tc.id : `call_${idx}`;
+      const name = typeof tc?.function?.name === 'string' ? tc.function.name : 'unknown';
+      const args = tc?.function?.arguments;
+      const argsText =
+        typeof args === 'string'
+          ? args
+          : args && typeof args === 'object'
+            ? JSON.stringify(args)
+            : '';
+      return { id, name, argsText };
+    })
+    .filter((tc) => tc.id.length > 0);
+}
+
+function tryParseJson(input: string): unknown | null {
+  try {
+    return JSON.parse(input);
+  } catch {
+    return null;
+  }
+}
+
+type ToolCallStreamState = Map<string, { name: string; argsText: string; started: boolean }>;
+
+function emitToolCallDeltasUi(writer: UIMessageWriter, state: ToolCallStreamState, toolCalls: NormalizedToolCall[]) {
+  for (const tc of toolCalls) {
+    const prev = state.get(tc.id) ?? { name: tc.name, argsText: '', started: false };
+    const name = tc.name !== 'unknown' ? tc.name : prev.name;
+
+    if (!prev.started) {
+      writer.write({ type: 'tool-input-start', toolCallId: tc.id, toolName: name });
+    }
+
+    const prevArgs = prev.argsText;
+    const nextArgs = tc.argsText;
+    const delta =
+      nextArgs.length >= prevArgs.length && nextArgs.startsWith(prevArgs)
+        ? nextArgs.slice(prevArgs.length)
+        : nextArgs;
+
+    if (delta.length > 0) {
+      writer.write({ type: 'tool-input-delta', toolCallId: tc.id, inputTextDelta: delta });
+    }
+
+    state.set(tc.id, { name, argsText: nextArgs, started: true });
+  }
+}
+
+function emitToolCallsFinalUi(writer: UIMessageWriter, state: ToolCallStreamState, toolCalls: NormalizedToolCall[]) {
+  for (const tc of toolCalls) {
+    const prev = state.get(tc.id) ?? { name: tc.name, argsText: '', started: false };
+    const name = tc.name !== 'unknown' ? tc.name : prev.name;
+    const argsText = tc.argsText || prev.argsText;
+    const parsed = typeof argsText === 'string' ? tryParseJson(argsText) : null;
+    writer.write({
+      type: 'tool-input-available',
+      toolCallId: tc.id,
+      toolName: name,
+      input: parsed ?? argsText,
+    });
+    state.set(tc.id, { name, argsText, started: true });
+  }
+}
+
+function emitToolCallDeltasData(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  formatDataStreamPart: DataStreamFormatter,
+  state: ToolCallStreamState,
+  toolCalls: NormalizedToolCall[]
+) {
+  for (const tc of toolCalls) {
+    const prev = state.get(tc.id) ?? { name: tc.name, argsText: '', started: false };
+    const name = tc.name !== 'unknown' ? tc.name : prev.name;
+
+    if (!prev.started) {
+      controller.enqueue(encodeUtf8(formatDataStreamPart('tool_call_streaming_start', { toolCallId: tc.id, toolName: name })));
+    }
+
+    const prevArgs = prev.argsText;
+    const nextArgs = tc.argsText;
+    const delta =
+      nextArgs.length >= prevArgs.length && nextArgs.startsWith(prevArgs)
+        ? nextArgs.slice(prevArgs.length)
+        : nextArgs;
+
+    if (delta.length > 0) {
+      controller.enqueue(encodeUtf8(formatDataStreamPart('tool_call_delta', { toolCallId: tc.id, argsTextDelta: delta })));
+    }
+
+    state.set(tc.id, { name, argsText: nextArgs, started: true });
+  }
+}
+
+function emitToolCallsFinalData(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  formatDataStreamPart: DataStreamFormatter,
+  state: ToolCallStreamState,
+  toolCalls: NormalizedToolCall[]
+) {
+  for (const tc of toolCalls) {
+    const prev = state.get(tc.id) ?? { name: tc.name, argsText: '', started: false };
+    const name = tc.name !== 'unknown' ? tc.name : prev.name;
+    const argsText = tc.argsText || prev.argsText;
+    const parsed = typeof argsText === 'string' ? tryParseJson(argsText) : null;
+
+    controller.enqueue(
+      encodeUtf8(
+        formatDataStreamPart('tool_call', {
+          toolCallId: tc.id,
+          toolName: name,
+          args: parsed ?? argsText,
+        })
+      )
+    );
+    state.set(tc.id, { name, argsText, started: true });
+  }
+}
+
 function toCoreMessages(input: any): Message[] {
   if (!Array.isArray(input)) {
     return [];
@@ -103,6 +241,7 @@ async function runTextStream(
           systemPrompt: options.systemPrompt,
           maxTokens: options.maxTokens,
           temperature: options.temperature,
+          tools: options.tools,
         })) {
           if (signal?.aborted) {
             break;
@@ -131,6 +270,7 @@ async function runDataStream(
   if (uiFactories) {
     const { createUIMessageStream } = uiFactories;
     const textId = `txt_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
+    const toolState: ToolCallStreamState = new Map();
     return createUIMessageStream({
       onError: (err) => (err instanceof Error ? err.message : String(err)),
       async execute({ writer }) {
@@ -140,12 +280,25 @@ async function runDataStream(
             systemPrompt: options.systemPrompt,
             maxTokens: options.maxTokens,
             temperature: options.temperature,
+            tools: options.tools,
           })) {
             if (signal?.aborted) {
               break;
             }
             if (event.type === StreamEventType.CHUNK) {
-              writer.write({ type: 'text-delta', id: textId, delta: event.content });
+              const toolCalls = normalizeToolCalls((event as any)?.data?.tool_calls);
+              if (toolCalls.length > 0) {
+                emitToolCallDeltasUi(writer, toolState, toolCalls);
+              }
+              if (event.content) {
+                writer.write({ type: 'text-delta', id: textId, delta: event.content });
+              }
+            } else if (event.type === StreamEventType.COMPLETE) {
+              // Emit final tool-call inputs when the agent completes.
+              const resultToolCalls = normalizeToolCalls((event as any)?.data?.result?.toolCalls);
+              if (resultToolCalls.length > 0) {
+                emitToolCallsFinalUi(writer, toolState, resultToolCalls);
+              }
             }
           }
         } finally {
@@ -164,17 +317,31 @@ async function runDataStream(
       try {
         controller.enqueue(encodeUtf8(formatDataStreamPart('start_step', { messageId })));
 
+        const toolState: ToolCallStreamState = new Map();
+
         for await (const event of agent.stream(messages, {
           systemPrompt: options.systemPrompt,
           maxTokens: options.maxTokens,
           temperature: options.temperature,
+          tools: options.tools,
         })) {
           if (signal?.aborted) {
             break;
           }
 
           if (event.type === StreamEventType.CHUNK) {
-            controller.enqueue(encodeUtf8(formatDataStreamPart('text', event.content)));
+            const toolCalls = normalizeToolCalls((event as any)?.data?.tool_calls);
+            if (toolCalls.length > 0) {
+              emitToolCallDeltasData(controller, formatDataStreamPart, toolState, toolCalls);
+            }
+            if (event.content) {
+              controller.enqueue(encodeUtf8(formatDataStreamPart('text', event.content)));
+            }
+          } else if (event.type === StreamEventType.COMPLETE) {
+            const resultToolCalls = normalizeToolCalls((event as any)?.data?.result?.toolCalls);
+            if (resultToolCalls.length > 0) {
+              emitToolCallsFinalData(controller, formatDataStreamPart, toolState, resultToolCalls);
+            }
           } else if (event.type === StreamEventType.ERROR) {
             controller.enqueue(
               encodeUtf8(formatDataStreamPart('error', event.data?.error ?? 'Unknown error'))
@@ -209,6 +376,7 @@ export function createChatHandler(
         systemPrompt: options.systemPrompt,
         maxTokens: options.maxTokens,
         temperature: options.temperature,
+        tools: options.tools,
       });
       return Response.json(result);
     }
@@ -242,6 +410,7 @@ export function createCompletionHandler(
         systemPrompt: options.systemPrompt,
         maxTokens: options.maxTokens,
         temperature: options.temperature,
+        tools: options.tools,
       });
       return Response.json(result);
     }

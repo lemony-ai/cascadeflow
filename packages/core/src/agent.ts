@@ -1176,6 +1176,7 @@ export class CascadeAgent {
             model: bestModelConfig.name,
             phase: 'direct',
             provider: bestModelConfig.provider,
+            tool_calls: chunk.tool_calls,
           });
 
           if (chunk.done) {
@@ -1262,6 +1263,7 @@ export class CascadeAgent {
           model: draftModel,
           phase: 'draft',
           provider: draftModelConfig.provider,
+          tool_calls: chunk.tool_calls,
         });
 
         if (chunk.done) {
@@ -1395,6 +1397,7 @@ export class CascadeAgent {
               model: verifierModel,
               phase: 'verifier',
               provider: verifierModelConfig.provider,
+              tool_calls: chunk.tool_calls,
             });
 
             if (chunk.done) {

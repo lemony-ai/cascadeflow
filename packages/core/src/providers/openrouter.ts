@@ -212,6 +212,8 @@ export class OpenRouterProvider extends BaseProvider {
       const decoder = new TextDecoder();
       let buffer = '';
 
+      const toolCallsByIndex = new Map<number, { id: string; name: string; argsText: string }>();
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -238,10 +240,37 @@ export class OpenRouterProvider extends BaseProvider {
               const content = delta.content || '';
               const isFinished = parsed.choices[0]?.finish_reason !== null;
 
+              if (Array.isArray(delta.tool_calls)) {
+                for (const toolDelta of delta.tool_calls) {
+                  const idx = typeof toolDelta?.index === 'number' ? toolDelta.index : 0;
+                  const prev = toolCallsByIndex.get(idx) ?? {
+                    id: toolDelta?.id || `call_${idx}`,
+                    name: toolDelta?.function?.name || 'unknown',
+                    argsText: '',
+                  };
+                  toolCallsByIndex.set(idx, {
+                    id: toolDelta?.id || prev.id,
+                    name: toolDelta?.function?.name || prev.name,
+                    argsText:
+                      typeof toolDelta?.function?.arguments === 'string'
+                        ? prev.argsText + toolDelta.function.arguments
+                        : prev.argsText,
+                  });
+                }
+              }
+
               yield {
                 content,
                 done: isFinished,
                 finish_reason: parsed.choices[0]?.finish_reason || undefined,
+                tool_calls:
+                  Array.isArray(delta.tool_calls) && toolCallsByIndex.size > 0
+                    ? Array.from(toolCallsByIndex.values()).map((tc) => ({
+                        id: tc.id,
+                        type: 'function',
+                        function: { name: tc.name, arguments: tc.argsText },
+                      }))
+                    : undefined,
                 raw: parsed,
               };
             } catch (e) {
