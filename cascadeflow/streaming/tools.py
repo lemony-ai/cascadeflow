@@ -407,7 +407,7 @@ class ToolStreamManager:
             tools: Tool definitions (required)
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
-            tool_choice: Tool selection strategy (auto/required/specific)
+            tool_choice: Tool selection strategy (auto/specific)
             messages: Optional multi-turn messages (role/content)
             execute_tools: If True, auto-execute tools and continue
             max_turns: Maximum conversation turns (for multi-turn)

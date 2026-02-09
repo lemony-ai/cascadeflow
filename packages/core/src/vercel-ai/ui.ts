@@ -28,6 +28,14 @@ export interface VercelAIChatHandlerOptions {
    * Note: tools should generally be server-defined (do not trust client input).
    */
   tools?: Tool[];
+
+  /**
+   * Provider-specific options forwarded to the underlying provider request.
+   * Example: OpenAI `tool_choice`.
+   *
+   * Note: This is advanced and should be server-defined (do not trust client input).
+   */
+  extra?: Record<string, any>;
 }
 
 type DataStreamFormatter = <T extends string>(type: T, value: any) => string;
@@ -242,6 +250,7 @@ async function runTextStream(
           maxTokens: options.maxTokens,
           temperature: options.temperature,
           tools: options.tools,
+          extra: options.extra,
         })) {
           if (signal?.aborted) {
             break;
@@ -281,6 +290,7 @@ async function runDataStream(
             maxTokens: options.maxTokens,
             temperature: options.temperature,
             tools: options.tools,
+            extra: options.extra,
           })) {
             if (signal?.aborted) {
               break;
@@ -324,6 +334,7 @@ async function runDataStream(
           maxTokens: options.maxTokens,
           temperature: options.temperature,
           tools: options.tools,
+          extra: options.extra,
         })) {
           if (signal?.aborted) {
             break;
@@ -377,6 +388,7 @@ export function createChatHandler(
         maxTokens: options.maxTokens,
         temperature: options.temperature,
         tools: options.tools,
+        extra: options.extra,
       });
       return Response.json(result);
     }
@@ -411,6 +423,7 @@ export function createCompletionHandler(
         maxTokens: options.maxTokens,
         temperature: options.temperature,
         tools: options.tools,
+        extra: options.extra,
       });
       return Response.json(result);
     }

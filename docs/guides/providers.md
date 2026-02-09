@@ -62,7 +62,7 @@ const agent = new CascadeAgent({
 
 #### Next.js `useChat` (Vercel AI SDK UI)
 
-If you want to use **Vercel AI SDK UI hooks** (for example `useChat`) with cascadeflow, you can return the Vercel AI SDK **UI message stream** protocol from your route handler:
+If you want to use **Vercel AI SDK UI hooks** (for example `useChat`) with cascadeflow, you can return a Vercel AI SDK-compatible stream from your route handler. The handler defaults to the AI SDK v4 **data stream** protocol and automatically uses the **UI message stream** when available on newer AI SDK versions.
 
 ```ts
 import { CascadeAgent, VercelAI } from '@cascadeflow/core';
@@ -76,7 +76,7 @@ const agent = new CascadeAgent({
   ],
 });
 
-const handler = VercelAI.createChatHandler(agent, { protocol: 'data' });
+const handler = VercelAI.createChatHandler(agent);
 
 export async function POST(req: Request) {
   return handler(req);

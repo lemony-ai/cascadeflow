@@ -42,6 +42,7 @@ describe('ToolRouter', () => {
     name: 'text-davinci-003',
     provider: 'openai',
     cost: 0.02,
+    supportsTools: false,
   };
 
   const allModels = [
@@ -558,13 +559,13 @@ describe('ToolRouter', () => {
 
       const router = new ToolRouter({ models: [modelWithoutProp] });
 
-      // Should be treated as not supporting tools
-      expect(() => {
-        router.filterToolCapableModels({
-          tools: [weatherTool],
-          availableModels: [modelWithoutProp],
-        });
-      }).toThrow(ConfigurationError);
+      // DX default: models opt out of tool support via `supportsTools: false`.
+      const result = router.filterToolCapableModels({
+        tools: [weatherTool],
+        availableModels: [modelWithoutProp],
+      });
+      expect(result.hasCapableModels).toBe(true);
+      expect(result.models).toHaveLength(1);
     });
 
     it('should handle null parameters in tool validation', () => {

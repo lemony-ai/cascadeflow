@@ -71,6 +71,9 @@ export interface RunOptions {
   /** Tools/functions available */
   tools?: Tool[];
 
+  /** Provider-specific options forwarded to the provider (e.g. OpenAI `tool_choice`) */
+  extra?: Record<string, any>;
+
   /** Force direct execution (skip cascade) */
   forceDirect?: boolean;
 
@@ -685,6 +688,7 @@ export class CascadeAgent {
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
+          extra: options.extra,
         });
 
         modelUsed = response.model;
@@ -744,6 +748,7 @@ export class CascadeAgent {
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
+        extra: options.extra,
       });
 
       draftLatency = Date.now() - draftStart;
@@ -825,14 +830,15 @@ export class CascadeAgent {
           verifierModelConfig
         );
 
-        const verifierResponse = await verifierProvider.generate({
-          messages,
-          model: verifierModelConfig.name,
-          maxTokens: maxTokens,
-          temperature: options.temperature,
-          systemPrompt: options.systemPrompt,
-          tools: options.tools,
-        });
+      const verifierResponse = await verifierProvider.generate({
+        messages,
+        model: verifierModelConfig.name,
+        maxTokens: maxTokens,
+        temperature: options.temperature,
+        systemPrompt: options.systemPrompt,
+        tools: options.tools,
+        extra: options.extra,
+      });
 
         verifierLatency = Date.now() - verifierStart;
         verifierModel = verifierResponse.model;
@@ -1165,6 +1171,7 @@ export class CascadeAgent {
           temperature: options.temperature,
           systemPrompt: options.systemPrompt,
           tools: options.tools,
+          extra: options.extra,
         })) {
           directContent += chunk.content;
 
@@ -1245,6 +1252,7 @@ export class CascadeAgent {
         temperature: options.temperature,
         systemPrompt: options.systemPrompt,
         tools: options.tools,
+        extra: options.extra,
       })) {
         draftContent += chunk.content;
 
@@ -1384,6 +1392,7 @@ export class CascadeAgent {
             temperature: options.temperature,
             systemPrompt: options.systemPrompt,
             tools: options.tools,
+            extra: options.extra,
           })) {
             verifierContent += chunk.content;
 

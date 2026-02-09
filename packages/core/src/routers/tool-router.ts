@@ -184,9 +184,10 @@ export class ToolRouter {
     };
 
     // Count tool-capable models
-    this.toolCapableModels = this.models.filter(
-      (m) => m.supportsTools === true
-    );
+    // DX default: if a model doesn't explicitly opt out, assume it can be used
+    // for tool calls. Providers that don't support tools should set
+    // `supportsTools: false` (or users can).
+    this.toolCapableModels = this.models.filter((m) => m.supportsTools !== false);
 
     if (this.verbose) {
       console.log(
@@ -240,9 +241,7 @@ export class ToolRouter {
     }
 
     // Filter to tool-capable models
-    const capableModels = availableModels.filter(
-      (m) => m.supportsTools === true
-    );
+    const capableModels = availableModels.filter((m) => m.supportsTools !== false);
 
     const filteredCount = availableModels.length - capableModels.length;
     this.stats.filterHits++;

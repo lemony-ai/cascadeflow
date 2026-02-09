@@ -18,7 +18,7 @@ const agent = new CascadeAgent({
   ],
 });
 
-const handler = VercelAI.createChatHandler(agent, { protocol: 'data' });
+const handler = VercelAI.createChatHandler(agent); // default: `protocol: 'data'`
 
 export async function POST(req: Request) {
   return handler(req);
@@ -71,7 +71,7 @@ console.log(result.content);
 
 ## Current Limits (Honest)
 
-- The `useChat` integration streams text via the Vercel AI SDK **data stream** protocol.
+- The `useChat` integration streams via Vercel AI SDK protocols (AI SDK v4: **data stream**; AI SDK v5+/v6: **UI message stream**, auto-detected when available).
 - Token usage is not currently emitted in the stream (cascadeflow doesn’t expose it mid-stream yet).
 - Tool-call streaming is supported when cascadeflow emits tool calls during streaming:
   - AI SDK v4: `tool_call_streaming_start` / `tool_call_delta` / `tool_call`

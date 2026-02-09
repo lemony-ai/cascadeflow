@@ -50,7 +50,7 @@ For the recommended “ship tomorrow” path, see:
 
 ## 3. Integration Options (A/B/C)
 
-### Option A: Provider Adapter (`@cascadeflow/vercel-ai`)
+### Option A: Model/Provider Adapter (Future)
 Implement the Vercel AI SDK provider interface so cascadeflow can be passed as a model to `generateText` or `streamText`.
 
 **Pros**
@@ -102,66 +102,6 @@ Reasoning:
 - **Option A** gives the “first-class” experience in Vercel AI SDK. It should be the follow-on once initial usage validates product fit.
 - **Option C** can be offered later as a hosted/Edge-first deployment option for teams that want a managed cascadeflow gateway.
 
-## 6. Package Structure Proposal
-
-**New packages**
-1. `@cascadeflow/vercel-ai`
-   - Vercel AI SDK adapter + wrapper utilities.
-   - Exports:
-     - `createCascadeFlow()` — provider interface compatible with `generateText`/`streamText`.
-     - `wrapWithCascade()` — wraps a model provider.
-     - `toVercelStream()` — converts cascadeflow streams into AI SDK stream format.
-
-2. `@cascadeflow/edge`
-   - Edge-ready utilities and request handlers.
-   - Exports:
-     - `CascadeFlowEdge.handle(request)`
-     - `EdgeStreamAdapter`
-
-3. `@cascadeflow/next`
-   - Next.js integration helpers and examples.
-   - `routeHandler` for App Router, `apiHandler` for Pages Router.
-   - Optional: `useCascadeChat` hook wrapper built on `useChat`.
-
-## 7. API Design Examples
-
-### Option A: Provider Adapter
-```ts
-import { createCascadeFlow } from '@cascadeflow/vercel-ai';
-import { generateText } from 'ai';
-
-const cascadeflow = createCascadeFlow({
-  models: [cheap, expensive],
-});
-
-const { text } = await generateText({
-  model: cascadeflow('auto'),
-  prompt: 'Hello',
-});
-```
-
-### Option B: Wrapper
-```ts
-import { wrapWithCascade } from '@cascadeflow/vercel-ai';
-import { openai } from '@ai-sdk/openai';
-
-const cascadedOpenAI = wrapWithCascade(openai, {
-  drafter: 'gpt-4o-mini',
-  verifier: 'gpt-4o',
-});
-```
-
-### Option C: Edge Proxy (App Router)
-```ts
-import { CascadeFlowEdge } from '@cascadeflow/edge';
-
-export const runtime = 'edge';
-
-export async function POST(req: Request) {
-  return CascadeFlowEdge.handle(req);
-}
-```
-
 ## 8. Developer Experience Mockups
 
 ### Quickstart (Next.js App Router)
@@ -183,7 +123,7 @@ const agent = new CascadeAgent({
 });
 
 export async function POST(req: Request) {
-  return VercelAI.createChatHandler(agent, { protocol: 'data' })(req);
+  return VercelAI.createChatHandler(agent)(req);
 }
 ```
 

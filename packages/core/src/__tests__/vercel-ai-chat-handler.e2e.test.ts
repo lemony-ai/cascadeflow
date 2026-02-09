@@ -29,7 +29,8 @@ describeIf(Boolean(process.env.OPENAI_API_KEY))('VercelAI.createChatHandler (E2E
       const agent = new CascadeAgent({
         models: [
           {
-            name: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+            // Use a tool-capable model. Many reasoning models do not support tools.
+            name: process.env.OPENAI_TOOL_MODEL ?? 'gpt-4o-mini',
             provider: 'openai',
             // Cost values in this repo are per 1M tokens in some places; the exact value is irrelevant for this test.
             cost: 0.15,
@@ -43,6 +44,10 @@ describeIf(Boolean(process.env.OPENAI_API_KEY))('VercelAI.createChatHandler (E2E
         systemPrompt:
           "You MUST call the tool 'get_weather' exactly once with {\"location\":\"Paris\"}. Do not write any other text.",
         tools,
+        // Force tool call for stability.
+        extra: {
+          tool_choice: { type: 'function', function: { name: 'get_weather' } },
+        },
       });
 
       const req = new Request('http://local/api/chat', {
