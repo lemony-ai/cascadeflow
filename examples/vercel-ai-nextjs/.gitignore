@@ -2,4 +2,7 @@ node_modules
 .next
 .vercel
 .env*
-
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+npm-debug.log*

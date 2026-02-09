@@ -1,11 +1,13 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { useState } from 'react';
 
 export default function Page() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: '/api/chat',
-  });
+  const { messages, sendMessage, status } = useChat();
+
+  const [input, setInput] = useState('');
+  const isLoading = status === 'submitted' || status === 'streaming';
 
   return (
     <main className="page">
@@ -23,15 +25,29 @@ export default function Page() {
               messages.map((message) => (
                 <div key={message.id} className="message">
                   <p className="role">{message.role}</p>
-                  <p className="content">{message.content}</p>
+                  <p className="content">
+                    {message.parts
+                      .filter((part) => part.type === 'text')
+                      .map((part) => part.text)
+                      .join('')}
+                  </p>
                 </div>
               ))
             )}
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="input-row">
-          <input value={input} onChange={handleInputChange} placeholder="Ask cascadeflow..." />
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const text = input.trim();
+            if (!text || isLoading) return;
+            await sendMessage({ text });
+            setInput('');
+          }}
+          className="input-row"
+        >
+          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask cascadeflow..." />
           <button type="submit" disabled={isLoading}>
             {isLoading ? 'Thinking...' : 'Send'}
           </button>
@@ -40,4 +56,3 @@ export default function Page() {
     </main>
   );
 }
-
