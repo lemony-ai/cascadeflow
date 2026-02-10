@@ -52,9 +52,17 @@ CLAUDE.md
 # ============================================================================
 docs/OSS_DEVELOPMENT_STAGES.md
 docs/*_PLAN*.md
-!docs/PROXY_INTEGRATION_PLAN.md
 docs/*_ROADMAP*.md
 **/INTERNAL_*.md
+
+# One-off internal investigations / benchmark notes (keep local)
+dx-plan-*.md
+evaluation-*.md
+fastembed-*.md
+current_stats_before_fix.json
+test-result.txt
+benchmark_results/
+mtbench_results/
 
 # ============================================================================
 # ENVIRONMENT VARIABLES
