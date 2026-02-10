@@ -94,9 +94,7 @@ def _start_gateway(*args: str) -> tuple[object, int, str]:
     while time.time() - start < 30:
         # Prefer probing readiness instead of parsing stdout/port files (CI/macOS can be flaky).
         try:
-            health = httpx.get(
-                f"http://127.0.0.1:{port}/health", timeout=0.5, trust_env=False
-            )
+            health = httpx.get(f"http://127.0.0.1:{port}/health", timeout=0.5, trust_env=False)
             if health.status_code == 200:
                 return proc, port, port_file
         except Exception:

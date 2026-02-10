@@ -44,7 +44,11 @@ def test_openclaw_openai_server_requires_auth_when_configured() -> None:
 
         # Wrong auth -> 401
         r = httpx.post(
-            url, json=payload, headers={"Authorization": "Bearer nope"}, timeout=5.0, trust_env=False
+            url,
+            json=payload,
+            headers={"Authorization": "Bearer nope"},
+            timeout=5.0,
+            trust_env=False,
         )
         assert r.status_code == 401
 
