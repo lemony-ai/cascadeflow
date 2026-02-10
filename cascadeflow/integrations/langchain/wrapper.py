@@ -291,7 +291,7 @@ class CascadeFlow(BaseChatModel):
         force_verifier_for_tool_risk = False
         if invoked_tool_names:
             invoked_defs = [self._get_tool_def_for_name(n) for n in invoked_tool_names]
-            tool_risk = get_tool_risk_routing(invoked_defs)
+            tool_risk = self._sanitize_tool_risk(get_tool_risk_routing(invoked_defs))
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
@@ -569,7 +569,7 @@ class CascadeFlow(BaseChatModel):
         force_verifier_for_tool_risk = False
         if invoked_tool_names:
             invoked_defs = [self._get_tool_def_for_name(n) for n in invoked_tool_names]
-            tool_risk = get_tool_risk_routing(invoked_defs)
+            tool_risk = self._sanitize_tool_risk(get_tool_risk_routing(invoked_defs))
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
@@ -811,7 +811,7 @@ class CascadeFlow(BaseChatModel):
         force_verifier_for_tool_risk = False
         if invoked_tool_names:
             invoked_defs = [self._get_tool_def_for_name(n) for n in invoked_tool_names]
-            tool_risk = get_tool_risk_routing(invoked_defs)
+            tool_risk = self._sanitize_tool_risk(get_tool_risk_routing(invoked_defs))
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
@@ -1019,7 +1019,7 @@ class CascadeFlow(BaseChatModel):
         force_verifier_for_tool_risk = False
         if invoked_tool_names:
             invoked_defs = [self._get_tool_def_for_name(n) for n in invoked_tool_names]
-            tool_risk = get_tool_risk_routing(invoked_defs)
+            tool_risk = self._sanitize_tool_risk(get_tool_risk_routing(invoked_defs))
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
@@ -1348,6 +1348,17 @@ class CascadeFlow(BaseChatModel):
             seen.add(n)
             out.append(n)
         return out
+
+    def _sanitize_tool_risk(self, routing: dict[str, Any]) -> dict[str, Any]:
+        """Ensure tool-risk routing metadata is JSON-safe for LangSmith traces."""
+        if not routing:
+            return {}
+        return {
+            "max_risk_name": routing.get("max_risk_name"),
+            "use_verifier": bool(routing.get("use_verifier")),
+            "classifications": routing.get("classifications") or {},
+            "high_risk_tools": routing.get("high_risk_tools") or [],
+        }
 
 
 # Helper function for convenience
