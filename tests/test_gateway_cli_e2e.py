@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 import os
-import queue
 import signal
 import socket
 import subprocess
 import sys
 import tempfile
-import threading
 import time
+from dataclasses import dataclass
 
 import httpx
 
@@ -18,7 +19,43 @@ def _pick_free_port() -> int:
         return int(s.getsockname()[1])
 
 
-def _start_gateway(*args: str) -> tuple[subprocess.Popen, int, str]:
+@dataclass
+class _Spawned:
+    pid: int
+
+    def poll(self) -> int | None:
+        try:
+            waited, status = os.waitpid(self.pid, os.WNOHANG)
+        except ChildProcessError:
+            return 0
+        if waited == 0:
+            return None
+        if os.WIFEXITED(status):
+            return int(os.WEXITSTATUS(status))
+        if os.WIFSIGNALED(status):
+            return 128 + int(os.WTERMSIG(status))
+        return 1
+
+    def send_signal(self, sig: int) -> None:
+        os.kill(self.pid, sig)
+
+    def terminate(self) -> None:
+        self.send_signal(signal.SIGTERM)
+
+    def wait(self, timeout: float) -> int:
+        start = time.time()
+        while time.time() - start < timeout:
+            rc = self.poll()
+            if rc is not None:
+                return rc
+            time.sleep(0.05)
+        raise TimeoutError
+
+    def kill(self) -> None:
+        self.send_signal(signal.SIGKILL)
+
+
+def _start_gateway(*args: str) -> tuple[object, int, str]:
     port = _pick_free_port()
     cmd = [
         sys.executable,
@@ -36,28 +73,21 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int, str]:
     fd, port_file = tempfile.mkstemp(prefix="cascadeflow-gateway-port-", suffix=".txt")
     os.close(fd)
     env["CASCADEFLOW_GATEWAY_PORT_FILE"] = port_file
-    proc = subprocess.Popen(  # noqa: S603
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=env,
-    )
-
-    assert proc.stdout is not None
-    q: queue.Queue[str] = queue.Queue()
-
-    def _reader() -> None:
-        try:
-            for line in proc.stdout:
-                q.put(line.rstrip("\n"))
-        except Exception:
-            return
-
-    threading.Thread(target=_reader, daemon=True).start()
+    # macOS GitHub runners can deadlock when forking a Python process after native
+    # deps have initialized threads (e.g. onnxruntime). Using posix_spawn avoids fork.
+    if sys.platform == "darwin" and hasattr(os, "posix_spawn"):
+        pid = os.posix_spawn(sys.executable, cmd, env)  # type: ignore[attr-defined]
+        proc: object = _Spawned(pid=pid)
+    else:
+        proc = subprocess.Popen(  # noqa: S603
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=False,
+            env=env,
+        )
 
     start = time.time()
-    seen: list[str] = []
     while time.time() - start < 30:
         # Prefer probing readiness instead of parsing stdout/port files (CI/macOS can be flaky).
         try:
@@ -67,49 +97,75 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int, str]:
         except Exception:
             pass
 
-        try:
-            line = q.get(timeout=0.25)
-        except queue.Empty:
-            if proc.poll() is not None:
-                break
-            continue
-        seen.append(line)
-        # Keep collecting output for debugging on failure.
+        # If the child exited, fail early.
+        poll = getattr(proc, "poll", None)
+        if callable(poll) and poll() is not None:
+            break
+        time.sleep(0.1)
 
     try:
-        proc.terminate()
+        term = getattr(proc, "terminate", None)
+        if callable(term):
+            term()
     except Exception:
         pass
 
-    tail = "\n".join(seen[-50:])
     try:
         port_file_contents = open(port_file, encoding="utf-8").read()
     except Exception as exc:
         port_file_contents = f"<unreadable: {exc}>"
 
+    rc = None
+    try:
+        poll = getattr(proc, "poll", None)
+        if callable(poll):
+            rc = poll()
+    except Exception:
+        rc = None
+
     raise AssertionError(
         "Gateway did not become ready (GET /health did not return 200). "
-        f"returncode={proc.poll()} port={port} port_file={port_file} port_file_contents={port_file_contents!r} "
-        f"last_output=\n{tail}"
+        f"returncode={rc} port={port} port_file={port_file} port_file_contents={port_file_contents!r}"
     )
 
 
-def _stop_gateway(proc: subprocess.Popen) -> None:
-    if proc.poll() is not None:
+def _stop_gateway(proc: object) -> None:
+    poll = getattr(proc, "poll", None)
+    if callable(poll) and poll() is not None:
         return
 
     try:
         if sys.platform != "win32":
-            proc.send_signal(signal.SIGINT)
+            send = getattr(proc, "send_signal", None)
+            if callable(send):
+                send(signal.SIGINT)
         else:
-            proc.terminate()
+            term = getattr(proc, "terminate", None)
+            if callable(term):
+                term()
     except Exception:
         pass
 
     try:
-        proc.wait(timeout=3)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        wait = getattr(proc, "wait", None)
+        if callable(wait):
+            # subprocess.Popen.wait uses `timeout=...`, our _Spawned.wait does not.
+            try:
+                wait(timeout=3)  # type: ignore[misc]
+                return
+            except TypeError:
+                wait(3)  # type: ignore[misc]
+                return
+        return
+    except Exception:
+        pass
+
+    try:
+        kill = getattr(proc, "kill", None)
+        if callable(kill):
+            kill()
+    except Exception:
+        pass
 
 
 def test_gateway_cli_mock_e2e_with_metadata():
