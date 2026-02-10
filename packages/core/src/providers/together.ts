@@ -182,7 +182,11 @@ export class TogetherProvider extends BaseProvider {
       } else if (msg.role === 'user') {
         togetherMessages.push({ role: 'user', content: msg.content });
       } else if (msg.role === 'assistant') {
-        togetherMessages.push({ role: 'assistant', content: msg.content });
+        const assistantMsg: any = { role: 'assistant', content: msg.content };
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          assistantMsg.tool_calls = msg.tool_calls;
+        }
+        togetherMessages.push(assistantMsg);
       } else if (msg.role === 'tool') {
         togetherMessages.push({
           role: 'tool',

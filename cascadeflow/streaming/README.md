@@ -257,7 +257,7 @@ async def stream(
         tools: OpenAI-format tool definitions
         max_tokens: Response length limit
         temperature: Sampling temperature
-        tool_choice: {"type": "auto"/"required"/"function", "function": {...}}
+        tool_choice: {"type": "auto"/"function", "function": {...}}
         execute_tools: Auto-execute tools vs manual control
         max_turns: Max tool call loops
     

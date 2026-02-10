@@ -129,6 +129,8 @@ export class GroqProvider extends BaseProvider {
       const groqMessages = this.convertToGroqMessages(messages, request.systemPrompt);
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
+      const toolCallsByIndex = new Map<number, { id: string; name: string; argsText: string }>();
+
       const stream = await this.client.chat.completions.create({
         model: request.model || this.config.name,
         messages: groqMessages,
@@ -146,10 +148,37 @@ export class GroqProvider extends BaseProvider {
         const content = delta.content || '';
         const done = chunk.choices[0]?.finish_reason !== null;
 
+        if (Array.isArray(delta.tool_calls)) {
+          for (const toolDelta of delta.tool_calls) {
+            const idx = typeof toolDelta?.index === 'number' ? toolDelta.index : 0;
+            const prev = toolCallsByIndex.get(idx) ?? {
+              id: toolDelta?.id || `call_${idx}`,
+              name: toolDelta?.function?.name || 'unknown',
+              argsText: '',
+            };
+            toolCallsByIndex.set(idx, {
+              id: toolDelta?.id || prev.id,
+              name: toolDelta?.function?.name || prev.name,
+              argsText:
+                typeof toolDelta?.function?.arguments === 'string'
+                  ? prev.argsText + toolDelta.function.arguments
+                  : prev.argsText,
+            });
+          }
+        }
+
         yield {
           content,
           done,
           finish_reason: chunk.choices[0]?.finish_reason || undefined,
+          tool_calls:
+            Array.isArray(delta.tool_calls) && toolCallsByIndex.size > 0
+              ? Array.from(toolCallsByIndex.values()).map((tc) => ({
+                  id: tc.id,
+                  type: 'function',
+                  function: { name: tc.name, arguments: tc.argsText },
+                }))
+              : undefined,
           raw: chunk,
         };
       }
@@ -197,6 +226,8 @@ export class GroqProvider extends BaseProvider {
       const decoder = new TextDecoder();
       let buffer = '';
 
+      const toolCallsByIndex = new Map<number, { id: string; name: string; argsText: string }>();
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -223,10 +254,37 @@ export class GroqProvider extends BaseProvider {
               const content = delta.content || '';
               const isFinished = parsed.choices[0]?.finish_reason !== null;
 
+              if (Array.isArray(delta.tool_calls)) {
+                for (const toolDelta of delta.tool_calls) {
+                  const idx = typeof toolDelta?.index === 'number' ? toolDelta.index : 0;
+                  const prev = toolCallsByIndex.get(idx) ?? {
+                    id: toolDelta?.id || `call_${idx}`,
+                    name: toolDelta?.function?.name || 'unknown',
+                    argsText: '',
+                  };
+                  toolCallsByIndex.set(idx, {
+                    id: toolDelta?.id || prev.id,
+                    name: toolDelta?.function?.name || prev.name,
+                    argsText:
+                      typeof toolDelta?.function?.arguments === 'string'
+                        ? prev.argsText + toolDelta.function.arguments
+                        : prev.argsText,
+                  });
+                }
+              }
+
               yield {
                 content,
                 done: isFinished,
                 finish_reason: parsed.choices[0]?.finish_reason || undefined,
+                tool_calls:
+                  Array.isArray(delta.tool_calls) && toolCallsByIndex.size > 0
+                    ? Array.from(toolCallsByIndex.values()).map((tc) => ({
+                        id: tc.id,
+                        type: 'function',
+                        function: { name: tc.name, arguments: tc.argsText },
+                      }))
+                    : undefined,
                 raw: parsed,
               };
             } catch (e) {
@@ -390,7 +448,11 @@ export class GroqProvider extends BaseProvider {
       } else if (msg.role === 'user') {
         groqMessages.push({ role: 'user', content: msg.content });
       } else if (msg.role === 'assistant') {
-        groqMessages.push({ role: 'assistant', content: msg.content });
+        const assistantMsg: any = { role: 'assistant', content: msg.content };
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          assistantMsg.tool_calls = msg.tool_calls;
+        }
+        groqMessages.push(assistantMsg);
       } else if (msg.role === 'tool') {
         groqMessages.push({
           role: 'tool',

@@ -48,7 +48,11 @@ def test_openclaw_openai_server_stream_includes_role_and_final_finish_reason() -
     port = server.start()
     try:
         url = f"http://127.0.0.1:{port}/v1/chat/completions"
-        payload = {"model": "cascadeflow", "messages": [{"role": "user", "content": "hi"}], "stream": True}
+        payload = {
+            "model": "cascadeflow",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        }
         r = httpx.post(url, json=payload, timeout=5.0)
         assert r.status_code == 200
 
@@ -70,4 +74,3 @@ def test_openclaw_openai_server_stream_includes_role_and_final_finish_reason() -
         assert last["finish_reason"] == "stop"
     finally:
         server.stop()
-

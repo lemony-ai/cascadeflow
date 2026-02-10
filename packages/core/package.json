@@ -59,66 +59,14 @@
     "@cascadeflow/ml": "^0.6.5"
   },
   "peerDependencies": {
-    "ai": "^4.0.0",
     "@anthropic-ai/sdk": "^0.30.0",
-    "@ai-sdk/anthropic": "^1.0.0",
-    "@ai-sdk/azure": "^1.0.0",
-    "@ai-sdk/amazon-bedrock": "^1.0.0",
-    "@ai-sdk/cohere": "^1.0.0",
-    "@ai-sdk/deepseek": "^1.0.0",
-    "@ai-sdk/google": "^1.0.0",
-    "@ai-sdk/google-vertex": "^1.0.0",
-    "@ai-sdk/groq": "^1.0.0",
-    "@ai-sdk/mistral": "^1.0.0",
-    "@ai-sdk/openai": "^1.0.0",
-    "@ai-sdk/togetherai": "^1.0.0",
-    "@ai-sdk/xai": "^1.0.0",
     "@huggingface/inference": "^2.8.0",
     "@xenova/transformers": "^2.17.2",
     "groq-sdk": "^0.5.0",
     "openai": "^4.0.0"
   },
   "peerDependenciesMeta": {
-    "ai": {
-      "optional": true
-    },
     "openai": {
-      "optional": true
-    },
-    "@ai-sdk/anthropic": {
-      "optional": true
-    },
-    "@ai-sdk/azure": {
-      "optional": true
-    },
-    "@ai-sdk/amazon-bedrock": {
-      "optional": true
-    },
-    "@ai-sdk/cohere": {
-      "optional": true
-    },
-    "@ai-sdk/deepseek": {
-      "optional": true
-    },
-    "@ai-sdk/google": {
-      "optional": true
-    },
-    "@ai-sdk/google-vertex": {
-      "optional": true
-    },
-    "@ai-sdk/groq": {
-      "optional": true
-    },
-    "@ai-sdk/mistral": {
-      "optional": true
-    },
-    "@ai-sdk/openai": {
-      "optional": true
-    },
-    "@ai-sdk/togetherai": {
-      "optional": true
-    },
-    "@ai-sdk/xai": {
       "optional": true
     },
     "@anthropic-ai/sdk": {

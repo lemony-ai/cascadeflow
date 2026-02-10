@@ -261,6 +261,15 @@ export interface AgentConfig {
   /** Array of model configurations (will be automatically sorted by cost) */
   models: ModelConfig[];
 
+  /**
+   * Optional tool executor for agentic tool loops.
+   *
+   * If provided and `tools` are passed to `agent.run(...)`, the agent can
+   * automatically execute tool calls and continue the conversation until
+   * the model stops requesting tools (or `maxSteps` is reached).
+   */
+  toolExecutor?: import('./tools').ToolExecutor;
+
   /** Optional cascade configuration (advanced settings) */
   cascade?: CascadeConfig;
 

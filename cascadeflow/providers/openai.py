@@ -951,23 +951,23 @@ class OpenAIProvider(BaseProvider):
         # - no logprobs support
         # - temperature only supports 1 (default)
         is_gpt5 = model.lower().startswith("gpt-5")
-        
+
         if is_gpt5:
             # Remove unsupported params for GPT-5
             kwargs.pop("logprobs", None)
             kwargs.pop("top_logprobs", None)
-        
+
         payload = {
             "model": model,
             "messages": messages,
             "stream": True,  # Enable streaming
             **kwargs,
         }
-        
+
         # GPT-5: only default temperature (1) allowed
         if not is_gpt5:
             payload["temperature"] = temperature
-        
+
         # GPT-5: max_completion_tokens instead of max_tokens
         if is_gpt5:
             payload["max_completion_tokens"] = max_tokens

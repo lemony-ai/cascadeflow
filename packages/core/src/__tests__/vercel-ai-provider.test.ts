@@ -26,8 +26,12 @@ vi.mock('ai', () => ({
 }));
 
 describe('Vercel AI SDK Provider', () => {
-  it('defines 17+ supported Vercel AI SDK providers', () => {
-    expect(VERCEL_AI_PROVIDER_NAMES.length).toBeGreaterThanOrEqual(17);
+  it('defines a stable set of supported Vercel AI SDK providers', () => {
+    expect(VERCEL_AI_PROVIDER_NAMES).toEqual(
+      expect.arrayContaining(['openai', 'anthropic', 'groq', 'google', 'azure', 'bedrock', 'vertex'])
+    );
+    expect(VERCEL_AI_PROVIDER_NAMES).not.toContain('openrouter');
+    expect(VERCEL_AI_PROVIDER_NAMES).not.toContain('ollama');
   });
 
   it('maps every provider name to a spec', () => {

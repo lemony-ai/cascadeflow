@@ -251,12 +251,35 @@ export class OpenAIProvider extends BaseProvider {
 
       const stream = await this.client.chat.completions.create(streamConfig);
 
+      // Accumulate streamed tool call deltas (OpenAI-compatible API).
+      const toolCallsByIndex = new Map<number, { id: string; name: string; argsText: string }>();
+
       for await (const chunk of stream) {
         const delta = chunk.choices[0]?.delta;
         if (!delta) continue;
 
         const content = delta.content || '';
         const done = chunk.choices[0]?.finish_reason !== null;
+
+        if (Array.isArray(delta.tool_calls)) {
+          for (const toolDelta of delta.tool_calls) {
+            const idx = typeof toolDelta?.index === 'number' ? toolDelta.index : 0;
+            const prev = toolCallsByIndex.get(idx) ?? {
+              id: toolDelta?.id || `call_${idx}`,
+              name: toolDelta?.function?.name || 'unknown',
+              argsText: '',
+            };
+
+            toolCallsByIndex.set(idx, {
+              id: toolDelta?.id || prev.id,
+              name: toolDelta?.function?.name || prev.name,
+              argsText:
+                typeof toolDelta?.function?.arguments === 'string'
+                  ? prev.argsText + toolDelta.function.arguments
+                  : prev.argsText,
+            });
+          }
+        }
 
         // Extract logprob for this chunk if available
         let logprob: number | undefined;
@@ -271,6 +294,14 @@ export class OpenAIProvider extends BaseProvider {
           content,
           done,
           finish_reason: chunk.choices[0]?.finish_reason || undefined,
+          tool_calls:
+            Array.isArray(delta.tool_calls) && toolCallsByIndex.size > 0
+              ? Array.from(toolCallsByIndex.values()).map((tc) => ({
+                  id: tc.id,
+                  type: 'function',
+                  function: { name: tc.name, arguments: tc.argsText },
+                }))
+              : undefined,
           logprob,
           raw: chunk,
         };
@@ -342,6 +373,8 @@ export class OpenAIProvider extends BaseProvider {
       const decoder = new TextDecoder();
       let buffer = '';
 
+      const toolCallsByIndex = new Map<number, { id: string; name: string; argsText: string }>();
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -368,6 +401,26 @@ export class OpenAIProvider extends BaseProvider {
               const content = delta.content || '';
               const isFinished = parsed.choices[0]?.finish_reason !== null;
 
+              if (Array.isArray(delta.tool_calls)) {
+                for (const toolDelta of delta.tool_calls) {
+                  const idx = typeof toolDelta?.index === 'number' ? toolDelta.index : 0;
+                  const prev = toolCallsByIndex.get(idx) ?? {
+                    id: toolDelta?.id || `call_${idx}`,
+                    name: toolDelta?.function?.name || 'unknown',
+                    argsText: '',
+                  };
+
+                  toolCallsByIndex.set(idx, {
+                    id: toolDelta?.id || prev.id,
+                    name: toolDelta?.function?.name || prev.name,
+                    argsText:
+                      typeof toolDelta?.function?.arguments === 'string'
+                        ? prev.argsText + toolDelta.function.arguments
+                        : prev.argsText,
+                  });
+                }
+              }
+
               // Extract logprob for this chunk if available
               let logprob: number | undefined;
               if (parsed.choices[0]?.logprobs?.content && parsed.choices[0].logprobs.content.length > 0) {
@@ -381,6 +434,14 @@ export class OpenAIProvider extends BaseProvider {
                 content,
                 done: isFinished,
                 finish_reason: parsed.choices[0]?.finish_reason || undefined,
+                tool_calls:
+                  Array.isArray(delta.tool_calls) && toolCallsByIndex.size > 0
+                    ? Array.from(toolCallsByIndex.values()).map((tc) => ({
+                        id: tc.id,
+                        type: 'function',
+                        function: { name: tc.name, arguments: tc.argsText },
+                      }))
+                    : undefined,
                 logprob,
                 raw: parsed,
               };
@@ -676,7 +737,11 @@ export class OpenAIProvider extends BaseProvider {
       } else if (msg.role === 'user') {
         chatMessages.push({ role: 'user', content: msg.content });
       } else if (msg.role === 'assistant') {
-        chatMessages.push({ role: 'assistant', content: msg.content });
+        const assistantMsg: any = { role: 'assistant', content: msg.content };
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          assistantMsg.tool_calls = msg.tool_calls;
+        }
+        chatMessages.push(assistantMsg);
       } else if (msg.role === 'tool') {
         chatMessages.push({
           role: 'tool',

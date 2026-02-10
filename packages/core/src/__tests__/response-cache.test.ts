@@ -56,11 +56,11 @@ describe('ResponseCache', () => {
       expect(key1).toBe(key2);
     });
 
-    it('should generate SHA-256 hash (64 hex chars)', () => {
+    it('should generate deterministic hex hash key', () => {
       const key = cache.generateKey('test');
 
-      expect(key).toHaveLength(64);
-      expect(key).toMatch(/^[a-f0-9]{64}$/);
+      expect(key).toHaveLength(16);
+      expect(key).toMatch(/^[a-f0-9]{16}$/);
     });
   });
 
