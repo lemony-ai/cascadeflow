@@ -55,7 +55,27 @@ class _Spawned:
         self.send_signal(signal.SIGKILL)
 
 
+def _read_tail(path: str, max_bytes: int = 8000) -> str:
+    try:
+        with open(path, "rb") as f:
+            try:
+                f.seek(0, os.SEEK_END)
+                end = f.tell()
+                start = max(0, end - int(max_bytes))
+                f.seek(start)
+            except Exception:
+                pass
+            data = f.read()
+        return data.decode("utf-8", errors="replace")
+    except Exception as exc:
+        return f"<unreadable log: {exc}>"
+
+
 def _start_gateway(*args: str) -> tuple[object, int, str]:
+    # macOS GitHub runners can be noticeably slower to import/start a fresh Python
+    # process; give it more time to come up before we assume it's broken.
+    timeout_s = 120.0 if sys.platform == "darwin" else 45.0
+
     port = _pick_free_port()
     cmd = [
         sys.executable,
@@ -73,38 +93,71 @@ def _start_gateway(*args: str) -> tuple[object, int, str]:
     # Make localhost reachable even if the runner sets HTTP(S)_PROXY.
     env.setdefault("NO_PROXY", "127.0.0.1,localhost")
     env.setdefault("no_proxy", "127.0.0.1,localhost")
+    # Best-effort: reduce risk of fork-related issues on macOS.
+    env.setdefault("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
     fd, port_file = tempfile.mkstemp(prefix="cascadeflow-gateway-port-", suffix=".txt")
     os.close(fd)
     env["CASCADEFLOW_GATEWAY_PORT_FILE"] = port_file
+
+    log_fd, log_file = tempfile.mkstemp(prefix="cascadeflow-gateway-", suffix=".log")
     # macOS GitHub runners can deadlock when forking a Python process after native
     # deps have initialized threads (e.g. onnxruntime). Using posix_spawn avoids fork.
     if sys.platform == "darwin" and hasattr(os, "posix_spawn"):
-        pid = os.posix_spawn(sys.executable, cmd, env)  # type: ignore[attr-defined]
+        file_actions = [
+            (os.POSIX_SPAWN_DUP2, log_fd, 1),
+            (os.POSIX_SPAWN_DUP2, log_fd, 2),
+            (os.POSIX_SPAWN_CLOSE, log_fd),
+        ]
+        pid = os.posix_spawn(  # type: ignore[attr-defined]
+            sys.executable,
+            cmd,
+            env,
+            file_actions=file_actions,
+        )
         proc: object = _Spawned(pid=pid)
+        try:
+            os.close(log_fd)
+        except Exception:
+            pass
     else:
+        log_f = os.fdopen(log_fd, "wb", buffering=0)
         proc = subprocess.Popen(  # noqa: S603
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_f,
+            stderr=subprocess.STDOUT,
             text=False,
             env=env,
         )
+        log_f.close()
 
     start = time.time()
-    while time.time() - start < 30:
+    last_exc: str | None = None
+    last_status: int | None = None
+    last_body: str | None = None
+    while time.time() - start < timeout_s:
         # Prefer probing readiness instead of parsing stdout/port files (CI/macOS can be flaky).
         try:
             health = httpx.get(f"http://127.0.0.1:{port}/health", timeout=0.5, trust_env=False)
+            last_status = int(getattr(health, "status_code", 0) or 0)
+            try:
+                last_body = str(health.text)[:400]
+            except Exception:
+                last_body = None
             if health.status_code == 200:
                 return proc, port, port_file
         except Exception:
-            pass
+            last_exc = str(sys.exc_info()[1])
 
         # If the child exited, fail early.
         poll = getattr(proc, "poll", None)
         if callable(poll) and poll() is not None:
             break
         time.sleep(0.1)
+
+    try:
+        os.close(log_fd)
+    except Exception:
+        pass
 
     try:
         term = getattr(proc, "terminate", None)
@@ -118,6 +171,8 @@ def _start_gateway(*args: str) -> tuple[object, int, str]:
     except Exception as exc:
         port_file_contents = f"<unreadable: {exc}>"
 
+    log_tail = _read_tail(log_file)
+
     rc = None
     try:
         poll = getattr(proc, "poll", None)
@@ -128,7 +183,10 @@ def _start_gateway(*args: str) -> tuple[object, int, str]:
 
     raise AssertionError(
         "Gateway did not become ready (GET /health did not return 200). "
-        f"returncode={rc} port={port} port_file={port_file} port_file_contents={port_file_contents!r}"
+        f"returncode={rc} port={port} "
+        f"last_status={last_status} last_exc={last_exc!r} last_body={last_body!r} "
+        f"port_file={port_file} port_file_contents={port_file_contents!r} "
+        f"log_file={log_file} log_tail={log_tail!r}"
     )
 
 
