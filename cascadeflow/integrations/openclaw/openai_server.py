@@ -149,7 +149,15 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 return
             return self._handle_stats(server)
         if self.path == "/health":
-            return self._send_json({"status": "ok"})
+            # Check if any providers were successfully initialized
+            providers_count = len(server.agent.providers) if server.agent.providers else 0
+            if providers_count == 0:
+                return self._send_json({
+                    "status": "degraded",
+                    "reason": "no_providers_initialized",
+                    "message": "Server is running but no providers could be initialized. Check API keys."
+                })
+            return self._send_json({"status": "ok", "providers_initialized": providers_count})
 
         self.send_response(404)
         self.end_headers()
