@@ -61,7 +61,7 @@ interface DomainConfig {
  * Custom CascadeChatModel that wraps multiple models (drafter, verifier, and domain-specific)
  * and implements intelligent domain-aware cascading logic with cost tracking
  */
-class CascadeChatModel extends BaseChatModel {
+export class CascadeChatModel extends BaseChatModel {
   drafterModel: BaseChatModel;
   verifierModelGetter: () => Promise<BaseChatModel>;
   qualityThreshold: number;
@@ -217,7 +217,7 @@ class CascadeChatModel extends BaseChatModel {
     }
   }
 
-  private async getVerifierModel(): Promise<BaseChatModel> {
+  async getVerifierModel(): Promise<BaseChatModel> {
     if (!this.verifierModel) {
       console.log('   🔄 Loading verifier model from TOP port (labeled "Verifier")...');
       this.verifierModel = await this.verifierModelGetter();
@@ -225,6 +225,54 @@ class CascadeChatModel extends BaseChatModel {
       console.log(`   ✓ Verifier model loaded: ${verifierInfo}`);
     }
     return this.verifierModel;
+  }
+
+  /**
+   * Agent helper: force a direct verifier call (bypasses cascade logic) while still
+   * attaching the same `response_metadata` fields as the standard flows.
+   */
+  async invokeVerifierDirect(
+    messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+    runManager?: CallbackManagerForLLMRun
+  ): Promise<BaseMessage> {
+    const verifierModel = await this.getVerifierModel();
+    const verifierInfo = this.getModelInfo(verifierModel);
+
+    await runManager?.handleText(`⚡ Agent route: using verifier directly (${verifierInfo})\n`);
+
+    const start = Date.now();
+    const verifierMessage = await verifierModel.invoke(messages, options);
+    const latency = Date.now() - start;
+
+    const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+    const costBreakdown = {
+      drafter: 0,
+      verifier: verifierCost,
+      total: verifierCost,
+    };
+
+    if (!(verifierMessage as any).response_metadata) {
+      (verifierMessage as any).response_metadata = {};
+    }
+    (verifierMessage as any).response_metadata.cascadeflow = {
+      flow: 'agent_verifier_direct',
+      model_used: 'verifier',
+      latency_ms: latency,
+      cost_usd: verifierCost,
+    };
+
+    this.attachCascadeMetadata(
+      verifierMessage,
+      buildCascadeMetadata({
+        modelUsed: 'verifier',
+        domain: null,
+        costs: costBreakdown,
+        baselineCost: verifierCost,
+      })
+    );
+
+    return verifierMessage;
   }
 
   /**

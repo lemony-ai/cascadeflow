@@ -78,7 +78,7 @@ cascadeflow is a **Language Model sub-node** that sits between your AI model nod
 ✅ **Flexible** - Use any combination of models from different providers
 ✅ **Universal** - Compatible with OpenAI, Anthropic, Ollama, Azure, Google, and more
 
-> **ℹ️ Note:** cascadeflow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Note:** Use **CascadeFlow (Model)** with n8n Chain/LLM nodes, and **CascadeFlow Agent** for agent workflows (tool calling + multi-step). The Agent node adds trace metadata and supports tool routing.
 
 ---
 
@@ -142,7 +142,7 @@ First, add and configure two AI Chat Model nodes in your workflow:
 1. Add a **Basic LLM Chain** or **Chain** node
 2. Connect the cascadeflow node to it (Model input)
 3. Configure your chain as usual
-4. **Note:** Does not work with AI Agent nodes (n8n limitation)
+4. For agent workflows, use the **CascadeFlow Agent** node (connect tools to its `Tools` input).
 
 ### Step 4: Execute and View Results
 
@@ -292,7 +292,7 @@ cascadeflow provides detailed logging of every cascade decision directly in n8n'
 
 The logs provide complete visibility into the cascade decision-making process, showing exactly which path was taken for each request.
 
-> **ℹ️ Important:** cascadeflow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Important:** If you need agent-style tool orchestration, use the **CascadeFlow Agent** node. It is designed for n8n agent flows and records a step-by-step trace in `response_metadata.cf.trace`.
 
 ---
 
@@ -574,11 +574,11 @@ Note: Requires Ollama installed locally
 
 ### Issue: "This node cannot be connected" when connecting to AI Agent
 
-**Solution:** This is expected. cascadeflow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use cascadeflow with:
+**Solution:** Use the **CascadeFlow Agent** node for agent workflows. Use the **CascadeFlow (Model)** node for Chain/LLM workflows.
 - ✅ Basic LLM Chain
 - ✅ Chain
 - ✅ Other nodes that accept Language Model connections
-- ❌ AI Agent (not supported)
+- ✅ CascadeFlow Agent (agent workflows)
 
 ### Issue: Always escalating to verifier
 
