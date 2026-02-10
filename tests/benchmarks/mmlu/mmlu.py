@@ -17,8 +17,8 @@ import re
 import time
 from typing import Any, Optional
 
-from .base import Benchmark, BenchmarkResult, BenchmarkSummary
-from .benchmark_config import BenchmarkConfig, BenchmarkMode
+from ..base import Benchmark, BenchmarkResult, BenchmarkSummary
+from ..benchmark_config import BenchmarkConfig, BenchmarkMode
 
 
 class MMLUCategory:
@@ -617,13 +617,29 @@ class MMLUBenchmark(Benchmark):
         # Format question with choices
         formatted_question = self._format_question(question_data)
 
-        # Create agent with config
+        def _provider_for(model_name: str) -> str:
+            # Keep benchmark configs simple: infer provider from model prefix.
+            if model_name.startswith("claude-"):
+                return "anthropic"
+            if model_name.startswith("gpt-") or model_name.startswith("o"):
+                return "openai"
+            return "openai"
+
+        # Create agent with current CascadeAgent API.
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="openai", cost=0.0025),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=_provider_for(self.drafter_model),
+                    cost=0.0,
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=_provider_for(self.verifier_model),
+                    cost=0.0,
+                ),
             ],
-            quality_threshold=self.quality_threshold,
+            quality={"threshold": self.quality_threshold},
             enable_domain_detection=self.config.enable_domain_pipeline,
             use_semantic_domains=self.config.enable_semantic_detection,
         )
@@ -633,17 +649,21 @@ class MMLUBenchmark(Benchmark):
         result = await agent.run(formatted_question)
         latency_ms = (time.time() - start_time) * 1000
 
+        accepted = bool(result.draft_accepted)
+
         return {
             "prediction": result.content,
-            "model_used": "drafter" if result.model_used == self.drafter_model else "verifier",
-            "accepted": result.model_used == self.drafter_model,
-            "quality_score": result.metadata.get("quality_score", 0.7),
-            "drafter_cost": result.total_cost if result.model_used == self.drafter_model else 0.0,
-            "verifier_cost": result.total_cost if result.model_used != self.drafter_model else 0.0,
-            "total_cost": result.total_cost,
+            "model_used": "drafter" if accepted else "verifier",
+            "accepted": accepted,
+            "quality_score": float(result.quality_score or 0.0),
+            "drafter_cost": float(result.draft_cost or 0.0),
+            "verifier_cost": float(result.verifier_cost or 0.0),
+            "total_cost": float(result.total_cost or 0.0),
+            "cost_saved": result.cost_saved,
+            "baseline_cost": result.baseline_cost,
             "latency_ms": latency_ms,
-            "tokens_input": result.metadata.get("tokens_input", 0),
-            "tokens_output": result.metadata.get("tokens_output", 0),
+            "tokens_input": int(result.metadata.get("prompt_tokens", 0) or 0),
+            "tokens_output": int(result.metadata.get("completion_tokens", 0) or 0),
         }
 
     def _format_question(self, question_data: dict) -> str:
@@ -658,26 +678,6 @@ Question: {question}
 {choices}
 
 Answer:"""
-
-    def get_baseline_cost(self, query: str) -> float:
-        """
-        Calculate cost if using GPT-4o for all questions.
-
-        Args:
-            query: Question ID
-
-        Returns:
-            Estimated baseline cost
-        """
-        # MMLU questions are short - ~50 tokens input, ~20 tokens output
-        input_tokens = 50
-        output_tokens = 20
-
-        # GPT-4o pricing
-        input_cost = (input_tokens / 1_000_000) * 2.50
-        output_cost = (output_tokens / 1_000_000) * 10.00
-
-        return input_cost + output_cost
 
     def get_category_summary(self) -> dict[str, dict[str, float]]:
         """Get accuracy breakdown by category."""

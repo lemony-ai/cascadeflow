@@ -265,7 +265,8 @@ async def run_all_benchmarks(
         print("Running GSM8K Benchmark...")
         print("=" * 80)
         try:
-            gsm8k_result = await run_gsm8k_benchmark(config, gsm8k_samples)
+            gsm8k_config = BenchmarkConfig.for_gsm8k(mode)
+            gsm8k_result = await run_gsm8k_benchmark(gsm8k_config, gsm8k_samples)
             results["benchmarks"].append(gsm8k_result)
             print(
                 f"\nGSM8K Complete: {gsm8k_result['accuracy']:.1f}% accuracy, {gsm8k_result['cost_reduction_pct']:.1f}% cost reduction"
