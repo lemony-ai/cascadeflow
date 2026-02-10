@@ -4,7 +4,7 @@
  * Demonstrates real-time streaming with CascadeFlow:
  * 1. Stream drafter optimistically (user sees output immediately)
  * 2. Check quality after drafter completes
- * 3. If quality insufficient, show switch message and stream verifier
+ * 3. If quality insufficient, stream verifier output after drafter output (optimistic streaming)
  */
 
 import { ChatOpenAI } from '@langchain/openai';
@@ -24,10 +24,10 @@ async function main() {
       temperature: 0.7,
     }),
     qualityThreshold: 0.7,
-  });
+  }).bind({ metadata: { cascadeflow_emit_switch_message: true } });
 
   // Example 1: Simple query (likely accepted by drafter)
-  console.log('Example 1: Simple Query (likely cascaded)\n');
+  console.log('Example 1: Simple Query (may cascade)\n');
   console.log('Q: What is 2+2?\n');
   console.log('A: ');
 

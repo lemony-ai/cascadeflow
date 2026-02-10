@@ -49,21 +49,27 @@ async function main() {
   // Keep descriptions accurate: tool risk classification uses name + description.
   const tools = [
     {
-      name: 'get_weather',
-      description: 'Read-only: get the current weather for a location.',
-      parameters: {
-        type: 'object',
-        properties: { location: { type: 'string' } },
-        required: ['location'],
+      type: 'function',
+      function: {
+        name: 'get_weather',
+        description: 'Read-only: get the current weather for a location.',
+        parameters: {
+          type: 'object',
+          properties: { location: { type: 'string' } },
+          required: ['location'],
+        },
       },
     },
     {
-      name: 'delete_user',
-      description: 'HIGH RISK: permanently deletes a user account (irreversible).',
-      parameters: {
-        type: 'object',
-        properties: { user_id: { type: 'string' } },
-        required: ['user_id'],
+      type: 'function',
+      function: {
+        name: 'delete_user',
+        description: 'HIGH RISK: permanently deletes a user account (irreversible).',
+        parameters: {
+          type: 'object',
+          properties: { user_id: { type: 'string' } },
+          required: ['user_id'],
+        },
       },
     },
   ];
@@ -102,4 +108,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

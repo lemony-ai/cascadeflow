@@ -356,6 +356,9 @@ See the [examples](./examples/) directory for complete working examples:
 
 - **[basic-usage.ts](./examples/basic-usage.ts)** - Getting started guide
 - **[streaming-cascade.ts](./examples/streaming-cascade.ts)** - Real-time streaming with optimistic drafter execution
+- **[lcel-pipeline.ts](./examples/lcel-pipeline.ts)** - LCEL runnable composition with CascadeFlow
+- **[tool-risk-gating.ts](./examples/tool-risk-gating.ts)** - Tool-call acceptance + high-risk verifier gating
+- **[langgraph-multi-agent.ts](./examples/langgraph-multi-agent.ts)** - Optional LangGraph multi-agent pattern
 
 ## API Reference
 

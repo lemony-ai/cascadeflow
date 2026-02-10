@@ -93,12 +93,12 @@ import { withCascade } from '@cascadeflow/langchain';
 
 // Create your models
 const drafter = new ChatOpenAI({
-  modelName: 'gpt-4o-mini',
+  model: 'gpt-4o-mini',
   temperature: 0.7
 });
 
 const verifier = new ChatOpenAI({
-  modelName: 'gpt-4o',
+  model: 'gpt-4o',
   temperature: 0.7
 });
 
@@ -106,7 +106,7 @@ const verifier = new ChatOpenAI({
 const cascade = withCascade({
   drafter,
   verifier,
-  qualityThreshold: 0.8, // 80% of queries will use drafter
+  qualityThreshold: 0.7,
 });
 
 // Use it like any LangChain chat model
@@ -148,16 +148,28 @@ interface CascadeConfig {
   // Required: The high-quality model (fallback)
   verifier: BaseChatModel;
 
-  // Quality threshold (0-1)
-  // Higher = more queries use drafter
-  // Default: 0.8
+  // Quality threshold (0-1). Default: 0.7
   qualityThreshold?: number;
 
-  // Custom quality check function
-  qualityCheck?: (response: BaseMessage) => Promise<number>;
+  // Enable automatic cost tracking (default true)
+  enableCostTracking?: boolean;
 
-  // Enable debug logging
-  verbose?: boolean;
+  // Cost tracking provider:
+  // - 'langsmith' (default): LangSmith computes costs server-side
+  // - 'cascadeflow': local pricing table
+  costTrackingProvider?: 'langsmith' | 'cascadeflow';
+
+  // Optional custom quality validator (0-1)
+  qualityValidator?: (response: any) => Promise<number> | number;
+
+  // Enable complexity pre-routing (default true)
+  enablePreRouter?: boolean;
+
+  // Optional: provide a custom PreRouter instance
+  preRouter?: PreRouter;
+
+  // Complexity levels that should use cascade first
+  cascadeComplexities?: QueryComplexity[];
 }
 ```
 
@@ -174,8 +186,8 @@ interface CascadeConfig {
 
 **OpenAI:**
 ```typescript
-const drafter = new ChatOpenAI({ modelName: 'gpt-4o-mini' });
-const verifier = new ChatOpenAI({ modelName: 'gpt-4o' });
+const drafter = new ChatOpenAI({ model: 'gpt-4o-mini' });
+const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 ```
 
 **Anthropic:**
@@ -190,7 +202,7 @@ const verifier = new ChatAnthropic({ modelName: 'claude-3-5-sonnet-20241022' });
 ```typescript
 // Cheap drafter (Haiku), powerful verifier (GPT-4o)
 const drafter = new ChatAnthropic({ modelName: 'claude-3-haiku-20240307' });
-const verifier = new ChatOpenAI({ modelName: 'gpt-4o' });
+const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 ```
 
 ---
@@ -218,7 +230,8 @@ for await (const chunk of stream) {
 
 To enable a debug "switch" message (TypeScript only), pass:
 ```typescript
-await cascade.stream("...", { metadata: { cascadeflow_emit_switch_message: true } })
+const debugCascade = cascade.bind({ metadata: { cascadeflow_emit_switch_message: true } });
+await debugCascade.stream("...");
 ```
 
 ### 2. Tool Calling & Function Calling
@@ -228,19 +241,22 @@ Bind tools to cascade - they propagate to both models:
 ```typescript
 const tools = [
   {
-    name: 'calculator',
-    description: 'Performs arithmetic operations',
-    parameters: {
-      type: 'object',
-      properties: {
-        operation: {
-          type: 'string',
-          enum: ['add', 'subtract', 'multiply', 'divide']
+    type: 'function',
+    function: {
+      name: 'calculator',
+      description: 'Performs arithmetic operations',
+      parameters: {
+        type: 'object',
+        properties: {
+          operation: {
+            type: 'string',
+            enum: ['add', 'subtract', 'multiply', 'divide']
+          },
+          a: { type: 'number' },
+          b: { type: 'number' },
         },
-        a: { type: 'number' },
-        b: { type: 'number' },
+        required: ['operation', 'a', 'b'],
       },
-      required: ['operation', 'a', 'b'],
     },
   },
 ];
@@ -253,7 +269,7 @@ const result = await boundCascade.invoke(
 );
 
 // Result includes tool calls
-console.log(result.tool_calls);
+console.log(result.tool_calls ?? result.additional_kwargs?.tool_calls);
 ```
 
 **Safety policy (default):**
@@ -377,13 +393,19 @@ Automatic cost tracking metadata:
 const result = await cascade.invoke('test');
 
 // Access via response_metadata
-console.log(result.response_metadata.cascade);
+console.log(result.response_metadata?.cascade);
 /*
 {
-  route: 'drafter',
-  model: 'gpt-4o-mini',
-  estimated_cost: 0.00015,
-  quality_score: 0.85
+  modelUsed: 'drafter',
+  accepted: true,
+  drafterQuality: 0.75,
+  drafterTokens: { input: 123, output: 45 },
+  verifierTokens: undefined,
+  drafterCost: 0,
+  verifierCost: 0,
+  totalCost: 0,
+  savingsPercentage: 0,
+  cascade_decision: 'accepted'
 }
 */
 ```
@@ -414,8 +436,8 @@ Provide a clear, helpful answer.
 `);
 
 const cascade = withCascade({
-  drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
-  verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatOpenAI({ model: 'gpt-4o' }),
   qualityThreshold: 0.85, // Most queries use cheap model
 });
 
@@ -453,8 +475,8 @@ Answer based on the context above.
 `);
 
 const cascade = withCascade({
-  drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
-  verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatOpenAI({ model: 'gpt-4o' }),
   qualityThreshold: 0.8,
 });
 
@@ -491,8 +513,8 @@ const extractionSchema = {
 };
 
 const cascade = withCascade({
-  drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
-  verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatOpenAI({ model: 'gpt-4o' }),
 });
 
 const extractor = cascade.withStructuredOutput(extractionSchema);
@@ -521,8 +543,8 @@ Provide:
 `);
 
 const cascade = withCascade({
-  drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),
-  verifier: new ChatOpenAI({ modelName: 'gpt-4o' }),
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatOpenAI({ model: 'gpt-4o' }),
   qualityThreshold: 0.75, // More critical task
 });
 
@@ -576,9 +598,12 @@ const result = await cascade.invoke('test', {
 const cascade = withCascade({
   drafter,
   verifier,
-  qualityCheck: async (response) => {
-    // Custom logic
-    const content = response.content.toString();
+  qualityValidator: async (chatResult) => {
+    // `chatResult` is a LangChain ChatResult-like object.
+    const content =
+      chatResult?.generations?.[0]?.text ??
+      chatResult?.generations?.[0]?.message?.content ??
+      '';
 
     // Check length
     if (content.length < 50) return 0.5;
@@ -599,8 +624,8 @@ const cascade = withCascade({
 **For Simple Tasks:**
 ```typescript
 // Use smallest models
-const drafter = new ChatOpenAI({ modelName: 'gpt-4o-mini' });
-const verifier = new ChatOpenAI({ modelName: 'gpt-4o-mini' }); // Same model
+const drafter = new ChatOpenAI({ model: 'gpt-4o-mini' });
+const verifier = new ChatOpenAI({ model: 'gpt-4o-mini' }); // Same model
 // Set high threshold
 qualityThreshold: 0.95
 ```
@@ -608,8 +633,8 @@ qualityThreshold: 0.95
 **For Complex Tasks:**
 ```typescript
 // Use model gap
-const drafter = new ChatOpenAI({ modelName: 'gpt-4o-mini' });
-const verifier = new ChatOpenAI({ modelName: 'o1-preview' }); // Most powerful
+const drafter = new ChatOpenAI({ model: 'gpt-4o-mini' });
+const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 // Set moderate threshold
 qualityThreshold: 0.7
 ```
@@ -617,11 +642,8 @@ qualityThreshold: 0.7
 ### 5. Streaming Best Practices
 
 ```typescript
-// Pre-route for consistent streaming
-const stream = await cascade.stream(input, {
-  // Optional: Force drafter for known simple queries
-  metadata: { force_drafter: true },
-});
+// Text-only: drafter streams optimistically, verifier streams only if needed
+const stream = await cascade.stream(input);
 
 for await (const chunk of stream) {
   // Handle chunks
@@ -649,17 +671,14 @@ const cascade = withCascade({
 ```typescript
 // Use better drafter
 const drafter = new ChatOpenAI({
-  modelName: 'gpt-4o-mini',
+  model: 'gpt-4o-mini',
   temperature: 0.3, // More deterministic
 });
 ```
 
 **Solution 3:** Add custom quality check
 ```typescript
-qualityCheck: async (response) => {
-  // More lenient check
-  return 0.9; // Accept most responses
-}
+qualityValidator: async () => 0.9
 ```
 
 ### Issue: Tools Not Working
@@ -669,11 +688,11 @@ qualityCheck: async (response) => {
 **Solution:** Ensure models support tools
 ```typescript
 // ✅ Good - models support tools
-const drafter = new ChatOpenAI({ modelName: 'gpt-4o-mini' });
-const verifier = new ChatOpenAI({ modelName: 'gpt-4o' });
+const drafter = new ChatOpenAI({ model: 'gpt-4o-mini' });
+const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 
 // ❌ Bad - model doesn't support tools
-const drafter = new ChatOpenAI({ modelName: 'gpt-3.5-turbo' });
+const drafter = new ChatOpenAI({ model: 'gpt-3.5-turbo' });
 ```
 
 ### Issue: Streaming Not Working
@@ -684,7 +703,7 @@ const drafter = new ChatOpenAI({ modelName: 'gpt-3.5-turbo' });
 ```typescript
 // Ensure both models support streaming
 const drafter = new ChatOpenAI({
-  modelName: 'gpt-4o-mini',
+  model: 'gpt-4o-mini',
   streaming: true, // Enable streaming
 });
 ```
@@ -717,21 +736,6 @@ console.log(result.response_metadata?.cascade);
 
 // Not result.metadata (wrong)
 ```
-
----
-
-## Performance Metrics
-
-Real-world results from production usage:
-
-| Use Case | Drafter Usage | Cost Savings | Latency Improvement |
-|----------|---------------|--------------|---------------------|
-| Customer Support | 82% | 75% | +15% faster |
-| Document Q&A | 73% | 65% | +20% faster |
-| Data Extraction | 68% | 58% | +10% faster |
-| Code Review | 71% | 63% | +18% faster |
-
----
 
 ## Next Steps
 

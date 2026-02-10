@@ -1,5 +1,5 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { BaseMessage, AIMessage, ChatMessage, HumanMessage } from '@langchain/core/messages';
+import { BaseMessage, AIMessage, AIMessageChunk, ChatMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { CascadeConfig, CascadeResult } from './types.js';
@@ -39,8 +39,14 @@ function normalizeToolDefs(tools: any[]): NormalizedToolDef[] {
   for (const t of tools || []) {
     if (!t) continue;
     if (typeof t === 'object') {
-      const name = (t.name || t?.lc_kwargs?.name || t?.lc_kwargs?.tool?.name) as string | undefined;
-      const description = (t.description || t?.lc_kwargs?.description || t?.description) as
+      // Common LangChain formats:
+      // 1) { name, description, parameters }
+      // 2) OpenAI tools: { type: 'function', function: { name, description, parameters } }
+      const fn = (t.function || t?.lc_kwargs?.function) as any | undefined;
+      const name = (t.name || fn?.name || t?.lc_kwargs?.name || t?.lc_kwargs?.tool?.name) as
+        | string
+        | undefined;
+      const description = (t.description || fn?.description || t?.lc_kwargs?.description || t?.description) as
         | string
         | undefined;
       if (name) out.push({ name, description });
@@ -178,20 +184,8 @@ export class CascadeFlow extends BaseChatModel {
     input: BaseMessage[] | string,
     options?: any
   ): Promise<any> {
-    // Convert string input to HumanMessage (standard LangChain approach)
-    // We'll add agent metadata in the options instead
-    let processedInput: BaseMessage[];
-
-    if (typeof input === 'string') {
-      processedInput = [new HumanMessage({ content: input })];
-    } else if (Array.isArray(input)) {
-      processedInput = input;
-    } else {
-      // Single message object
-      processedInput = [input as BaseMessage];
-    }
-
-    // Add agent role to metadata in options
+    // Do not coerce inputs here: LCEL pipelines can pass PromptValue objects and other
+    // LangChain-native inputs. Let BaseChatModel handle coercion.
     const enrichedOptions = {
       ...options,
       metadata: {
@@ -200,7 +194,7 @@ export class CascadeFlow extends BaseChatModel {
       },
     };
 
-    return super.invoke(processedInput, enrichedOptions);
+    return super.invoke(input as any, enrichedOptions);
   }
 
   /**
@@ -571,24 +565,25 @@ export class CascadeFlow extends BaseChatModel {
       const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
       drafterContent += chunkText;
       if (!toolsBound) {
-        yield chunk;
+        // Strip provider-specific chunk metadata to avoid concat warnings when we later stream a verifier.
+        yield new ChatGenerationChunk({
+          text: chunkText,
+          message: new AIMessageChunk({ content: chunkText }),
+        });
       }
     }
 
     // STEP 2: Quality check after drafter completes
-    let combined = drafterChunks[0]?.message as any;
-    for (let i = 1; i < drafterChunks.length; i++) {
-      combined = combined?.concat ? combined.concat(drafterChunks[i].message as any) : combined;
-    }
-    const combinedMessage = combined
-      ? new AIMessage({
-        content: combined.content,
-        additional_kwargs: combined.additional_kwargs,
-        tool_calls: combined.tool_calls,
-        invalid_tool_calls: combined.invalid_tool_calls,
-        response_metadata: combined.response_metadata,
-      } as any)
-      : new AIMessage({ content: drafterContent } as any);
+    // Avoid `AIMessageChunk.concat` here: some provider chunk metadata fields are not safely mergeable
+    // and can emit warnings. For quality scoring we only need the final text (and tool_calls if present).
+    const lastMsg: any = drafterChunks[drafterChunks.length - 1]?.message;
+    const combinedMessage = new AIMessage({
+      content: drafterContent,
+      additional_kwargs: lastMsg?.additional_kwargs ?? {},
+      tool_calls: lastMsg?.tool_calls ?? [],
+      invalid_tool_calls: lastMsg?.invalid_tool_calls ?? [],
+      response_metadata: lastMsg?.response_metadata ?? {},
+    } as any);
 
     const drafterResult: ChatResult = {
       generations: [
@@ -653,11 +648,15 @@ export class CascadeFlow extends BaseChatModel {
         runManager
       )) {
         if (toolsBound) {
-          // Tool-safe mode: nothing from drafter has been emitted yet; stream only verifier.
           yield chunk;
-        } else {
-          yield chunk;
+          continue;
         }
+
+        const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
+        yield new ChatGenerationChunk({
+          text: chunkText,
+          message: new AIMessageChunk({ content: chunkText }),
+        });
       }
       return;
     }

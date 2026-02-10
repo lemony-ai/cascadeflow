@@ -57,6 +57,11 @@ class UnifiedEmbeddingService:
     Lazy-loaded and optional - gracefully degrades if FastEmbed not available.
     """
 
+    # Process-wide cache to avoid repeated model downloads/initializations.
+    # Keyed by (model_name, id(TextEmbedding)) so tests that patch `fastembed.TextEmbedding`
+    # don't accidentally reuse a previously cached real embedder.
+    _GLOBAL_EMBEDDERS: dict[tuple[str, int], Any] = {}
+
     def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
         """
         Initialize embedding service (model loaded lazily on first use).
@@ -75,7 +80,7 @@ class UnifiedEmbeddingService:
         Check if embedding service is available.
 
         Returns:
-            True if FastEmbed loaded successfully, False otherwise
+            True if FastEmbed loaded successfully, False otherwise.
         """
         if self._is_available is None and not self._initialize_attempted:
             self._lazy_initialize()
@@ -97,17 +102,25 @@ class UnifiedEmbeddingService:
         try:
             from fastembed import TextEmbedding
 
+            if not HAS_NUMPY:
+                self._is_available = False
+                return
+
+            cache_key = (self.model_name, id(TextEmbedding))
+            cached = UnifiedEmbeddingService._GLOBAL_EMBEDDERS.get(cache_key)
+            if cached is not None:
+                self._embedder = cached
+                self._is_available = True
+                return
+
             logger.info(f"Loading embedding model: {self.model_name}")
             self._embedder = TextEmbedding(model_name=self.model_name)
+            UnifiedEmbeddingService._GLOBAL_EMBEDDERS[cache_key] = self._embedder
             self._is_available = True
             logger.info("Embedding service initialized successfully")
-
-        except ImportError:
-            logger.warning("FastEmbed not available. Install with: pip install fastembed")
-            self._is_available = False
-
         except Exception as e:
             logger.error(f"Failed to initialize embedding service: {e}")
+            self._embedder = None
             self._is_available = False
 
     def embed(self, text: str) -> Optional[Any]:

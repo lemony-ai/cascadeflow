@@ -19,6 +19,8 @@ Example:
     >>> result = await cascade.ainvoke("What is TypeScript?")
 """
 
+import asyncio
+import inspect
 import time
 from typing import Any, AsyncIterator, Iterator, Optional
 
@@ -27,10 +29,10 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
+from cascadeflow.routing.tool_risk import get_tool_risk_routing
+
 from .types import CascadeResult
 from .utils import calculate_quality, create_cost_metadata, extract_tool_calls
-
-from cascadeflow.routing.tool_risk import get_tool_risk_routing
 
 
 class CascadeFlow(BaseChatModel):
@@ -190,15 +192,22 @@ class CascadeFlow(BaseChatModel):
             )
 
             # Route based on complexity
-            routing_decision = self.pre_router.route(query_text)
+            routing_decision = self._route_query_sync(query_text)
             from .routers.base import RoutingStrategy
 
-            use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
+            use_cascade = (
+                routing_decision is None
+                or routing_decision.get("strategy") == RoutingStrategy.CASCADE
+            )
 
             # If direct routing, skip drafter and go straight to verifier
-            if not use_cascade:
+            if routing_decision is not None and not use_cascade:
                 # Pass only safe kwargs with explicit stop and merged tags for reliable LangSmith tracking
-                verifier_tags = base_tags + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"]
+                verifier_tags = base_tags + [
+                    "cascadeflow:direct",
+                    "cascadeflow:verifier",
+                    "verifier",
+                ]
                 verifier_llm_result = self.verifier.generate(
                     [messages],
                     stop=stop,
@@ -206,7 +215,14 @@ class CascadeFlow(BaseChatModel):
                     **{
                         **safe_kwargs,
                         "tags": verifier_tags,
-                        "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "direct", "role": "verifier"}},
+                        "metadata": {
+                            **base_metadata,
+                            "cascadeflow": {
+                                **base_metadata["cascadeflow"],
+                                "decision": "direct",
+                                "role": "verifier",
+                            },
+                        },
                     },
                 )
 
@@ -273,7 +289,14 @@ class CascadeFlow(BaseChatModel):
             **{
                 **safe_kwargs,
                 "tags": drafter_tags,
-                "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "draft", "role": "drafter"}},
+                "metadata": {
+                    **base_metadata,
+                    "cascadeflow": {
+                        **base_metadata["cascadeflow"],
+                        "decision": "draft",
+                        "role": "drafter",
+                    },
+                },
             },
         )
 
@@ -296,11 +319,12 @@ class CascadeFlow(BaseChatModel):
 
         drafter_quality = quality_func(drafter_result)
 
-        # STEP 2: Check quality threshold
-        accepted = (
-            (not invoked_tool_names and drafter_quality >= self.quality_threshold)
-            or (invoked_tool_names and not force_verifier_for_tool_risk)
-        )
+        # STEP 2: Check quality threshold.
+        # Avoid `a and b`/`a or b` returning non-bools (e.g., lists) for mypy correctness.
+        if invoked_tool_names:
+            accepted = not force_verifier_for_tool_risk
+        else:
+            accepted = drafter_quality >= self.quality_threshold
 
         if accepted:
             # Quality is sufficient - use drafter response
@@ -406,7 +430,9 @@ class CascadeFlow(BaseChatModel):
                     if hasattr(gen, "message") and gen.message:
                         if not hasattr(gen.message, "response_metadata"):
                             gen.message.response_metadata = {}
-                        gen.message.response_metadata["cascade"] = final_result.llm_output["cascade"]
+                        gen.message.response_metadata["cascade"] = final_result.llm_output[
+                            "cascade"
+                        ]
             except Exception as e:
                 print(f"Warning: Failed to inject cascade metadata: {e}")
 
@@ -476,7 +502,11 @@ class CascadeFlow(BaseChatModel):
             # If direct routing, skip drafter and go straight to verifier
             if not use_cascade:
                 # Pass only safe kwargs with explicit stop and merged tags for reliable LangSmith tracking
-                verifier_tags = base_tags + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"]
+                verifier_tags = base_tags + [
+                    "cascadeflow:direct",
+                    "cascadeflow:verifier",
+                    "verifier",
+                ]
                 verifier_llm_result = await self.verifier.agenerate(
                     [messages],
                     stop=stop,
@@ -484,7 +514,14 @@ class CascadeFlow(BaseChatModel):
                     **{
                         **safe_kwargs,
                         "tags": verifier_tags,
-                        "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "direct", "role": "verifier"}},
+                        "metadata": {
+                            **base_metadata,
+                            "cascadeflow": {
+                                **base_metadata["cascadeflow"],
+                                "decision": "direct",
+                                "role": "verifier",
+                            },
+                        },
                     },
                 )
 
@@ -551,7 +588,14 @@ class CascadeFlow(BaseChatModel):
             **{
                 **safe_kwargs,
                 "tags": drafter_tags,
-                "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "draft", "role": "drafter"}},
+                "metadata": {
+                    **base_metadata,
+                    "cascadeflow": {
+                        **base_metadata["cascadeflow"],
+                        "decision": "draft",
+                        "role": "drafter",
+                    },
+                },
             },
         )
 
@@ -574,11 +618,11 @@ class CascadeFlow(BaseChatModel):
 
         drafter_quality = quality_func(drafter_result)
 
-        # STEP 2: Check quality threshold
-        accepted = (
-            (not invoked_tool_names and drafter_quality >= self.quality_threshold)
-            or (invoked_tool_names and not force_verifier_for_tool_risk)
-        )
+        # STEP 2: Check quality threshold.
+        if invoked_tool_names:
+            accepted = not force_verifier_for_tool_risk
+        else:
+            accepted = drafter_quality >= self.quality_threshold
 
         if accepted:
             # Quality is sufficient - use drafter response
@@ -682,7 +726,9 @@ class CascadeFlow(BaseChatModel):
                     if hasattr(gen, "message") and gen.message:
                         if not hasattr(gen.message, "response_metadata"):
                             gen.message.response_metadata = {}
-                        gen.message.response_metadata["cascade"] = final_result.llm_output["cascade"]
+                        gen.message.response_metadata["cascade"] = final_result.llm_output[
+                            "cascade"
+                        ]
             except Exception as e:
                 print(f"Warning: Failed to inject cascade metadata: {e}")
 
@@ -729,7 +775,11 @@ class CascadeFlow(BaseChatModel):
         base_metadata = {
             **(merged_kwargs.get("metadata") or {}),
             "cascadeflow": {
-                **(merged_kwargs.get("metadata", {}).get("cascadeflow", {}) if isinstance(merged_kwargs.get("metadata"), dict) else {}),
+                **(
+                    merged_kwargs.get("metadata", {}).get("cascadeflow", {})
+                    if isinstance(merged_kwargs.get("metadata"), dict)
+                    else {}
+                ),
                 "integration": "langchain",
                 "streaming": True,
             },
@@ -747,22 +797,35 @@ class CascadeFlow(BaseChatModel):
             )
 
             # Route based on complexity (sync call for sync streaming)
-            routing_decision = self.pre_router.route(query_text)
+            routing_decision = self._route_query_sync(query_text)
             from .routers.base import RoutingStrategy
 
-            use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
+            use_cascade = (
+                routing_decision is None
+                or routing_decision.get("strategy") == RoutingStrategy.CASCADE
+            )
 
             # If direct routing, stream verifier only
-            if not use_cascade:
+            if routing_decision is not None and not use_cascade:
                 for chunk in self.verifier.stream(
                     messages,
                     **{
                         **merged_kwargs,
-                        "tags": base_tags + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
-                        "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "direct", "role": "verifier"}},
+                        "tags": base_tags
+                        + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
+                        "metadata": {
+                            **base_metadata,
+                            "cascadeflow": {
+                                **base_metadata["cascadeflow"],
+                                "decision": "direct",
+                                "role": "verifier",
+                            },
+                        },
                     },
                 ):
-                    yield ChatGenerationChunk(message=chunk, text=chunk.content if isinstance(chunk.content, str) else "")
+                    yield ChatGenerationChunk(
+                        message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
+                    )
                 return
 
         tools_bound = bool(self._bound_tool_defs)
@@ -774,7 +837,14 @@ class CascadeFlow(BaseChatModel):
             **{
                 **merged_kwargs,
                 "tags": base_tags + ["cascadeflow:drafter", "drafter"],
-                "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "draft", "role": "drafter"}},
+                "metadata": {
+                    **base_metadata,
+                    "cascadeflow": {
+                        **base_metadata["cascadeflow"],
+                        "decision": "draft",
+                        "role": "drafter",
+                    },
+                },
             },
         ):
             chunk_text = chunk.content if isinstance(chunk.content, str) else ""
@@ -790,11 +860,21 @@ class CascadeFlow(BaseChatModel):
 
         combined_message = (
             AIMessage(
-                content=(combined_chunk.content if combined_chunk and isinstance(combined_chunk.content, str) else drafter_content),
-                additional_kwargs=getattr(combined_chunk, "additional_kwargs", {}) if combined_chunk else {},
+                content=(
+                    combined_chunk.content
+                    if combined_chunk and isinstance(combined_chunk.content, str)
+                    else drafter_content
+                ),
+                additional_kwargs=(
+                    getattr(combined_chunk, "additional_kwargs", {}) if combined_chunk else {}
+                ),
                 tool_calls=getattr(combined_chunk, "tool_calls", None) if combined_chunk else None,
-                invalid_tool_calls=getattr(combined_chunk, "invalid_tool_calls", None) if combined_chunk else None,
-                response_metadata=getattr(combined_chunk, "response_metadata", {}) if combined_chunk else {},
+                invalid_tool_calls=(
+                    getattr(combined_chunk, "invalid_tool_calls", None) if combined_chunk else None
+                ),
+                response_metadata=(
+                    getattr(combined_chunk, "response_metadata", {}) if combined_chunk else {}
+                ),
             )
             if combined_chunk
             else AIMessage(content=drafter_content)
@@ -815,10 +895,10 @@ class CascadeFlow(BaseChatModel):
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
-        accepted = (
-            (not invoked_tool_names and drafter_quality >= self.quality_threshold)
-            or (invoked_tool_names and not force_verifier_for_tool_risk)
-        )
+        if invoked_tool_names:
+            accepted = not force_verifier_for_tool_risk
+        else:
+            accepted = drafter_quality >= self.quality_threshold
 
         # STEP 3: If quality insufficient, cascade to verifier
         if not accepted:
@@ -829,7 +909,9 @@ class CascadeFlow(BaseChatModel):
                     or "verifier"
                 )
                 switch_message = f"\n\n[CascadeFlow] Escalating to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
-                yield ChatGenerationChunk(message=AIMessageChunk(content=switch_message), text=switch_message)
+                yield ChatGenerationChunk(
+                    message=AIMessageChunk(content=switch_message), text=switch_message
+                )
 
             # Stream from verifier
             reason = "tool_risk" if force_verifier_for_tool_risk else "quality"
@@ -849,7 +931,13 @@ class CascadeFlow(BaseChatModel):
                     "tags": verifier_tags,
                     "metadata": {
                         **base_metadata,
-                        "cascadeflow": {**base_metadata["cascadeflow"], "decision": "verify", "role": "verifier", "reason": reason, "tool_risk": tool_risk},
+                        "cascadeflow": {
+                            **base_metadata["cascadeflow"],
+                            "decision": "verify",
+                            "role": "verifier",
+                            "reason": reason,
+                            "tool_risk": tool_risk,
+                        },
                     },
                 },
             ):
@@ -937,7 +1025,11 @@ class CascadeFlow(BaseChatModel):
         base_metadata = {
             **(merged_kwargs.get("metadata") or {}),
             "cascadeflow": {
-                **(merged_kwargs.get("metadata", {}).get("cascadeflow", {}) if isinstance(merged_kwargs.get("metadata"), dict) else {}),
+                **(
+                    merged_kwargs.get("metadata", {}).get("cascadeflow", {})
+                    if isinstance(merged_kwargs.get("metadata"), dict)
+                    else {}
+                ),
                 "integration": "langchain",
                 "streaming": True,
             },
@@ -966,11 +1058,21 @@ class CascadeFlow(BaseChatModel):
                     messages,
                     **{
                         **merged_kwargs,
-                        "tags": base_tags + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
-                        "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "direct", "role": "verifier"}},
+                        "tags": base_tags
+                        + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
+                        "metadata": {
+                            **base_metadata,
+                            "cascadeflow": {
+                                **base_metadata["cascadeflow"],
+                                "decision": "direct",
+                                "role": "verifier",
+                            },
+                        },
                     },
                 ):
-                    yield ChatGenerationChunk(message=chunk, text=chunk.content if isinstance(chunk.content, str) else "")
+                    yield ChatGenerationChunk(
+                        message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
+                    )
                 return
 
         tools_bound = bool(self._bound_tool_defs)
@@ -982,7 +1084,14 @@ class CascadeFlow(BaseChatModel):
             **{
                 **merged_kwargs,
                 "tags": base_tags + ["cascadeflow:drafter", "drafter"],
-                "metadata": {**base_metadata, "cascadeflow": {**base_metadata["cascadeflow"], "decision": "draft", "role": "drafter"}},
+                "metadata": {
+                    **base_metadata,
+                    "cascadeflow": {
+                        **base_metadata["cascadeflow"],
+                        "decision": "draft",
+                        "role": "drafter",
+                    },
+                },
             },
         ):
             chunk_text = chunk.content if isinstance(chunk.content, str) else ""
@@ -998,11 +1107,21 @@ class CascadeFlow(BaseChatModel):
 
         combined_message = (
             AIMessage(
-                content=(combined_chunk.content if combined_chunk and isinstance(combined_chunk.content, str) else drafter_content),
-                additional_kwargs=getattr(combined_chunk, "additional_kwargs", {}) if combined_chunk else {},
+                content=(
+                    combined_chunk.content
+                    if combined_chunk and isinstance(combined_chunk.content, str)
+                    else drafter_content
+                ),
+                additional_kwargs=(
+                    getattr(combined_chunk, "additional_kwargs", {}) if combined_chunk else {}
+                ),
                 tool_calls=getattr(combined_chunk, "tool_calls", None) if combined_chunk else None,
-                invalid_tool_calls=getattr(combined_chunk, "invalid_tool_calls", None) if combined_chunk else None,
-                response_metadata=getattr(combined_chunk, "response_metadata", {}) if combined_chunk else {},
+                invalid_tool_calls=(
+                    getattr(combined_chunk, "invalid_tool_calls", None) if combined_chunk else None
+                ),
+                response_metadata=(
+                    getattr(combined_chunk, "response_metadata", {}) if combined_chunk else {}
+                ),
             )
             if combined_chunk
             else AIMessage(content=drafter_content)
@@ -1023,10 +1142,10 @@ class CascadeFlow(BaseChatModel):
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
-        accepted = (
-            (not invoked_tool_names and drafter_quality >= self.quality_threshold)
-            or (invoked_tool_names and not force_verifier_for_tool_risk)
-        )
+        if invoked_tool_names:
+            accepted = not force_verifier_for_tool_risk
+        else:
+            accepted = drafter_quality >= self.quality_threshold
 
         # STEP 3: If quality insufficient, cascade to verifier
         if not accepted:
@@ -1037,7 +1156,9 @@ class CascadeFlow(BaseChatModel):
                     or "verifier"
                 )
                 switch_message = f"\n\n[CascadeFlow] Escalating to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
-                yield ChatGenerationChunk(message=AIMessageChunk(content=switch_message), text=switch_message)
+                yield ChatGenerationChunk(
+                    message=AIMessageChunk(content=switch_message), text=switch_message
+                )
 
             # Stream from verifier
             reason = "tool_risk" if force_verifier_for_tool_risk else "quality"
@@ -1057,7 +1178,13 @@ class CascadeFlow(BaseChatModel):
                     "tags": verifier_tags,
                     "metadata": {
                         **base_metadata,
-                        "cascadeflow": {**base_metadata["cascadeflow"], "decision": "verify", "role": "verifier", "reason": reason, "tool_risk": tool_risk},
+                        "cascadeflow": {
+                            **base_metadata["cascadeflow"],
+                            "decision": "verify",
+                            "role": "verifier",
+                            "reason": reason,
+                            "tool_risk": tool_risk,
+                        },
                     },
                 },
             ):
@@ -1310,9 +1437,13 @@ class CascadeFlow(BaseChatModel):
                 tool_list = [tools]
         for t in tool_list:
             if isinstance(t, dict):
-                name = t.get("name")
+                fn = t.get("function") if isinstance(t.get("function"), dict) else None
+                name = t.get("name") or (fn.get("name") if fn else None)
                 if name:
-                    out.append({"name": name, "description": t.get("description", "")})
+                    description = (
+                        t.get("description") or (fn.get("description") if fn else "") or ""
+                    )
+                    out.append({"name": name, "description": description})
                 continue
             name = getattr(t, "name", None)
             description = getattr(t, "description", None)
@@ -1359,6 +1490,32 @@ class CascadeFlow(BaseChatModel):
             "classifications": routing.get("classifications") or {},
             "high_risk_tools": routing.get("high_risk_tools") or [],
         }
+
+    def _route_query_sync(self, query_text: str) -> Optional[dict[str, Any]]:
+        """Run the (async) PreRouter from sync code paths.
+
+        LangChain can call sync `_generate`/`_stream` in non-async contexts. Our
+        PreRouter API is async, so we need a bridge.
+        """
+        if not (self.enable_pre_router and self.pre_router):
+            return None
+
+        try:
+            result = self.pre_router.route(query_text)
+            if not inspect.isawaitable(result):
+                return result
+
+            # Normal sync usage: no running event loop.
+            try:
+                asyncio.get_running_loop()
+                # If a loop is already running in this thread, we can't blockingly
+                # await. Fall back to "use cascade" behavior by skipping pre-router.
+                return None
+            except RuntimeError:
+                return asyncio.run(result)
+        except Exception:
+            # Pre-router should never break generation; fall back safely.
+            return None
 
 
 # Helper function for convenience

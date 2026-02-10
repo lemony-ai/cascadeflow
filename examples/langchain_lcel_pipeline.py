@@ -11,6 +11,12 @@ Setup:
   python examples/langchain_lcel_pipeline.py
 """
 
+import sys
+from pathlib import Path
+
+# Allow running directly from a source checkout without `pip install -e .`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import os
 
 from langchain_core.output_parsers import StrOutputParser
@@ -56,4 +62,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

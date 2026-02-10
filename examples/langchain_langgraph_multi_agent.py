@@ -16,6 +16,11 @@ Setup:
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Allow running directly from a source checkout without `pip install -e .`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from langchain_openai import ChatOpenAI
 
@@ -27,7 +32,7 @@ def main() -> None:
         raise SystemExit("Set OPENAI_API_KEY first.")
 
     # Optional: import only when used.
-    from langgraph.graph import StateGraph, END  # type: ignore
+    from langgraph.graph import END, StateGraph  # type: ignore
 
     drafter = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
     verifier = ChatOpenAI(model="gpt-4o", temperature=0.2)
@@ -89,4 +94,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
