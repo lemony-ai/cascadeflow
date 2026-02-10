@@ -213,8 +213,12 @@ def main() -> None:
     port = server.start()
 
     kind = "agent" if agent is not None else "mock"
-    print(f"cascadeflow gateway ({kind}) running at http://{server.host}:{port}/v1")
-    print("Endpoints: POST /v1/chat/completions, POST /v1/messages, GET /health, GET /stats")
+    # Flush: the CLI is often run under a pipe in tests/CI, where stdout is block-buffered.
+    print(f"cascadeflow gateway ({kind}) running at http://{server.host}:{port}/v1", flush=True)
+    print(
+        "Endpoints: POST /v1/chat/completions, POST /v1/messages, GET /health, GET /stats",
+        flush=True,
+    )
     try:
         while True:
             time.sleep(1)
