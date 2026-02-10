@@ -8,14 +8,14 @@ import type {
 import { NodeOperationError } from 'n8n-workflow';
 
 import type { BaseMessage } from '@langchain/core/messages';
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 
 import { CascadeChatModel } from '../LmChatCascadeFlow/LmChatCascadeFlow.node';
 
 type ToolRoutingMode = 'cascade' | 'verifier';
 
-interface ToolRoutingRule {
+export interface ToolRoutingRule {
   toolName: string;
   routing: ToolRoutingMode;
 }
@@ -26,7 +26,7 @@ interface ToolCallInfo {
   args: Record<string, any>;
 }
 
-interface ToolLike {
+export interface ToolLike {
   name?: string;
   description?: string;
   invoke?: (args: any) => Promise<any>;
@@ -34,7 +34,7 @@ interface ToolLike {
   run?: (args: any) => Promise<any>;
 }
 
-class CascadeFlowAgentExecutor {
+export class CascadeFlowAgentExecutor {
   private toolMap: Map<string, ToolLike>;
   private routingRules: Map<string, ToolRoutingMode>;
 
@@ -51,8 +51,58 @@ class CascadeFlowAgentExecutor {
   }
 
   private normalizeMessages(input: any): BaseMessage[] {
+    const isBaseMessage = (value: any): value is BaseMessage => {
+      return (
+        value &&
+        typeof value === 'object' &&
+        typeof value._getType === 'function' &&
+        'content' in value
+      );
+    };
+
+    const coerceMessage = (value: any): BaseMessage => {
+      if (isBaseMessage(value)) {
+        return value;
+      }
+
+      if (typeof value === 'string') {
+        return new HumanMessage(value);
+      }
+
+      if (!value || typeof value !== 'object') {
+        return new HumanMessage(JSON.stringify(value ?? null));
+      }
+
+      const role = (value.role ?? value.type ?? '').toString().toLowerCase();
+      const content = value.content ?? value.text ?? '';
+
+      if (role === 'system') {
+        return new SystemMessage(content);
+      }
+      if (role === 'assistant' || role === 'ai') {
+        return new AIMessage(content);
+      }
+      if (role === 'tool') {
+        const toolCallId =
+          value.tool_call_id ??
+          value.toolCallId ??
+          value.tool_callId ??
+          value.id ??
+          'tool';
+        return new ToolMessage({
+          content: typeof content === 'string' ? content : JSON.stringify(content),
+          tool_call_id: String(toolCallId),
+        });
+      }
+
+      // Default: treat as user/human.
+      return new HumanMessage(content);
+    };
+
+    const normalizeList = (values: any[]): BaseMessage[] => values.map(coerceMessage);
+
     if (Array.isArray(input)) {
-      return input as BaseMessage[];
+      return normalizeList(input);
     }
 
     if (typeof input === 'string') {
@@ -60,11 +110,11 @@ class CascadeFlowAgentExecutor {
     }
 
     if (input?.messages && Array.isArray(input.messages)) {
-      return input.messages as BaseMessage[];
+      return normalizeList(input.messages);
     }
 
     if (input?.chatHistory && Array.isArray(input.chatHistory)) {
-      const history = input.chatHistory as BaseMessage[];
+      const history = normalizeList(input.chatHistory);
       if (typeof input.input === 'string') {
         return [...history, new HumanMessage(input.input)];
       }
@@ -75,9 +125,6 @@ class CascadeFlowAgentExecutor {
       return [new HumanMessage(input.input)];
     }
 
-    // Avoid throwing generic errors in the execution block. If the upstream node
-    // passes an unexpected shape, coerce to a human message so the workflow can
-    // still proceed and the model can respond with an error/explanation.
     return [new HumanMessage(JSON.stringify(input ?? null))];
   }
 

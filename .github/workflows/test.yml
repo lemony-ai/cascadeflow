@@ -143,6 +143,14 @@ jobs:
       - name: Lint n8n package
         run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow lint
 
+      - name: Smoke load built n8n nodes
+        run: |
+          node -e "require('./packages/integrations/n8n/dist/nodes/LmChatCascadeFlow/LmChatCascadeFlow.node.js')"
+          node -e "require('./packages/integrations/n8n/dist/nodes/CascadeFlowAgent/CascadeFlowAgent.node.js')"
+
+      - name: Test n8n package
+        run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow test
+
   # Python Code Quality
   lint-python:
     name: Python Code Quality
