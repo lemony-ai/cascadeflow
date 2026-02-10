@@ -146,6 +146,9 @@ exclude = '''
     \.git
   | \.venv
   | \.idea
+  | node_modules
+  | \.next
+  | \.turbo
   | build
   | dist
 )/

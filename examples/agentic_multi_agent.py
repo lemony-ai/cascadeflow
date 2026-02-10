@@ -71,7 +71,10 @@ async def main() -> None:
     async def delegate_to_researcher(question: str) -> dict[str, Any]:
         res = await research_agent.run(
             [
-                {"role": "system", "content": "You are a concise research assistant. Answer in 2-4 sentences."},
+                {
+                    "role": "system",
+                    "content": "You are a concise research assistant. Answer in 2-4 sentences.",
+                },
                 {"role": "user", "content": question},
             ],
             max_tokens=250,
@@ -87,7 +90,9 @@ async def main() -> None:
                 description="Perform a mathematical calculation (demo only).",
                 parameters={
                     "type": "object",
-                    "properties": {"expression": {"type": "string", "description": "Math expression"}},
+                    "properties": {
+                        "expression": {"type": "string", "description": "Math expression"}
+                    },
                     "required": ["expression"],
                 },
                 function=safe_calculate,
@@ -99,14 +104,20 @@ async def main() -> None:
                     "type": "object",
                     "properties": {
                         "query": {"type": "string", "description": "Search query"},
-                        "num_results": {"type": "integer", "description": "Number of results (1-5)"},
+                        "num_results": {
+                            "type": "integer",
+                            "description": "Number of results (1-5)",
+                        },
                     },
                     "required": ["query"],
                 },
                 function=lambda query, num_results=3: {
                     "query": query,
                     "results": [
-                        {"title": f"Result {i+1} for '{query}'", "url": f"https://example.com/{i+1}"}
+                        {
+                            "title": f"Result {i+1} for '{query}'",
+                            "url": f"https://example.com/{i+1}",
+                        }
                         for i in range(max(1, min(5, int(num_results or 3))))
                     ],
                 },
@@ -116,7 +127,9 @@ async def main() -> None:
                 description="Ask the research agent for a focused explanation or summary.",
                 parameters={
                     "type": "object",
-                    "properties": {"question": {"type": "string", "description": "Research question"}},
+                    "properties": {
+                        "question": {"type": "string", "description": "Research question"}
+                    },
                     "required": ["question"],
                 },
                 function=delegate_to_researcher,
