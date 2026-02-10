@@ -482,15 +482,19 @@ export class CascadeFlowAgent implements INodeType {
     const toolRoutingRaw = this.getNodeParameter('toolRoutingRules', 0, { rule: [] }) as any;
     const toolRoutingRules = (toolRoutingRaw?.rule ?? []) as ToolRoutingRule[];
 
-    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
-    const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
+    const drafterModelGetter = async () => {
+      const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
+      const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
 
-    if (!drafterModel) {
-      throw new NodeOperationError(
-        this.getNode(),
-        'Drafter model is required. Please connect your DRAFTER model to the Drafter port.'
-      );
-    }
+      if (!drafterModel) {
+        throw new NodeOperationError(
+          this.getNode(),
+          'Drafter model is required. Please connect your DRAFTER model to the Drafter port.'
+        );
+      }
+
+      return drafterModel;
+    };
 
     const verifierModelGetter = async () => {
       const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
@@ -513,7 +517,7 @@ export class CascadeFlowAgent implements INodeType {
     const useSemanticValidation = false;
 
     const cascadeModel = new CascadeChatModel(
-      drafterModel,
+      drafterModelGetter,
       verifierModelGetter,
       qualityThreshold,
       useSemanticValidation,
