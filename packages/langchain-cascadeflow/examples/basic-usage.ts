@@ -49,6 +49,9 @@ async function main() {
     drafter,
     verifier,
     qualityThreshold: 0.7,
+    // Use local pricing so costs/savings show up in `getLastCascadeResult()`.
+    // If you prefer LangSmith to calculate costs server-side, omit this (costs will be $0 locally).
+    costTrackingProvider: 'cascadeflow',
   });
 
   console.log('✓ Wrapped models with cascade logic\n');
@@ -126,7 +129,7 @@ async function main() {
   console.log('='.repeat(60));
   console.log('\n✅ Key Takeaways:');
   console.log('   • Zero code changes to your LangChain models');
-  console.log('   • Automatic cost optimization (40-60% savings)');
+  console.log('   • Potential cost savings when drafter is accepted');
   console.log('   • All LangChain features preserved');
   console.log('   • Quality-based cascading ensures no degradation');
   console.log('   • Full visibility into cascade decisions\n');

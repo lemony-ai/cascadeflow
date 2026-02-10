@@ -3,7 +3,7 @@ import { BaseMessage, AIMessage, AIMessageChunk, ChatMessage, HumanMessage } fro
 import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { CascadeConfig, CascadeResult } from './types.js';
-import { calculateQuality, createCostMetadata, extractToolCalls } from './utils.js';
+import { calculateCost, calculateQuality, createCostMetadata, extractTokenUsage, extractToolCalls } from './utils.js';
 import { PreRouter } from './routers/pre-router.js';
 import { RoutingStrategy } from './routers/base.js';
 import type { QueryComplexity } from './complexity.js';
@@ -32,6 +32,27 @@ function mergeMetadata(existing: any, extra: Record<string, any>): Record<string
   const base = existing && typeof existing === 'object' ? existing : {};
   // Avoid deep merge surprises; keep CascadeFlow metadata namespaced.
   return { ...base, ...extra };
+}
+
+function resolveModelName(model: any, depth = 0): string {
+  if (!model || depth > 5) return 'unknown';
+
+  const direct =
+    (typeof model.model === 'string' && model.model) ||
+    (typeof model.modelName === 'string' && model.modelName);
+  if (direct) return direct;
+
+  const lcKwargs = model.lc_kwargs || model.lcKwargs;
+  const lc =
+    (typeof lcKwargs?.model === 'string' && lcKwargs.model) ||
+    (typeof lcKwargs?.modelName === 'string' && lcKwargs.modelName);
+  if (lc) return lc;
+
+  // LangChain's bind()/bindTools() returns a RunnableBinding-like wrapper
+  // where the underlying chat model is stored in `.bound`.
+  if (model.bound) return resolveModelName(model.bound, depth + 1);
+
+  return 'unknown';
 }
 
 function normalizeToolDefs(tools: any[]): NormalizedToolDef[] {
@@ -261,8 +282,12 @@ export class CascadeFlow extends BaseChatModel {
         };
 
         const latencyMs = Date.now() - startTime;
-        const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName ||
-          (typeof this.verifier._llmType === 'function' ? this.verifier._llmType() : 'unknown');
+        const verifierModelName = resolveModelName(this.verifier);
+        const verifierTokens = extractTokenUsage(verifierResult);
+        const verifierCost =
+          this.config.costTrackingProvider === 'cascadeflow'
+            ? calculateCost(verifierModelName, verifierTokens.input, verifierTokens.output)
+            : 0;
 
         // Store cascade result (direct to verifier)
         this.lastCascadeResult = {
@@ -271,8 +296,8 @@ export class CascadeFlow extends BaseChatModel {
           drafterQuality: undefined,
           accepted: false,
           drafterCost: 0,
-          verifierCost: 0, // LangSmith will calculate this
-          totalCost: 0,
+          verifierCost,
+          totalCost: verifierCost,
           savingsPercentage: 0,
           latencyMs,
         };
@@ -400,10 +425,8 @@ export class CascadeFlow extends BaseChatModel {
 
     // STEP 3: Calculate costs and metadata
     const latencyMs = Date.now() - startTime;
-    const drafterModelName = (this.drafter as any).model || (this.drafter as any).modelName ||
-      (typeof this.drafter._llmType === 'function' ? this.drafter._llmType() : 'unknown');
-    const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName ||
-      (typeof this.verifier._llmType === 'function' ? this.verifier._llmType() : 'unknown');
+    const drafterModelName = resolveModelName(this.drafter);
+    const verifierModelName = resolveModelName(this.verifier);
     const costMetadata = createCostMetadata(
       drafterResult,
       verifierResult,
@@ -615,7 +638,7 @@ export class CascadeFlow extends BaseChatModel {
       if (emitSwitchMessage && !toolsBound) {
         const { ChatGenerationChunk } = await import('@langchain/core/outputs');
         const { AIMessageChunk } = await import('@langchain/core/messages');
-        const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName || 'verifier';
+        const verifierModelName = resolveModelName(this.verifier);
         const switchMessage = `\n\n[CascadeFlow] Escalating to ${verifierModelName} (quality: ${drafterQuality.toFixed(2)} < ${this.config.qualityThreshold})\n\n`;
         yield new ChatGenerationChunk({
           text: switchMessage,

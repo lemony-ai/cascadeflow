@@ -27,7 +27,8 @@ async function main() {
     drafter,
     verifier,
     qualityThreshold: 0.95,
-    costTrackingProvider: 'langsmith',
+    // Use local pricing so we can show savings/costs without requiring LangSmith UI.
+    costTrackingProvider: 'cascadeflow',
   });
 
   const tools = [
