@@ -34,6 +34,7 @@
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "typecheck:examples": "tsc --noEmit -p examples/nodejs/tsconfig.json",
+    "real-api:smoke": "tsx scripts/real-api-smoke.ts",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
     "clean": "rm -rf dist"
