@@ -79,7 +79,7 @@ def agent_proxy():
 
 def test_health(agent_proxy):
     url = f"http://{agent_proxy.host}:{agent_proxy.port}/health"
-    resp = httpx.get(url, timeout=5.0)
+    resp = httpx.get(url, timeout=5.0, trust_env=False)
     assert resp.status_code == 200
     assert resp.headers.get("X-Cascadeflow-Gateway-Endpoint") == "health"
     assert resp.json()["status"] == "ok"
@@ -87,7 +87,7 @@ def test_health(agent_proxy):
 
 def test_stats(agent_proxy):
     url = f"http://{agent_proxy.host}:{agent_proxy.port}/stats"
-    resp = httpx.get(url, timeout=5.0)
+    resp = httpx.get(url, timeout=5.0, trust_env=False)
     assert resp.status_code == 200
     assert resp.json()["summary"]["total_queries"] >= 1
 
@@ -95,7 +95,7 @@ def test_stats(agent_proxy):
 def test_openai_agent_response_shape(agent_proxy):
     url = f"http://{agent_proxy.host}:{agent_proxy.port}/v1/chat/completions"
     payload = {"model": "cascadeflow", "messages": [{"role": "user", "content": "hi"}]}
-    resp = httpx.post(url, json=payload, timeout=5.0)
+    resp = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -114,7 +114,7 @@ def test_openai_agent_response_shape(agent_proxy):
 def test_anthropic_agent_response_shape(agent_proxy):
     url = f"http://{agent_proxy.host}:{agent_proxy.port}/v1/messages"
     payload = {"model": "claude-any", "messages": [{"role": "user", "content": "hi"}]}
-    resp = httpx.post(url, json=payload, timeout=5.0)
+    resp = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -143,7 +143,7 @@ def test_openai_agent_streaming(agent_proxy):
         "stream": True,
     }
 
-    with httpx.stream("POST", url, json=payload, timeout=5.0) as resp:
+    with httpx.stream("POST", url, json=payload, timeout=5.0, trust_env=False) as resp:
         assert resp.status_code == 200
         lines = [line for line in resp.iter_lines() if line]
 
@@ -159,7 +159,7 @@ def test_anthropic_agent_streaming(agent_proxy):
         "stream": True,
     }
 
-    with httpx.stream("POST", url, json=payload, timeout=5.0) as resp:
+    with httpx.stream("POST", url, json=payload, timeout=5.0, trust_env=False) as resp:
         assert resp.status_code == 200
         lines = [line for line in resp.iter_lines() if line]
 
@@ -170,7 +170,7 @@ def test_anthropic_agent_streaming(agent_proxy):
 
 def test_models_list_agent(agent_proxy):
     url = f"http://{agent_proxy.host}:{agent_proxy.port}/v1/models"
-    resp = httpx.get(url, timeout=5.0)
+    resp = httpx.get(url, timeout=5.0, trust_env=False)
     assert resp.status_code == 200
     data = resp.json()
     assert data["object"] == "list"
@@ -181,7 +181,7 @@ def test_models_list_agent(agent_proxy):
 def test_openai_embeddings_agent(agent_proxy):
     url = f"http://{agent_proxy.host}:{agent_proxy.port}/v1/embeddings"
     payload = {"model": "cascadeflow", "input": ["hello", "world"]}
-    resp = httpx.post(url, json=payload, timeout=5.0)
+    resp = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert resp.status_code == 200
     data = resp.json()
     assert data["object"] == "list"

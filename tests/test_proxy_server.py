@@ -33,7 +33,7 @@ def test_openai_request(proxy_server):
         "messages": [{"role": "user", "content": "Hello world"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
     assert response.headers.get("X-Cascadeflow-Gateway") == "cascadeflow"
     assert response.headers.get("X-Cascadeflow-Gateway-API") == "openai"
@@ -56,7 +56,7 @@ def test_openai_streaming(proxy_server):
         "stream": True,
     }
 
-    with httpx.stream("POST", url, json=payload, timeout=5.0) as response:
+    with httpx.stream("POST", url, json=payload, timeout=5.0, trust_env=False) as response:
         assert response.status_code == 200
         lines = _get_lines(response)
 
@@ -73,7 +73,7 @@ def test_anthropic_request(proxy_server):
         "messages": [{"role": "user", "content": "Hello from Anthropic"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
 
     data = response.json()
@@ -93,7 +93,7 @@ def test_anthropic_streaming(proxy_server):
         "stream": True,
     }
 
-    with httpx.stream("POST", url, json=payload, timeout=5.0) as response:
+    with httpx.stream("POST", url, json=payload, timeout=5.0, trust_env=False) as response:
         assert response.status_code == 200
         lines = _get_lines(response)
 
@@ -107,7 +107,7 @@ def test_error_handling(proxy_server):
     url = f"http://{proxy.host}:{proxy.port}/v1/chat/completions"
     payload = {"messages": [{"role": "user", "content": "Missing model"}]}
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 400
     data = response.json()
     assert data["error"]["type"] == "invalid_request_error"
@@ -121,7 +121,7 @@ def test_cascade_behavior(proxy_server):
         "messages": [{"role": "user", "content": "This is a hard question"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
     data = response.json()
     assert data["cascadeflow"]["draft_accepted"] is False
@@ -135,7 +135,7 @@ def test_virtual_model_names(proxy_server):
         "messages": [{"role": "user", "content": "Test virtual model mapping"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
     data = response.json()
     assert data["cascadeflow"]["virtual_model"] == "cascadeflow-fast"
@@ -145,7 +145,7 @@ def test_virtual_model_names(proxy_server):
 def test_models_list(proxy_server):
     proxy, _ = proxy_server
     url = f"http://{proxy.host}:{proxy.port}/v1/models"
-    response = httpx.get(url, timeout=5.0)
+    response = httpx.get(url, timeout=5.0, trust_env=False)
     assert response.status_code == 200
     assert response.headers.get("X-Cascadeflow-Gateway-Endpoint") == "models.list"
 
@@ -160,7 +160,7 @@ def test_openai_legacy_completions(proxy_server):
     proxy, _ = proxy_server
     url = f"http://{proxy.host}:{proxy.port}/v1/completions"
     payload = {"model": "cascadeflow-auto", "prompt": "Hello legacy completions"}
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
 
     data = response.json()
@@ -172,7 +172,7 @@ def test_openai_embeddings(proxy_server):
     proxy, _ = proxy_server
     url = f"http://{proxy.host}:{proxy.port}/v1/embeddings"
     payload = {"model": "cascadeflow", "input": "hello embeddings"}
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
 
     data = response.json()
@@ -190,7 +190,7 @@ def test_openai_base_url_without_v1(proxy_server):
         "messages": [{"role": "user", "content": "Hello without /v1 base_url"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
 
 
@@ -199,7 +199,7 @@ async def test_concurrent_requests_cost_tracking(proxy_server):
     proxy, cost_tracker = proxy_server
     url = f"http://{proxy.host}:{proxy.port}/v1/chat/completions"
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
 
         async def _one(i: int) -> float:
             payload = {

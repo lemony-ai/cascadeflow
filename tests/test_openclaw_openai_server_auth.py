@@ -37,17 +37,25 @@ def test_openclaw_openai_server_requires_auth_when_configured() -> None:
         payload = {"model": "cascadeflow", "messages": [{"role": "user", "content": "hi"}]}
 
         # No auth -> 401
-        r = httpx.post(url, json=payload, timeout=5.0)
+        r = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
         assert r.status_code == 401
         body = json.loads(r.text)
         assert "error" in body
 
         # Wrong auth -> 401
-        r = httpx.post(url, json=payload, headers={"Authorization": "Bearer nope"}, timeout=5.0)
+        r = httpx.post(
+            url, json=payload, headers={"Authorization": "Bearer nope"}, timeout=5.0, trust_env=False
+        )
         assert r.status_code == 401
 
         # Correct auth -> 200
-        r = httpx.post(url, json=payload, headers={"Authorization": "Bearer secret"}, timeout=5.0)
+        r = httpx.post(
+            url,
+            json=payload,
+            headers={"Authorization": "Bearer secret"},
+            timeout=5.0,
+            trust_env=False,
+        )
         assert r.status_code == 200
         body = json.loads(r.text)
         assert body["choices"][0]["message"]["content"] == "ok"
@@ -77,13 +85,13 @@ def test_openclaw_openai_server_stats_can_use_separate_token() -> None:
     try:
         url = f"http://127.0.0.1:{port}/stats"
 
-        r = httpx.get(url, timeout=5.0)
+        r = httpx.get(url, timeout=5.0, trust_env=False)
         assert r.status_code == 401
 
-        r = httpx.get(url, headers={"Authorization": "Bearer main"}, timeout=5.0)
+        r = httpx.get(url, headers={"Authorization": "Bearer main"}, timeout=5.0, trust_env=False)
         assert r.status_code == 401
 
-        r = httpx.get(url, headers={"Authorization": "Bearer stats"}, timeout=5.0)
+        r = httpx.get(url, headers={"Authorization": "Bearer stats"}, timeout=5.0, trust_env=False)
         assert r.status_code == 200
         assert json.loads(r.text)["summary"]["total_queries"] == 0
     finally:

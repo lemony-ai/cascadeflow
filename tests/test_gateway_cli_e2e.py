@@ -70,6 +70,9 @@ def _start_gateway(*args: str) -> tuple[object, int, str]:
     ]
     env = dict(os.environ)
     env["PYTHONUNBUFFERED"] = "1"
+    # Make localhost reachable even if the runner sets HTTP(S)_PROXY.
+    env.setdefault("NO_PROXY", "127.0.0.1,localhost")
+    env.setdefault("no_proxy", "127.0.0.1,localhost")
     fd, port_file = tempfile.mkstemp(prefix="cascadeflow-gateway-port-", suffix=".txt")
     os.close(fd)
     env["CASCADEFLOW_GATEWAY_PORT_FILE"] = port_file
@@ -91,7 +94,9 @@ def _start_gateway(*args: str) -> tuple[object, int, str]:
     while time.time() - start < 30:
         # Prefer probing readiness instead of parsing stdout/port files (CI/macOS can be flaky).
         try:
-            health = httpx.get(f"http://127.0.0.1:{port}/health", timeout=0.5)
+            health = httpx.get(
+                f"http://127.0.0.1:{port}/health", timeout=0.5, trust_env=False
+            )
             if health.status_code == 200:
                 return proc, port, port_file
         except Exception:
@@ -185,13 +190,13 @@ def test_gateway_cli_mock_e2e_with_metadata():
     try:
         base = f"http://127.0.0.1:{port}"
 
-        health = httpx.get(f"{base}/health", timeout=5.0)
+        health = httpx.get(f"{base}/health", timeout=5.0, trust_env=False)
         assert health.status_code == 200
         assert health.headers.get("X-Cascadeflow-Gateway") == "cascadeflow"
         assert health.headers.get("X-Cascadeflow-Gateway-Mode") == "mock"
         assert health.headers.get("Access-Control-Allow-Origin") == "https://example.com"
 
-        models = httpx.get(f"{base}/v1/models", timeout=5.0)
+        models = httpx.get(f"{base}/v1/models", timeout=5.0, trust_env=False)
         assert models.status_code == 200
         assert models.headers.get("X-Cascadeflow-Gateway-Endpoint") == "models.list"
         model_ids = {
@@ -203,6 +208,7 @@ def test_gateway_cli_mock_e2e_with_metadata():
             f"{base}/v1/chat/completions",
             json={"model": "cascadeflow-auto", "messages": [{"role": "user", "content": "Hello"}]},
             timeout=5.0,
+            trust_env=False,
         )
         assert chat.status_code == 200
         assert chat.headers.get("X-Cascadeflow-Gateway-API") == "openai"
@@ -216,6 +222,7 @@ def test_gateway_cli_mock_e2e_with_metadata():
             f"{base}/v1/messages",
             json={"model": "cascadeflow-fast", "messages": [{"role": "user", "content": "Hello"}]},
             timeout=5.0,
+            trust_env=False,
         )
         assert anth.status_code == 200
         assert anth.headers.get("X-Cascadeflow-Gateway-API") == "anthropic"
@@ -224,6 +231,7 @@ def test_gateway_cli_mock_e2e_with_metadata():
             f"{base}/v1/embeddings",
             json={"model": "cascadeflow", "input": ["hello", "world"]},
             timeout=10.0,
+            trust_env=False,
         )
         assert embed.status_code == 200
         data = embed.json()
@@ -247,7 +255,7 @@ def test_gateway_cli_mock_e2e_without_headers_or_cors():
     try:
         base = f"http://127.0.0.1:{port}"
 
-        health = httpx.get(f"{base}/health", timeout=5.0)
+        health = httpx.get(f"{base}/health", timeout=5.0, trust_env=False)
         assert health.status_code == 200
         assert health.headers.get("X-Cascadeflow-Gateway") is None
         assert health.headers.get("Access-Control-Allow-Origin") is None
@@ -256,6 +264,7 @@ def test_gateway_cli_mock_e2e_without_headers_or_cors():
             f"{base}/v1/chat/completions",
             json={"model": "cascadeflow", "messages": [{"role": "user", "content": "Hello"}]},
             timeout=5.0,
+            trust_env=False,
         )
         assert chat.status_code == 200
     finally:

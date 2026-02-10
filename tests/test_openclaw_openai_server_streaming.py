@@ -53,7 +53,7 @@ def test_openclaw_openai_server_stream_includes_role_and_final_finish_reason() -
             "messages": [{"role": "user", "content": "hi"}],
             "stream": True,
         }
-        r = httpx.post(url, json=payload, timeout=5.0)
+        r = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
         assert r.status_code == 200
 
         chunks = _read_sse_json_lines(r.text)
