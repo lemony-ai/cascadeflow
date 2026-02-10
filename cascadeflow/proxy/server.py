@@ -519,6 +519,37 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         return hints
 
+    @staticmethod
+    def _domain_hint_from_model(model: str) -> str | None:
+        """
+        Optional DX feature: allow forcing a domain via the standard `model` field,
+        without custom headers. This keeps existing OpenAI/Anthropic clients working.
+
+        Examples:
+        - model="cascadeflow:code"  -> domain_hint="code"
+        - model="cascadeflow/math"  -> domain_hint="math"
+        """
+
+        raw = str(model or "").strip()
+        if not raw:
+            return None
+        lowered = raw.lower()
+
+        domain = None
+        if lowered.startswith("cascadeflow:"):
+            domain = lowered.split(":", 1)[1].strip()
+        elif lowered.startswith("cascadeflow/"):
+            domain = lowered.split("/", 1)[1].strip()
+
+        if not domain:
+            return None
+
+        # Conservative validation to avoid surprising routing behavior.
+        for ch in domain:
+            if not (ch.isalnum() or ch in ("_", "-")):
+                return None
+        return domain
+
     def do_OPTIONS(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
         self._set_gateway_context(proxy, api="gateway", endpoint="options")
@@ -668,11 +699,15 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if not isinstance(messages, list) or not messages:
             return self._send_openai_error("Messages are required", status=400)
 
-        hints = self._extract_agent_hints(payload)
-
         model = payload.get("model", "cascadeflow")
         if not isinstance(model, str) or not model:
             model = "cascadeflow"
+
+        hints = self._extract_agent_hints(payload)
+        if "domain_hint" not in hints:
+            model_domain = self._domain_hint_from_model(model)
+            if model_domain:
+                hints["domain_hint"] = model_domain
 
         temperature = payload.get("temperature", 0.7)
         max_tokens = payload.get("max_tokens")
@@ -1002,6 +1037,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             return self._send_anthropic_error("model is required", status=400)
 
         hints = self._extract_agent_hints(payload)
+        if "domain_hint" not in hints:
+            model_domain = self._domain_hint_from_model(model)
+            if model_domain:
+                hints["domain_hint"] = model_domain
 
         messages = _anthropic_payload_to_openai_messages(payload)
         if not messages:

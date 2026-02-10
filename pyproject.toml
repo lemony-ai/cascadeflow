@@ -184,6 +184,7 @@ ignore = [
     "B017",  # assert raises
     "B018",  # Useless expression
     "B027",  # Empty method
+    "UP007",  # Use X | Y - not available in Python 3.9
     "UP045", # Use X | None - requires Python 3.10+ without __future__ annotations
     "UP035",  # typing.Dict -> dict (will migrate gradually)
     "PT011",  # pytest.raises too broad
@@ -196,7 +197,9 @@ ignore = [
 "cascadeflow/core/batch.py" = ["F401"]  # Availability check imports
 "cascadeflow/core/cascade.py" = ["F401"]  # Availability check imports
 "cascadeflow/integrations/litellm.py" = ["F401"]  # Availability check imports
+"cascadeflow/integrations/openclaw/openai_server.py" = ["N802"]  # BaseHTTPRequestHandler required method names
 "cascadeflow/quality/quality.py" = ["F401"]  # Availability check imports
+"cascadeflow/proxy/server.py" = ["N802"]  # BaseHTTPRequestHandler required method names
 "cascadeflow/dynamic_config/watcher.py" = ["F821"]  # ConfigManager forward reference
 "cascadeflow/routing/tool_risk.py" = ["E741"]  # Ambiguous variable name in risk scoring
 "cascadeflow/schema/__init__.py" = ["A004"]  # TimeoutError re-export shadows builtin

@@ -5,6 +5,10 @@ This is the fastest way to try cascadeflow with an existing app or agent stack.
 Run a local HTTP gateway and point your existing OpenAI or Anthropic client at it.
 No framework changes, no SDK rewrite.
 
+In practice, this works with any OpenAI-compatible client that lets you override `base_url`
+(including many agent frameworks and routers). For Anthropic-format clients, you can either
+use raw HTTP to `POST /v1/messages` or point an SDK at the gateway if it supports `base_url`.
+
 ## What You Get
 
 - OpenAI-compatible endpoint: `POST /v1/chat/completions`
@@ -52,6 +56,12 @@ Common options:
 - `--advertise-model gpt-4o-mini` (repeat to add more model IDs to `GET /v1/models` for clients that validate models)
 - `--env-file .env` to load provider keys (no extra dependencies)
 - `--cors-allow-origin https://your-app.example` or `--disable-cors`
+
+Sample configs are available under `examples/configs/` (optional):
+
+```bash
+python -m cascadeflow.server --mode agent --port 8084 --config examples/configs/openai-only.yaml
+```
 
 ### Mock mode (no keys needed)
 
@@ -116,6 +126,12 @@ complexity and domains.
 
 - `X-Cascadeflow-Complexity: trivial|simple|moderate|hard|expert`
 - `X-Cascadeflow-Domain: code|math|legal|medical|...`
+
+If your client/framework can't set custom headers, you can optionally force a domain via the
+standard `model` field:
+
+- `model="cascadeflow:code"`
+- `model="cascadeflow/math"`
 
 ## 3) Quick Validation Checklist
 

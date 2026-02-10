@@ -1376,9 +1376,12 @@ class TestToolStreamManagerStream:
         mgr.json_parser = ProgressiveJSONParser()
         mgr.validator = ToolCallValidator()
 
-        with pytest.raises(ValueError, match="tools parameter is required"):
+        async def _consume_one() -> None:
             async for _ in mgr.stream("test", tools=[], max_tokens=50):
-                pass
+                break
+
+        with pytest.raises(ValueError, match="tools parameter is required"):
+            await _consume_one()
 
     @pytest.mark.asyncio
     async def test_tool_stream_provider_error(self):
