@@ -421,9 +421,6 @@ agent.stream_events(
 # Let model decide (default)
 tool_choice=None  # or {"type": "auto"}
 
-# Force tool use (if provider supports)
-tool_choice={"type": "required"}
-
 # Force specific tool (if provider supports)
 tool_choice={
     "type": "function",

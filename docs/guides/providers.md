@@ -19,7 +19,7 @@ Complete guide to AI providers supported by cascadeflow and how to mix them effe
 
 ## Overview
 
-cascadeflow supports native providers plus **17+ additional providers** through the Vercel AI SDK integration. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
+cascadeflow supports native providers and can also (optionally) use the Vercel AI SDK provider ecosystem. You can mix any combination of providers in a single cascade for optimal cost, speed, and quality.
 
 ### Why Mix Providers?
 
@@ -33,17 +33,19 @@ cascadeflow supports native providers plus **17+ additional providers** through 
 
 ## Supported Providers
 
-### Vercel AI SDK (17+ Providers)
+### Vercel AI SDK (Optional Provider Ecosystem)
 
 cascadeflow integrates the **Vercel AI SDK** so you can use a wider set of providers with the same cascadeflow API. Supported Vercel SDK providers include:
 
-- OpenAI, Anthropic, Azure OpenAI, Google Gemini, Mistral, Cohere
-- Groq, Together AI, OpenRouter, Perplexity, xAI, Fireworks
-- AWS Bedrock, Replicate, DeepSeek, Ollama, Cerebras
+- OpenAI, Anthropic, Azure OpenAI, Google, Mistral, Cohere
+- Groq, Together AI, Perplexity, xAI, Fireworks
+- AWS Bedrock, Google Vertex, Replicate, DeepSeek, Cerebras
+
+> Note: `openrouter` and `ollama` are supported natively by cascadeflow; they are not part of the Vercel AI SDK provider list used here.
 
 **Setup (TypeScript):**
 ```bash
-npm install ai @ai-sdk/openai @ai-sdk/anthropic
+pnpm add @cascadeflow/core @cascadeflow/vercel-ai ai @ai-sdk/openai @ai-sdk/anthropic
 ```
 
 ```ts
@@ -59,6 +61,32 @@ const agent = new CascadeAgent({
 ```
 
 > **Note:** For Vercel AI SDK providers, install the matching `@ai-sdk/*` package and set the provider-specific API key (for example `PERPLEXITY_API_KEY` for Perplexity).
+
+#### Next.js `useChat` (Vercel AI SDK UI)
+
+If you want to use **Vercel AI SDK UI hooks** (for example `useChat`) with cascadeflow, you can return a Vercel AI SDK-compatible stream from your route handler. The handler defaults to the AI SDK v4 **data stream** protocol and automatically uses the **UI message stream** when available on newer AI SDK versions.
+
+```ts
+import { CascadeAgent } from '@cascadeflow/core';
+import { createChatHandler } from '@cascadeflow/vercel-ai';
+
+export const runtime = 'edge';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: process.env.OPENAI_API_KEY },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625, apiKey: process.env.OPENAI_API_KEY },
+  ],
+});
+
+const handler = createChatHandler(agent);
+
+export async function POST(req: Request) {
+  return handler(req);
+}
+```
+
+See the full example in `examples/vercel-ai-nextjs/`.
 
 ### 1. OpenAI
 

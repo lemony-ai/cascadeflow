@@ -52,12 +52,20 @@ CLAUDE.md
 # ============================================================================
 docs/OSS_DEVELOPMENT_STAGES.md
 docs/*_PLAN*.md
-!docs/PROXY_INTEGRATION_PLAN.md
 docs/*_ROADMAP*.md
 **/INTERNAL_*.md
 
 # Research notes (local only, not for GitHub)
 docs/research/
+
+# One-off internal investigations / benchmark notes (keep local)
+dx-plan-*.md
+evaluation-*.md
+fastembed-*.md
+current_stats_before_fix.json
+test-result.txt
+benchmark_results/
+mtbench_results/
 
 # ============================================================================
 # ENVIRONMENT VARIABLES
@@ -290,6 +298,7 @@ HOW_*.md
 *_PLAN.md
 !docs/PROXY_INTEGRATION_PLAN.md
 *_ANALYSIS.md
+!docs/research/VERCEL_AI_SDK_DX_ANALYSIS.md
 !docs/research/N8N_V2_INTEGRATION_PLAN.md
 test_all_*.py
 test_semantic_*.py

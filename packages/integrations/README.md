@@ -16,6 +16,18 @@ No-code workflow automation with cascadeflow's intelligent model cascading.
 
 ---
 
+### ⚡️ Vercel AI SDK
+
+#### [Vercel AI SDK](./vercel-ai/) - `@cascadeflow/vercel-ai`
+Use cascadeflow as a drop-in backend for Vercel AI SDK UI hooks like `useChat` (Next.js App Router), and access the Vercel AI SDK provider ecosystem.
+
+- **Install:** `pnpm add @cascadeflow/core @cascadeflow/vercel-ai ai @ai-sdk/react`
+- **Features:** `createChatHandler(...)` (data stream + UI message stream), tool-call streaming
+- **Use Cases:** Quickly add cascadeflow routing to existing `useChat` apps
+- **[Documentation](./vercel-ai/README.md)**
+
+---
+
 ## Adding a New Integration
 
 We welcome community contributions! Here's how to add a new integration:

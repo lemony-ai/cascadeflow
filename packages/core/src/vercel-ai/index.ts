@@ -33,3 +33,7 @@ export { xaiAdapter } from './providers/xai';
 export { azureAdapter } from './providers/azure';
 export { bedrockAdapter } from './providers/bedrock';
 export { vertexAdapter } from './providers/vertex';
+
+// Vercel AI SDK UI helpers (e.g. `useChat`)
+export { createChatHandler, createCompletionHandler } from './ui';
+export type { VercelAIChatHandlerOptions, VercelAIStreamProtocol } from './ui';

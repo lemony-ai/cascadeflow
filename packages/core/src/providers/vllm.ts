@@ -154,7 +154,11 @@ export class VLLMProvider extends BaseProvider {
       } else if (msg.role === 'user') {
         vllmMessages.push({ role: 'user', content: msg.content });
       } else if (msg.role === 'assistant') {
-        vllmMessages.push({ role: 'assistant', content: msg.content });
+        const assistantMsg: any = { role: 'assistant', content: msg.content };
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          assistantMsg.tool_calls = msg.tool_calls;
+        }
+        vllmMessages.push(assistantMsg);
       } else if (msg.role === 'tool') {
         vllmMessages.push({
           role: 'tool',

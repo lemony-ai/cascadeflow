@@ -1955,6 +1955,11 @@ class CascadeAgent:
         # Basic telemetry recording
         self.telemetry.stats["total_queries"] += 1
         self.telemetry.stats["streaming_used"] += 1
+        # 🔧 FIX: Track routing decision for streaming requests
+        if use_cascade:
+            self.telemetry.stats["cascade_used"] += 1
+        else:
+            self.telemetry.stats["direct_routed"] += 1
         if tools:
             if "tool_queries" not in self.telemetry.stats:
                 self.telemetry.stats["tool_queries"] = 0

@@ -149,6 +149,9 @@ exclude = '''
     \.git
   | \.venv
   | \.idea
+  | node_modules
+  | \.next
+  | \.turbo
   | build
   | dist
 )/
@@ -186,6 +189,7 @@ ignore = [
     "B027",  # Empty method
     "UP007",  # Use X | Y - not available in Python 3.9
     "UP045", # Use X | None - requires Python 3.10+ without __future__ annotations
+    "UP007", # Use X | Y - not available in Python 3.9 (repo supports >=3.9)
     "UP035",  # typing.Dict -> dict (will migrate gradually)
     "PT011",  # pytest.raises too broad
     "PT017",  # Found assertion on exception
@@ -193,6 +197,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"cascadeflow/integrations/langchain/types.py" = ["A005"]  # Filename is part of LangChain integration surface
+"cascadeflow/integrations/openclaw/openai_server.py" = ["N802"]  # BaseHTTPRequestHandler uses do_GET/do_POST
+"cascadeflow/proxy/server.py" = ["N802"]  # BaseHTTPRequestHandler uses do_POST
 "__init__.py" = ["F401", "E402", "I001"]  # F401: unused imports, E402: imports not at top (needed for backward compat), I001: unsorted imports
 "cascadeflow/core/batch.py" = ["F401"]  # Availability check imports
 "cascadeflow/core/cascade.py" = ["F401"]  # Availability check imports
@@ -205,7 +212,7 @@ ignore = [
 "cascadeflow/schema/__init__.py" = ["A004"]  # TimeoutError re-export shadows builtin
 "cascadeflow/schema/domain_config.py" = ["F821"]  # ModelRegistry forward reference
 "cascadeflow/schema/exceptions.py" = ["A001"]  # TimeoutError class shadows builtin (intentional)
-"tests/**" = ["E402", "F401", "E741", "B023", "B006", "F841"]  # Test files: imports after setup, unused imports, ambiguous names, mutable defaults, unused vars
+"tests/**" = ["E402", "F401", "E741", "B023", "B006", "F841", "I001", "PT012"]  # Tests: allow flexible import grouping + complex raises blocks
 "tests/_archive_development_tests/**" = ["F"]  # Archived tests: ignore all F (pyflakes) errors
 "examples/**" = ["F401"]  # Examples: unused imports OK
 
