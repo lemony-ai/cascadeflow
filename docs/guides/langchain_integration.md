@@ -262,6 +262,13 @@ console.log(result.tool_calls);
 
 Tool risk is classified from tool `name` and `description` (examples: `delete_user`, `send_email`, `payment`, `deploy_production`).
 
+### 3.5 Multi-Agent + LangGraph (Optional)
+
+If you already use LangGraph for multi-agent systems, CascadeFlow can be used as the shared chat model inside nodes/sub-agents.
+
+- TypeScript example: `packages/langchain-cascadeflow/examples/langgraph-multi-agent.ts`
+- Python example: `examples/langchain_langgraph_multi_agent.py`
+
 ### 3. Structured Output
 
 Extract structured data with schemas:
@@ -306,6 +313,10 @@ results.forEach((result, i) => {
 ```
 
 ### 5. LCEL Composition Patterns
+
+See runnable examples:
+- TypeScript: `packages/langchain-cascadeflow/examples/lcel-pipeline.ts`
+- Python: `examples/langchain_lcel_pipeline.py`
 
 **Sequential Chains:**
 ```typescript
@@ -353,6 +364,11 @@ const analysisChain = RunnableSequence.from([
 ```
 
 ### 6. LangSmith Integration
+
+CascadeFlow adds LangSmith-friendly `tags` and `metadata` to nested drafter/verifier runs so traces are searchable by:
+- `cascadeflow:drafter`, `cascadeflow:verifier`
+- `cascadeflow:direct`, `cascadeflow:escalated`
+- `cascadeflow:toolrisk=HIGH|CRITICAL|...` (when tool calls occur)
 
 Automatic cost tracking metadata:
 
