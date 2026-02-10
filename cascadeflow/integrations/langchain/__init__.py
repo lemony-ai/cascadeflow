@@ -20,7 +20,7 @@ Example:
 """
 
 from .wrapper import CascadeFlow, with_cascade
-from .lc_types import CascadeConfig, CascadeResult, CostMetadata, TokenUsage
+from .types import CascadeConfig, CascadeResult, CostMetadata, TokenUsage
 from .utils import (
     calculate_quality,
     calculate_cost,

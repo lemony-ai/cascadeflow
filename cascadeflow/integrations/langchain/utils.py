@@ -3,7 +3,7 @@
 import re
 from typing import Any, Optional
 
-from .lc_types import CostMetadata, TokenUsage
+from .types import CostMetadata, TokenUsage
 
 # Model pricing per 1M tokens (input/output)
 MODEL_PRICING: dict[str, dict[str, float]] = {

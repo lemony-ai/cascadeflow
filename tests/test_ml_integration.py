@@ -10,6 +10,8 @@ Tests the complete ML integration including:
 - Pipeline Semantic Validation
 """
 
+import os
+
 import pytest
 
 from cascadeflow.ml.embedding import EmbeddingCache, UnifiedEmbeddingService
@@ -19,12 +21,30 @@ from cascadeflow.quality.semantic import SemanticQualityChecker
 from cascadeflow.routing.cascade_pipeline import ValidationMethod
 from cascadeflow.routing.domain import Domain, SemanticDomainDetector
 
+# These tests can trigger FastEmbed model downloads (Hugging Face).
+# Keep CI and default local runs deterministic: opt-in only.
+RUN_ML_E2E = os.getenv("CASCADEFLOW_RUN_ML_E2E") == "1"
+try:
+    import fastembed  # noqa: F401
+
+    FASTEMBED_INSTALLED = True
+except Exception:
+    FASTEMBED_INSTALLED = False
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not RUN_ML_E2E,
+        reason="Set CASCADEFLOW_RUN_ML_E2E=1 to run ML e2e tests (may download models).",
+    ),
+]
+
 # ============================================================================
 # EMBEDDING SERVICE TESTS
 # ============================================================================
 
 
-@pytest.mark.skipif(not UnifiedEmbeddingService().is_available, reason="FastEmbed not available")
+@pytest.mark.skipif(not FASTEMBED_INSTALLED, reason="FastEmbed not installed")
 class TestUnifiedEmbeddingService:
     """Test the unified embedding service."""
 
@@ -85,9 +105,7 @@ class TestUnifiedEmbeddingService:
 # ============================================================================
 
 
-@pytest.mark.skipif(
-    not SemanticQualityChecker().is_available(), reason="Semantic quality checker not available"
-)
+@pytest.mark.skipif(not FASTEMBED_INSTALLED, reason="FastEmbed not installed")
 class TestSemanticQuality:
     """Test semantic quality checking."""
 
@@ -116,9 +134,7 @@ class TestSemanticQuality:
 # ============================================================================
 
 
-@pytest.mark.skipif(
-    not SemanticDomainDetector().is_available, reason="Semantic domain detector not available"
-)
+@pytest.mark.skipif(not FASTEMBED_INSTALLED, reason="FastEmbed not installed")
 class TestSemanticDomainDetection:
     """Test semantic domain detection."""
 
@@ -161,10 +177,7 @@ class TestSemanticDomainDetection:
 # ============================================================================
 
 
-@pytest.mark.skipif(
-    not SemanticComplexityDetector().is_available,
-    reason="Semantic complexity detector not available",
-)
+@pytest.mark.skipif(not FASTEMBED_INSTALLED, reason="FastEmbed not installed")
 class TestSemanticComplexityDetection:
     """Test semantic complexity detection."""
 
@@ -214,9 +227,7 @@ class TestSemanticComplexityDetection:
 # ============================================================================
 
 
-@pytest.mark.skipif(
-    not SemanticAlignmentScorer().is_available, reason="Semantic alignment scorer not available"
-)
+@pytest.mark.skipif(not FASTEMBED_INSTALLED, reason="FastEmbed not installed")
 class TestSemanticAlignmentScoring:
     """Test semantic alignment scoring."""
 

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Optional, TypeVar
 
-from .lc_types import CascadeResult
+from .types import CascadeResult
 
 try:
     import pandas as pd  # type: ignore
