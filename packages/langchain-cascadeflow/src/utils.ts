@@ -1,5 +1,25 @@
 import type { CostMetadata } from './types.js';
 
+function extractToolCallsFromMessage(message: any): any[] {
+  if (!message) return [];
+
+  // LangChain JS uses `tool_calls` on AIMessage / AIMessageChunk.
+  const direct = message.tool_calls;
+  if (Array.isArray(direct) && direct.length > 0) return direct;
+
+  // Fallbacks for providers/versions that store tool calls elsewhere.
+  const ak = message.additional_kwargs || {};
+  const akToolCalls = ak.tool_calls || ak.toolCalls;
+  if (Array.isArray(akToolCalls) && akToolCalls.length > 0) return akToolCalls;
+
+  return [];
+}
+
+export function extractToolCalls(response: any): any[] {
+  const generation = response?.generations?.[0];
+  return extractToolCallsFromMessage(generation?.message) || [];
+}
+
 /**
  * Model pricing per 1M tokens (input/output)
  * TODO: Import from @cascadeflow/core or make configurable
@@ -81,6 +101,12 @@ export function extractTokenUsage(response: any): { input: number; output: numbe
  * Uses logprobs if available, otherwise heuristics
  */
 export function calculateQuality(response: any): number {
+  // Tool calls often come with empty `content` but are valid high-quality responses.
+  // Quality gating for tool calls is handled in the wrapper via tool-risk policy.
+  if (extractToolCalls(response).length > 0) {
+    return 1.0;
+  }
+
   // 1. Try logprobs-based confidence (OpenAI)
   const generationInfo = response?.generations?.[0]?.generationInfo;
   if (generationInfo?.logprobs?.content) {

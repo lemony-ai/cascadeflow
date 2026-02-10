@@ -199,7 +199,7 @@ const verifier = new ChatOpenAI({ modelName: 'gpt-4o' });
 
 ### 1. Streaming Support
 
-Full streaming support with automatic pre-routing:
+Streaming support with automatic pre-routing:
 
 ```typescript
 // Stream from cascade
@@ -211,9 +211,15 @@ for await (const chunk of stream) {
 ```
 
 **How it works:**
-- Pre-routing: Cascade decides drafter vs verifier BEFORE streaming
-- No latency: Stream starts immediately
-- Consistent: Full response from one model
+- Pre-routing: Cascade may choose a single model (direct-to-verifier) before streaming starts.
+- Text-only: Cascade streams the drafter optimistically, then escalates to the verifier only if needed.
+- Tool-safe: If tools are bound via `bindTools(...)`, Cascade buffers the drafter stream and only emits chunks after the final model decision, so tool call deltas are never "changed mid-flight".
+- Clean output by default: Cascade does not inject "switch" messages into the stream unless explicitly enabled.
+
+To enable a debug "switch" message (TypeScript only), pass:
+```typescript
+await cascade.stream("...", { metadata: { cascadeflow_emit_switch_message: true } })
+```
 
 ### 2. Tool Calling & Function Calling
 
@@ -249,6 +255,12 @@ const result = await boundCascade.invoke(
 // Result includes tool calls
 console.log(result.tool_calls);
 ```
+
+**Safety policy (default):**
+- Low/medium-risk tool calls are accepted without running the verifier (even if `content` is empty).
+- High/critical-risk tool calls force a verifier run before returning a tool call.
+
+Tool risk is classified from tool `name` and `description` (examples: `delete_user`, `send_email`, `payment`, `deploy_production`).
 
 ### 3. Structured Output
 

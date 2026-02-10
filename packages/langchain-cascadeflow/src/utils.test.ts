@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   extractTokenUsage,
   calculateQuality,
+  extractToolCalls,
   calculateCost,
   calculateSavings,
   createCostMetadata,
@@ -100,6 +101,24 @@ describe('calculateQuality', () => {
 
     const result = calculateQuality(response);
     expect(result).toBe(0.2);
+  });
+
+  it('should treat tool calls as high quality (even with empty content)', () => {
+    const response = {
+      generations: [
+        {
+          text: '',
+          message: {
+            content: '',
+            tool_calls: [{ name: 'get_weather', args: { location: 'Berlin' } }],
+          },
+        },
+      ],
+    };
+
+    expect(extractToolCalls(response)).toHaveLength(1);
+    const result = calculateQuality(response);
+    expect(result).toBe(1.0);
   });
 
   it('should return low quality for very short text', () => {
