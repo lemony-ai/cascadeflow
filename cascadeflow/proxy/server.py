@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+import os
 import queue
 import threading
 import time
@@ -35,6 +36,28 @@ from typing import Any
 from urllib.parse import urlparse
 
 from cascadeflow.telemetry.cost_tracker import CostTracker
+
+
+def _maybe_write_port_file(port: int) -> None:
+    """
+    Best-effort hook for tests/CI: write the bound port to a file.
+
+    Some CI environments may not reliably surface subprocess stdout quickly enough
+    to parse the ephemeral port. A port file provides a stdout-independent signal.
+    """
+
+    path = os.getenv("CASCADEFLOW_GATEWAY_PORT_FILE")
+    if not path:
+        return
+
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(str(int(port)))
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception:
+        # Don't fail gateway start for an optional debugging/testing feature.
+        return
 
 
 @dataclass
@@ -88,6 +111,7 @@ class RoutingProxy:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         self._thread = thread
+        _maybe_write_port_file(self.port)
         return self.port
 
     def stop(self) -> None:

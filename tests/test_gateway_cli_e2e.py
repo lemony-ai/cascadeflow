@@ -4,16 +4,20 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
 import httpx
 
 
-def _start_gateway(*args: str) -> tuple[subprocess.Popen, int]:
+def _start_gateway(*args: str) -> tuple[subprocess.Popen, int, str]:
     cmd = [sys.executable, "-u", "-m", "cascadeflow.server", *args]
     env = dict(os.environ)
     env["PYTHONUNBUFFERED"] = "1"
+    fd, port_file = tempfile.mkstemp(prefix="cascadeflow-gateway-port-", suffix=".txt")
+    os.close(fd)
+    env["CASCADEFLOW_GATEWAY_PORT_FILE"] = port_file
     proc = subprocess.Popen(  # noqa: S603
         cmd,
         stdout=subprocess.PIPE,
@@ -40,6 +44,13 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int]:
     seen: list[str] = []
     while time.time() - start < 30:
         try:
+            raw = open(port_file, encoding="utf-8").read().strip()
+            if raw.isdigit():
+                port = int(raw)
+                break
+        except Exception:
+            pass
+        try:
             line = q.get(timeout=0.25)
         except queue.Empty:
             if proc.poll() is not None:
@@ -57,12 +68,17 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int]:
         except Exception:
             pass
         tail = "\n".join(seen[-50:])
+        try:
+            port_file_contents = open(port_file, encoding="utf-8").read()
+        except Exception as exc:
+            port_file_contents = f"<unreadable: {exc}>"
         raise AssertionError(
             "Gateway did not start (port not detected from stdout). "
-            f"returncode={proc.poll()} last_output=\n{tail}"
+            f"returncode={proc.poll()} port_file={port_file} port_file_contents={port_file_contents!r} "
+            f"last_output=\n{tail}"
         )
 
-    return proc, port
+    return proc, port, port_file
 
 
 def _stop_gateway(proc: subprocess.Popen) -> None:
@@ -84,7 +100,7 @@ def _stop_gateway(proc: subprocess.Popen) -> None:
 
 
 def test_gateway_cli_mock_e2e_with_metadata():
-    proc, port = _start_gateway(
+    proc, port, port_file = _start_gateway(
         "--mode",
         "mock",
         "--host",
@@ -150,10 +166,14 @@ def test_gateway_cli_mock_e2e_with_metadata():
         assert len(data["data"][0]["embedding"]) == 384
     finally:
         _stop_gateway(proc)
+        try:
+            os.unlink(port_file)
+        except Exception:
+            pass
 
 
 def test_gateway_cli_mock_e2e_without_headers_or_cors():
-    proc, port = _start_gateway(
+    proc, port, port_file = _start_gateway(
         "--mode",
         "mock",
         "--host",
@@ -179,3 +199,7 @@ def test_gateway_cli_mock_e2e_without_headers_or_cors():
         assert chat.status_code == 200
     finally:
         _stop_gateway(proc)
+        try:
+            os.unlink(port_file)
+        except Exception:
+            pass
