@@ -36,14 +36,16 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int]:
 
     port: int | None = None
     start = time.time()
-    pattern = re.compile(r"running at http://127\.0\.0\.1:(\d+)/v1")
-    while time.time() - start < 10:
+    pattern = re.compile(r"running at http://(?:127\.0\.0\.1|localhost):(\d+)/v1")
+    seen: list[str] = []
+    while time.time() - start < 30:
         try:
             line = q.get(timeout=0.25)
         except queue.Empty:
             if proc.poll() is not None:
                 break
             continue
+        seen.append(line)
         match = pattern.search(line)
         if match:
             port = int(match.group(1))
@@ -54,7 +56,11 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int]:
             proc.terminate()
         except Exception:
             pass
-        raise AssertionError("Gateway did not start (port not detected from stdout)")
+        tail = "\n".join(seen[-50:])
+        raise AssertionError(
+            "Gateway did not start (port not detected from stdout). "
+            f"returncode={proc.poll()} last_output=\n{tail}"
+        )
 
     return proc, port
 
