@@ -21,9 +21,9 @@ Documentation:
 """
 
 import asyncio
+import math
 import os
 import re
-import math
 from typing import Any
 
 from cascadeflow import CascadeAgent, ModelConfig
