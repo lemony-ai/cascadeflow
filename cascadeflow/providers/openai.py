@@ -1102,7 +1102,9 @@ class OpenAIProvider(BaseProvider):
                 if model_info.supports_temperature:
                     responses_payload["temperature"] = temperature
 
-                response = await self.client.post(f"{self.base_url}/responses", json=responses_payload)
+                response = await self.client.post(
+                    f"{self.base_url}/responses", json=responses_payload
+                )
                 response.raise_for_status()
                 data = response.json()
 
@@ -1134,7 +1136,10 @@ class OpenAIProvider(BaseProvider):
                 latency_ms = (time.time() - start_time) * 1000
 
                 cost = self.estimate_cost(
-                    tokens_used, model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+                    tokens_used,
+                    model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                 )
 
                 metadata_for_confidence = {
