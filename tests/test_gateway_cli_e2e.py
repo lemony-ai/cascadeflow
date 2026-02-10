@@ -1,7 +1,7 @@
 import os
 import queue
-import re
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -11,8 +11,26 @@ import time
 import httpx
 
 
+def _pick_free_port() -> int:
+    # Best-effort: avoids relying on subprocess stdout timing to discover an ephemeral port.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+
+
 def _start_gateway(*args: str) -> tuple[subprocess.Popen, int, str]:
-    cmd = [sys.executable, "-u", "-m", "cascadeflow.server", *args]
+    port = _pick_free_port()
+    cmd = [
+        sys.executable,
+        "-u",
+        "-m",
+        "cascadeflow.server",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        *args,
+    ]
     env = dict(os.environ)
     env["PYTHONUNBUFFERED"] = "1"
     fd, port_file = tempfile.mkstemp(prefix="cascadeflow-gateway-port-", suffix=".txt")
@@ -38,18 +56,17 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int, str]:
 
     threading.Thread(target=_reader, daemon=True).start()
 
-    port: int | None = None
     start = time.time()
-    pattern = re.compile(r"running at http://(?:127\.0\.0\.1|localhost):(\d+)/v1")
     seen: list[str] = []
     while time.time() - start < 30:
+        # Prefer probing readiness instead of parsing stdout/port files (CI/macOS can be flaky).
         try:
-            raw = open(port_file, encoding="utf-8").read().strip()
-            if raw.isdigit():
-                port = int(raw)
-                break
+            health = httpx.get(f"http://127.0.0.1:{port}/health", timeout=0.5)
+            if health.status_code == 200:
+                return proc, port, port_file
         except Exception:
             pass
+
         try:
             line = q.get(timeout=0.25)
         except queue.Empty:
@@ -57,28 +74,24 @@ def _start_gateway(*args: str) -> tuple[subprocess.Popen, int, str]:
                 break
             continue
         seen.append(line)
-        match = pattern.search(line)
-        if match:
-            port = int(match.group(1))
-            break
+        # Keep collecting output for debugging on failure.
 
-    if port is None:
-        try:
-            proc.terminate()
-        except Exception:
-            pass
-        tail = "\n".join(seen[-50:])
-        try:
-            port_file_contents = open(port_file, encoding="utf-8").read()
-        except Exception as exc:
-            port_file_contents = f"<unreadable: {exc}>"
-        raise AssertionError(
-            "Gateway did not start (port not detected from stdout). "
-            f"returncode={proc.poll()} port_file={port_file} port_file_contents={port_file_contents!r} "
-            f"last_output=\n{tail}"
-        )
+    try:
+        proc.terminate()
+    except Exception:
+        pass
 
-    return proc, port, port_file
+    tail = "\n".join(seen[-50:])
+    try:
+        port_file_contents = open(port_file, encoding="utf-8").read()
+    except Exception as exc:
+        port_file_contents = f"<unreadable: {exc}>"
+
+    raise AssertionError(
+        "Gateway did not become ready (GET /health did not return 200). "
+        f"returncode={proc.poll()} port={port} port_file={port_file} port_file_contents={port_file_contents!r} "
+        f"last_output=\n{tail}"
+    )
 
 
 def _stop_gateway(proc: subprocess.Popen) -> None:
@@ -103,10 +116,6 @@ def test_gateway_cli_mock_e2e_with_metadata():
     proc, port, port_file = _start_gateway(
         "--mode",
         "mock",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "0",
         "--include-gateway-metadata",
         "--cors-allow-origin",
         "https://example.com",
@@ -176,10 +185,6 @@ def test_gateway_cli_mock_e2e_without_headers_or_cors():
     proc, port, port_file = _start_gateway(
         "--mode",
         "mock",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "0",
         "--no-gateway-headers",
         "--disable-cors",
     )
