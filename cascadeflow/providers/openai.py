@@ -334,6 +334,97 @@ class OpenAIProvider(BaseProvider):
 
         return openai_tools
 
+    def _convert_tools_to_responses(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Convert tools into the OpenAI Responses API format.
+
+        Responses tools are *flattened* (name/description/parameters at the top level),
+        unlike Chat Completions tools which nest fields under `function`.
+        """
+        if not tools:
+            return []
+
+        converted: list[dict[str, Any]] = []
+        for tool in tools:
+            if not isinstance(tool, dict):
+                continue
+
+            # Already in Responses format
+            if tool.get("type") == "function" and isinstance(tool.get("name"), str):
+                converted.append(tool)
+                continue
+
+            function = tool.get("function") if isinstance(tool, dict) else None
+            if isinstance(function, dict):
+                name = function.get("name") or tool.get("name")
+                description = function.get("description", tool.get("description", ""))
+                parameters = function.get(
+                    "parameters", tool.get("parameters", {"type": "object", "properties": {}})
+                )
+            else:
+                name = tool.get("name")
+                description = tool.get("description", "")
+                parameters = tool.get("parameters", {"type": "object", "properties": {}})
+
+            if not name:
+                continue
+
+            converted.append(
+                {
+                    "type": "function",
+                    "name": name,
+                    "description": description,
+                    "parameters": parameters,
+                }
+            )
+
+        return converted
+
+    def _convert_tool_choice_to_responses(self, tool_choice: Any) -> Any:
+        """
+        Convert a Chat Completions-style tool_choice into Responses-style tool_choice.
+
+        Chat Completions forced choice:
+          {"type":"function","function":{"name":"calculator"}}
+        Responses forced choice:
+          {"type":"function","name":"calculator"}
+        """
+        if tool_choice is None:
+            return None
+        if isinstance(tool_choice, str):
+            return tool_choice
+        if isinstance(tool_choice, dict):
+            if tool_choice.get("type") == "function":
+                fn = tool_choice.get("function")
+                if isinstance(fn, dict) and isinstance(fn.get("name"), str):
+                    return {"type": "function", "name": fn["name"]}
+                if isinstance(tool_choice.get("name"), str):
+                    return tool_choice
+        return tool_choice
+
+    def _effective_responses_max_output_tokens(self, model: str, requested: int) -> int:
+        """
+        Ensure reasoning models have enough output budget to emit *some* text.
+
+        Some GPT-5 responses can be empty if `max_output_tokens` is too small, because
+        the budget may be consumed by internal reasoning.
+        """
+        model_lower = (model or "").lower()
+
+        # Defaults tuned empirically: gpt-5 can consume large budgets in reasoning.
+        default_floor = 256
+        if model_lower.startswith("gpt-5") and not (
+            model_lower.startswith("gpt-5-mini") or model_lower.startswith("gpt-5-nano")
+        ):
+            default_floor = 1024
+
+        try:
+            min_floor = int(os.getenv("CASCADEFLOW_OPENAI_MIN_OUTPUT_TOKENS", str(default_floor)))
+        except ValueError:
+            min_floor = default_floor
+
+        return max(int(requested), max(1, int(min_floor)))
+
     def _parse_tool_calls(self, choice: dict[str, Any]) -> Optional[list[dict[str, Any]]]:
         """
         Parse tool calls from OpenAI response into universal format.
@@ -389,6 +480,155 @@ class OpenAIProvider(BaseProvider):
                 continue
 
         return universal_tool_calls if universal_tool_calls else None
+
+    def _should_use_responses_api(self, model: str) -> bool:
+        """
+        Use the OpenAI Responses API for models where Chat Completions is not reliable.
+
+        Today this is primarily the GPT-5 family, where /chat/completions can return
+        empty assistant content while consuming only reasoning tokens.
+        """
+        model_lower = (model or "").lower()
+        if os.getenv("CASCADEFLOW_OPENAI_FORCE_CHAT_COMPLETIONS") == "1":
+            return False
+        if os.getenv("CASCADEFLOW_OPENAI_FORCE_RESPONSES") == "1":
+            return True
+        return model_lower.startswith("gpt-5")
+
+    def _convert_messages_to_responses_input(
+        self, messages: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """
+        Convert OpenAI-style chat messages into a Responses API input list.
+
+        Notes:
+        - We extract system messages into `instructions`.
+        - Tool result messages (role="tool") are converted into plain user text so we
+          don't rely on `previous_response_id` state tracking.
+        """
+        instructions_parts: list[str] = []
+        input_messages: list[dict[str, Any]] = []
+
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if role == "system":
+                if content is None:
+                    continue
+                if not isinstance(content, str):
+                    content = json.dumps(content)
+                if content.strip():
+                    instructions_parts.append(content.strip())
+                continue
+
+            if role == "tool":
+                tool_name = msg.get("name")
+                call_id = msg.get("tool_call_id")
+                tool_content = content
+                if tool_content is None:
+                    tool_content = ""
+                if not isinstance(tool_content, str):
+                    tool_content = json.dumps(tool_content)
+                prefix = "Tool result"
+                if isinstance(tool_name, str) and tool_name.strip():
+                    prefix = f"Tool result ({tool_name.strip()})"
+                if isinstance(call_id, str) and call_id.strip():
+                    prefix = f"{prefix} call_id={call_id.strip()}"
+                input_messages.append({"role": "user", "content": f"{prefix}: {tool_content}"})
+                continue
+
+            if content is None:
+                content = ""
+            if not isinstance(content, str):
+                content = json.dumps(content)
+
+            input_messages.append({"role": role, "content": content})
+
+        instructions = "\n".join(instructions_parts).strip() if instructions_parts else ""
+        return input_messages, instructions or None
+
+    def _parse_responses_output(
+        self, data: dict[str, Any]
+    ) -> tuple[str, Optional[list[dict[str, Any]]], str]:
+        """Parse a Responses API response payload into (content, tool_calls, finish_reason)."""
+        output = data.get("output") or []
+        text_parts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type")
+
+            if item_type == "message":
+                for block in item.get("content") or []:
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") == "output_text":
+                        text = block.get("text")
+                        if isinstance(text, str) and text:
+                            text_parts.append(text)
+                continue
+
+            if item_type == "function_call":
+                name = item.get("name")
+                call_id = item.get("call_id") or item.get("id")
+                raw_args = item.get("arguments", "")
+                parsed_args: Any
+                if isinstance(raw_args, str):
+                    try:
+                        parsed_args = json.loads(raw_args) if raw_args else {}
+                    except json.JSONDecodeError:
+                        parsed_args = {"raw": raw_args}
+                elif isinstance(raw_args, dict):
+                    parsed_args = raw_args
+                else:
+                    parsed_args = {"raw": raw_args}
+
+                if isinstance(name, str) and name:
+                    tool_calls.append(
+                        {
+                            "id": call_id or "unknown",
+                            "type": "function",
+                            "name": name,
+                            "arguments": parsed_args,
+                        }
+                    )
+                continue
+
+        finish_reason = str(data.get("status") or "completed")
+        content = "".join(text_parts)
+        return content, (tool_calls or None), finish_reason
+
+    def _should_retry_responses_empty_output(
+        self, *, data: dict[str, Any], content: str, tool_calls: Optional[list[dict[str, Any]]]
+    ) -> bool:
+        """
+        GPT-5 can return only a `reasoning` output item when `max_output_tokens` is too low.
+        In that case we retry once with a larger budget to ensure a non-empty answer.
+        """
+        if tool_calls:
+            return False
+        if isinstance(content, str) and content.strip():
+            return False
+        if os.getenv("CASCADEFLOW_OPENAI_EMPTY_OUTPUT_RETRY", "1") != "1":
+            return False
+
+        status = data.get("status")
+        incomplete = data.get("incomplete_details") or {}
+        reason = incomplete.get("reason") if isinstance(incomplete, dict) else None
+        if status == "incomplete" and reason == "max_output_tokens":
+            return True
+
+        # Defensive: if we got no message output at all, it's also suspicious.
+        output = data.get("output") or []
+        if isinstance(output, list) and not any(
+            isinstance(item, dict) and item.get("type") == "message" for item in output
+        ):
+            return True
+
+        return False
 
     async def complete_with_tools(
         self,
@@ -487,6 +727,7 @@ class OpenAIProvider(BaseProvider):
 
         # Convert tools to OpenAI format
         openai_tools = self._convert_tools_to_openai(tools) if tools else None
+        responses_tools = self._convert_tools_to_responses(tools) if tools else None
 
         # Build request payload with reasoning-model compatibility
         model_info = get_reasoning_model_info(model)
@@ -497,6 +738,131 @@ class OpenAIProvider(BaseProvider):
         extra_tool_choice = extra.pop("tool_choice", None)
         if tool_choice is None:
             tool_choice = extra_tool_choice
+
+        # Prefer Responses API for GPT-5 (and optionally via env override).
+        if self._should_use_responses_api(model):
+            input_messages, instructions = self._convert_messages_to_responses_input(messages)
+
+            max_out = self._effective_responses_max_output_tokens(model, max_tokens)
+            payload: dict[str, Any] = {
+                "model": model,
+                "input": input_messages,
+                "max_output_tokens": max_out,
+            }
+            if instructions:
+                payload["instructions"] = instructions
+
+            if model_info.supports_temperature:
+                payload["temperature"] = extra.pop("temperature", temperature)
+            else:
+                extra.pop("temperature", None)
+
+            if responses_tools:
+                payload["tools"] = responses_tools
+                if tool_choice:
+                    payload["tool_choice"] = self._convert_tool_choice_to_responses(tool_choice)
+
+            if model_info.supports_reasoning_effort and "reasoning_effort" in extra:
+                payload["reasoning_effort"] = extra.pop("reasoning_effort")
+
+            payload.update(extra)
+
+            try:
+                response = await self.client.post(f"{self.base_url}/responses", json=payload)
+                response.raise_for_status()
+                data = response.json()
+
+                content, tool_calls, finish_reason = self._parse_responses_output(data)
+                if self._should_retry_responses_empty_output(
+                    data=data, content=content, tool_calls=tool_calls
+                ):
+                    retry_payload = dict(payload)
+                    retry_max = int(os.getenv("CASCADEFLOW_OPENAI_EMPTY_OUTPUT_RETRY_MAX", "4096"))
+                    retry_payload["max_output_tokens"] = min(max_out * 2, max(1, retry_max))
+                    retry_resp = await self.client.post(
+                        f"{self.base_url}/responses", json=retry_payload
+                    )
+                    retry_resp.raise_for_status()
+                    data = retry_resp.json()
+                    content, tool_calls, finish_reason = self._parse_responses_output(data)
+
+                usage = data.get("usage") or {}
+                prompt_tokens = usage.get("input_tokens") or 0
+                completion_tokens = usage.get("output_tokens") or 0
+                tokens_used = usage.get("total_tokens") or (prompt_tokens + completion_tokens)
+
+                latency_ms = (time.time() - start_time) * 1000
+
+                cost = self.calculate_accurate_cost(
+                    model=model,
+                    prompt_tokens=int(prompt_tokens),
+                    completion_tokens=int(completion_tokens),
+                    total_tokens=int(tokens_used),
+                )
+
+                if tool_calls:
+                    confidence_method = "tool-call-present"
+                    confidence = 0.9
+                    if temperature == 0:
+                        confidence = 0.95
+                    elif temperature > 1.0:
+                        confidence = 0.85
+                else:
+                    if openai_tools:
+                        confidence_method = "tool-available-text-chosen"
+                        confidence = 0.7
+                    else:
+                        confidence_method = "text-only"
+                        confidence = 0.8
+
+                response_metadata = {
+                    "finish_reason": finish_reason,
+                    "prompt_tokens": int(prompt_tokens),
+                    "completion_tokens": int(completion_tokens),
+                    "has_tool_calls": bool(tool_calls),
+                    "confidence_method": confidence_method,
+                    "tool_choice_reasoning": (
+                        "model_generated_tool_calls" if tool_calls else "model_chose_text_response"
+                    ),
+                }
+
+                model_response = ModelResponse(
+                    content=content or "",
+                    model=model,
+                    provider="openai",
+                    cost=cost,
+                    tokens_used=int(tokens_used),
+                    confidence=confidence,
+                    latency_ms=latency_ms,
+                    metadata=response_metadata,
+                )
+                if tool_calls:
+                    model_response.tool_calls = tool_calls
+                return model_response
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    raise ProviderError(
+                        "Invalid OpenAI API key", provider="openai", original_error=e
+                    )
+                elif e.response.status_code == 429:
+                    raise ProviderError(
+                        "OpenAI rate limit exceeded", provider="openai", original_error=e
+                    )
+                else:
+                    raise ProviderError(
+                        f"OpenAI API error: {e.response.status_code}",
+                        provider="openai",
+                        original_error=e,
+                    )
+            except httpx.RequestError as e:
+                raise ProviderError(
+                    "Failed to connect to OpenAI API", provider="openai", original_error=e
+                )
+            except (KeyError, IndexError) as e:
+                raise ModelError(
+                    f"Failed to parse OpenAI response: {e}", model=model, provider="openai"
+                )
 
         payload = {
             "model": model,
@@ -723,7 +1089,108 @@ class OpenAIProvider(BaseProvider):
                 payload["top_logprobs"] = min(top_logprobs, 20)  # OpenAI max is 20
 
         try:
-            # Make API request (retry handled by parent class)
+            if self._should_use_responses_api(model):
+                input_messages, instructions = self._convert_messages_to_responses_input(messages)
+                max_out = self._effective_responses_max_output_tokens(model, max_tokens)
+                responses_payload: dict[str, Any] = {
+                    "model": model,
+                    "input": input_messages,
+                    "max_output_tokens": max_out,
+                }
+                if instructions:
+                    responses_payload["instructions"] = instructions
+                if model_info.supports_temperature:
+                    responses_payload["temperature"] = temperature
+
+                response = await self.client.post(
+                    f"{self.base_url}/responses", json=responses_payload
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                content, _tool_calls, finish_reason = self._parse_responses_output(data)
+                if self._should_retry_responses_empty_output(
+                    data=data, content=content, tool_calls=None
+                ):
+                    retry_payload = dict(responses_payload)
+                    retry_max = int(os.getenv("CASCADEFLOW_OPENAI_EMPTY_OUTPUT_RETRY_MAX", "4096"))
+                    retry_payload["max_output_tokens"] = min(max_out * 2, max(1, retry_max))
+                    retry_resp = await self.client.post(
+                        f"{self.base_url}/responses", json=retry_payload
+                    )
+                    retry_resp.raise_for_status()
+                    data = retry_resp.json()
+                    content, _tool_calls, finish_reason = self._parse_responses_output(data)
+
+                usage = data.get("usage") or {}
+                prompt_tokens = int(usage.get("input_tokens") or 0)
+                completion_tokens = int(usage.get("output_tokens") or 0)
+                tokens_used = int(usage.get("total_tokens") or (prompt_tokens + completion_tokens))
+
+                reasoning_tokens = None
+                if isinstance(usage.get("output_tokens_details"), dict):
+                    details = usage.get("output_tokens_details") or {}
+                    if "reasoning_tokens" in details:
+                        reasoning_tokens = details.get("reasoning_tokens")
+
+                latency_ms = (time.time() - start_time) * 1000
+
+                cost = self.estimate_cost(
+                    tokens_used,
+                    model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
+
+                metadata_for_confidence = {
+                    "finish_reason": finish_reason,
+                    "temperature": temperature,
+                    "query": prompt,
+                    "model": model,
+                    "logprobs": None,
+                    "tokens": None,
+                }
+
+                if self._confidence_estimator:
+                    confidence_analysis = self._confidence_estimator.estimate(
+                        response=content,
+                        query=prompt,
+                        logprobs=None,
+                        tokens=None,
+                        temperature=temperature,
+                        metadata=metadata_for_confidence,
+                    )
+                    confidence = confidence_analysis.final_confidence
+                    confidence_method = confidence_analysis.method_used
+                    confidence_components = confidence_analysis.components or {}
+                else:
+                    confidence = self.calculate_confidence(content, metadata_for_confidence)
+                    confidence_method = "legacy"
+                    confidence_components = {}
+
+                response_metadata = {
+                    "finish_reason": finish_reason,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "query": prompt,
+                    "confidence_method": confidence_method,
+                    "confidence_components": confidence_components,
+                }
+                if reasoning_tokens is not None:
+                    response_metadata["reasoning_tokens"] = reasoning_tokens
+
+                return ModelResponse(
+                    content=content,
+                    model=model,
+                    provider="openai",
+                    cost=cost,
+                    tokens_used=tokens_used,
+                    confidence=confidence,
+                    latency_ms=latency_ms,
+                    metadata=response_metadata,
+                )
+
+            # Default: Chat Completions API.
             response = await self.client.post(f"{self.base_url}/chat/completions", json=payload)
             response.raise_for_status()
 
@@ -945,31 +1412,106 @@ class OpenAIProvider(BaseProvider):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        # Build request payload
-        # GPT-5 models have special requirements:
-        # - max_completion_tokens instead of max_tokens
-        # - no logprobs support
-        # - temperature only supports 1 (default)
+        model_info = get_reasoning_model_info(model)
         is_gpt5 = model.lower().startswith("gpt-5")
 
         if is_gpt5:
-            # Remove unsupported params for GPT-5
+            # Remove unsupported params for GPT-5 (keep payload clean for both APIs).
             kwargs.pop("logprobs", None)
             kwargs.pop("top_logprobs", None)
 
-        payload = {
+        if self._should_use_responses_api(model):
+            input_messages, instructions = self._convert_messages_to_responses_input(messages)
+            payload: dict[str, Any] = {
+                "model": model,
+                "input": input_messages,
+                "max_output_tokens": self._effective_responses_max_output_tokens(model, max_tokens),
+                "stream": True,
+            }
+            if instructions:
+                payload["instructions"] = instructions
+            if model_info.supports_temperature:
+                payload["temperature"] = temperature
+
+            # Convert tools/tool_choice if present (agent may pass them through stream()).
+            tools_in = kwargs.pop("tools", None)
+            if isinstance(tools_in, list):
+                payload["tools"] = self._convert_tools_to_responses(tools_in)
+            tool_choice_in = kwargs.pop("tool_choice", None)
+            if tool_choice_in is not None:
+                payload["tool_choice"] = self._convert_tool_choice_to_responses(tool_choice_in)
+
+            payload.update(kwargs)
+
+            try:
+                async with self.client.stream(
+                    "POST", f"{self.base_url}/responses", json=payload
+                ) as response:
+                    response.raise_for_status()
+
+                    current_event: Optional[str] = None
+                    async for line in response.aiter_lines():
+                        if not line or not line.strip():
+                            continue
+
+                        if line.startswith("event:"):
+                            current_event = line[len("event:") :].strip()
+                            continue
+
+                        if not line.startswith("data: "):
+                            continue
+
+                        data_str = line[6:]
+                        if data_str.strip() == "[DONE]":
+                            break
+
+                        try:
+                            chunk = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+
+                        event_type = chunk.get("type") or current_event
+                        if event_type == "response.output_text.delta":
+                            delta = chunk.get("delta")
+                            if isinstance(delta, str) and delta:
+                                yield delta
+                        elif event_type == "response.completed":
+                            break
+
+                return
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    raise ProviderError(
+                        "Invalid OpenAI API key", provider="openai", original_error=e
+                    )
+                elif e.response.status_code == 429:
+                    raise ProviderError(
+                        "OpenAI rate limit exceeded", provider="openai", original_error=e
+                    )
+                else:
+                    raise ProviderError(
+                        f"OpenAI API error: {e.response.status_code}",
+                        provider="openai",
+                        original_error=e,
+                    )
+            except httpx.RequestError as e:
+                raise ProviderError(
+                    "Failed to connect to OpenAI API", provider="openai", original_error=e
+                )
+
+        # Default: Chat Completions streaming.
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": True,  # Enable streaming
             **kwargs,
         }
 
-        # GPT-5: only default temperature (1) allowed
-        if not is_gpt5:
+        if model_info.supports_temperature:
             payload["temperature"] = temperature
 
-        # GPT-5: max_completion_tokens instead of max_tokens
-        if is_gpt5:
+        if model_info.requires_max_completion_tokens or is_gpt5:
             payload["max_completion_tokens"] = max_tokens
         else:
             payload["max_tokens"] = max_tokens

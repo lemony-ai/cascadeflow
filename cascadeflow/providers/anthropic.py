@@ -244,6 +244,28 @@ class AnthropicProvider(BaseProvider):
         """
         return False
 
+    def _strip_internal_kwargs(self, extra: dict[str, Any]) -> dict[str, Any]:
+        """
+        Remove CascadeFlow/OpenClaw internal routing keys that must never be sent to Anthropic.
+
+        Anthropic rejects unknown top-level fields with 400: "Extra inputs are not permitted".
+        """
+        internal_keys = (
+            "domain_hint",
+            "domain_confidence_hint",
+            "kpi_flags",
+            "tenant_id",
+            "channel",
+            "method",
+            "event",
+            "profile",
+            "routing_strategy",
+            "routing_reason",
+        )
+        for k in internal_keys:
+            extra.pop(k, None)
+        return extra
+
     def _convert_tools_to_anthropic(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Convert tools from universal format to Anthropic format.
@@ -598,6 +620,8 @@ class AnthropicProvider(BaseProvider):
         """
         start_time = time.time()
 
+        extra = self._strip_internal_kwargs(dict(kwargs))
+
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic(tools) if tools else None
 
@@ -610,7 +634,7 @@ class AnthropicProvider(BaseProvider):
             "max_tokens": max_tokens,
             "temperature": temperature,
             "messages": anthropic_messages,
-            **kwargs,
+            **extra,
         }
 
         # Add system prompt if extracted from messages
@@ -788,6 +812,13 @@ class AnthropicProvider(BaseProvider):
             return model_response
 
         except httpx.HTTPStatusError as e:
+            error_detail = ""
+            try:
+                error_detail = (e.response.text or "").strip()
+            except Exception:
+                error_detail = ""
+            if error_detail:
+                error_detail = error_detail[:500]
             if e.response.status_code == 401:
                 raise ProviderError(
                     "Invalid Anthropic API key", provider="anthropic", original_error=e
@@ -798,7 +829,8 @@ class AnthropicProvider(BaseProvider):
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}",
+                    f"Anthropic API error: {e.response.status_code}"
+                    + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
                 )
@@ -851,6 +883,8 @@ class AnthropicProvider(BaseProvider):
         # System will use fallback estimation if requested
         logprobs_requested = kwargs.pop("logprobs", False)
         kwargs.pop("top_logprobs", 5)
+
+        kwargs = self._strip_internal_kwargs(kwargs)
 
         # Auto-detect extended thinking support
         model_info = get_reasoning_model_info(model)
@@ -992,6 +1026,13 @@ class AnthropicProvider(BaseProvider):
             return model_response
 
         except httpx.HTTPStatusError as e:
+            error_detail = ""
+            try:
+                error_detail = (e.response.text or "").strip()
+            except Exception:
+                error_detail = ""
+            if error_detail:
+                error_detail = error_detail[:500]
             if e.response.status_code == 401:
                 raise ProviderError(
                     "Invalid Anthropic API key", provider="anthropic", original_error=e
@@ -1002,7 +1043,8 @@ class AnthropicProvider(BaseProvider):
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}",
+                    f"Anthropic API error: {e.response.status_code}"
+                    + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
                 )
@@ -1062,6 +1104,8 @@ class AnthropicProvider(BaseProvider):
             ...     print(chunk, end='', flush=True)
             Python is a high-level programming language...
         """
+        kwargs = self._strip_internal_kwargs(kwargs)
+
         # Build request payload with streaming enabled
         payload = {
             "model": model,
@@ -1123,6 +1167,13 @@ class AnthropicProvider(BaseProvider):
                             continue
 
         except httpx.HTTPStatusError as e:
+            error_detail = ""
+            try:
+                error_detail = (e.response.text or "").strip()
+            except Exception:
+                error_detail = ""
+            if error_detail:
+                error_detail = error_detail[:500]
             if e.response.status_code == 401:
                 raise ProviderError(
                     "Invalid Anthropic API key", provider="anthropic", original_error=e
@@ -1133,7 +1184,8 @@ class AnthropicProvider(BaseProvider):
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}",
+                    f"Anthropic API error: {e.response.status_code}"
+                    + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
                 )

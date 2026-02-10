@@ -563,7 +563,21 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
         completion_tokens = completion_tokens or 0
         total_tokens = prompt_tokens + completion_tokens
 
-    message: dict[str, Any] = {"role": "assistant", "content": result.content}
+    content = getattr(result, "content", "") or ""
+    if not isinstance(content, str):
+        content = str(content)
+
+    # Never return an empty assistant message if we have usable content in metadata.
+    # This can happen when an upstream verifier returns only reasoning output.
+    if not tool_calls and not content.strip():
+        for source_key in ("verifier_response", "draft_response"):
+            candidate = meta.get(source_key)
+            if isinstance(candidate, str) and candidate.strip():
+                meta.setdefault("openclaw_content_fallback", source_key)
+                content = candidate
+                break
+
+    message: dict[str, Any] = {"role": "assistant", "content": content}
     if tool_calls:
         message["tool_calls"] = tool_calls
 
