@@ -47,7 +47,6 @@
 - **Implementation:** ✅ VALIDATED
   - Dynamic import of `@cascadeflow/ml` with try/catch
   - Falls back to simple validation if unavailable
-  - Configurable via node properties (boolean toggle)
   - Does not crash n8n if package missing
 - **N8N Compatibility:** ✅ Full compatibility - graceful degradation verified
 
@@ -89,9 +88,8 @@
 - **Status:** ✅ VALIDATED
 - **Properties Added:**
   1. `qualityThreshold` (number, 0-1): Quality threshold configuration ✅
-  2. `useSemanticValidation` (boolean): Semantic ML validation toggle ✅
-  3. `useAlignmentScoring` (boolean): Query-response alignment toggle ✅
-  4. `useComplexityRouting` (boolean): Complexity-based routing toggle ✅
+  2. `useAlignmentScoring` (boolean): Query-response alignment toggle ✅
+  3. `useComplexityRouting` (boolean): Complexity-based routing toggle ✅
 - **N8N Compatibility:** ✅ All properties use standard n8n types (number, boolean)
 
 ### Metadata in Response
@@ -165,6 +163,7 @@
 - ✅ Optional dependencies handled gracefully (no hard failure when `@cascadeflow/core` is absent).
 
 ### Agent Validation
+- ✅ `CascadeFlow Agent` provides an `ai_agent` output for n8n agent workflows.
 - ✅ Cascade routing works with n8n's dual-input model graph (drafter + verifier).
 - ✅ Lazy-loading for verifier model remains intact for performance.
 - ✅ Domain routing and noted limitations are documented and stable.

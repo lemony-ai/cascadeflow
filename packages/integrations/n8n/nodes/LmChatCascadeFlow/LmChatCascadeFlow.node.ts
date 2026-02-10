@@ -532,7 +532,10 @@ export class CascadeChatModel extends BaseChatModel {
   /**
    * Simple quality validation fallback (when @cascadeflow/core not available)
    */
-  private simpleQualityCheck(responseText: string): { passed: boolean; confidence: number; score: number; reason: string } {
+  private simpleQualityCheck(
+    responseText: string,
+    threshold: number
+  ): { passed: boolean; confidence: number; score: number; reason: string } {
     const wordCount = responseText.split(/\s+/).length;
 
     let confidence = 0.75;
@@ -551,10 +554,10 @@ export class CascadeChatModel extends BaseChatModel {
       confidence -= 0.20;
     }
 
-    const passed = confidence >= this.qualityThreshold;
+    const passed = confidence >= threshold;
     const reason = passed
-      ? `Simple check passed (confidence: ${confidence.toFixed(2)} >= ${this.qualityThreshold})`
-      : `Simple check failed (confidence: ${confidence.toFixed(2)} < ${this.qualityThreshold})`;
+      ? `Simple check passed (confidence: ${confidence.toFixed(2)} >= ${threshold})`
+      : `Simple check failed (confidence: ${confidence.toFixed(2)} < ${threshold})`;
 
     return { passed, confidence, score: confidence, reason };
   }
@@ -794,12 +797,10 @@ export class CascadeChatModel extends BaseChatModel {
           const errorLog = `   ⚠️  Quality validator error, using simple check: ${e}\n`;
           await runManager?.handleText(errorLog);
           console.warn(errorLog);
-          validationResult = this.simpleQualityCheck(responseText);
-          validationResult.passed = validationResult.confidence >= effectiveThreshold;
+          validationResult = this.simpleQualityCheck(responseText, effectiveThreshold);
         }
       } else {
-        validationResult = this.simpleQualityCheck(responseText);
-        validationResult.passed = validationResult.confidence >= effectiveThreshold;
+        validationResult = this.simpleQualityCheck(responseText, effectiveThreshold);
         const simpleLog = `   📊 Simple quality check: confidence=${validationResult.confidence.toFixed(2)}\n`;
         await runManager?.handleText(simpleLog);
         console.log(simpleLog);
@@ -1106,12 +1107,10 @@ export class CascadeChatModel extends BaseChatModel {
           );
           await runManager?.handleText(`   Confidence: ${validationResult.confidence.toFixed(2)} (threshold: ${effectiveThreshold})\n`);
         } catch (e) {
-          validationResult = this.simpleQualityCheck(fullDrafterContent);
-          validationResult.passed = validationResult.confidence >= effectiveThreshold;
+          validationResult = this.simpleQualityCheck(fullDrafterContent, effectiveThreshold);
         }
       } else {
-        validationResult = this.simpleQualityCheck(fullDrafterContent);
-        validationResult.passed = validationResult.confidence >= effectiveThreshold;
+        validationResult = this.simpleQualityCheck(fullDrafterContent, effectiveThreshold);
       }
 
       if (validationResult.passed) {

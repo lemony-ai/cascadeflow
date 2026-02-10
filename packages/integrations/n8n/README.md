@@ -99,7 +99,7 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 2. **Add the cascadeflow node**
    - Connect the drafter model to the **Drafter** input
    - Connect the verifier model to the **Verifier** input
-   - Adjust the **Quality Threshold** (default: 0.7)
+   - Optionally adjust the **Quality Threshold** (default: 0.4, and per-complexity thresholds are enabled by default)
 
 3. **Connect to a Chain node**
    - The cascadeflow node outputs a Language Model connection
@@ -120,7 +120,7 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 │  gpt-4o-mini     │       │  cascadeflow     │       ┌──────────────────┐
 └──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
                            │                  │       │                  │
-┌──────────────────┐       │  Threshold: 0.7  │       └──────────────────┘
+┌──────────────────┐       │  Threshold: 0.4  │       └──────────────────┘
 │  OpenAI Model    │──────►│                  │
 │  gpt-4o          │       └──────────────────┘
 └──────────────────┘
@@ -132,11 +132,16 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 
 #### Quality Threshold (0-1)
 
-Controls how aggressively to accept drafter responses:
+Controls how aggressively to accept drafter responses when **Use Complexity Thresholds** is disabled.
 
-- **0.5-0.6**: Very aggressive (maximum cost savings, ~80-90% acceptance)
-- **0.7** (default): Balanced (good quality + savings, ~70-80% acceptance)
-- **0.8-0.9**: Conservative (highest quality, ~50-60% acceptance)
+Defaults to **0.4** to match the `simple` tier in CascadeFlow's default per-complexity thresholds.
+
+If you enable **Use Complexity Thresholds** (default), acceptance is driven by:
+- trivial: 0.25
+- simple: 0.4
+- moderate: 0.55
+- hard: 0.7
+- expert: 0.8
 
 Lower threshold = more cost savings, higher threshold = better quality assurance.
 

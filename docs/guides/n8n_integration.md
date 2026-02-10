@@ -160,7 +160,7 @@ First, add and configure two AI Chat Model nodes in your workflow:
 │  gpt-4o-mini     │       │  cascadeflow     │       ┌──────────────────┐
 └──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
                            │                  │       │                  │
-┌──────────────────┐       │  Threshold: 0.7  │       └──────────────────┘
+┌──────────────────┐       │  Threshold: 0.4  │       └──────────────────┘
 │  OpenAI Model    │──────►│                  │
 │  gpt-4o          │       └──────────────────┘
 └──────────────────┘
@@ -185,11 +185,16 @@ The cascadeflow node has **two inputs** that accept AI Language Model connection
 
 ### Quality Threshold (0-1)
 
-Controls how aggressively to accept drafter responses:
+Controls how aggressively to accept drafter responses when **Use Complexity Thresholds** is disabled.
 
-- **0.5-0.6**: Very aggressive (maximum cost savings, ~80-90% acceptance)
-- **0.7** (default): Balanced (good quality + savings, ~70-80% acceptance)
-- **0.8-0.9**: Conservative (highest quality, ~50-60% acceptance)
+Defaults to **0.4** to match the `simple` tier in CascadeFlow's default per-complexity thresholds.
+
+If you enable **Use Complexity Thresholds** (default), acceptance is driven by:
+- trivial: 0.25
+- simple: 0.4
+- moderate: 0.55
+- hard: 0.7
+- expert: 0.8
 
 Lower threshold = more cost savings, higher threshold = better quality assurance.
 
@@ -329,7 +334,7 @@ The logs provide complete visibility into the cascade decision-making process, s
 **Configuration:**
 - Drafter: Claude 3.5 Haiku
 - Verifier: Claude 3.5 Sonnet
-- Quality Threshold: 0.75
+- Quality Threshold (if complexity thresholds are disabled): 0.75
 
 ---
 
@@ -396,7 +401,7 @@ The logs provide complete visibility into the cascade decision-making process, s
 **Configuration:**
 - Drafter: Ollama qwen2.5:3b (local, free)
 - Verifier: GPT-4o (cloud)
-- Quality Threshold: 0.7
+- Quality Threshold (if complexity thresholds are disabled): 0.7
 - Savings: ~99% on drafter calls
 
 ---
@@ -503,6 +508,7 @@ You can connect models from different providers:
 
 ### 5. Use Different Thresholds for Different Use Cases
 
+If you disable **Use Complexity Thresholds**, you can tune **Quality Threshold** per workflow:
 - **Customer support**: 0.75 (prioritize quality)
 - **Content drafts**: 0.6 (prioritize speed/cost)
 - **Code review**: 0.7 (balance)
@@ -517,7 +523,7 @@ You can connect models from different providers:
 ```
 Drafter: Claude 3.5 Haiku
 Verifier: GPT-4o
-Quality Threshold: 0.7
+Use Complexity Thresholds: enabled (default)
 Expected Savings: ~73% average
 Why: Haiku's fast drafts + GPT-4o's reasoning
 ```
@@ -527,7 +533,7 @@ Why: Haiku's fast drafts + GPT-4o's reasoning
 ```
 Drafter: GPT-4o-mini
 Verifier: GPT-4o
-Quality Threshold: 0.7
+Use Complexity Thresholds: enabled (default)
 Expected Savings: ~85% average
 Why: Both from same provider, excellent efficiency
 ```
@@ -547,7 +553,7 @@ Why: Consistent Anthropic quality
 ```
 Drafter: Ollama qwen2.5:3b (local, free)
 Verifier: GPT-4o (cloud)
-Quality Threshold: 0.7
+Use Complexity Thresholds: enabled (default)
 Expected Savings: ~99% on accepted drafts
 Note: Requires Ollama installed locally
 ```

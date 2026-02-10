@@ -370,6 +370,7 @@ cascadeflow is a **Language Model sub-node** that connects two AI Chat Model nod
 
 - ✅ Works with any AI Chat Model node (OpenAI, Anthropic, Ollama, Azure, etc.)
 - ✅ Mix providers (e.g., Ollama drafter + GPT-4o verifier)
+- ✅ Includes a CascadeFlow Agent node for tool-based agent workflows (drafter/verifier + tools + trace)
 - ✅ Real-time flow visualization in Logs tab
 - ✅ Detailed metrics: confidence scores, latency, cost savings
 
