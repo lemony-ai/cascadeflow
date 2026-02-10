@@ -1,12 +1,92 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { BaseMessage, AIMessage, ChatMessage, HumanMessage } from '@langchain/core/messages';
+import { BaseMessage, AIMessage, AIMessageChunk, ChatMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { CascadeConfig, CascadeResult } from './types.js';
-import { calculateQuality, createCostMetadata } from './utils.js';
+import { calculateCost, calculateQuality, createCostMetadata, extractTokenUsage, extractToolCalls } from './utils.js';
 import { PreRouter } from './routers/pre-router.js';
 import { RoutingStrategy } from './routers/base.js';
 import type { QueryComplexity } from './complexity.js';
+import { getToolRiskRouting } from './tool-risk.js';
+
+type NormalizedToolDef = { name: string; description?: string };
+
+function uniqStrings(items: Array<string | undefined | null>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const x of items) {
+    if (!x) continue;
+    if (seen.has(x)) continue;
+    seen.add(x);
+    out.push(x);
+  }
+  return out;
+}
+
+function mergeTags(existing: any, extra: string[]): string[] {
+  const base = Array.isArray(existing) ? existing : [];
+  return uniqStrings([...base, ...extra]);
+}
+
+function mergeMetadata(existing: any, extra: Record<string, any>): Record<string, any> {
+  const base = existing && typeof existing === 'object' ? existing : {};
+  // Avoid deep merge surprises; keep CascadeFlow metadata namespaced.
+  return { ...base, ...extra };
+}
+
+function resolveModelName(model: any, depth = 0): string {
+  if (!model || depth > 5) return 'unknown';
+
+  const direct =
+    (typeof model.model === 'string' && model.model) ||
+    (typeof model.modelName === 'string' && model.modelName);
+  if (direct) return direct;
+
+  const lcKwargs = model.lc_kwargs || model.lcKwargs;
+  const lc =
+    (typeof lcKwargs?.model === 'string' && lcKwargs.model) ||
+    (typeof lcKwargs?.modelName === 'string' && lcKwargs.modelName);
+  if (lc) return lc;
+
+  // LangChain's bind()/bindTools() returns a RunnableBinding-like wrapper
+  // where the underlying chat model is stored in `.bound`.
+  if (model.bound) return resolveModelName(model.bound, depth + 1);
+
+  return 'unknown';
+}
+
+function normalizeToolDefs(tools: any[]): NormalizedToolDef[] {
+  const out: NormalizedToolDef[] = [];
+  for (const t of tools || []) {
+    if (!t) continue;
+    if (typeof t === 'object') {
+      // Common LangChain formats:
+      // 1) { name, description, parameters }
+      // 2) OpenAI tools: { type: 'function', function: { name, description, parameters } }
+      const fn = (t.function || t?.lc_kwargs?.function) as any | undefined;
+      const name = (t.name || fn?.name || t?.lc_kwargs?.name || t?.lc_kwargs?.tool?.name) as
+        | string
+        | undefined;
+      const description = (t.description || fn?.description || t?.lc_kwargs?.description || t?.description) as
+        | string
+        | undefined;
+      if (name) out.push({ name, description });
+      continue;
+    }
+  }
+  return out;
+}
+
+function extractToolCallNamesFromCalls(calls: any[]): string[] {
+  const names: string[] = [];
+  for (const c of calls || []) {
+    const direct = c?.name;
+    const fn = c?.function?.name;
+    if (typeof direct === 'string' && direct) names.push(direct);
+    else if (typeof fn === 'string' && fn) names.push(fn);
+  }
+  return uniqStrings(names);
+}
 
 /**
  * CascadeFlow - Transparent wrapper for LangChain chat models
@@ -42,7 +122,11 @@ export class CascadeFlow extends BaseChatModel {
   // PreRouter for complexity-based routing
   private preRouter?: PreRouter;
 
-  constructor(config: CascadeConfig, bindKwargs: any = {}) {
+  // Tracks tools bound via bindTools(). If tools are available, streaming must be tool-safe.
+  private boundToolDefs?: NormalizedToolDef[];
+  private boundToolDefsByName: Map<string, NormalizedToolDef> = new Map();
+
+  constructor(config: CascadeConfig, bindKwargs: any = {}, internal?: { boundTools?: any[] }) {
     super({});
 
     this.drafter = config.drafter;
@@ -55,7 +139,9 @@ export class CascadeFlow extends BaseChatModel {
       verifier: config.verifier,
       qualityThreshold: config.qualityThreshold ?? 0.7,
       enableCostTracking: config.enableCostTracking ?? true,
-      costTrackingProvider: config.costTrackingProvider ?? 'langsmith',
+      // Default to local pricing for best DX (works without LangSmith).
+      // Use 'langsmith' if you want server-side cost computation in LangSmith UI.
+      costTrackingProvider: config.costTrackingProvider ?? 'cascadeflow',
       qualityValidator: config.qualityValidator ?? calculateQuality,
       enablePreRouter: config.enablePreRouter ?? true,  // Match Python default
       preRouter: config.preRouter,
@@ -67,6 +153,11 @@ export class CascadeFlow extends BaseChatModel {
       this.preRouter = this.config.preRouter ?? new PreRouter({
         cascadeComplexities: this.config.cascadeComplexities,
       });
+    }
+
+    if (internal?.boundTools) {
+      this.boundToolDefs = normalizeToolDefs(internal.boundTools);
+      this.boundToolDefsByName = new Map(this.boundToolDefs.map((t) => [t.name, t]));
     }
 
     // Return a Proxy for method delegation
@@ -116,20 +207,8 @@ export class CascadeFlow extends BaseChatModel {
     input: BaseMessage[] | string,
     options?: any
   ): Promise<any> {
-    // Convert string input to HumanMessage (standard LangChain approach)
-    // We'll add agent metadata in the options instead
-    let processedInput: BaseMessage[];
-
-    if (typeof input === 'string') {
-      processedInput = [new HumanMessage({ content: input })];
-    } else if (Array.isArray(input)) {
-      processedInput = input;
-    } else {
-      // Single message object
-      processedInput = [input as BaseMessage];
-    }
-
-    // Add agent role to metadata in options
+    // Do not coerce inputs here: LCEL pipelines can pass PromptValue objects and other
+    // LangChain-native inputs. Let BaseChatModel handle coercion.
     const enrichedOptions = {
       ...options,
       metadata: {
@@ -138,7 +217,7 @@ export class CascadeFlow extends BaseChatModel {
       },
     };
 
-    return super.invoke(processedInput, enrichedOptions);
+    return super.invoke(input as any, enrichedOptions);
   }
 
   /**
@@ -154,6 +233,12 @@ export class CascadeFlow extends BaseChatModel {
 
     // Merge bind kwargs with options
     const mergedOptions = { ...this.bindKwargs, ...options };
+    const baseTags = mergeTags((mergedOptions as any).tags, ['cascadeflow']);
+    const baseMetadata = mergeMetadata((mergedOptions as any).metadata, {
+      cascadeflow: {
+        integration: 'langchain',
+      },
+    });
 
     // STEP 0: PreRouter - Check if we should bypass cascade
     let useCascade = true;
@@ -178,7 +263,14 @@ export class CascadeFlow extends BaseChatModel {
 
       // If direct routing, skip drafter and go straight to verifier
       if (!useCascade) {
-        const verifierMessage = await this.verifier.invoke(messages, mergedOptions);
+        const verifierMessage = await this.verifier.invoke(messages, {
+          ...mergedOptions,
+          runName: 'cascadeflow:verifier',
+          tags: mergeTags(baseTags, ['cascadeflow:direct', 'cascadeflow:verifier', 'verifier']),
+          metadata: mergeMetadata(baseMetadata, {
+            cascadeflow: { ...(baseMetadata as any).cascadeflow, decision: 'direct', role: 'verifier' },
+          }),
+        });
         const verifierResult: ChatResult = {
           generations: [
             {
@@ -192,8 +284,12 @@ export class CascadeFlow extends BaseChatModel {
         };
 
         const latencyMs = Date.now() - startTime;
-        const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName ||
-          (typeof this.verifier._llmType === 'function' ? this.verifier._llmType() : 'unknown');
+        const verifierModelName = resolveModelName(this.verifier);
+        const verifierTokens = extractTokenUsage(verifierResult);
+        const verifierCost =
+          this.config.costTrackingProvider === 'cascadeflow'
+            ? calculateCost(verifierModelName, verifierTokens.input, verifierTokens.output)
+            : 0;
 
         // Store cascade result (direct to verifier)
         this.lastCascadeResult = {
@@ -202,8 +298,8 @@ export class CascadeFlow extends BaseChatModel {
           drafterQuality: undefined,
           accepted: false,
           drafterCost: 0,
-          verifierCost: 0, // LangSmith will calculate this
-          totalCost: 0,
+          verifierCost,
+          totalCost: verifierCost,
           savingsPercentage: 0,
           latencyMs,
         };
@@ -247,7 +343,14 @@ export class CascadeFlow extends BaseChatModel {
 
     // STEP 1: Execute drafter (cheap, fast model)
     // Use invoke() to ensure LangSmith captures the model trace
-    const drafterMessage = await this.drafter.invoke(messages, mergedOptions);
+    const drafterMessage = await this.drafter.invoke(messages, {
+      ...mergedOptions,
+      runName: 'cascadeflow:drafter',
+      tags: mergeTags(baseTags, ['cascadeflow:drafter', 'drafter']),
+      metadata: mergeMetadata(baseMetadata, {
+        cascadeflow: { ...(baseMetadata as any).cascadeflow, decision: 'draft', role: 'drafter' },
+      }),
+    });
     const drafterResult: ChatResult = {
       generations: [
         {
@@ -260,12 +363,21 @@ export class CascadeFlow extends BaseChatModel {
       llmOutput: (drafterMessage as any).response_metadata || {},
     };
 
+    const drafterToolCalls = extractToolCalls(drafterResult);
+    const invokedToolNames = extractToolCallNamesFromCalls(drafterToolCalls);
+    const invokedToolDefs: NormalizedToolDef[] = invokedToolNames.map((name) => {
+      return this.boundToolDefsByName.get(name) || { name };
+    });
+    const toolRisk = invokedToolDefs.length > 0 ? getToolRiskRouting(invokedToolDefs) : null;
+    const forceVerifierForToolRisk = toolRisk?.useVerifier ?? false;
+
     const drafterQuality = this.config.qualityValidator
       ? await this.config.qualityValidator(drafterResult)
       : calculateQuality(drafterResult);
 
     // STEP 2: Check quality threshold
-    const accepted = drafterQuality >= this.config.qualityThreshold;
+    const accepted =
+      invokedToolNames.length > 0 ? !forceVerifierForToolRisk : drafterQuality >= this.config.qualityThreshold;
 
     let finalResult: ChatResult;
     let verifierResult: ChatResult | null = null;
@@ -276,7 +388,28 @@ export class CascadeFlow extends BaseChatModel {
     } else {
       // Quality insufficient - execute verifier (expensive, accurate model)
       // Use invoke() to ensure LangSmith captures the model trace
-      const verifierMessage = await this.verifier.invoke(messages, mergedOptions);
+      const verifierDecision =
+        forceVerifierForToolRisk ? 'tool_risk' : 'quality';
+      const verifierMessage = await this.verifier.invoke(messages, {
+        ...mergedOptions,
+        runName: 'cascadeflow:verifier',
+        tags: mergeTags(baseTags, [
+          'cascadeflow:verifier',
+          'verifier',
+          'cascadeflow:escalated',
+          `cascadeflow:reason=${verifierDecision}`,
+          ...(toolRisk?.maxRiskName ? [`cascadeflow:toolrisk=${toolRisk.maxRiskName}`] : []),
+        ]),
+        metadata: mergeMetadata(baseMetadata, {
+          cascadeflow: {
+            ...(baseMetadata as any).cascadeflow,
+            decision: 'verify',
+            role: 'verifier',
+            reason: verifierDecision,
+            tool_risk: toolRisk || undefined,
+          },
+        }),
+      });
       const vResult: ChatResult = {
         generations: [
           {
@@ -294,10 +427,8 @@ export class CascadeFlow extends BaseChatModel {
 
     // STEP 3: Calculate costs and metadata
     const latencyMs = Date.now() - startTime;
-    const drafterModelName = (this.drafter as any).model || (this.drafter as any).modelName ||
-      (typeof this.drafter._llmType === 'function' ? this.drafter._llmType() : 'unknown');
-    const verifierModelName = (this.verifier as any).model || (this.verifier as any).modelName ||
-      (typeof this.verifier._llmType === 'function' ? this.verifier._llmType() : 'unknown');
+    const drafterModelName = resolveModelName(this.drafter);
+    const verifierModelName = resolveModelName(this.verifier);
     const costMetadata = createCostMetadata(
       drafterResult,
       verifierResult,
@@ -307,6 +438,11 @@ export class CascadeFlow extends BaseChatModel {
       drafterQuality,
       this.config.costTrackingProvider
     );
+
+    const cascadeDecision =
+      invokedToolNames.length > 0
+        ? (accepted ? 'tool_call' : 'tool_risk')
+        : (accepted ? 'accepted' : 'quality');
 
     // Store cascade result
     this.lastCascadeResult = {
@@ -328,7 +464,12 @@ export class CascadeFlow extends BaseChatModel {
         // Inject into llmOutput
         finalResult.llmOutput = {
           ...finalResult.llmOutput,
-          cascade: costMetadata,
+          cascade: {
+            ...costMetadata,
+            cascade_decision: cascadeDecision,
+            invoked_tools: invokedToolNames.length > 0 ? invokedToolNames : undefined,
+            tool_risk: toolRisk || undefined,
+          },
         };
 
         // Also inject into message's response_metadata for invoke() results
@@ -337,13 +478,13 @@ export class CascadeFlow extends BaseChatModel {
           if ('response_metadata' in message) {
             (message as any).response_metadata = {
               ...(message as any).response_metadata,
-              cascade: costMetadata,
+              cascade: finalResult.llmOutput.cascade,
             };
           }
           // Also set as llmOutput property for backward compatibility
           (message as any).llmOutput = {
             ...(message as any).llmOutput,
-            cascade: costMetadata,
+            cascade: finalResult.llmOutput.cascade,
           };
         }
       } catch (error) {
@@ -382,6 +523,13 @@ export class CascadeFlow extends BaseChatModel {
 
     // Merge bind kwargs with options
     const mergedOptions = { ...this.bindKwargs, ...options };
+    const baseTags = mergeTags((mergedOptions as any).tags, ['cascadeflow']);
+    const baseMetadata = mergeMetadata((mergedOptions as any).metadata, {
+      cascadeflow: {
+        integration: 'langchain',
+        streaming: true,
+      },
+    });
 
     // STEP 0: PreRouter - Check if we should bypass cascade
     let useCascade = true;
@@ -406,7 +554,14 @@ export class CascadeFlow extends BaseChatModel {
       if (!useCascade) {
         for await (const chunk of this.verifier._streamResponseChunks(
           messages,
-          mergedOptions,
+          {
+            ...mergedOptions,
+            runName: 'cascadeflow:verifier',
+            tags: mergeTags(baseTags, ['cascadeflow:direct', 'cascadeflow:verifier', 'verifier']),
+            metadata: mergeMetadata(baseMetadata, {
+              cascadeflow: { ...(baseMetadata as any).cascadeflow, decision: 'direct', role: 'verifier' },
+            }),
+          },
           runManager
         )) {
           yield chunk;
@@ -415,34 +570,53 @@ export class CascadeFlow extends BaseChatModel {
       }
     }
 
-    // STEP 1: Stream drafter optimistically
+    const toolsBound = (this.boundToolDefs?.length || 0) > 0;
+    const emitSwitchMessage = Boolean((mergedOptions as any)?.metadata?.cascadeflow_emit_switch_message);
+
+    // If tools are bound, streaming must be tool-safe: we cannot optimistically emit tool call deltas
+    // and later change the tool call by escalating to a verifier.
     const drafterChunks: ChatGenerationChunk[] = [];
     let drafterContent = '';
 
-    // Stream from drafter in real-time
-    for await (const chunk of this.drafter._streamResponseChunks(
-      messages,
-      mergedOptions,
-      runManager
-    )) {
+    for await (const chunk of this.drafter._streamResponseChunks(messages, {
+      ...mergedOptions,
+      runName: 'cascadeflow:drafter',
+      tags: mergeTags(baseTags, ['cascadeflow:drafter', 'drafter']),
+      metadata: mergeMetadata(baseMetadata, {
+        cascadeflow: { ...(baseMetadata as any).cascadeflow, decision: 'draft', role: 'drafter' },
+      }),
+    }, runManager)) {
       drafterChunks.push(chunk);
-
-      // Extract text content from chunk
-      const chunkText = typeof chunk.message.content === 'string'
-        ? chunk.message.content
-        : '';
+      const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
       drafterContent += chunkText;
-
-      // Yield chunk immediately for real-time streaming
-      yield chunk;
+      if (!toolsBound) {
+        // Strip provider-specific chunk metadata to avoid concat warnings when we later stream a verifier.
+        yield new ChatGenerationChunk({
+          text: chunkText,
+          message: new AIMessageChunk({ content: chunkText }),
+        });
+      }
     }
 
     // STEP 2: Quality check after drafter completes
+    // Avoid `AIMessageChunk.concat` here: some provider chunk metadata fields are not safely mergeable
+    // and can emit warnings. For quality scoring we only need the final text (and tool_calls if present).
+    const lastMsg: any = drafterChunks[drafterChunks.length - 1]?.message;
+    const combinedMessage = new AIMessage({
+      content: drafterContent,
+      additional_kwargs: lastMsg?.additional_kwargs ?? {},
+      tool_calls: lastMsg?.tool_calls ?? [],
+      invalid_tool_calls: lastMsg?.invalid_tool_calls ?? [],
+      response_metadata: lastMsg?.response_metadata ?? {},
+    } as any);
+
     const drafterResult: ChatResult = {
-      generations: drafterChunks.map(chunk => ({
-        text: typeof chunk.message.content === 'string' ? chunk.message.content : '',
-        message: chunk.message,
-      })),
+      generations: [
+        {
+          text: typeof combinedMessage.content === 'string' ? combinedMessage.content : '',
+          message: combinedMessage,
+        },
+      ],
       llmOutput: {},
     };
 
@@ -450,30 +624,71 @@ export class CascadeFlow extends BaseChatModel {
       ? await this.config.qualityValidator(drafterResult)
       : calculateQuality(drafterResult);
 
-    const accepted = drafterQuality >= this.config.qualityThreshold;
+    const drafterToolCalls = extractToolCalls(drafterResult);
+    const invokedToolNames = extractToolCallNamesFromCalls(drafterToolCalls);
+    const invokedToolDefs: NormalizedToolDef[] = invokedToolNames.map((name) => {
+      return this.boundToolDefsByName.get(name) || { name };
+    });
+    const toolRisk = invokedToolDefs.length > 0 ? getToolRiskRouting(invokedToolDefs) : null;
+    const forceVerifierForToolRisk = toolRisk?.useVerifier ?? false;
+
+    const accepted =
+      invokedToolNames.length > 0 ? !forceVerifierForToolRisk : drafterQuality >= this.config.qualityThreshold;
 
     // STEP 3: If quality insufficient, cascade to verifier
     if (!accepted) {
-      // Import ChatGenerationChunk and AIMessageChunk for switch message
-      const { ChatGenerationChunk } = await import('@langchain/core/outputs');
-      const { AIMessageChunk } = await import('@langchain/core/messages');
-
-      // Emit switch notification
-      const verifierModelName = (this.verifier as any).model ||
-        (this.verifier as any).modelName || 'verifier';
-      const switchMessage = `\n\n⤴ Cascading to ${verifierModelName} (quality: ${drafterQuality.toFixed(2)} < ${this.config.qualityThreshold})\n\n`;
-
-      yield new ChatGenerationChunk({
-        text: switchMessage,
-        message: new AIMessageChunk({ content: switchMessage }),
-      });
+      if (emitSwitchMessage && !toolsBound) {
+        const { ChatGenerationChunk } = await import('@langchain/core/outputs');
+        const { AIMessageChunk } = await import('@langchain/core/messages');
+        const verifierModelName = resolveModelName(this.verifier);
+        const switchMessage = `\n\n[CascadeFlow] Escalating to ${verifierModelName} (quality: ${drafterQuality.toFixed(2)} < ${this.config.qualityThreshold})\n\n`;
+        yield new ChatGenerationChunk({
+          text: switchMessage,
+          message: new AIMessageChunk({ content: switchMessage }),
+        });
+      }
 
       // Stream from verifier
       for await (const chunk of this.verifier._streamResponseChunks(
         messages,
-        mergedOptions,
+        {
+          ...mergedOptions,
+          runName: 'cascadeflow:verifier',
+          tags: mergeTags(baseTags, [
+            'cascadeflow:verifier',
+            'verifier',
+            'cascadeflow:escalated',
+            ...(toolRisk?.maxRiskName ? [`cascadeflow:toolrisk=${toolRisk.maxRiskName}`] : []),
+          ]),
+          metadata: mergeMetadata(baseMetadata, {
+            cascadeflow: {
+              ...(baseMetadata as any).cascadeflow,
+              decision: 'verify',
+              role: 'verifier',
+              reason: invokedToolNames.length > 0 ? 'tool_risk' : 'quality',
+              tool_risk: toolRisk || undefined,
+            },
+          }),
+        },
         runManager
       )) {
+        if (toolsBound) {
+          yield chunk;
+          continue;
+        }
+
+        const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
+        yield new ChatGenerationChunk({
+          text: chunkText,
+          message: new AIMessageChunk({ content: chunkText }),
+        });
+      }
+      return;
+    }
+
+    // Accepted drafter (tool-safe mode: emit buffered chunks only after final decision)
+    if (toolsBound) {
+      for (const chunk of drafterChunks) {
         yield chunk;
       }
     }
@@ -513,7 +728,8 @@ export class CascadeFlow extends BaseChatModel {
         preRouter: this.config.preRouter,
         cascadeComplexities: this.config.cascadeComplexities,
       },
-      mergedKwargs
+      mergedKwargs,
+      { boundTools: this.boundToolDefs }
     );
   }
 
@@ -539,7 +755,7 @@ export class CascadeFlow extends BaseChatModel {
       enablePreRouter: this.config.enablePreRouter,
       preRouter: this.config.preRouter,
       cascadeComplexities: this.config.cascadeComplexities,
-    });
+    }, {}, { boundTools: tools });
   }
 
   /**
@@ -564,6 +780,6 @@ export class CascadeFlow extends BaseChatModel {
       enablePreRouter: this.config.enablePreRouter,
       preRouter: this.config.preRouter,
       cascadeComplexities: this.config.cascadeComplexities,
-    });
+    }, {}, { boundTools: this.boundToolDefs });
   }
 }

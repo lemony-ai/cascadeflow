@@ -241,7 +241,7 @@ process.env.LANGSMITH_TRACING = 'true';
 const cascade = withCascade({
   drafter: new ChatOpenAI({ model: 'gpt-5-mini' }),
   verifier: new ChatAnthropic({ model: 'claude-sonnet-4-5' }),
-  costTrackingProvider: 'langsmith', // Default
+  costTrackingProvider: 'cascadeflow', // Default (local pricing)
 });
 
 const result = await cascade.invoke("Your query");
@@ -271,7 +271,7 @@ In your LangSmith dashboard (https://smith.langchain.com):
 }
 ```
 
-**Note**: When using `costTrackingProvider: 'langsmith'` (default), costs are calculated server-side and shown in the LangSmith UI. Local cost values are $0.
+**Note**: `costTrackingProvider: 'cascadeflow'` (default) computes costs locally using CascadeFlow's pricebook. If you use `costTrackingProvider: 'langsmith'`, costs are calculated server-side and shown in the LangSmith UI (local cost values will be $0).
 
 See [docs/COST_TRACKING.md](./docs/COST_TRACKING.md) for more details on cost tracking options.
 
@@ -356,6 +356,9 @@ See the [examples](./examples/) directory for complete working examples:
 
 - **[basic-usage.ts](./examples/basic-usage.ts)** - Getting started guide
 - **[streaming-cascade.ts](./examples/streaming-cascade.ts)** - Real-time streaming with optimistic drafter execution
+- **[lcel-pipeline.ts](./examples/lcel-pipeline.ts)** - LCEL runnable composition with CascadeFlow
+- **[tool-risk-gating.ts](./examples/tool-risk-gating.ts)** - Tool-call acceptance + high-risk verifier gating
+- **[langgraph-multi-agent.ts](./examples/langgraph-multi-agent.ts)** - Optional LangGraph multi-agent pattern
 
 ## API Reference
 

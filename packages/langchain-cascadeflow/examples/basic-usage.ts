@@ -49,6 +49,9 @@ async function main() {
     drafter,
     verifier,
     qualityThreshold: 0.7,
+    // Use local pricing so costs/savings show up in `getLastCascadeResult()`.
+    // If you prefer LangSmith to calculate costs server-side, omit this (costs will be $0 locally).
+    costTrackingProvider: 'cascadeflow',
   });
 
   console.log('✓ Wrapped models with cascade logic\n');
@@ -58,7 +61,7 @@ async function main() {
   // ========================================================================
 
   console.log('='.repeat(60));
-  console.log('Example 1: Simple Question (should use drafter)\n');
+  console.log('Example 1: Simple Question (may use drafter or verifier)\n');
 
   const result1 = await cascadeModel.invoke('What is 2+2?');
   console.log(`Answer: ${result1.content}\n`);
@@ -68,7 +71,11 @@ async function main() {
   if (stats1) {
     console.log('📊 Cascade Stats:');
     console.log(`   Model used: ${stats1.modelUsed}`);
-    console.log(`   Drafter quality: ${(stats1.drafterQuality! * 100).toFixed(0)}%`);
+    console.log(
+      `   Drafter quality: ${typeof stats1.drafterQuality === 'number'
+        ? `${(stats1.drafterQuality * 100).toFixed(0)}%`
+        : 'n/a (direct-to-verifier)'}`
+    );
     console.log(`   Accepted: ${stats1.accepted ? '✅' : '❌'}`);
     console.log(`   Drafter cost: $${stats1.drafterCost.toFixed(6)}`);
     console.log(`   Verifier cost: $${stats1.verifierCost.toFixed(6)}`);
@@ -93,7 +100,11 @@ async function main() {
   if (stats2) {
     console.log('📊 Cascade Stats:');
     console.log(`   Model used: ${stats2.modelUsed}`);
-    console.log(`   Drafter quality: ${(stats2.drafterQuality! * 100).toFixed(0)}%`);
+    console.log(
+      `   Drafter quality: ${typeof stats2.drafterQuality === 'number'
+        ? `${(stats2.drafterQuality * 100).toFixed(0)}%`
+        : 'n/a (direct-to-verifier)'}`
+    );
     console.log(`   Accepted: ${stats2.accepted ? '✅' : '❌'}`);
     console.log(`   Total cost: $${stats2.totalCost.toFixed(6)}`);
     console.log(`   Savings: ${stats2.savingsPercentage.toFixed(1)}%`);
@@ -118,7 +129,7 @@ async function main() {
   console.log('='.repeat(60));
   console.log('\n✅ Key Takeaways:');
   console.log('   • Zero code changes to your LangChain models');
-  console.log('   • Automatic cost optimization (40-60% savings)');
+  console.log('   • Potential cost savings when drafter is accepted');
   console.log('   • All LangChain features preserved');
   console.log('   • Quality-based cascading ensures no degradation');
   console.log('   • Full visibility into cascade decisions\n');
