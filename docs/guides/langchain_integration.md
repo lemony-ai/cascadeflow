@@ -155,9 +155,9 @@ interface CascadeConfig {
   enableCostTracking?: boolean;
 
   // Cost tracking provider:
-  // - 'langsmith' (default): LangSmith computes costs server-side
-  // - 'cascadeflow': local pricing table
-  costTrackingProvider?: 'langsmith' | 'cascadeflow';
+  // - 'cascadeflow' (default): compute costs locally via CascadeFlow's pricebook
+  // - 'langsmith': LangSmith computes costs server-side (local costs will be $0)
+  costTrackingProvider?: 'langsmith' | 'cascadeflow'; // default: 'cascadeflow'
 
   // Optional custom quality validator (0-1)
   qualityValidator?: (response: any) => Promise<number> | number;

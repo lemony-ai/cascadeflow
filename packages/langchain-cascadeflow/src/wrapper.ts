@@ -139,7 +139,9 @@ export class CascadeFlow extends BaseChatModel {
       verifier: config.verifier,
       qualityThreshold: config.qualityThreshold ?? 0.7,
       enableCostTracking: config.enableCostTracking ?? true,
-      costTrackingProvider: config.costTrackingProvider ?? 'langsmith',
+      // Default to local pricing for best DX (works without LangSmith).
+      // Use 'langsmith' if you want server-side cost computation in LangSmith UI.
+      costTrackingProvider: config.costTrackingProvider ?? 'cascadeflow',
       qualityValidator: config.qualityValidator ?? calculateQuality,
       enablePreRouter: config.enablePreRouter ?? true,  // Match Python default
       preRouter: config.preRouter,

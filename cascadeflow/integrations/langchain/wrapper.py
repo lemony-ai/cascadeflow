@@ -57,7 +57,9 @@ class CascadeFlow(BaseChatModel):
     verifier: BaseChatModel
     quality_threshold: float = 0.7
     enable_cost_tracking: bool = True
-    cost_tracking_provider: str = "langsmith"
+    # Default to local pricing for best DX (works without LangSmith).
+    # Use "langsmith" if you want server-side cost computation in LangSmith UI.
+    cost_tracking_provider: str = "cascadeflow"
     quality_validator: Optional[Any] = None
     enable_pre_router: bool = True
     pre_router: Optional[Any] = None
@@ -79,7 +81,7 @@ class CascadeFlow(BaseChatModel):
         verifier: BaseChatModel,
         quality_threshold: float = 0.7,
         enable_cost_tracking: bool = True,
-        cost_tracking_provider: str = "langsmith",
+        cost_tracking_provider: str = "cascadeflow",
         quality_validator: Optional[Any] = None,
         enable_pre_router: bool = True,
         pre_router: Optional[Any] = None,
