@@ -339,8 +339,16 @@ Intent: [exact_intent_name]"""
         # 3. Alignment scoring already handles classification format (v11)
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider=self.drafter_provider),
-                ModelConfig(name=self.verifier_model, provider=self.verifier_provider),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=self.drafter_provider,
+                    cost=0.003,  # $3/M blended (Haiku 4.5: $1 in, $5 out)
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=self.verifier_provider,
+                    cost=0.045,  # $45/M blended (Opus 4.5: $15 in, $75 out)
+                ),
             ],
             enable_cascade=True,
             enable_domain_detection=False,  # Disabled - causes misclassification
@@ -383,6 +391,12 @@ Intent: [exact_intent_name]"""
         latency_ms = (_time.time() - start_time) * 1000
 
         # Convert CascadeResult to expected dict format
+        prompt_tokens = result.metadata.get("prompt_tokens", 0)
+        completion_tokens = result.metadata.get("completion_tokens", 0)
+
+        cost_saved = result.cost_saved or 0.0
+        baseline_cost = result.total_cost + cost_saved
+
         return {
             "prediction": result.content,
             "model_used": result.model_used,
@@ -391,9 +405,11 @@ Intent: [exact_intent_name]"""
             "drafter_cost": result.draft_cost,
             "verifier_cost": result.verifier_cost,
             "total_cost": result.total_cost,
+            "cost_saved": cost_saved,
+            "baseline_cost": baseline_cost,
             "latency_ms": latency_ms,
-            "tokens_input": 0,
-            "tokens_output": 0,
+            "tokens_input": prompt_tokens,
+            "tokens_output": completion_tokens,
         }
 
 

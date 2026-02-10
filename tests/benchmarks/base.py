@@ -60,6 +60,28 @@ class BenchmarkResult:
             return 0.0
         return (self.cost_savings / self.baseline_cost) * 100
 
+    @property
+    def effective_total_cost(self) -> float:
+        """
+        Quality-adjusted cost.
+
+        If the cascade answer is incorrect, assume you still need to pay the baseline
+        (verifier-only) to recover a correct answer.
+        """
+        return self.total_cost if self.is_correct else (self.total_cost + self.baseline_cost)
+
+    @property
+    def effective_savings_pct(self) -> float:
+        """
+        Quality-adjusted savings percentage.
+
+        This is intentionally harsh: incorrect answers count as requiring a baseline rerun,
+        so "savings" will typically go negative.
+        """
+        if self.baseline_cost == 0:
+            return 0.0
+        return ((self.baseline_cost - self.effective_total_cost) / self.baseline_cost) * 100
+
 
 @dataclass
 class BenchmarkSummary:
@@ -79,9 +101,11 @@ class BenchmarkSummary:
 
     # Cost metrics
     total_cost: float
+    effective_total_cost: float
     total_baseline_cost: float
     total_savings: float
     avg_savings_pct: float
+    effective_avg_savings_pct: float
     avg_cost_per_query: float
 
     # Performance metrics
@@ -273,17 +297,23 @@ class Benchmark(ABC):
                 if tokens_output == 0:
                     tokens_output = estimate_tokens(str(cascade_result["prediction"]))
 
-                baseline_cost = cascade_result.get("baseline_cost", 0.0)
+                baseline_cost = float(cascade_result.get("baseline_cost") or 0.0)
                 if baseline_cost <= 0:
-                    if not cascade_result["accepted"] and cascade_result["verifier_cost"] > 0:
-                        baseline_cost = cascade_result["verifier_cost"]
-                    else:
-                        baseline_cost = self._calculate_baseline_cost_from_tokens(
-                            tokens_input,
-                            tokens_output,
-                            query,
-                            cascade_result["prediction"],
-                        )
+                    # Prefer cascadeflow's own cost semantics if exposed by the benchmark runner.
+                    cost_saved = cascade_result.get("cost_saved")
+                    if cost_saved is not None:
+                        try:
+                            baseline_cost = float(cascade_result["total_cost"]) + float(cost_saved)
+                        except Exception:
+                            baseline_cost = 0.0
+
+                if baseline_cost <= 0:
+                    baseline_cost = self._calculate_baseline_cost_from_tokens(
+                        tokens_input,
+                        tokens_output,
+                        query,
+                        cascade_result["prediction"],
+                    )
 
                 # Create result
                 result = BenchmarkResult(
@@ -309,7 +339,8 @@ class Benchmark(ABC):
 
                 status = "✅ PASS" if is_correct else "❌ FAIL"
                 model = "D" if cascade_result["accepted"] else "V"
-                savings = result.cost_savings_pct
+                # Never claim savings on incorrect results.
+                savings = result.cost_savings_pct if is_correct else 0.0
                 print(f"{status} [{model}] (${result.total_cost:.6f}, {savings:.1f}% savings)")
 
             except Exception as e:
@@ -363,9 +394,11 @@ class Benchmark(ABC):
                 acceptance_rate_pct=0.0,
                 escalation_rate_pct=0.0,
                 total_cost=0.0,
+                effective_total_cost=0.0,
                 total_baseline_cost=0.0,
                 total_savings=0.0,
                 avg_savings_pct=0.0,
+                effective_avg_savings_pct=0.0,
                 avg_cost_per_query=0.0,
                 avg_latency_ms=0.0,
                 median_latency_ms=0.0,
@@ -403,9 +436,15 @@ class Benchmark(ABC):
 
         # Cost metrics
         total_cost = sum(r.total_cost for r in valid_results)
+        effective_total_cost = sum(r.effective_total_cost for r in valid_results)
         total_baseline = sum(r.baseline_cost for r in valid_results)
         total_savings = total_baseline - total_cost
         avg_savings_pct = (total_savings / total_baseline * 100) if total_baseline > 0 else 0.0
+        effective_avg_savings_pct = (
+            ((total_baseline - effective_total_cost) / total_baseline) * 100
+            if total_baseline > 0
+            else 0.0
+        )
 
         # Latency metrics
         latencies = sorted([r.latency_ms for r in valid_results])
@@ -444,9 +483,11 @@ class Benchmark(ABC):
             acceptance_rate_pct=(drafter_accepted / successful * 100) if successful > 0 else 0.0,
             escalation_rate_pct=(escalated / successful * 100) if successful > 0 else 0.0,
             total_cost=total_cost,
+            effective_total_cost=effective_total_cost,
             total_baseline_cost=total_baseline,
             total_savings=total_savings,
             avg_savings_pct=avg_savings_pct,
+            effective_avg_savings_pct=effective_avg_savings_pct,
             avg_cost_per_query=total_cost / successful if successful > 0 else 0.0,
             avg_latency_ms=avg_latency,
             median_latency_ms=median_latency,
@@ -481,9 +522,11 @@ class Benchmark(ABC):
 
         print("\nCOST ANALYSIS:")
         print(f"  Total Cost:          ${summary.total_cost:.6f}")
+        print(f"  Effective Total:     ${summary.effective_total_cost:.6f}")
         print(f"  Baseline Cost:       ${summary.total_baseline_cost:.6f}")
         print(f"  Total Savings:       ${summary.total_savings:.6f}")
         print(f"  Average Savings:     {summary.avg_savings_pct:.1f}%")
+        print(f"  Effective Savings:   {summary.effective_avg_savings_pct:.1f}%")
         print(f"  Avg Cost/Query:      ${summary.avg_cost_per_query:.6f}")
 
         print("\nPERFORMANCE:")

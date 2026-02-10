@@ -1,0 +1,81 @@
+# CascadeFlow Configuration: OpenAI GPT-4o Series (Working)
+# Fixed model names for actual OpenAI API
+
+models:
+  - name: gpt-4o-mini
+    provider: openai
+    cost: 0.00015
+    supports_tools: true
+    max_tokens: 16384
+
+  - name: gpt-4o
+    provider: openai
+    cost: 0.01
+    supports_tools: true
+    max_tokens: 16384
+
+domains:
+  code:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.60
+    temperature: 0.2
+
+  math:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.60
+    temperature: 0.1
+
+  general:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.55
+    temperature: 0.7
+
+  conversation:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o-mini
+    threshold: 0.50
+    temperature: 0.8
+
+  factual:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.55
+    temperature: 0.3
+
+  reasoning:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.65
+    temperature: 0.3
+
+  creative:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.45
+    temperature: 0.9
+
+  medical:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.70
+    temperature: 0.1
+
+  legal:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.70
+    temperature: 0.2
+
+  translation:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.55
+    temperature: 0.3
+
+settings:
+  enable_cascade: true
+  enable_domain_detection: true
+  verbose: true

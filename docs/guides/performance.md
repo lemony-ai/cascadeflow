@@ -11,7 +11,7 @@ Understanding where latency comes from and how to optimize for speed.
 2. Use streaming for perceived speed
 3. Don't worry about cascade overhead (only 5%)
 
-**Recommendation:** Use `PRESET_ULTRA_FAST` with Groq for 5-10x speedup.
+**Recommendation:** Use `preset="speed_optimized"` (preferably with Groq) for 5-10x speedup.
 
 ---
 
@@ -88,14 +88,13 @@ Average per query: 10,390ms (100%)
 
 ### Real-Time Applications (<2s latency)
 
-**Use:** `PRESET_ULTRA_FAST`
+**Use:** `preset="speed_optimized"`
 
 ```python
-from cascadeflow import PRESET_ULTRA_FAST
+from cascadeflow import auto_agent
 
-agent = CascadeAgent(models=PRESET_ULTRA_FAST)
-# Groq Llama 3.1 8B → Groq Llama 3.3 70B
-# Latency: 1-2s (ultra-fast)
+agent = auto_agent(preset="speed_optimized")
+# Strategy: prioritize lowest latency providers/models available.
 ```
 
 **Best for:**
@@ -113,14 +112,13 @@ agent = CascadeAgent(models=PRESET_ULTRA_FAST)
 
 ### Production Applications (2-4s acceptable)
 
-**Use:** `PRESET_BEST_OVERALL`
+**Use:** `preset="balanced"`
 
 ```python
-from cascadeflow import PRESET_BEST_OVERALL
+from cascadeflow import auto_agent
 
-agent = CascadeAgent(models=PRESET_BEST_OVERALL)
-# Claude Haiku → GPT-4o-mini
-# Latency: 2-3s (fast)
+agent = auto_agent(preset="balanced")
+# Strategy: balance cost, speed, and quality.
 ```
 
 **Best for:**
@@ -138,14 +136,13 @@ agent = CascadeAgent(models=PRESET_BEST_OVERALL)
 
 ### High-Volume Applications (cost critical)
 
-**Use:** `PRESET_ULTRA_CHEAP`
+**Use:** `preset="cost_optimized"`
 
 ```python
-from cascadeflow import PRESET_ULTRA_CHEAP
+from cascadeflow import auto_agent
 
-agent = CascadeAgent(models=PRESET_ULTRA_CHEAP)
-# Groq Llama 8B → GPT-4o-mini
-# Latency: 1-3s, Cost: ~$0.00008/query
+agent = auto_agent(preset="cost_optimized")
+# Strategy: minimize cost, accept higher latency.
 ```
 
 **Best for:**
@@ -164,14 +161,19 @@ agent = CascadeAgent(models=PRESET_ULTRA_CHEAP)
 
 ### Offline/Privacy Applications
 
-**Use:** `PRESET_FREE_LOCAL`
+**Use:** local provider configuration (e.g. Ollama)
 
 ```python
-from cascadeflow import PRESET_FREE_LOCAL
+from cascadeflow import CascadeAgent
+from cascadeflow.schema.config import ModelConfig
 
-agent = CascadeAgent(models=PRESET_FREE_LOCAL)
-# Ollama local models
-# Latency: 3-5s (hardware dependent)
+agent = CascadeAgent(
+    models=[
+        ModelConfig(name="llama3.1", provider="ollama", cost=0.0),
+    ],
+    enable_cascade=False,
+)
+# Latency: hardware dependent, Cost: $0
 ```
 
 **Best for:**
@@ -203,9 +205,9 @@ agent = CascadeAgent(models=[
 ])
 # Latency: ~10s avg
 
-# After: Groq (fast)
-from cascadeflow import PRESET_ULTRA_FAST
-agent = CascadeAgent(models=PRESET_ULTRA_FAST)
+# After: speed_optimized preset (fast)
+from cascadeflow import auto_agent
+agent = auto_agent(preset="speed_optimized")
 # Latency: ~1-2s avg
 # Result: 5-10x speedup! 🚀
 ```
@@ -331,12 +333,12 @@ Slow providers (OpenAI) are expensive but higher quality.
 |----------|-------------|-----------|---------|
 | GPT-4o only | 10s | $2,500 | Excellent |
 | Groq only | 1.5s | $50 | Good |
-| **PRESET_ULTRA_FAST** | **1.5s** | **$50** | **Good** |
-| **PRESET_BEST_OVERALL** | **2.5s** | **$800** | **Excellent** |
-| **PRESET_ULTRA_CHEAP** | **2s** | **$80** | **Excellent** |
+| **speed_optimized** | **1.5s** | **$50** | **Good** |
+| **balanced** | **2.5s** | **$800** | **Excellent** |
+| **cost_optimized** | **2s** | **$80** | **Excellent** |
 
 **Best of both worlds:**
-- `PRESET_ULTRA_CHEAP`: 5x faster, 31x cheaper, same quality!
+- `cost_optimized`: 5x faster, 31x cheaper, same quality!
 - Draft model (Groq) handles 80% → ultra-fast
 - Verifier (GPT-4o-mini) handles 20% → quality assurance
 
@@ -350,17 +352,17 @@ Slow providers (OpenAI) are expensive but higher quality.
 result = await agent.run("Your query")
 
 # Latency breakdown
-print(f"Total: {result.latencyMs}ms")
-print(f"Draft generation: {result.draftGenerationMs}ms")
-print(f"Quality check: {result.qualityVerificationMs}ms")
-print(f"Verifier generation: {result.verifierGenerationMs}ms")
-print(f"Cascade overhead: {result.cascadeOverheadMs}ms")
+print(f"Total: {result.latency_ms:.0f}ms")
+print(f"Draft generation: {result.draft_generation_ms}ms")
+print(f"Quality check: {result.quality_verification_ms}ms")
+print(f"Verifier generation: {result.verifier_generation_ms}ms")
+print(f"Cascade overhead: {result.cascade_overhead_ms}ms")
 
 # Cost breakdown
-print(f"Total cost: ${result.totalCost}")
-print(f"Draft cost: ${result.draftCost}")
-print(f"Verifier cost: ${result.verifierCost}")
-print(f"Savings: {result.savingsPercentage}%")
+print(f"Total cost: ${result.total_cost:.6f}")
+print(f"Draft cost: ${result.draft_cost or 0.0:.6f}")
+print(f"Verifier cost: ${result.verifier_cost or 0.0:.6f}")
+print(f"Savings: {result.cost_saved_percentage:.1f}%")
 ```
 
 ### Track Over Time
@@ -371,8 +373,8 @@ costs = []
 
 for query in queries:
     result = await agent.run(query)
-    latencies.append(result.latencyMs)
-    costs.append(result.totalCost)
+    latencies.append(result.latency_ms)
+    costs.append(result.total_cost)
 
 print(f"P50 latency: {sorted(latencies)[len(latencies)//2]}ms")
 print(f"P95 latency: {sorted(latencies)[int(len(latencies)*0.95)]}ms")
@@ -392,14 +394,14 @@ print(f"Avg cost: ${sum(costs)/len(costs):.6f}")
 
 ### For Cost Optimization
 
-1. **Use PRESET_ULTRA_CHEAP** → 88% savings
+1. **Use `cost_optimized`** → 88% savings
 2. **Increase quality threshold** → More drafts accepted
 3. **Choose cheaper providers** → Groq > OpenAI
 4. **Monitor draft acceptance rate** → Optimize threshold
 
 ### For Balanced Performance
 
-1. **Use PRESET_BEST_OVERALL** → Good speed + quality
+1. **Use `balanced`** → Good speed + quality
 2. **Monitor metrics** → Track latency and cost
 3. **Adjust quality threshold** → Balance cost/quality
 4. **Consider streaming** → Better UX

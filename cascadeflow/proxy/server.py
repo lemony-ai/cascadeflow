@@ -383,7 +383,7 @@ def _build_anthropic_response(model: str, result: Any) -> dict[str, Any]:
 
 
 def _extract_openai_tools(
-    payload: dict[str, Any]
+    payload: dict[str, Any],
 ) -> tuple[list[dict[str, Any]] | None, str | None]:
     tools_payload = payload.get("tools")
     if tools_payload is None and isinstance(payload.get("functions"), list):

@@ -52,6 +52,7 @@ Example:
     >>> print(f"Verifier: ${result.verifier_cost:.6f}") # $0.001500 ✅
 """
 
+import asyncio
 import logging
 import sys
 import time
@@ -64,18 +65,15 @@ if TYPE_CHECKING:
     from .core.batch import BatchResult
     from .core.batch_config import BatchConfig
     from .profiles import UserProfile
+    from .rules.decision import RuleDecision
 
 from .core.cascade import WholeResponseCascade
 
 # Phase 2C: Interface module imports
 from .interface import TerminalVisualConsumer
+from .pricing import PricingResolver
 from .providers import PROVIDER_REGISTRY, get_available_providers
 from .quality import QualityConfig
-
-# Phase 3: Tool routing
-# Phase 2A: Routing module imports
-# Phase 3.2: Domain detection (NEW)
-# Phase 4: Tool complexity routing (NEW - v19)
 from .routing import (
     ComplexityRouter,
     DomainDetector,
@@ -85,17 +83,30 @@ from .routing import (
     ToolRouter,
     ToolRoutingDecision,
 )
+
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+# Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
+from .rules import RuleContext, RuleEngine
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
+from .schema.usage import Usage
 
 # Streaming imports - BOTH managers (v2.4 FIX)
 from .streaming import StreamEvent, StreamEventType, StreamManager
 
 # Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
 from .telemetry import CallbackManager, CostCalculator, MetricsCollector
-from .utils.messages import get_last_user_message, messages_to_prompt, normalize_messages
+from .tools.formats import normalize_tools
+from .utils.messages import (
+    detect_multi_turn,
+    get_last_user_message,
+    messages_to_prompt,
+    normalize_messages,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +179,8 @@ class CascadeAgent:
         # ========================================================================
         domain_configs: Optional[dict[str, DomainConfig]] = None,  # Per-domain cascade config
         enable_domain_detection: bool = False,  # Auto-detect query domain
-        use_semantic_domains: bool = True,  # 🆕 Use ML-based semantic detection (hybrid)
+        use_semantic_domains: bool = True,  # 🆕 Use ML-based semantic detection
+        use_hybrid: bool = False,  # 🆕 Combine ML + rule-based (OpenClaw-only)
         # ========================================================================
         # 🆕 v19: Tool Complexity Routing (Phase 1)
         # ========================================================================
@@ -177,6 +189,14 @@ class CascadeAgent:
         # 🆕 v2.7: Factual-Risk Routing (Opt-in safety mode)
         # ========================================================================
         enable_factual_risk_routing: bool = False,
+        # ========================================================================
+        # 🆕 v2.8: Rule Engine (tiers, KPIs, domain routing)
+        # ========================================================================
+        rule_engine: Optional["RuleEngine"] = None,
+        tenant_rules: Optional[dict[str, Any]] = None,
+        channel_models: Optional[dict[str, list[str]]] = None,
+        channel_failover: Optional[dict[str, str]] = None,
+        channel_strategies: Optional[dict[str, Any]] = None,
         # ========================================================================
         # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
         # ========================================================================
@@ -188,6 +208,10 @@ class CascadeAgent:
         enable_caching: bool = False,  # DEPRECATED - caching system being re-implemented
         cache_size: int = 1000,  # DEPRECATED - caching system being re-implemented
         enable_callbacks: bool = True,  # DEPRECATED - callbacks now always enabled
+        # ========================================================================
+        # 🆕 v2.9: Tool Execution
+        # ========================================================================
+        tool_executor: Optional[Any] = None,  # ToolExecutor instance or async callable
     ):
         """
         Initialize cascade agent with dual streaming managers and cost calculator.
@@ -204,6 +228,16 @@ class CascadeAgent:
             use_semantic_domains: Use ML-based semantic domain detection (hybrid mode).
                                  Leverages same embedding model as quality system.
             enable_factual_risk_routing: Route factual-risk prompts directly to verifier (opt-in)
+            rule_engine: Optional RuleEngine instance for routing rules
+            tenant_rules: Optional per-tenant routing overrides
+            channel_models: Optional per-channel model allowlists
+            channel_failover: Optional channel->failover mapping
+            channel_strategies: Optional per-channel routing strategy overrides
+            tool_executor: Optional tool executor for running tool calls.
+                          Can be a :class:`~cascadeflow.tools.executor.ToolExecutor`
+                          instance or an async callable ``(tool_call_dict) -> str``.
+                          When not set, tool calls are returned to the caller without
+                          execution.
 
         Deprecated Args (v0.1.x compatibility):
             config: Old CascadeConfig (use quality_config instead)
@@ -315,6 +349,9 @@ class CascadeAgent:
         self.enable_cascade = enable_cascade
         self.verbose = verbose
 
+        # 🆕 v2.9: Tool execution support
+        self._tool_executor = tool_executor
+
         # Setup logging
         if verbose:
             logging.basicConfig(level=logging.INFO)
@@ -356,6 +393,7 @@ class CascadeAgent:
         # 🆕 v2.6: Initialize domain detection
         self.enable_domain_detection = enable_domain_detection
         self.use_semantic_domains = use_semantic_domains
+        self.use_hybrid = use_hybrid
         self.domain_configs = domain_configs or {}
 
         # 🆕 v2.6: Semantic domain detection with hybrid mode
@@ -363,8 +401,8 @@ class CascadeAgent:
         if enable_domain_detection:
             if use_semantic_domains:
                 self.domain_detector = SemanticDomainDetector(
-                    use_hybrid=True,  # Combines ML + rule-based for best accuracy
-                    confidence_threshold=0.5,  # Lower threshold for hybrid mode
+                    use_hybrid=self.use_hybrid,  # OpenClaw passes True, standard uses False
+                    confidence_threshold=0.5,
                 )
                 if self.domain_detector.is_available:
                     logger.info("Domain detection: SEMANTIC (hybrid ML + rules)")
@@ -377,6 +415,18 @@ class CascadeAgent:
         else:
             self.domain_detector = None
 
+        # 🆕 v2.8: Rule engine for routing decisions (domain + tiers + KPIs)
+        self.rule_engine = rule_engine or RuleEngine(
+            enable_domain_routing=enable_domain_detection,
+            tiers=self._legacy_tiers,
+            workflows=self._legacy_workflows,
+            tenant_rules=tenant_rules,
+            channel_models=channel_models,
+            channel_failover=channel_failover,
+            channel_strategies=channel_strategies,
+            verbose=verbose,
+        )
+
         # Initialize telemetry collector
         self.telemetry = MetricsCollector(max_recent_results=100, verbose=verbose)
 
@@ -384,6 +434,7 @@ class CascadeAgent:
         self.cost_calculator = CostCalculator(
             drafter=self.models[0], verifier=self.models[-1], verbose=verbose
         )
+        self.pricing_resolver = PricingResolver()
 
         # Connect cost calculator to telemetry (optional)
         if hasattr(self.telemetry, "set_cost_calculator"):
@@ -500,6 +551,48 @@ class CascadeAgent:
 
             return self.text_streaming_manager
 
+    def _apply_rule_model_constraints(
+        self,
+        available_models: list[ModelConfig],
+        rule_decision: Optional["RuleDecision"],
+    ) -> list[ModelConfig]:
+        """
+        Apply rule-driven model constraints (tier/workflow/KPI).
+
+        Returns a filtered list while preserving original order.
+        """
+        if not rule_decision or not available_models:
+            return available_models
+
+        filtered = list(available_models)
+        forced = rule_decision.forced_models or []
+        allowed = rule_decision.allowed_models or []
+        excluded = rule_decision.excluded_models or []
+
+        if forced:
+            filtered = [m for m in filtered if m.name in forced]
+        elif allowed and "*" not in allowed:
+            filtered = [m for m in filtered if m.name in allowed]
+
+        if excluded:
+            filtered = [m for m in filtered if m.name not in excluded]
+
+        if not filtered:
+            if self.verbose:
+                logger.warning(
+                    "Rule constraints filtered out all models; falling back to cheapest available."
+                )
+            # Fallback to cheapest model from original list
+            return [sorted(available_models, key=lambda m: m.cost)[0]]
+
+        if self.verbose and filtered != available_models:
+            logger.info(
+                f"Rule model constraints: {len(available_models)} → {len(filtered)} models. "
+                f"Allowed: {[m.name for m in filtered]}"
+            )
+
+        return filtered
+
     # ========================================================================
     # BACKWARD COMPATIBILITY PROPERTIES
     # ========================================================================
@@ -599,7 +692,7 @@ class CascadeAgent:
 
         if use_semantic:
             self.domain_detector = SemanticDomainDetector(
-                use_hybrid=True,
+                use_hybrid=self.use_hybrid,
                 confidence_threshold=0.5,
             )
             if not self.domain_detector.is_available:
@@ -705,8 +798,16 @@ class CascadeAgent:
                     f"for model '{model.name}': {e}"
                 )
 
+        # Allow agent construction without configured API keys. This keeps config loading,
+        # routing, and offline validation workflows usable in CI and local dev.
+        #
+        # Actual execution will fail later with a clearer error when a model is selected
+        # but its provider instance is missing.
         if not providers:
-            raise cascadeflowError("No providers could be initialized. Check your API keys.")
+            logger.warning(
+                "No providers could be initialized. "
+                "Agent will be created, but running queries will fail until API keys/base_urls are configured."
+            )
 
         # Store model-to-provider mapping for multi-instance lookups
         self.model_providers = model_providers
@@ -736,29 +837,111 @@ class CascadeAgent:
             return query_text, normalized
         return query, None
 
+    def _apply_system_prompt(
+        self,
+        messages: Optional[list[dict[str, Any]]],
+        system_prompt: Optional[str],
+    ) -> Optional[list[dict[str, Any]]]:
+        if not system_prompt:
+            return messages
+        base = list(messages or [])
+        if base and base[0].get("role") == "system":
+            base[0] = {"role": "system", "content": system_prompt}
+            return base
+        return [{"role": "system", "content": system_prompt}, *base]
+
+    async def _execute_tool_calls_parallel(
+        self, tool_calls: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Execute tool calls in parallel using the registered tool executor.
+
+        When a ``tool_executor`` callback or :class:`ToolExecutor` is
+        registered (via ``__init__``), each tool call is dispatched to it.
+        Otherwise the raw tool calls are returned with a descriptive
+        ``no_executor_registered`` message so the caller can handle
+        execution externally.
+        """
+        if self._tool_executor is None:
+            # No executor registered – return informative stub so the
+            # model understands the tool was not executed.
+            async def _stub(tc: dict[str, Any]) -> dict[str, Any]:
+                return {
+                    "tool_call_id": tc.get("id"),
+                    "name": tc.get("function", {}).get("name", "unknown_tool"),
+                    "content": '{"error":"no_executor_registered","hint":"Pass tool_executor to CascadeAgent to enable tool execution"}',
+                }
+
+            return list(await asyncio.gather(*[_stub(tc) for tc in tool_calls]))
+
+        async def _run_one(tc: dict[str, Any]) -> dict[str, Any]:
+            name = tc.get("function", {}).get("name", "unknown_tool")
+            call_id = tc.get("id", "")
+            try:
+                # Support both ToolExecutor instances and plain callables
+                if hasattr(self._tool_executor, "execute"):
+                    from .tools.call import ToolCall as _ToolCall
+
+                    parsed = _ToolCall.from_provider("openai", tc)
+                    result = await self._tool_executor.execute(parsed)
+                    return {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": (
+                            str(result.result)
+                            if result.success
+                            else f'{{"error":"{result.error}"}}'
+                        ),
+                    }
+                else:
+                    # Plain async callable: (tool_call_dict) -> str | Any
+                    result = await self._tool_executor(tc)
+                    return {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": str(result) if not isinstance(result, str) else result,
+                    }
+            except Exception as exc:
+                logger.error(f"Tool execution failed for {name}: {exc}")
+                return {
+                    "tool_call_id": call_id,
+                    "name": name,
+                    "content": f'{{"error":"{type(exc).__name__}: {exc}"}}',
+                }
+
+        return list(await asyncio.gather(*[_run_one(tc) for tc in tool_calls]))
+
     # ========================================================================
     # API 1: NON-STREAMING - WITH TOOL SUPPORT
     # ========================================================================
 
     async def run(
         self,
-        query: str,
+        query: "str | list[dict[str, Any]]",
         max_tokens: int = 100,
         temperature: float = 0.7,
         complexity_hint: Optional[str] = None,
-        domain_hint: Optional[str] = None,
         force_direct: bool = False,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        max_steps: int = 5,
         user_tier: Optional[str] = None,  # 🔄 OPTIONAL: v0.1.x backwards compatibility
+        workflow: Optional[str] = None,
+        kpi_flags: Optional[dict[str, Any]] = None,
+        domain_hint: Optional[str] = None,
+        domain_confidence_hint: Optional[float] = None,
+        tenant_id: Optional[str] = None,
+        channel: Optional[str] = None,
         **kwargs,
     ) -> CascadeResult:
         """
         Run query (NON-STREAMING) with comprehensive diagnostics and tool support.
 
         Args:
-            query: User query
+            query: User query string, OR a list of message dicts
+                   (e.g. [{"role": "user", "content": "hi"}]).
+                   When a list is passed it is treated as the messages parameter
+                   and the string query is derived automatically.
             max_tokens: Max tokens to generate
             temperature: Sampling temperature
             complexity_hint: Override complexity detection
@@ -767,14 +950,29 @@ class CascadeAgent:
             tool_choice: Control tool calling behavior
             messages: Optional multi-turn messages (role/content)
             user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
+            workflow: OPTIONAL - Workflow profile name (legacy)
+            kpi_flags: OPTIONAL - KPI routing flags (risk/compliance, etc.)
+            domain_hint: OPTIONAL - Override detected domain (OpenClaw pre-router)
+            domain_confidence_hint: OPTIONAL - Confidence for domain_hint (0-1)
+            tenant_id: OPTIONAL - Tenant identifier for routing overrides
+            channel: OPTIONAL - Logical channel for model routing/failover
             **kwargs: Additional provider parameters
 
         Returns:
             CascadeResult with content, cost, latency, tool_calls, and full diagnostics
         """
+        # Accept query as list[dict] for DX convenience:
+        #   agent.run([{"role": "user", "content": "hi"}])
+        if isinstance(query, list):
+            messages = query if messages is None else messages + query
+            query = ""
+
         overall_start = time.time()
         timing_breakdown = {}
+        system_prompt = kwargs.pop("system_prompt", None)
+        messages = self._apply_system_prompt(messages, system_prompt)
         query_text, normalized_messages = self._normalize_messages(query, messages)
+        tools = normalize_tools(tools)
 
         # Detect complexity
         complexity_start = time.time()
@@ -813,7 +1011,9 @@ class CascadeAgent:
             forced = str(domain_hint).strip().lower()
             if forced:
                 detected_domain = forced
-                domain_confidence = 1.0
+                domain_confidence = (
+                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
+                )
                 domain_config = self.domain_configs.get(
                     detected_domain
                 ) or get_builtin_domain_config(detected_domain)
@@ -840,6 +1040,32 @@ class CascadeAgent:
                     )
 
             logger.info(f"Query domain: {detected_domain} (confidence: {domain_confidence:.2f})")
+
+        # Resolve tier/workflow configs for rule engine
+        tier_config = None
+        if user_tier and self.tier_router:
+            tier_config = self.tier_router.get_tier(user_tier)
+            if tier_config is None:
+                logger.warning(
+                    f"Tier '{user_tier}' not found. "
+                    f"Available tiers: {list(self._legacy_tiers.keys()) if self._legacy_tiers else []}. "
+                    f"Ignoring tier parameter."
+                )
+        elif user_tier and not self.tier_router:
+            logger.warning(
+                f"user_tier='{user_tier}' specified but no tiers configured. "
+                f"Ignoring tier parameter. To use tiers, initialize agent with: "
+                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+            )
+
+        workflow_profile = None
+        if workflow and self._legacy_workflows:
+            workflow_profile = self._legacy_workflows.get(workflow)
+            if workflow_profile is None:
+                logger.warning(
+                    f"workflow='{workflow}' specified but not found. "
+                    f"Available workflows: {list(self._legacy_workflows.keys())}"
+                )
 
         # Filter models by tool capability
         available_models = self.models
@@ -911,34 +1137,68 @@ class CascadeAgent:
                 f"{'CASCADE' if tool_complexity_strategy.use_cascade else 'DIRECT'}"
             )
 
-        # 🔄 OPTIONAL: Filter models by user tier (v0.1.x backwards compatibility)
-        if user_tier and self.tier_router:
-            # Apply tier-based filtering
-            tier_filtered_models = self.tier_router.filter_models(user_tier, available_models)
+        # Rule engine decision (domain/tiers/KPIs)
+        has_multi_turn = detect_multi_turn(query_text, normalized_messages)
+        rule_decision = None
+        if self.rule_engine:
+            rule_context = RuleContext(
+                query=query_text,
+                complexity=complexity,
+                complexity_confidence=complexity_confidence,
+                detected_domain=detected_domain,
+                domain_confidence=domain_confidence,
+                domain_config=domain_config,
+                has_tools=bool(tools),
+                has_multi_turn=has_multi_turn,
+                has_code=complexity_metadata.get("has_code", False),
+                user_tier=user_tier,
+                tier_config=tier_config,
+                workflow_name=workflow,
+                workflow_profile=workflow_profile,
+                kpi_flags=kpi_flags,
+                tenant_id=tenant_id,
+                channel=channel,
+            )
+            rule_decision = self.rule_engine.decide(rule_context)
 
+        if rule_decision:
+            available_models = self._apply_rule_model_constraints(available_models, rule_decision)
             if self.verbose:
-                n_tier = len(tier_filtered_models)
-                n_avail = len(available_models)
-                print(f"[Tier Filtering ('{user_tier}'): {n_tier}/{n_avail} models]")
-
-            logger.info(
-                f"Tier '{user_tier}' filtering: {len(available_models)} → "
-                f"{len(tier_filtered_models)} models. "
-                f"Allowed: {[m.name for m in tier_filtered_models]}"
-            )
-
-            available_models = tier_filtered_models
-        elif user_tier and not self.tier_router:
-            # User specified tier but no tier router configured
-            logger.warning(
-                f"user_tier='{user_tier}' specified but no tiers configured. "
-                f"Ignoring tier parameter. To use tiers, initialize agent with: "
-                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
-            )
+                logger.info(
+                    "Rule decision (stream_events): %s (strategy=%s, confidence=%.2f)",
+                    rule_decision.reason or "rule_engine",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
+                    rule_decision.confidence,
+                )
+            if self.verbose:
+                logger.info(
+                    "Rule decision (streaming): %s (strategy=%s, confidence=%.2f)",
+                    rule_decision.reason or "rule_engine",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
+                    rule_decision.confidence,
+                )
+            if self.verbose:
+                logger.info(
+                    "Rule decision: %s (strategy=%s, confidence=%.2f)",
+                    rule_decision.reason or "rule_engine",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
+                    rule_decision.confidence,
+                )
 
         # Get routing decision (domain-aware)
         # Pass domain context so router can make domain-specific routing decisions
-        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
@@ -951,6 +1211,7 @@ class CascadeAgent:
             "detected_domain": detected_domain,
             "domain_config": domain_config,
             "domain_confidence": domain_confidence,
+            "rule_decision": rule_decision,
             # 🆕 Phase 5: Domain-specific tool models
             "tool_drafter": tool_drafter,
             "tool_verifier": tool_verifier,
@@ -1007,11 +1268,17 @@ class CascadeAgent:
         effective_temperature = temperature
         effective_max_tokens = max_tokens
         effective_threshold = None
+        quality_threshold_override = None
+
+        if rule_decision and rule_decision.quality_threshold is not None:
+            quality_threshold_override = rule_decision.quality_threshold
 
         if domain_config and domain_config.enabled:
             effective_temperature = domain_config.temperature
             effective_max_tokens = domain_config.max_tokens or max_tokens
             effective_threshold = domain_config.threshold
+            # Domain config wins over tier/workflow thresholds
+            quality_threshold_override = None
             if self.verbose:
                 print(
                     f"[Applying domain config: temp={effective_temperature}, "
@@ -1028,7 +1295,9 @@ class CascadeAgent:
                 tools,
                 tool_choice,
                 domain_config=domain_config,  # 🆕 v2.6: Pass domain config
+                quality_threshold_override=quality_threshold_override,
                 messages=normalized_messages,
+                max_steps=max_steps,
                 **kwargs,
             )
             timing_breakdown.update(exec_timing)
@@ -1054,18 +1323,8 @@ class CascadeAgent:
             if hasattr(result, "tool_calls") and result.tool_calls:
                 print(f"[Tool calls: {len(result.tool_calls)}]")
 
-        # Record metrics
-        self.telemetry.record(
-            result=result,
-            routing_strategy=routing_strategy,
-            complexity=complexity.value,
-            timing_breakdown=timing_breakdown,
-            streaming=False,
-            has_tools=bool(tools),
-        )
-
-        # Build result
-        return self._build_cascade_result(
+        # Build result first (contains corrected cost calculations)
+        cascade_result = self._build_cascade_result(
             spec_result=result,
             query=query_text,
             complexity=complexity.value,
@@ -1080,7 +1339,22 @@ class CascadeAgent:
             detected_domain=detected_domain,
             domain_confidence=domain_confidence,
             domain_config=domain_config,
+            rule_decision=rule_decision,
+            tenant_id=tenant_id,
+            channel=channel,
         )
+
+        # Record metrics with corrected cost values from CostCalculator
+        self.telemetry.record(
+            result=cascade_result,
+            routing_strategy=routing_strategy,
+            complexity=complexity.value,
+            timing_breakdown=timing_breakdown,
+            streaming=False,
+            has_tools=bool(tools),
+        )
+
+        return cascade_result
 
     # ========================================================================
     # API 2: STREAMING WITH VISUALS - WITH INTELLIGENT MANAGER SELECTION
@@ -1092,12 +1366,18 @@ class CascadeAgent:
         max_tokens: int = 100,
         temperature: float = 0.7,
         complexity_hint: Optional[str] = None,
-        domain_hint: Optional[str] = None,
         force_direct: bool = False,
         enable_visual: bool = True,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        user_tier: Optional[str] = None,
+        workflow: Optional[str] = None,
+        kpi_flags: Optional[dict[str, Any]] = None,
+        domain_hint: Optional[str] = None,
+        domain_confidence_hint: Optional[float] = None,
+        tenant_id: Optional[str] = None,
+        channel: Optional[str] = None,
         **kwargs,
     ) -> CascadeResult:
         """
@@ -1117,6 +1397,13 @@ class CascadeAgent:
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
             messages: Optional multi-turn messages (role/content)
+            user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
+            workflow: OPTIONAL - Workflow profile name (legacy)
+            kpi_flags: OPTIONAL - KPI routing flags (risk/compliance, etc.)
+            domain_hint: OPTIONAL - Override detected domain (OpenClaw pre-router)
+            domain_confidence_hint: OPTIONAL - Confidence for domain_hint (0-1)
+            tenant_id: OPTIONAL - Tenant identifier for routing overrides
+            channel: OPTIONAL - Logical channel for model routing/failover
             **kwargs: Additional provider parameters
 
         Returns:
@@ -1124,7 +1411,10 @@ class CascadeAgent:
         """
         start_time = time.time()
         timing_breakdown = {}
+        system_prompt = kwargs.pop("system_prompt", None)
+        messages = self._apply_system_prompt(messages, system_prompt)
         query_text, normalized_messages = self._normalize_messages(query, messages)
+        tools = normalize_tools(tools)
 
         # Detect complexity
         complexity_start = time.time()
@@ -1151,7 +1441,9 @@ class CascadeAgent:
             forced = str(domain_hint).strip().lower()
             if forced:
                 detected_domain = forced
-                domain_confidence = 1.0
+                domain_confidence = (
+                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
+                )
                 domain_config = self.domain_configs.get(
                     detected_domain
                 ) or get_builtin_domain_config(detected_domain)
@@ -1173,6 +1465,32 @@ class CascadeAgent:
                 f"[Streaming] Query domain: {detected_domain} (confidence: {domain_confidence:.2f})"
             )
 
+        # Resolve tier/workflow configs for rule engine
+        tier_config = None
+        if user_tier and self.tier_router:
+            tier_config = self.tier_router.get_tier(user_tier)
+            if tier_config is None:
+                logger.warning(
+                    f"Tier '{user_tier}' not found. "
+                    f"Available tiers: {list(self._legacy_tiers.keys()) if self._legacy_tiers else []}. "
+                    f"Ignoring tier parameter."
+                )
+        elif user_tier and not self.tier_router:
+            logger.warning(
+                f"user_tier='{user_tier}' specified but no tiers configured. "
+                f"Ignoring tier parameter. To use tiers, initialize agent with: "
+                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+            )
+
+        workflow_profile = None
+        if workflow and self._legacy_workflows:
+            workflow_profile = self._legacy_workflows.get(workflow)
+            if workflow_profile is None:
+                logger.warning(
+                    f"workflow='{workflow}' specified but not found. "
+                    f"Available workflows: {list(self._legacy_workflows.keys())}"
+                )
+
         # Filter models by tool capability
         available_models = self.models
         tool_drafter = None
@@ -1190,8 +1508,34 @@ class CascadeAgent:
                     domain_config=domain_config, available_models=available_models
                 )
 
+        # Rule engine decision (domain/tiers/KPIs)
+        has_multi_turn = detect_multi_turn(query_text, normalized_messages)
+        rule_decision = None
+        if self.rule_engine:
+            rule_context = RuleContext(
+                query=query_text,
+                complexity=complexity,
+                complexity_confidence=complexity_confidence,
+                detected_domain=detected_domain,
+                domain_confidence=domain_confidence,
+                domain_config=domain_config,
+                has_tools=bool(tools),
+                has_multi_turn=has_multi_turn,
+                has_code=complexity_metadata.get("has_code", False),
+                user_tier=user_tier,
+                tier_config=tier_config,
+                workflow_name=workflow,
+                workflow_profile=workflow_profile,
+                kpi_flags=kpi_flags,
+                tenant_id=tenant_id,
+                channel=channel,
+            )
+            rule_decision = self.rule_engine.decide(rule_context)
+
+        if rule_decision:
+            available_models = self._apply_rule_model_constraints(available_models, rule_decision)
+
         # Get routing decision (domain-aware routing for streaming)
-        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
@@ -1204,6 +1548,7 @@ class CascadeAgent:
             "detected_domain": detected_domain,
             "domain_config": domain_config,
             "domain_confidence": domain_confidence,
+            "rule_decision": rule_decision,
             # 🆕 Phase 5: Domain-specific tool models
             "tool_drafter": tool_drafter,
             "tool_verifier": tool_verifier,
@@ -1295,6 +1640,9 @@ class CascadeAgent:
             timing_breakdown=timing_breakdown,
             tools=tools,
             streaming=True,
+            rule_decision=rule_decision,
+            tenant_id=tenant_id,
+            channel=channel,
         )
 
     # ========================================================================
@@ -1307,11 +1655,17 @@ class CascadeAgent:
         max_tokens: int = 100,
         temperature: float = 0.7,
         complexity_hint: Optional[str] = None,
-        domain_hint: Optional[str] = None,
         force_direct: bool = False,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        user_tier: Optional[str] = None,
+        workflow: Optional[str] = None,
+        kpi_flags: Optional[dict[str, Any]] = None,
+        domain_hint: Optional[str] = None,
+        domain_confidence_hint: Optional[float] = None,
+        tenant_id: Optional[str] = None,
+        channel: Optional[str] = None,
         **kwargs,
     ) -> AsyncIterator[StreamEvent]:
         """
@@ -1328,13 +1682,23 @@ class CascadeAgent:
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
             messages: Optional multi-turn messages (role/content)
+            user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
+            workflow: OPTIONAL - Workflow profile name (legacy)
+            kpi_flags: OPTIONAL - KPI routing flags (risk/compliance, etc.)
+            domain_hint: OPTIONAL - Override detected domain (OpenClaw pre-router)
+            domain_confidence_hint: OPTIONAL - Confidence for domain_hint (0-1)
+            tenant_id: OPTIONAL - Tenant identifier for routing overrides
+            channel: OPTIONAL - Logical channel for model routing/failover
             **kwargs: Additional provider parameters
 
         Yields:
             StreamEvent objects with type, content, and data
         """
         # Detect complexity
+        system_prompt = kwargs.pop("system_prompt", None)
+        messages = self._apply_system_prompt(messages, system_prompt)
         query_text, normalized_messages = self._normalize_messages(query, messages)
+        tools = normalize_tools(tools)
         complexity_metadata = {}
         if complexity_hint:
             try:
@@ -1358,7 +1722,9 @@ class CascadeAgent:
             forced = str(domain_hint).strip().lower()
             if forced:
                 detected_domain = forced
-                domain_confidence = 1.0
+                domain_confidence = (
+                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
+                )
                 domain_config = self.domain_configs.get(
                     detected_domain
                 ) or get_builtin_domain_config(detected_domain)
@@ -1378,6 +1744,32 @@ class CascadeAgent:
                 f"(confidence: {domain_confidence:.2f})"
             )
 
+        # Resolve tier/workflow configs for rule engine
+        tier_config = None
+        if user_tier and self.tier_router:
+            tier_config = self.tier_router.get_tier(user_tier)
+            if tier_config is None:
+                logger.warning(
+                    f"Tier '{user_tier}' not found. "
+                    f"Available tiers: {list(self._legacy_tiers.keys()) if self._legacy_tiers else []}. "
+                    f"Ignoring tier parameter."
+                )
+        elif user_tier and not self.tier_router:
+            logger.warning(
+                f"user_tier='{user_tier}' specified but no tiers configured. "
+                f"Ignoring tier parameter. To use tiers, initialize agent with: "
+                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+            )
+
+        workflow_profile = None
+        if workflow and self._legacy_workflows:
+            workflow_profile = self._legacy_workflows.get(workflow)
+            if workflow_profile is None:
+                logger.warning(
+                    f"workflow='{workflow}' specified but not found. "
+                    f"Available workflows: {list(self._legacy_workflows.keys())}"
+                )
+
         # Filter models by tool capability
         available_models = self.models
         tool_drafter = None
@@ -1395,8 +1787,34 @@ class CascadeAgent:
                     domain_config=domain_config, available_models=available_models
                 )
 
+        # Rule engine decision (domain/tiers/KPIs)
+        has_multi_turn = detect_multi_turn(query_text, normalized_messages)
+        rule_decision = None
+        if self.rule_engine:
+            rule_context = RuleContext(
+                query=query_text,
+                complexity=complexity,
+                complexity_confidence=complexity_confidence,
+                detected_domain=detected_domain,
+                domain_confidence=domain_confidence,
+                domain_config=domain_config,
+                has_tools=bool(tools),
+                has_multi_turn=has_multi_turn,
+                has_code=complexity_metadata.get("has_code", False),
+                user_tier=user_tier,
+                tier_config=tier_config,
+                workflow_name=workflow,
+                workflow_profile=workflow_profile,
+                kpi_flags=kpi_flags,
+                tenant_id=tenant_id,
+                channel=channel,
+            )
+            rule_decision = self.rule_engine.decide(rule_context)
+
+        if rule_decision:
+            available_models = self._apply_rule_model_constraints(available_models, rule_decision)
+
         # Get routing decision (domain-aware routing for stream_events)
-        has_multi_turn = bool(normalized_messages and len(normalized_messages) > 1)
         routing_context = {
             "complexity": complexity,
             "complexity_confidence": complexity_confidence,
@@ -1409,6 +1827,7 @@ class CascadeAgent:
             "detected_domain": detected_domain,
             "domain_config": domain_config,
             "domain_confidence": domain_confidence,
+            "rule_decision": rule_decision,
             # 🆕 Phase 5: Domain-specific tool models
             "tool_drafter": tool_drafter,
             "tool_verifier": tool_verifier,
@@ -1606,7 +2025,9 @@ class CascadeAgent:
         tools,
         tool_choice,
         domain_config: Optional[DomainConfig] = None,
+        quality_threshold_override: Optional[float] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        max_steps: int = 5,
         **kwargs,
     ):
         """
@@ -1655,9 +2076,13 @@ class CascadeAgent:
 
         cascade_start = time.time()
 
-        # 🆕 v2.6: Pass domain-specific quality threshold if configured
+        # 🆕 v2.6: Pass domain-specific or rule-based quality threshold if configured
         cascade_kwargs = dict(kwargs)
-        if domain_config and domain_config.threshold:
+        if quality_threshold_override is not None:
+            cascade_kwargs["quality_threshold"] = quality_threshold_override
+            if self.verbose:
+                logger.info(f"Using rule-based quality threshold: {quality_threshold_override}")
+        elif domain_config and domain_config.threshold:
             cascade_kwargs["quality_threshold"] = domain_config.threshold
             if self.verbose:
                 logger.info(f"Using domain-specific quality threshold: {domain_config.threshold}")
@@ -1706,6 +2131,7 @@ class CascadeAgent:
         tools,
         tool_choice,
         messages: Optional[list[dict[str, Any]]] = None,
+        max_steps: int = 5,
         **kwargs,
     ):
         """Execute direct routing with detailed timing and tool support."""
@@ -1722,17 +2148,44 @@ class CascadeAgent:
             logger.info(f"Tool calling enabled with {len(tools)} tools")
 
         direct_start = time.time()
+        transcript: list[dict[str, Any]] = []
         if tools and hasattr(provider, "complete_with_tools"):
-            tool_messages = messages or [{"role": "user", "content": query}]
-            response = await provider.complete_with_tools(
-                messages=tool_messages,
-                tools=tools,
-                tool_choice=tool_choice,
-                model=best_model.name,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs,
-            )
+            tool_messages = list(messages or [{"role": "user", "content": query}])
+            response = None
+            for step in range(max_steps):
+                response = await provider.complete_with_tools(
+                    messages=tool_messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    model=best_model.name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    **kwargs,
+                )
+                step_usage = self.pricing_resolver.extract_usage(response)
+                tool_calls_found = getattr(response, "tool_calls", None) or []
+                transcript.append(
+                    {
+                        "step": step + 1,
+                        "role": "assistant",
+                        "content": response.content,
+                        "tool_calls": tool_calls_found,
+                        "usage": step_usage.to_dict(),
+                    }
+                )
+                if not tool_calls_found:
+                    break
+                tool_results = await self._execute_tool_calls_parallel(tool_calls_found)
+                for tool_result in tool_results:
+                    tool_messages.append({"role": "tool", **tool_result})
+                transcript.append(
+                    {
+                        "step": step + 1,
+                        "role": "tool",
+                        "tool_results": tool_results,
+                    }
+                )
+            assert response is not None
         else:
             prompt = messages_to_prompt(messages) if messages else query
             response = await provider.complete(
@@ -1746,8 +2199,14 @@ class CascadeAgent:
             )
         direct_latency = (time.time() - direct_start) * 1000
 
-        tokens_used = response.tokens_used if hasattr(response, "tokens_used") else max_tokens
-        cost = best_model.cost * (tokens_used / 1000)
+        usage = self.pricing_resolver.extract_usage(response)
+        provider_cost = getattr(response, "cost", None)
+        cost = self.pricing_resolver.resolve_cost(
+            model=best_model.name,
+            usage=usage,
+            provider_cost=provider_cost,
+            fallback_rate_per_1k=best_model.cost,
+        )
 
         result = self._create_direct_result(
             response.content,
@@ -1756,6 +2215,8 @@ class CascadeAgent:
             direct_latency,
             reason,
             tool_calls=getattr(response, "tool_calls", None),
+            usage=usage,
+            transcript=transcript,
         )
 
         timing = {
@@ -1911,6 +2372,9 @@ class CascadeAgent:
         detected_domain: Optional[str] = None,
         domain_confidence: float = 0.0,
         domain_config: Optional[DomainConfig] = None,
+        rule_decision: Optional["RuleDecision"] = None,
+        tenant_id: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> CascadeResult:
         """
         Build comprehensive cascade result with ALL diagnostic metadata and tool calls.
@@ -2086,6 +2550,24 @@ class CascadeAgent:
             "domain_drafter": domain_config.drafter if domain_config else None,
             "domain_verifier": domain_config.verifier if domain_config else None,
             "domain_threshold": domain_config.threshold if domain_config else None,
+            # 🆕 v2.8: Rule engine trace info
+            "rule_strategy": (
+                rule_decision.routing_strategy.value
+                if rule_decision and rule_decision.routing_strategy
+                else None
+            ),
+            "rule_reason": rule_decision.reason if rule_decision else None,
+            "rule_confidence": rule_decision.confidence if rule_decision else None,
+            "rule_metadata": rule_decision.metadata if rule_decision else None,
+            "rule_allowed_models": rule_decision.allowed_models if rule_decision else None,
+            "rule_excluded_models": rule_decision.excluded_models if rule_decision else None,
+            "rule_preferred_models": rule_decision.preferred_models if rule_decision else None,
+            "rule_forced_models": rule_decision.forced_models if rule_decision else None,
+            "rule_quality_threshold": rule_decision.quality_threshold if rule_decision else None,
+            "rule_max_budget": rule_decision.max_budget if rule_decision else None,
+            "rule_failover_channel": rule_decision.failover_channel if rule_decision else None,
+            "tenant_id": tenant_id,
+            "channel": channel,
             # Original fields
             "routing_strategy": routing_strategy,
             "routing_reason": routing_reason,
@@ -2117,6 +2599,10 @@ class CascadeAgent:
 
         # Copy token counts from provider response if available (for LiteLLM integration)
         if hasattr(spec_result, "metadata") and spec_result.metadata:
+            if "usage" in spec_result.metadata:
+                metadata["usage"] = spec_result.metadata["usage"]
+            if "transcript" in spec_result.metadata:
+                metadata["transcript"] = spec_result.metadata["transcript"]
             if "prompt_tokens" in spec_result.metadata:
                 metadata["prompt_tokens"] = spec_result.metadata["prompt_tokens"]
             if "completion_tokens" in spec_result.metadata:
@@ -2188,7 +2674,17 @@ class CascadeAgent:
     # HELPER METHODS - WITH TOOL SUPPORT
     # ========================================================================
 
-    def _create_direct_result(self, content, model, cost, latency, reason, tool_calls=None):
+    def _create_direct_result(
+        self,
+        content,
+        model,
+        cost,
+        latency,
+        reason,
+        tool_calls=None,
+        usage: Optional[Usage] = None,
+        transcript: Optional[list[dict[str, Any]]] = None,
+    ):
         """
         Create result object for direct routing with tool support.
 
@@ -2198,13 +2694,24 @@ class CascadeAgent:
         class DirectResult:
             """Mimics cascade results for telemetry compatibility."""
 
-            def __init__(self, content, model, cost, latency, reason, tool_calls=None):
+            def __init__(
+                self,
+                content,
+                model,
+                cost,
+                latency,
+                reason,
+                tool_calls=None,
+                usage: Optional[Usage] = None,
+                transcript: Optional[list[dict[str, Any]]] = None,
+            ):
                 # Core attributes
                 self.content = content
                 self.model_used = model
                 self.total_cost = cost
                 self.latency_ms = latency
                 self.tool_calls = tool_calls
+                self.usage = usage or Usage()
 
                 # Cascade attributes
                 self.draft_accepted = False
@@ -2240,14 +2747,16 @@ class CascadeAgent:
                     "quality_threshold": None,
                     "quality_check_passed": None,
                     "rejection_reason": None,
-                    "tokens_generated": int(len(content.split()) * 1.3),
-                    "total_tokens": int(len(content.split()) * 1.3),
+                    "tokens_generated": self.usage.output_tokens,
+                    "total_tokens": self.usage.total_tokens,
+                    "usage": self.usage.to_dict(),
                     "draft_tokens": 0,
-                    "verifier_tokens": int(len(content.split()) * 1.3),
+                    "verifier_tokens": self.usage.total_tokens,
                     "draft_model": None,
                     "verifier_model": model,
                     "tool_calls": tool_calls,
                     "has_tool_calls": bool(tool_calls),
+                    "transcript": transcript or [],
                 }
 
             def __repr__(self):
@@ -2272,7 +2781,7 @@ class CascadeAgent:
                     "metadata": self.metadata,
                 }
 
-        return DirectResult(content, model, cost, latency, reason, tool_calls)
+        return DirectResult(content, model, cost, latency, reason, tool_calls, usage, transcript)
 
     def _dict_to_result(self, data):
         """Convert dict to result object."""

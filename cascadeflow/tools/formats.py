@@ -6,7 +6,7 @@ Handles conversion between different provider tool formats.
 
 import logging
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,65 @@ def to_provider_format(
         # Default to OpenAI format (most common)
         logger.warning(f"Unknown provider '{provider}', using OpenAI format")
         return to_openai_format(name, description, parameters)
+
+
+def normalize_tools(
+    tools: Optional[list[dict[str, Any]]],
+) -> Optional[list[dict[str, Any]]]:
+    """
+    Normalize tool schemas to universal format.
+
+    Supports:
+    - Universal format: {"name","description","parameters"}
+    - OpenAI format: {"type":"function","function":{...}}
+    - Anthropic format: {"name","description","input_schema"}
+    """
+    if not tools:
+        return tools
+
+    normalized: list[dict[str, Any]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            logger.warning("Skipping non-dict tool schema: %s", tool)
+            continue
+
+        if "name" in tool and "parameters" in tool:
+            normalized.append(tool)
+            continue
+
+        if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+            func = tool["function"]
+            name = func.get("name") or tool.get("name")
+            if not name:
+                logger.warning("Skipping tool without name in OpenAI format: %s", tool)
+                continue
+            normalized.append(
+                {
+                    "name": name,
+                    "description": func.get("description") or tool.get("description") or "",
+                    "parameters": func.get("parameters") or func.get("input_schema") or {},
+                }
+            )
+            continue
+
+        if "input_schema" in tool:
+            name = tool.get("name")
+            if not name:
+                logger.warning("Skipping tool without name in Anthropic format: %s", tool)
+                continue
+            normalized.append(
+                {
+                    "name": name,
+                    "description": tool.get("description") or "",
+                    "parameters": tool.get("input_schema") or {},
+                }
+            )
+            continue
+
+        logger.warning("Unrecognized tool schema format, keeping as-is: %s", tool)
+        normalized.append(tool)
+
+    return normalized
 
 
 def get_provider_format_type(provider: str) -> ToolCallFormat:

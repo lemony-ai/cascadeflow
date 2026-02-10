@@ -1,0 +1,173 @@
+# CascadeFlow Config: Mixed Anthropic/OpenAI with Full Domain Routing
+# FIXED: Tool routing, medical threshold, reasoning domain
+
+models:
+  # OpenAI Models
+  - name: gpt-4o-mini
+    provider: openai
+    cost: 0.00015
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: gpt-4o
+    provider: openai
+    cost: 0.005
+    supports_tools: true
+    max_tokens: 8192
+
+  # Anthropic Models
+  - name: claude-3-5-haiku-20241022
+    provider: anthropic
+    cost: 0.001
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: claude-sonnet-4-20250514
+    provider: anthropic
+    cost: 0.003
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-opus-4-5-20251101
+    provider: anthropic
+    cost: 0.015
+    supports_tools: true
+    max_tokens: 8192
+
+# Domain-specific routing
+domains:
+  # General queries - fast draft, good verifier
+  general:
+    drafter: gpt-4o-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.55
+    temperature: 0.7
+
+  # Tool calls - OpenAI is best for tools (FIX #1)
+  tools:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.50
+    temperature: 0.3
+    cascade_complexities: ["trivial", "simple", "moderate", "hard"]
+
+  # Code - OpenAI excels at code
+  code:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.60
+    temperature: 0.2
+    cascade_complexities: ["trivial", "simple", "moderate"]
+
+  # Conversation - Claude is more natural
+  conversation:
+    drafter: claude-3-5-haiku-20241022
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.50
+    temperature: 0.8
+
+  # Medical - FIXED: lowered from 0.95 to 0.85 (FIX #2)
+  medical:
+    drafter: gpt-4o-mini
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.85
+    temperature: 0.3
+
+  # Legal - requires precision
+  legal:
+    drafter: gpt-4o-mini
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.85
+    temperature: 0.3
+
+  # Finance - accuracy critical
+  finance:
+    drafter: gpt-4o-mini
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.80
+    temperature: 0.4
+
+  # Creative writing - Claude excels
+  creative:
+    drafter: claude-3-5-haiku-20241022
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.45
+    temperature: 0.9
+
+  # Technical/scientific
+  technical:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.65
+    temperature: 0.4
+
+  # Research/analysis
+  research:
+    drafter: gpt-4o-mini
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.60
+    temperature: 0.5
+
+  # Summarization - fast is fine
+  summarization:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o-mini
+    threshold: 0.40
+    temperature: 0.5
+
+  # Math/reasoning - FIXED: explicit domain (FIX #3)
+  math:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.70
+    temperature: 0.2
+
+  # Reasoning/logic - FIXED: new explicit domain (FIX #3)
+  reasoning:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.65
+    temperature: 0.3
+
+  # Translation
+  translation:
+    drafter: claude-3-5-haiku-20241022
+    verifier: claude-sonnet-4-20250514
+    threshold: 0.55
+    temperature: 0.3
+
+  # RAG/retrieval - route to tools (FIX #1)
+  rag:
+    drafter: gpt-4o-mini
+    verifier: gpt-4o
+    threshold: 0.50
+    temperature: 0.3
+
+# Channel-specific defaults
+channels:
+  heartbeat: gpt-4o-mini
+  cron: gpt-4o-mini
+  brain: claude-sonnet-4-20250514
+  coding: gpt-4o
+  image_understanding: gpt-4o
+
+# Tool routing rules (FIX #1)
+tool_routing:
+  # When tools are provided, use tools domain
+  force_domain_on_tools: tools
+  # Tool-specific overrides
+  tool_domains:
+    web_search: tools
+    get_weather: tools
+    calculator: math
+
+settings:
+  enable_cascade: true
+  enable_domain_detection: true
+  verbose: true
+  default_drafter: gpt-4o-mini
+  default_verifier: claude-sonnet-4-20250514
+  max_retries: 2
+  quality_threshold: 0.55
+  # FIX: Force tools domain when tools are present
+  tools_force_domain: true

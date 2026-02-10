@@ -6,7 +6,7 @@ Provides routing strategies for deciding how to execute queries:
 - ConditionalRouter: Custom condition-based routing
 - ToolRouter: Tool capability filtering (Phase 3) ← EXISTING
 - ComplexityRouter: Tool complexity routing (Phase 4) ← EXISTING
-- DomainDetector: 15-domain detection for intelligent routing (Phase 3.2) ← NEW
+- DomainDetector: 17-domain detection for intelligent routing (Phase 3.2) ← NEW
 - RouterChain: Chain multiple routers
 
 Architecture Evolution:
@@ -22,7 +22,7 @@ Phase 4 (Tool Complexity Routing):
     ToolRouter             → Still filters by capability (unchanged)
 
 Phase 3.2 (Domain Detection):
-    DomainDetector → 15-domain classification with 4-tier keyword weighting
+    DomainDetector → 17-domain classification with 4-tier keyword weighting
     Domain         → Enum for 15 production domains (CODE, DATA, STRUCTURED, etc.)
 
 The separation keeps each router focused on one responsibility:

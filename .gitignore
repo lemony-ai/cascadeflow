@@ -16,6 +16,8 @@ dist/
 # VIRTUAL ENVIRONMENTS
 # ============================================================================
 .venv/
+.venv-base/
+.venv-ci311/
 venv/
 env/
 ENV/
@@ -290,6 +292,11 @@ test_all_*.py
 test_semantic_*.py
 test_milestone*.py
 comprehensive_test.py
+
+# Local demos and packaged artifacts (keep out of main)
+investor-demo/
+investor-demo-claude/
+investor-demo-codex/
 
 # ============================================================================
 # BENCHMARK RESULTS (keep scripts, ignore outputs)
