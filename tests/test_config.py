@@ -10,7 +10,6 @@ Tests:
 """
 
 import pytest
-
 from cascadeflow.config import (
     DEFAULT_TIERS,
     EXAMPLE_WORKFLOWS,

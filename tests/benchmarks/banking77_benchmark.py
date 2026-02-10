@@ -26,8 +26,9 @@ import asyncio
 import os
 from typing import Any, Optional
 
-from cascadeflow.agent import CascadeAgent
 from cascadeflow.config import ModelConfig
+
+from cascadeflow.agent import CascadeAgent
 from cascadeflow.quality import QualityConfig
 
 from .base import Benchmark, BenchmarkResult, BenchmarkSummary

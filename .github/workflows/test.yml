@@ -172,7 +172,8 @@ jobs:
           # Pin Black to the last version that supports Python 3.9.
           # The repo supports Python >=3.9, and newer Black releases may format
           # differently (or drop 3.9), causing CI-only formatting failures.
-          pip install "black==25.11.0" ruff mypy types-PyYAML
+          # Pin Ruff to avoid CI-only lint drift as Ruff evolves.
+          pip install "black==25.11.0" "ruff==0.15.0" mypy types-PyYAML
 
       - name: Check formatting with Black
         run: black --check cascadeflow tests examples
