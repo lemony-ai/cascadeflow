@@ -13,6 +13,7 @@ Welcome to cascadeflow documentation! 🌊
 - [Quickstart](guides/quickstart.md) - Get started with cascadeflow in 5 minutes
 - [Providers](guides/providers.md) - Configure and use different AI providers (OpenAI, Anthropic, Groq, Ollama, etc.)
 - [Presets](guides/presets.md) - Use built-in presets for common use cases
+- [Gateway Server](guides/gateway.md) - Drop-in OpenAI/Anthropic-compatible endpoint for existing apps
 
 ### Core Features
 - [Streaming](guides/streaming.md) - Stream responses from cascade agents

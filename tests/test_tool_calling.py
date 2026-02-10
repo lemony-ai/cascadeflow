@@ -23,7 +23,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from cascadeflow.exceptions import ModelError, ProviderError
-
 from cascadeflow.providers.openai import OpenAIProvider
 
 # ============================================================================

@@ -55,6 +55,9 @@ docs/*_PLAN*.md
 docs/*_ROADMAP*.md
 **/INTERNAL_*.md
 
+# Research notes (local only, not for GitHub)
+docs/research/
+
 # One-off internal investigations / benchmark notes (keep local)
 dx-plan-*.md
 evaluation-*.md

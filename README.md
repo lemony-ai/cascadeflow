@@ -139,6 +139,17 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 
 ## Quick Start
 
+### Drop-In Gateway (Existing Apps)
+
+If you already have an app using the OpenAI or Anthropic APIs and want the fastest integration,
+run the gateway and point your existing client at it:
+
+```bash
+python -m cascadeflow.server --mode auto --port 8084
+```
+
+Docs: `docs/guides/gateway.md`
+
 ### <img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> Python
 
 ```python

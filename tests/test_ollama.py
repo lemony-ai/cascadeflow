@@ -3,8 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from cascadeflow.exceptions import ModelError, ProviderError
 
+from cascadeflow.exceptions import ModelError, ProviderError
 from cascadeflow.providers.base import ModelResponse
 from cascadeflow.providers.ollama import OllamaProvider
 

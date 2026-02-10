@@ -1008,14 +1008,17 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None
 
         if domain_hint:
-            detected_domain = domain_hint
-            domain_confidence = (
-                domain_confidence_hint if domain_confidence_hint is not None else 1.0
-            )
-            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
-                detected_domain
-            )
-            timing_breakdown["domain_detection"] = 0.0
+            forced = str(domain_hint).strip().lower()
+            if forced:
+                detected_domain = forced
+                domain_confidence = (
+                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
+                )
+                domain_config = self.domain_configs.get(
+                    detected_domain
+                ) or get_builtin_domain_config(detected_domain)
+                timing_breakdown["domain_detection"] = 0.0
+                logger.info(f"Query domain: {detected_domain} (forced)")
         elif self.domain_detector and self.enable_domain_detection:
             domain_start = time.time()
             domain_result = self.domain_detector.detect_with_scores(query_text)
@@ -1435,14 +1438,17 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None
 
         if domain_hint:
-            detected_domain = domain_hint
-            domain_confidence = (
-                domain_confidence_hint if domain_confidence_hint is not None else 1.0
-            )
-            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
-                detected_domain
-            )
-            timing_breakdown["domain_detection"] = 0.0
+            forced = str(domain_hint).strip().lower()
+            if forced:
+                detected_domain = forced
+                domain_confidence = (
+                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
+                )
+                domain_config = self.domain_configs.get(
+                    detected_domain
+                ) or get_builtin_domain_config(detected_domain)
+                timing_breakdown["domain_detection"] = 0.0
+                logger.info(f"[Streaming] Query domain: {detected_domain} (forced)")
         elif self.domain_detector and self.enable_domain_detection:
             domain_start = time.time()
             domain_result = self.domain_detector.detect_with_scores(query_text)
@@ -1713,13 +1719,16 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None
 
         if domain_hint:
-            detected_domain = domain_hint
-            domain_confidence = (
-                domain_confidence_hint if domain_confidence_hint is not None else 1.0
-            )
-            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
-                detected_domain
-            )
+            forced = str(domain_hint).strip().lower()
+            if forced:
+                detected_domain = forced
+                domain_confidence = (
+                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
+                )
+                domain_config = self.domain_configs.get(
+                    detected_domain
+                ) or get_builtin_domain_config(detected_domain)
+                logger.info(f"[stream_events] Query domain: {detected_domain} (forced)")
         elif self.domain_detector and self.enable_domain_detection:
             domain_result = self.domain_detector.detect_with_scores(query_text)
             detected_domain = domain_result.domain.value
@@ -2435,6 +2444,29 @@ class CascadeAgent:
                 )
             draft_accepted_value = quality_check_passed
 
+        # Some provider integrations can yield an empty verifier response while still returning
+        # draft/verifier text in metadata. Prefer a non-empty response for client-facing content.
+        final_content_source = "result"
+        final_content = getattr(spec_result, "content", "") or ""
+        if not isinstance(final_content, str):
+            final_content = str(final_content)
+
+        if not final_content.strip():
+            if use_cascade and not draft_accepted_value:
+                preferred = [("verifier", verifier_response), ("draft", draft_response)]
+            else:
+                preferred = [("draft", draft_response), ("verifier", verifier_response)]
+
+            for label, candidate in preferred:
+                if isinstance(candidate, str) and candidate.strip():
+                    final_content_source = label
+                    final_content = candidate
+                    break
+
+            # Keep response_length/word_count consistent with what we actually return.
+            response_length = len(final_content)
+            response_word_count = len(final_content.split())
+
         if use_cascade:
             metadata_costs = None
             if hasattr(spec_result, "metadata") and spec_result.metadata:
@@ -2579,6 +2611,7 @@ class CascadeAgent:
             "has_tools": bool(tools),
             "tool_count": len(tools) if tools else 0,
             "tool_calls": tool_calls,
+            "final_content_source": final_content_source,
         }
 
         # Copy token counts from provider response if available (for LiteLLM integration)
@@ -2614,7 +2647,7 @@ class CascadeAgent:
             metadata["direct_model"] = spec_result.model_used
 
         return CascadeResult(
-            content=spec_result.content,
+            content=final_content,
             model_used=spec_result.model_used,
             total_cost=total_cost,  # ✅ v2.5 FIX: Properly aggregated!
             latency_ms=total_latency_ms,

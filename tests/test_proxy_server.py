@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -31,8 +33,11 @@ def test_openai_request(proxy_server):
         "messages": [{"role": "user", "content": "Hello world"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
+    assert response.headers.get("X-Cascadeflow-Gateway") == "cascadeflow"
+    assert response.headers.get("X-Cascadeflow-Gateway-API") == "openai"
+    assert response.headers.get("X-Cascadeflow-Gateway-Endpoint") == "chat.completions"
 
     data = response.json()
     assert data["model"] == proxy.config.virtual_models["cascadeflow-auto"]
@@ -51,7 +56,7 @@ def test_openai_streaming(proxy_server):
         "stream": True,
     }
 
-    with httpx.stream("POST", url, json=payload, timeout=5.0) as response:
+    with httpx.stream("POST", url, json=payload, timeout=5.0, trust_env=False) as response:
         assert response.status_code == 200
         lines = _get_lines(response)
 
@@ -68,7 +73,7 @@ def test_anthropic_request(proxy_server):
         "messages": [{"role": "user", "content": "Hello from Anthropic"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
 
     data = response.json()
@@ -88,7 +93,7 @@ def test_anthropic_streaming(proxy_server):
         "stream": True,
     }
 
-    with httpx.stream("POST", url, json=payload, timeout=5.0) as response:
+    with httpx.stream("POST", url, json=payload, timeout=5.0, trust_env=False) as response:
         assert response.status_code == 200
         lines = _get_lines(response)
 
@@ -102,7 +107,7 @@ def test_error_handling(proxy_server):
     url = f"http://{proxy.host}:{proxy.port}/v1/chat/completions"
     payload = {"messages": [{"role": "user", "content": "Missing model"}]}
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 400
     data = response.json()
     assert data["error"]["type"] == "invalid_request_error"
@@ -116,7 +121,7 @@ def test_cascade_behavior(proxy_server):
         "messages": [{"role": "user", "content": "This is a hard question"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
     data = response.json()
     assert data["cascadeflow"]["draft_accepted"] is False
@@ -130,8 +135,85 @@ def test_virtual_model_names(proxy_server):
         "messages": [{"role": "user", "content": "Test virtual model mapping"}],
     }
 
-    response = httpx.post(url, json=payload, timeout=5.0)
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
     data = response.json()
     assert data["cascadeflow"]["virtual_model"] == "cascadeflow-fast"
     assert data["cascadeflow"]["resolved_model"] == proxy.config.virtual_models["cascadeflow-fast"]
+
+
+def test_models_list(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/models"
+    response = httpx.get(url, timeout=5.0, trust_env=False)
+    assert response.status_code == 200
+    assert response.headers.get("X-Cascadeflow-Gateway-Endpoint") == "models.list"
+
+    data = response.json()
+    assert data["object"] == "list"
+    ids = {item["id"] for item in data["data"]}
+    assert "cascadeflow" in ids
+    assert "cascadeflow-auto" in ids
+
+
+def test_openai_legacy_completions(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/completions"
+    payload = {"model": "cascadeflow-auto", "prompt": "Hello legacy completions"}
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["object"] == "text_completion"
+    assert data["choices"][0]["text"]
+
+
+def test_openai_embeddings(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/embeddings"
+    payload = {"model": "cascadeflow", "input": "hello embeddings"}
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["object"] == "list"
+    assert data["data"]
+    assert isinstance(data["data"][0]["embedding"], list)
+    assert len(data["data"][0]["embedding"]) == 384
+
+
+def test_openai_base_url_without_v1(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/chat/completions"
+    payload = {
+        "model": "cascadeflow-auto",
+        "messages": [{"role": "user", "content": "Hello without /v1 base_url"}],
+    }
+
+    response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_concurrent_requests_cost_tracking(proxy_server):
+    proxy, cost_tracker = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/chat/completions"
+
+    async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
+
+        async def _one(i: int) -> float:
+            payload = {
+                "model": "cascadeflow-auto",
+                "messages": [{"role": "user", "content": f"Hello concurrent {i}"}],
+            }
+            resp = await client.post(url, json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            return float(data["cascadeflow"]["cost"])
+
+        n = 40
+        costs = await asyncio.gather(*[_one(i) for i in range(n)])
+
+    assert len(costs) == n
+    assert len(cost_tracker.entries) == n
+    assert cost_tracker.total_cost == pytest.approx(sum(costs), rel=1e-9, abs=1e-9)

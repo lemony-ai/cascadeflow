@@ -54,6 +54,9 @@ dependencies = [
     "rich>=13.0.0",
 ]
 
+[project.scripts]
+cascadeflow-gateway = "cascadeflow.server:main"
+
 [project.optional-dependencies]
 # Individual providers (API-based - require API keys)
 openai = ["openai>=1.0.0"]
@@ -184,8 +187,8 @@ ignore = [
     "B017",  # assert raises
     "B018",  # Useless expression
     "B027",  # Empty method
+    "UP007",  # Use X | Y - not available in Python 3.9 (repo supports >=3.9)
     "UP045", # Use X | None - requires Python 3.10+ without __future__ annotations
-    "UP007", # Use X | Y - not available in Python 3.9 (repo supports >=3.9)
     "UP035",  # typing.Dict -> dict (will migrate gradually)
     "PT011",  # pytest.raises too broad
     "PT017",  # Found assertion on exception
@@ -195,7 +198,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "cascadeflow/integrations/langchain/types.py" = ["A005"]  # Filename is part of LangChain integration surface
 "cascadeflow/integrations/openclaw/openai_server.py" = ["N802"]  # BaseHTTPRequestHandler uses do_GET/do_POST
-"cascadeflow/proxy/server.py" = ["N802"]  # BaseHTTPRequestHandler uses do_POST
+"cascadeflow/proxy/server.py" = ["N802"]  # BaseHTTPRequestHandler uses do_GET/do_POST
 "__init__.py" = ["F401", "E402", "I001"]  # F401: unused imports, E402: imports not at top (needed for backward compat), I001: unsorted imports
 "cascadeflow/core/batch.py" = ["F401"]  # Availability check imports
 "cascadeflow/core/cascade.py" = ["F401"]  # Availability check imports
