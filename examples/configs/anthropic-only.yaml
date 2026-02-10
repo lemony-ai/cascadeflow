@@ -3,13 +3,19 @@
 # 
 # Drafter: Haiku 4.5 (fast, cheap, latest small model)
 # Verifier: Opus 4.5 (highest quality)
-# Heartbeat/Cron: Haiku 3.5 (cheapest, sufficient for simple tasks)
+# Heartbeat/Cron: Haiku 3.5 (cheapest, via channels)
 
 models:
-  # Latest models (2026)
+  # Main models for cascade (sorted by cost - cheapest = drafter)
   - name: claude-haiku-4-5-20251001
     provider: anthropic
-    cost: 0.001
+    cost: 0.0007
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-sonnet-4-20250514
+    provider: anthropic
+    cost: 0.003
     supports_tools: true
     max_tokens: 8192
 
@@ -25,32 +31,19 @@ models:
     supports_tools: true
     max_tokens: 8192
 
-  # Previous generation (still useful)
+  # Haiku 3.5 - ONLY for low-priority channels (heartbeat/cron)
+  # Listed last with low cost so it's available but not default drafter
   - name: claude-3-5-haiku-20241022
     provider: anthropic
     cost: 0.0008
     supports_tools: true
     max_tokens: 4096
 
-  - name: claude-sonnet-4-20250514
-    provider: anthropic
-    cost: 0.003
-    supports_tools: true
-    max_tokens: 8192
-
-  - name: claude-opus-4-20250514
-    provider: anthropic
-    cost: 0.015
-    supports_tools: true
-    max_tokens: 8192
-
 # ═══════════════════════════════════════════════════════════════════
-# DOMAIN ROUTING
-# Each domain specifies drafter → verifier cascade with threshold
+# DOMAIN ROUTING - All use Haiku 4.5 as drafter
 # ═══════════════════════════════════════════════════════════════════
 
 domains:
-  # Simple queries - Haiku 4.5 handles most, Opus 4.5 verifies edge cases
   general:
     drafter: claude-haiku-4-5-20251001
     verifier: claude-opus-4-5-20251101
@@ -58,7 +51,6 @@ domains:
     temperature: 0.7
     validation_method: quality
 
-  # Factual questions - Haiku 4.5 good for facts, Opus 4.5 for nuance
   factual:
     drafter: claude-haiku-4-5-20251001
     verifier: claude-opus-4-5-20251101
@@ -66,7 +58,6 @@ domains:
     temperature: 0.3
     validation_method: quality
 
-  # Math - Haiku 4.5 handles arithmetic, Opus 4.5 for complex math
   math:
     drafter: claude-haiku-4-5-20251001
     verifier: claude-opus-4-5-20251101
@@ -74,7 +65,6 @@ domains:
     temperature: 0.1
     validation_method: quality
 
-  # Conversation - Haiku 4.5 for chat, Sonnet 4.5 for nuanced replies
   conversation:
     drafter: claude-haiku-4-5-20251001
     verifier: claude-sonnet-4-5-20250929
@@ -82,7 +72,6 @@ domains:
     temperature: 0.8
     validation_method: quality
 
-  # Comparison/analysis - Haiku 4.5 drafts, Opus 4.5 verifies
   comparison:
     drafter: claude-haiku-4-5-20251001
     verifier: claude-opus-4-5-20251101
@@ -90,7 +79,6 @@ domains:
     temperature: 0.5
     validation_method: quality
 
-  # Code - Sonnet 4 for speed, Opus 4.5 for correctness
   code:
     drafter: claude-sonnet-4-20250514
     verifier: claude-opus-4-5-20251101
@@ -98,7 +86,6 @@ domains:
     temperature: 0.2
     validation_method: syntax
 
-  # Complex reasoning - Sonnet 4.5 drafts, Opus 4.5 verifies
   reasoning:
     drafter: claude-sonnet-4-5-20250929
     verifier: claude-opus-4-5-20251101
@@ -106,7 +93,6 @@ domains:
     temperature: 0.3
     validation_method: quality
 
-  # Creative writing - Sonnet 4 for variety, Opus 4.5 for polish
   creative:
     drafter: claude-sonnet-4-20250514
     verifier: claude-opus-4-5-20251101
@@ -114,7 +100,6 @@ domains:
     temperature: 0.9
     validation_method: quality
 
-  # Summarization - Haiku 4.5 fast summaries, Sonnet 4.5 for long docs
   summarization:
     drafter: claude-haiku-4-5-20251001
     verifier: claude-sonnet-4-5-20250929
@@ -122,7 +107,6 @@ domains:
     temperature: 0.5
     validation_method: quality
 
-  # Translation - Haiku 4.5 for common langs, Opus 4.5 for nuance
   translation:
     drafter: claude-haiku-4-5-20251001
     verifier: claude-opus-4-5-20251101
@@ -131,22 +115,23 @@ domains:
     validation_method: quality
 
 # ═══════════════════════════════════════════════════════════════════
-# CHANNEL ROUTING (Direct model selection, no cascade)
+# CHANNEL ROUTING - Direct model selection, no cascade
+# Haiku 3.5 for low-priority, Haiku 4.5 for interactive
 # ═══════════════════════════════════════════════════════════════════
 
 channels:
-  # Background/low-priority - use cheapest Haiku 3.5
+  # Low-priority - cheapest Haiku 3.5
   heartbeat: claude-3-5-haiku-20241022
   cron: claude-3-5-haiku-20241022
   
-  # Content processing - Haiku 4.5 for speed
+  # Interactive - Haiku 4.5
   content: claude-haiku-4-5-20251001
   web_search: claude-haiku-4-5-20251001
   
-  # Code tasks - Sonnet 4 for balance
+  # Code tasks - Sonnet 4
   coding: claude-sonnet-4-20250514
   
-  # High-quality tasks - Opus 4.5
+  # High-quality - Opus 4.5
   voice: claude-opus-4-5-20251101
   image_understanding: claude-opus-4-5-20251101
   brain: claude-opus-4-5-20251101
@@ -155,10 +140,6 @@ channel_failover:
   heartbeat: cron
   cron: content
   coding: brain
-
-# ═══════════════════════════════════════════════════════════════════
-# SETTINGS
-# ═══════════════════════════════════════════════════════════════════
 
 settings:
   enable_cascade: true
