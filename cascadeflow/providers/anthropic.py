@@ -923,9 +923,19 @@ class AnthropicProvider(BaseProvider):
                 else None
             )
 
-            # Extract response (Anthropic format)
-            text_blocks = [block for block in data["content"] if block.get("type") == "text"]
-            content = text_blocks[0]["text"] if text_blocks else ""
+            # Extract response text from all text blocks.
+            # Some Anthropic responses include multiple text blocks and the first
+            # one may be empty; using only index 0 can silently drop real content.
+            content_blocks = data.get("content", [])
+            text_fragments: list[str] = []
+            for block in content_blocks:
+                block_type = block.get("type")
+                if block_type and block_type != "text":
+                    continue
+                text = block.get("text", "")
+                if text:
+                    text_fragments.append(str(text))
+            content = "".join(text_fragments)
 
             # Anthropic provides token counts in usage
             usage = data.get("usage", {})
