@@ -939,7 +939,9 @@ class CascadeAgent:
 
         if domain_hint:
             detected_domain = domain_hint
-            domain_confidence = domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
             domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
                 detected_domain
             )
@@ -1092,27 +1094,33 @@ class CascadeAgent:
                 logger.info(
                     "Rule decision (stream_events): %s (strategy=%s, confidence=%.2f)",
                     rule_decision.reason or "rule_engine",
-                    rule_decision.routing_strategy.value
-                    if rule_decision.routing_strategy
-                    else "none",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
                     rule_decision.confidence,
                 )
             if self.verbose:
                 logger.info(
                     "Rule decision (streaming): %s (strategy=%s, confidence=%.2f)",
                     rule_decision.reason or "rule_engine",
-                    rule_decision.routing_strategy.value
-                    if rule_decision.routing_strategy
-                    else "none",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
                     rule_decision.confidence,
                 )
             if self.verbose:
                 logger.info(
                     "Rule decision: %s (strategy=%s, confidence=%.2f)",
                     rule_decision.reason or "rule_engine",
-                    rule_decision.routing_strategy.value
-                    if rule_decision.routing_strategy
-                    else "none",
+                    (
+                        rule_decision.routing_strategy.value
+                        if rule_decision.routing_strategy
+                        else "none"
+                    ),
                     rule_decision.confidence,
                 )
 
@@ -1271,6 +1279,7 @@ class CascadeAgent:
             timing_breakdown=timing_breakdown,
             streaming=False,
             has_tools=bool(tools),
+            domain=detected_domain,
         )
 
         return cascade_result
@@ -1358,7 +1367,9 @@ class CascadeAgent:
 
         if domain_hint:
             detected_domain = domain_hint
-            domain_confidence = domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
             domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
                 detected_domain
             )
@@ -1540,6 +1551,7 @@ class CascadeAgent:
             timing_breakdown=timing_breakdown,
             streaming=True,
             has_tools=bool(tools),
+            domain=detected_domain,
         )
 
         # Build result
@@ -1646,7 +1658,9 @@ class CascadeAgent:
 
         if domain_hint:
             detected_domain = domain_hint
-            domain_confidence = domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
             domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
                 detected_domain
             )
@@ -2002,9 +2016,7 @@ class CascadeAgent:
         if quality_threshold_override is not None:
             cascade_kwargs["quality_threshold"] = quality_threshold_override
             if self.verbose:
-                logger.info(
-                    f"Using rule-based quality threshold: {quality_threshold_override}"
-                )
+                logger.info(f"Using rule-based quality threshold: {quality_threshold_override}")
         elif domain_config and domain_config.threshold:
             cascade_kwargs["quality_threshold"] = domain_config.threshold
             if self.verbose:
@@ -2125,7 +2137,9 @@ class CascadeAgent:
         usage = self.pricing_resolver.extract_usage(response)
         provider_cost = getattr(response, "cost", None)
         tokens_used = (
-            response.tokens_used if hasattr(response, "tokens_used") and response.tokens_used else usage.total_tokens
+            response.tokens_used
+            if hasattr(response, "tokens_used") and response.tokens_used
+            else usage.total_tokens
         )
         cost = self.pricing_resolver.resolve_cost(
             model=best_model.name,

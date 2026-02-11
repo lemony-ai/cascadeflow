@@ -96,10 +96,10 @@ SUPPORTED_PROVIDERS = {
         pricing_available=True,
         requires_api_key=True,
         example_models=[
-            "anthropic/claude-3-opus-20240229",
-            "anthropic/claude-3-5-sonnet-20241022",
-            "anthropic/claude-3-sonnet-20240229",
-            "anthropic/claude-3-haiku-20240307",
+            "anthropic/claude-opus-4-6-20250610",
+            "anthropic/claude-opus-4-5-20251101",
+            "anthropic/claude-sonnet-4-5-20250929",
+            "anthropic/claude-haiku-4-5-20251001",
         ],
     ),
     "groq": ProviderInfo(
@@ -287,8 +287,10 @@ class LiteLLMCostProvider:
             $0.004500
         """
         override_pricing = {
-            "claude-opus-4-5": {"input": 15.0, "output": 75.0},
+            "claude-opus-4-6": {"input": 5.0, "output": 25.0},
+            "claude-opus-4-5": {"input": 5.0, "output": 25.0},
             "claude-opus-4": {"input": 15.0, "output": 75.0},
+            "claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
             "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
             "claude-haiku-4.5": {"input": 1.0, "output": 5.0},
             "claude-3-5-haiku": {"input": 1.0, "output": 5.0},
@@ -452,7 +454,12 @@ class LiteLLMCostProvider:
             "gpt-4o": {"input": 5.0, "output": 15.0},
             "gpt-4o-mini": {"input": 0.15, "output": 0.60},
             "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
-            # Anthropic
+            # Anthropic 4.x
+            "claude-opus-4-6": {"input": 5.0, "output": 25.0},
+            "claude-opus-4-5": {"input": 5.0, "output": 25.0},
+            "claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
+            "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
+            # Anthropic 3.x
             "claude-3-opus": {"input": 15.0, "output": 75.0},
             "claude-3-5-sonnet": {"input": 3.0, "output": 15.0},
             "claude-3-sonnet": {"input": 3.0, "output": 15.0},

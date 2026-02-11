@@ -666,6 +666,10 @@ class StreamManager:
 
             decision_overhead_start = time.time()
 
+            quality_threshold = self.cascade.quality_validator.config.confidence_thresholds.get(
+                complexity or "moderate", 0.5
+            )
+
             yield StreamEvent(
                 type=StreamEventType.DRAFT_DECISION,
                 content="",
@@ -677,9 +681,11 @@ class StreamManager:
                     "verifier_model": self.cascade.verifier.name,
                     "reason": "quality_passed" if draft_accepted else "quality_failed",
                     "checks_passed": validation_result.passed,
-                    "quality_threshold": self.cascade.quality_validator.config.confidence_thresholds.get(
-                        complexity or "moderate", 0.5
-                    ),
+                    "quality_threshold": quality_threshold,
+                    "alignment_score": validation_result.score,
+                    "threshold": quality_threshold,
+                    "complexity": complexity or "unknown",
+                    "checks": validation_result.checks,
                 },
             )
 

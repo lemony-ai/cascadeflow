@@ -1153,17 +1153,21 @@ class AnthropicProvider(BaseProvider):
         # Format: Blended rate (50% input, 50% output)
         # Official rates: Input / Output per MTok
         rates = {
-            # Claude 4 Series
+            # Claude 4.x Series
+            "claude-opus-4-6": 15.0,  # $5 in + $25 out = $15 blended
+            "claude-opus-4-5": 15.0,  # $5 in + $25 out = $15 blended
             "claude-opus-4.1": 45.0,  # $15 in + $75 out = $45 blended
             "claude-opus-4": 45.0,  # $15 in + $75 out = $45 blended
+            "claude-sonnet-4-5": 9.0,  # $3 in + $15 out = $9 blended
             "claude-sonnet-4.5": 9.0,  # $3 in + $15 out = $9 blended
             "claude-sonnet-4": 9.0,  # $3 in + $15 out = $9 blended
+            "claude-haiku-4-5": 3.0,  # $1 in + $5 out = $3 blended
+            "claude-haiku-4.5": 3.0,  # $1 in + $5 out = $3 blended
             # Claude 3.5 Series
             "claude-3-5-sonnet": 9.0,  # $3 in + $15 out = $9 blended
             "claude-sonnet-3-5": 9.0,  # $3 in + $15 out = $9 blended (alternative naming)
             "claude-3-5-haiku": 3.0,  # $1 in + $5 out = $3 blended
             "claude-haiku-3-5": 3.0,  # $1 in + $5 out = $3 blended (alternative naming)
-            "claude-haiku-4-5": 3.0,  # $1 in + $5 out = $3 blended
             # Claude 3 Series
             "claude-3-opus": 45.0,  # $15 in + $75 out = $45 blended
             "claude-3-sonnet": 9.0,  # $3 in + $15 out = $9 blended

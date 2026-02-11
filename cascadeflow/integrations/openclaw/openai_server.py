@@ -9,10 +9,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import queue
 import threading
 import time
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Optional
 
@@ -20,8 +23,11 @@ from cascadeflow.tools.formats import normalize_tools
 from cascadeflow.utils.messages import get_last_user_message
 
 from .adapter import build_routing_decision
+from .decision_trace import log_decision
 from .pre_router import CATEGORY_TO_DOMAIN
 from .wrapper import OpenClawAdapterConfig
+
+oc_logger = logging.getLogger("cascadeflow.openclaw")
 
 
 @dataclass
@@ -236,6 +242,10 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         elif "cost" in model or "cheap" in model or "fast" in model:
             kpi_flags.setdefault("profile", "cost_savings")
 
+        request_id = f"req_{uuid.uuid4().hex[:12]}"
+        request_start = time.time()
+        query_text = get_last_user_message(messages) or ""
+
         if stream:
             return self._send_openai_stream(
                 server,
@@ -250,6 +260,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 kpi_flags,
                 tenant_id,
                 channel,
+                request_id=request_id,
+                request_start=request_start,
+                query_text=query_text,
             )
 
         result = _run_agent(
@@ -264,6 +277,36 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             kpi_flags,
             tenant_id,
             channel,
+        )
+
+        total_ms = (time.time() - request_start) * 1000
+        meta = _normalize_result_metadata(result)
+
+        # Build and log decision trace
+        trace = _build_trace(
+            request_id=request_id,
+            query=query_text,
+            stream=False,
+            tools=tools,
+            domain_hint=domain_hint,
+            domain_confidence_hint=domain_confidence_hint,
+            meta=meta,
+            result=result,
+            total_ms=total_ms,
+        )
+        log_decision(trace)
+
+        accepted = meta.get("draft_accepted", False)
+        model_used = getattr(result, "model_used", "unknown")
+        oc_logger.info(
+            "DECISION req=%s accepted=%s model=%s cost=%.6f latency=%.0fms domain=%s q=%s",
+            request_id,
+            accepted,
+            model_used,
+            meta.get("total_cost", getattr(result, "total_cost", 0.0)),
+            total_ms,
+            domain_hint or "none",
+            query_text[:60],
         )
 
         response = _build_openai_response(model, result)
@@ -291,6 +334,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         kpi_flags: dict[str, Any],
         tenant_id: Optional[str],
         channel: Optional[str],
+        request_id: str = "",
+        request_start: float = 0.0,
+        query_text: str = "",
     ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -324,12 +370,25 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         future = server.submit_coroutine(_produce())
 
+        # Capture non-chunk events for decision trace
+        captured_complete: dict[str, Any] = {}
+        captured_decision: dict[str, Any] = {}
+
         while True:
             item = event_queue.get()
             if item is sentinel:
                 break
             event = item
-            if getattr(event.type, "value", None) != "chunk":
+            event_type = getattr(event.type, "value", None)
+
+            if event_type == "complete" and hasattr(event, "data") and event.data:
+                captured_complete = (
+                    event.data.get("result", {}) if isinstance(event.data, dict) else {}
+                )
+            elif event_type == "draft_decision" and hasattr(event, "data") and event.data:
+                captured_decision = event.data if isinstance(event.data, dict) else {}
+
+            if event_type != "chunk":
                 continue
             chunk = {
                 "id": "chatcmpl-cascadeflow",
@@ -357,6 +416,34 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
+
+        # Build and log decision trace from captured streaming events
+        total_ms = (time.time() - request_start) * 1000 if request_start else 0.0
+        trace = _build_stream_trace(
+            request_id=request_id,
+            query=query_text,
+            tools=tools,
+            domain_hint=domain_hint,
+            domain_confidence_hint=domain_confidence_hint,
+            complete_data=captured_complete,
+            decision_data=captured_decision,
+            total_ms=total_ms,
+        )
+        log_decision(trace)
+
+        accepted = captured_decision.get("accepted", False)
+        model_used = captured_complete.get("model_used", "unknown")
+        total_cost = captured_complete.get("total_cost", 0.0)
+        oc_logger.info(
+            "DECISION req=%s accepted=%s model=%s cost=%.6f latency=%.0fms domain=%s q=%s",
+            request_id,
+            accepted,
+            model_used,
+            total_cost,
+            total_ms,
+            domain_hint or "none",
+            query_text[:60],
+        )
 
     def _send_json(self, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -414,6 +501,137 @@ def _run_agent(
     )
 
 
+def _build_trace(
+    *,
+    request_id: str,
+    query: str,
+    stream: bool,
+    tools: Optional[list[dict[str, Any]]],
+    domain_hint: Optional[str],
+    domain_confidence_hint: float,
+    meta: dict[str, Any],
+    result: Any,
+    total_ms: float,
+) -> dict[str, Any]:
+    """Build a decision trace dict from a non-streaming result."""
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "request_id": request_id,
+        "query": query[:200],
+        "query_length": len(query),
+        "stream": stream,
+        "tools_sent": tools is not None,
+        "tool_count": len(tools) if tools else 0,
+        "routing": {
+            "strategy": meta.get("routing_strategy", "cascade"),
+            "domain": domain_hint,
+            "domain_confidence": domain_confidence_hint if domain_hint else None,
+            "complexity": meta.get("complexity"),
+        },
+        "draft": {
+            "model": meta.get("draft_model") or meta.get("drafter_model"),
+            "had_tool_calls": bool(meta.get("tool_calls")),
+            "text_length": len(getattr(result, "content", "") or ""),
+            "latency_ms": meta.get("draft_latency_ms") or meta.get("drafter_latency_ms"),
+        },
+        "decision": {
+            "accepted": meta.get("draft_accepted", False),
+            "confidence": meta.get("draft_confidence"),
+            "alignment_score": meta.get("quality_score"),
+            "quality_score": meta.get("quality_score"),
+            "threshold": meta.get("quality_threshold"),
+            "reason": meta.get("routing_reason") or meta.get("reason"),
+            "checks": meta.get("checks", {}),
+        },
+        "verifier": {
+            "model": meta.get("verifier_model"),
+            "used": not meta.get("draft_accepted", False),
+            "latency_ms": meta.get("verifier_latency_ms"),
+        },
+        "cost": {
+            "draft_cost": meta.get("draft_cost") or meta.get("drafter_cost", 0.0),
+            "verifier_cost": meta.get("verifier_cost", 0.0),
+            "total_cost": meta.get("total_cost", getattr(result, "total_cost", 0.0)),
+            "baseline_cost": meta.get("bigonly_cost"),
+            "saved": meta.get("cost_saved"),
+        },
+        "tokens": {
+            "draft_input": meta.get("draft_prompt_tokens"),
+            "draft_output": meta.get("draft_completion_tokens"),
+            "verifier_input": meta.get("verifier_prompt_tokens") or meta.get("prompt_tokens"),
+            "verifier_output": meta.get("verifier_completion_tokens")
+            or meta.get("completion_tokens"),
+            "total": meta.get("total_tokens"),
+        },
+        "latency_ms": total_ms,
+    }
+
+
+def _build_stream_trace(
+    *,
+    request_id: str,
+    query: str,
+    tools: Optional[list[dict[str, Any]]],
+    domain_hint: Optional[str],
+    domain_confidence_hint: float,
+    complete_data: dict[str, Any],
+    decision_data: dict[str, Any],
+    total_ms: float,
+) -> dict[str, Any]:
+    """Build a decision trace dict from captured streaming events."""
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "request_id": request_id,
+        "query": query[:200],
+        "query_length": len(query),
+        "stream": True,
+        "tools_sent": tools is not None,
+        "tool_count": len(tools) if tools else 0,
+        "routing": {
+            "strategy": complete_data.get("routing_strategy", "cascade"),
+            "domain": domain_hint,
+            "domain_confidence": domain_confidence_hint if domain_hint else None,
+            "complexity": decision_data.get("complexity") or complete_data.get("complexity"),
+        },
+        "draft": {
+            "model": decision_data.get("draft_model") or complete_data.get("draft_model"),
+            "had_tool_calls": bool(complete_data.get("tool_calls")),
+            "text_length": complete_data.get("response_length", 0),
+            "latency_ms": complete_data.get("draft_latency_ms")
+            or complete_data.get("drafter_latency_ms"),
+        },
+        "decision": {
+            "accepted": decision_data.get("accepted", complete_data.get("draft_accepted", False)),
+            "confidence": decision_data.get("confidence"),
+            "alignment_score": decision_data.get("alignment_score") or decision_data.get("score"),
+            "quality_score": decision_data.get("score"),
+            "threshold": decision_data.get("threshold") or decision_data.get("quality_threshold"),
+            "reason": decision_data.get("reason"),
+            "checks": decision_data.get("checks", {}),
+        },
+        "verifier": {
+            "model": decision_data.get("verifier_model") or complete_data.get("verifier_model"),
+            "used": not decision_data.get("accepted", complete_data.get("draft_accepted", False)),
+            "latency_ms": complete_data.get("verifier_latency_ms"),
+        },
+        "cost": {
+            "draft_cost": complete_data.get("draft_cost") or complete_data.get("drafter_cost", 0.0),
+            "verifier_cost": complete_data.get("verifier_cost", 0.0),
+            "total_cost": complete_data.get("total_cost", 0.0),
+            "baseline_cost": complete_data.get("bigonly_cost"),
+            "saved": complete_data.get("cost_saved"),
+        },
+        "tokens": {
+            "draft_input": complete_data.get("draft_prompt_tokens"),
+            "draft_output": complete_data.get("draft_completion_tokens"),
+            "verifier_input": complete_data.get("verifier_prompt_tokens"),
+            "verifier_output": complete_data.get("verifier_completion_tokens"),
+            "total": complete_data.get("total_tokens"),
+        },
+        "latency_ms": total_ms,
+    }
+
+
 def _normalize_result_metadata(result) -> dict[str, Any]:
     """
     Ensure a stable cascadeflow.metadata contract for the OpenClaw OpenAI server.
@@ -425,6 +643,7 @@ def _normalize_result_metadata(result) -> dict[str, Any]:
     if hasattr(result, "metadata") and isinstance(result.metadata, dict):
         meta = dict(result.metadata)
 
+    # Required keys for test + integration stability
     meta.setdefault("draft_accepted", bool(getattr(result, "draft_accepted", False)))
     meta.setdefault("quality_score", getattr(result, "quality_score", None))
     meta.setdefault("complexity", getattr(result, "complexity", None))
@@ -498,10 +717,18 @@ def main() -> None:
         default="balanced",
         help="Cascadeflow preset (balanced, cost_optimized, speed_optimized, quality_optimized, development)",
     )
-    parser.add_argument("--no-classifier", action="store_true", help="Disable pre-router classifier")
+    parser.add_argument(
+        "--no-classifier", action="store_true", help="Disable pre-router classifier"
+    )
     parser.add_argument("--no-stream", action="store_true", help="Disable streaming responses")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
+
+    # Always enable INFO for the openclaw logger so DECISION lines appear
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
 
     if args.config:
         from cascadeflow.config_loader import load_agent

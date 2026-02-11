@@ -649,6 +649,7 @@ class ToolStreamManager:
                         "verifier_model": self.cascade.verifier.name,
                         "reason": "quality_passed" if draft_accepted else "quality_failed",
                         "validation_reasons": validation_reasons,
+                        "complexity": complexity or "unknown",
                     },
                 )
 

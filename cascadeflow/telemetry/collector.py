@@ -166,6 +166,9 @@ class MetricsCollector:
             "cascade_overhead": [],
         }
 
+        # Domain-level tracking
+        self.stats_by_domain: dict[str, dict[str, Any]] = {}
+
         # Recent results for rolling metrics (with timestamps)
         self.recent_results: deque = deque(maxlen=max_recent_results)
 
@@ -186,6 +189,7 @@ class MetricsCollector:
         timing_breakdown: Optional[dict[str, float]] = None,
         streaming: bool = False,
         has_tools: bool = False,  # ← NEW for Phase 3
+        domain: Optional[str] = None,
     ) -> None:
         """
         Record metrics from a query result.
@@ -279,12 +283,12 @@ class MetricsCollector:
             try:
                 total_cost = float(getattr(result, "total_cost", 0.0))
                 cost_saved = getattr(result, "cost_saved", None)
-                
+
                 # Get bigonly_cost from result metadata if available
                 bigonly_cost = None
                 if hasattr(result, "metadata") and result.metadata:
                     bigonly_cost = result.metadata.get("bigonly_cost")
-                
+
                 if cost_saved is None:
                     # If no cost_saved, try to get bigonly_cost from metadata
                     if bigonly_cost is not None:
@@ -301,7 +305,7 @@ class MetricsCollector:
                         is_cascade = routing_strategy == "cascade"
                         meta = getattr(result, "metadata", {}) or {}
                         draft_accepted = meta.get("draft_accepted", False)
-                        
+
                         if is_cascade and draft_accepted:
                             # Draft accepted: saved the verifier cost
                             estimated_baseline = total_cost * COST_RATIO
@@ -311,7 +315,7 @@ class MetricsCollector:
                         else:
                             # Direct: no savings possible
                             estimated_baseline = total_cost
-                            
+
                         cost_saved = estimated_baseline - total_cost
                         self.stats["total_saved"] += cost_saved
                         self.stats["baseline_cost"] += estimated_baseline
@@ -337,7 +341,11 @@ class MetricsCollector:
                         verifier_tokens = (verifier_prompt or 0) + (verifier_completion or 0)
 
                 total_tokens = metadata.get("total_tokens")
-                if total_tokens is None and draft_tokens is not None and verifier_tokens is not None:
+                if (
+                    total_tokens is None
+                    and draft_tokens is not None
+                    and verifier_tokens is not None
+                ):
                     total_tokens = draft_tokens + verifier_tokens
 
                 if isinstance(draft_tokens, (int, float)):
@@ -381,6 +389,27 @@ class MetricsCollector:
                 )
             except Exception as e:
                 logger.warning(f"Failed to append to recent_results: {e}")
+
+        # Domain-level tracking
+        if domain:
+            if domain not in self.stats_by_domain:
+                self.stats_by_domain[domain] = {
+                    "queries": 0,
+                    "draft_accepted": 0,
+                    "draft_rejected": 0,
+                    "total_cost": 0.0,
+                    "total_latency_ms": 0.0,
+                }
+            bucket = self.stats_by_domain[domain]
+            bucket["queries"] += 1
+            total_cost = getattr(result, "total_cost", 0.0) if result else 0.0
+            latency_ms = getattr(result, "latency_ms", 0.0) if result else 0.0
+            bucket["total_cost"] += total_cost
+            bucket["total_latency_ms"] += latency_ms
+            if result and getattr(result, "draft_accepted", False):
+                bucket["draft_accepted"] += 1
+            elif routing_strategy == "cascade":
+                bucket["draft_rejected"] += 1
 
         if self.verbose:
             status = "✓ STREAMED" if streaming else "✓ COMPLETE"
@@ -447,9 +476,7 @@ class MetricsCollector:
         total = self.stats["total_queries"]
         cascade_total = self.stats["cascade_used"]
         total_saved = self.stats.get("total_saved", 0.0)
-        baseline_cost = self.stats.get(
-            "baseline_cost", self.stats["total_cost"] + total_saved
-        )
+        baseline_cost = self.stats.get("baseline_cost", self.stats["total_cost"] + total_saved)
         savings_percent = (total_saved / baseline_cost * 100) if baseline_cost > 0 else 0.0
 
         # Calculate rates
@@ -805,6 +832,25 @@ class MetricsCollector:
             - Anomalies
             - Configuration
         """
+        # Build by_domain summary with derived rates
+        by_domain: dict[str, Any] = {}
+        for domain_name, bucket in self.stats_by_domain.items():
+            q = bucket["queries"]
+            accepted = bucket["draft_accepted"]
+            rejected = bucket["draft_rejected"]
+            cascade_total = accepted + rejected
+            by_domain[domain_name] = {
+                "queries": q,
+                "draft_accepted": accepted,
+                "draft_rejected": rejected,
+                "acceptance_rate": (
+                    round(accepted / cascade_total * 100, 1) if cascade_total > 0 else 0.0
+                ),
+                "total_cost": round(bucket["total_cost"], 6),
+                "avg_cost": round(bucket["total_cost"] / q, 6) if q > 0 else 0.0,
+                "avg_latency_ms": round(bucket["total_latency_ms"] / q, 1) if q > 0 else 0.0,
+            }
+
         return {
             "metadata": {
                 "export_timestamp": datetime.now().isoformat(),
@@ -813,6 +859,7 @@ class MetricsCollector:
             },
             "summary": self.get_summary(),
             "snapshot": self.get_snapshot().to_dict(),
+            "by_domain": by_domain,
             "recent_results": list(self.recent_results)[-50:],  # Last 50
             "anomalies": self.get_recent_anomalies(),
             "time_windowed": {
@@ -873,6 +920,7 @@ class MetricsCollector:
 
         self.quality_scores.clear()
         self.acceptance_by_complexity.clear()
+        self.stats_by_domain.clear()
 
         for component in self.timing_by_component:
             self.timing_by_component[component].clear()
