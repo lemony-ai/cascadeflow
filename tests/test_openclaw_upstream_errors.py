@@ -71,7 +71,7 @@ def _read_sse_json_lines(text: str) -> list[dict[str, Any]]:
         line = line.strip()
         if not line.startswith("data: "):
             continue
-        payload = line[len("data: "):]
+        payload = line[len("data: ") :]
         if payload == "[DONE]":
             break
         chunks.append(json.loads(payload))

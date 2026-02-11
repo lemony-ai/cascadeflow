@@ -773,8 +773,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         tools, tool_choice = _extract_openai_tools(payload)
 
         stream_options = payload.get("stream_options")
-        include_usage = (
-            isinstance(stream_options, dict) and bool(stream_options.get("include_usage"))
+        include_usage = isinstance(stream_options, dict) and bool(
+            stream_options.get("include_usage")
         )
 
         if payload.get("stream"):
@@ -1102,7 +1102,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         result_tool_calls = completion_result.get("tool_calls")
         if isinstance(result_tool_calls, list) and result_tool_calls:
             captured_tool_calls = result_tool_calls
-        openai_tool_calls = _to_openai_tool_calls(captured_tool_calls) if captured_tool_calls else []
+        openai_tool_calls = (
+            _to_openai_tool_calls(captured_tool_calls) if captured_tool_calls else []
+        )
 
         if openai_tool_calls:
             tc_chunk = {

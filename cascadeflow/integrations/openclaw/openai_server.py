@@ -252,8 +252,8 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         tools = normalize_tools(tools_payload)
         stream = bool(payload.get("stream"))
         stream_options = payload.get("stream_options")
-        include_usage = (
-            isinstance(stream_options, dict) and bool(stream_options.get("include_usage"))
+        include_usage = isinstance(stream_options, dict) and bool(
+            stream_options.get("include_usage")
         )
 
         if stream and not server.config.allow_streaming:
@@ -607,7 +607,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if isinstance(result_tool_calls, list) and result_tool_calls:
             # Prefer complete-event tool calls (may be more complete).
             captured_tool_calls = result_tool_calls
-        openai_tool_calls = _to_openai_tool_calls(captured_tool_calls) if captured_tool_calls else []
+        openai_tool_calls = (
+            _to_openai_tool_calls(captured_tool_calls) if captured_tool_calls else []
+        )
 
         # Emit tool call delta chunks so OpenAI SDKs can parse them.
         if openai_tool_calls:
