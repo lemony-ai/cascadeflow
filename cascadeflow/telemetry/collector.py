@@ -566,7 +566,6 @@ class MetricsCollector:
             MetricsSnapshot with current metrics
         """
         total = self.stats["total_queries"]
-        cascade_total = self.stats["cascade_used"]
 
         if total == 0:
             return MetricsSnapshot(

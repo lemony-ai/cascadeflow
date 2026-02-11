@@ -211,6 +211,10 @@ export type {
   CascadePlan,
 } from './vercel-ai';
 
+// Convenience namespace for Vercel AI SDK related helpers/types.
+// Example: `import { VercelAI } from '@cascadeflow/core'`
+export * as VercelAI from './vercel-ai';
+
 // Presets
 export {
   PRESET_BEST_OVERALL,

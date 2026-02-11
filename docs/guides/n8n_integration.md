@@ -78,7 +78,7 @@ cascadeflow is a **Language Model sub-node** that sits between your AI model nod
 ✅ **Flexible** - Use any combination of models from different providers
 ✅ **Universal** - Compatible with OpenAI, Anthropic, Ollama, Azure, Google, and more
 
-> **ℹ️ Note:** cascadeflow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Note:** Use **CascadeFlow (Model)** with n8n Chain/LLM nodes, and **CascadeFlow Agent** for agent workflows (tool calling + multi-step). The Agent node adds trace metadata and supports tool routing.
 
 ---
 
@@ -142,7 +142,7 @@ First, add and configure two AI Chat Model nodes in your workflow:
 1. Add a **Basic LLM Chain** or **Chain** node
 2. Connect the cascadeflow node to it (Model input)
 3. Configure your chain as usual
-4. **Note:** Does not work with AI Agent nodes (n8n limitation)
+4. For agent workflows, use the **CascadeFlow Agent** node (connect tools to its `Tools` input).
 
 ### Step 4: Execute and View Results
 
@@ -160,7 +160,7 @@ First, add and configure two AI Chat Model nodes in your workflow:
 │  gpt-4o-mini     │       │  cascadeflow     │       ┌──────────────────┐
 └──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
                            │                  │       │                  │
-┌──────────────────┐       │  Threshold: 0.7  │       └──────────────────┘
+┌──────────────────┐       │  Threshold: 0.4  │       └──────────────────┘
 │  OpenAI Model    │──────►│                  │
 │  gpt-4o          │       └──────────────────┘
 └──────────────────┘
@@ -185,11 +185,16 @@ The cascadeflow node has **two inputs** that accept AI Language Model connection
 
 ### Quality Threshold (0-1)
 
-Controls how aggressively to accept drafter responses:
+Controls how aggressively to accept drafter responses when **Use Complexity Thresholds** is disabled.
 
-- **0.5-0.6**: Very aggressive (maximum cost savings, ~80-90% acceptance)
-- **0.7** (default): Balanced (good quality + savings, ~70-80% acceptance)
-- **0.8-0.9**: Conservative (highest quality, ~50-60% acceptance)
+Defaults to **0.4** to match the `simple` tier in CascadeFlow's default per-complexity thresholds.
+
+If you enable **Use Complexity Thresholds** (default), acceptance is driven by:
+- trivial: 0.25
+- simple: 0.4
+- moderate: 0.55
+- hard: 0.7
+- expert: 0.8
 
 Lower threshold = more cost savings, higher threshold = better quality assurance.
 
@@ -292,7 +297,7 @@ cascadeflow provides detailed logging of every cascade decision directly in n8n'
 
 The logs provide complete visibility into the cascade decision-making process, showing exactly which path was taken for each request.
 
-> **ℹ️ Important:** cascadeflow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Important:** If you need agent-style tool orchestration, use the **CascadeFlow Agent** node. It is designed for n8n agent flows and records a step-by-step trace in `response_metadata.cf.trace`.
 
 ---
 
@@ -329,7 +334,7 @@ The logs provide complete visibility into the cascade decision-making process, s
 **Configuration:**
 - Drafter: Claude 3.5 Haiku
 - Verifier: Claude 3.5 Sonnet
-- Quality Threshold: 0.75
+- Quality Threshold (if complexity thresholds are disabled): 0.75
 
 ---
 
@@ -396,7 +401,7 @@ The logs provide complete visibility into the cascade decision-making process, s
 **Configuration:**
 - Drafter: Ollama qwen2.5:3b (local, free)
 - Verifier: GPT-4o (cloud)
-- Quality Threshold: 0.7
+- Quality Threshold (if complexity thresholds are disabled): 0.7
 - Savings: ~99% on drafter calls
 
 ---
@@ -503,6 +508,7 @@ You can connect models from different providers:
 
 ### 5. Use Different Thresholds for Different Use Cases
 
+If you disable **Use Complexity Thresholds**, you can tune **Quality Threshold** per workflow:
 - **Customer support**: 0.75 (prioritize quality)
 - **Content drafts**: 0.6 (prioritize speed/cost)
 - **Code review**: 0.7 (balance)
@@ -517,7 +523,7 @@ You can connect models from different providers:
 ```
 Drafter: Claude 3.5 Haiku
 Verifier: GPT-4o
-Quality Threshold: 0.7
+Use Complexity Thresholds: enabled (default)
 Expected Savings: ~73% average
 Why: Haiku's fast drafts + GPT-4o's reasoning
 ```
@@ -527,7 +533,7 @@ Why: Haiku's fast drafts + GPT-4o's reasoning
 ```
 Drafter: GPT-4o-mini
 Verifier: GPT-4o
-Quality Threshold: 0.7
+Use Complexity Thresholds: enabled (default)
 Expected Savings: ~85% average
 Why: Both from same provider, excellent efficiency
 ```
@@ -547,7 +553,7 @@ Why: Consistent Anthropic quality
 ```
 Drafter: Ollama qwen2.5:3b (local, free)
 Verifier: GPT-4o (cloud)
-Quality Threshold: 0.7
+Use Complexity Thresholds: enabled (default)
 Expected Savings: ~99% on accepted drafts
 Note: Requires Ollama installed locally
 ```
@@ -574,11 +580,11 @@ Note: Requires Ollama installed locally
 
 ### Issue: "This node cannot be connected" when connecting to AI Agent
 
-**Solution:** This is expected. cascadeflow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use cascadeflow with:
+**Solution:** Use the **CascadeFlow Agent** node for agent workflows. Use the **CascadeFlow (Model)** node for Chain/LLM workflows.
 - ✅ Basic LLM Chain
 - ✅ Chain
 - ✅ Other nodes that accept Language Model connections
-- ❌ AI Agent (not supported)
+- ✅ CascadeFlow Agent (agent workflows)
 
 ### Issue: Always escalating to verifier
 

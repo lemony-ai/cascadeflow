@@ -45,19 +45,28 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL ?? openAIAdapter.models[0].id;
 const GROQ_MODEL = process.env.GROQ_MODEL ?? groqAdapter.models[1].id;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? anthropicAdapter.models[0].id;
 
-function normalizeUsage(usage?: {
+type RawUsage = {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
 } | {
   input_tokens?: number;
   output_tokens?: number;
-}): UsageMetrics {
-  // Use type assertion to handle union type access
-  const u = usage as Record<string, number | undefined> | undefined;
-  const promptTokens = u?.prompt_tokens ?? u?.input_tokens ?? 0;
-  const completionTokens = u?.completion_tokens ?? u?.output_tokens ?? 0;
-  const totalTokens = u?.total_tokens ?? promptTokens + completionTokens;
+};
+
+function normalizeUsage(usage?: RawUsage): UsageMetrics {
+  const normalized = (usage ?? {}) as {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+
+  const promptTokens = normalized.prompt_tokens ?? normalized.input_tokens ?? 0;
+  const completionTokens =
+    normalized.completion_tokens ?? normalized.output_tokens ?? 0;
+  const totalTokens = normalized.total_tokens ?? promptTokens + completionTokens;
 
   return { promptTokens, completionTokens, totalTokens };
 }

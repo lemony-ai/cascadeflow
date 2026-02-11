@@ -429,7 +429,13 @@ class BaseProvider(ABC):
 
         # Initialize LiteLLM cost provider (auto-detect if installed)
         try:
-            from cascadeflow.integrations.litellm import LiteLLMCostProvider
+            from cascadeflow.integrations.litellm import LITELLM_AVAILABLE, LiteLLMCostProvider
+
+            # The integration module can be importable even when the optional
+            # `litellm` dependency isn't installed (graceful degradation).
+            # Only enable the "accurate pricing" path when LiteLLM is actually available.
+            if not LITELLM_AVAILABLE:
+                raise RuntimeError("LiteLLM optional dependency not installed")
 
             self._litellm_cost_provider = LiteLLMCostProvider(fallback_enabled=False)
             self._use_litellm_pricing = True

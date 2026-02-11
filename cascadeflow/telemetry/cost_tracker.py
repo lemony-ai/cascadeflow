@@ -12,6 +12,7 @@ NEW in v0.2.0:
 """
 
 import logging
+import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -167,6 +168,10 @@ class CostTracker:
             dict
         )  # user_id -> period -> start_time
 
+        # Thread-safety: the gateway server runs with a ThreadingHTTPServer, and
+        # library users may also record costs from multiple threads.
+        self._lock = threading.RLock()
+
         logger.info(
             f"CostTracker initialized: "
             f"budget_limit=${budget_limit if budget_limit else 'None'}, "
@@ -207,40 +212,41 @@ class CostTracker:
             ...     user_id='user_123', user_tier='free'
             ... )
         """
-        # Create entry
-        entry = CostEntry(
-            timestamp=datetime.now(),
-            model=model,
-            provider=provider,
-            tokens=tokens,
-            cost=cost,
-            query_id=query_id,
-            metadata=metadata or {},
-        )
-
-        # Update global totals (v0.1.1 - backward compatible)
-        self.total_cost += cost
-        self.by_model[model] += cost
-        self.by_provider[provider] += cost
-        self.entries.append(entry)
-
-        # NEW v0.2.0: Update per-user tracking
-        if user_id is not None:  # Allow empty string
-            self.by_user[user_id] += cost
-            self.user_entries[user_id].append(entry)
-
-        # Check global budget (v0.1.1 - backward compatible)
-        self._check_budget()
-
-        # NEW v0.2.0: Check per-user budget
-        if user_id and user_tier:
-            self._check_user_budget(user_id, user_tier, cost)
-
-        if self.verbose:
-            user_info = f", user={user_id}:{user_tier}" if user_id else ""
-            logger.info(
-                f"Added cost: {model} ({provider}), {tokens} tokens, ${cost:.6f}{user_info}"
+        with self._lock:
+            # Create entry
+            entry = CostEntry(
+                timestamp=datetime.now(),
+                model=model,
+                provider=provider,
+                tokens=tokens,
+                cost=cost,
+                query_id=query_id,
+                metadata=metadata or {},
             )
+
+            # Update global totals (v0.1.1 - backward compatible)
+            self.total_cost += cost
+            self.by_model[model] += cost
+            self.by_provider[provider] += cost
+            self.entries.append(entry)
+
+            # NEW v0.2.0: Update per-user tracking
+            if user_id is not None:  # Allow empty string
+                self.by_user[user_id] += cost
+                self.user_entries[user_id].append(entry)
+
+            # Check global budget (v0.1.1 - backward compatible)
+            self._check_budget()
+
+            # NEW v0.2.0: Check per-user budget
+            if user_id and user_tier:
+                self._check_user_budget(user_id, user_tier, cost)
+
+            if self.verbose:
+                user_info = f", user={user_id}:{user_tier}" if user_id else ""
+                logger.info(
+                    f"Added cost: {model} ({provider}), {tokens} tokens, ${cost:.6f}{user_info}"
+                )
 
     def _check_budget(self) -> None:
         """Check if global budget limits have been reached (v0.1.1 - backward compatible)."""
@@ -371,11 +377,14 @@ class CostTracker:
         Returns:
             Total cost in dollars
         """
-        if user_id not in self.user_entries:
+        with self._lock:
+            entries = list(self.user_entries.get(user_id, []))
+
+        if not entries:
             return 0.0
 
         total = 0.0
-        for entry in self.user_entries[user_id]:
+        for entry in entries:
             if entry.timestamp >= period_start:
                 if period_end is None or entry.timestamp <= period_end:
                     total += entry.cost
@@ -389,32 +398,43 @@ class CostTracker:
         Returns:
             Dict with total cost, by model, by provider, etc.
         """
-        summary = {
-            "total_cost": self.total_cost,
-            "total_entries": len(self.entries),
-            "by_model": dict(self.by_model),
-            "by_provider": dict(self.by_provider),
+        with self._lock:
+            total_cost = float(self.total_cost)
+            total_entries = len(self.entries)
+            by_model = dict(self.by_model)
+            by_provider = dict(self.by_provider)
+            budget_limit = self.budget_limit
+            budget_exceeded = self.budget_exceeded
+
+        summary: dict[str, Any] = {
+            "total_cost": total_cost,
+            "total_entries": total_entries,
+            "by_model": by_model,
+            "by_provider": by_provider,
         }
 
-        if self.budget_limit:
-            summary["budget_limit"] = self.budget_limit
-            summary["budget_remaining"] = max(0, self.budget_limit - self.total_cost)
-            summary["budget_used_pct"] = (self.total_cost / self.budget_limit) * 100
-            summary["budget_exceeded"] = self.budget_exceeded
+        if budget_limit:
+            summary["budget_limit"] = budget_limit
+            summary["budget_remaining"] = max(0, budget_limit - total_cost)
+            summary["budget_used_pct"] = (total_cost / budget_limit) * 100
+            summary["budget_exceeded"] = budget_exceeded
 
         return summary
 
     def get_recent_entries(self, n: int = 10) -> list[CostEntry]:
         """Get n most recent cost entries."""
-        return self.entries[-n:]
+        with self._lock:
+            return list(self.entries[-n:])
 
     def get_entries_by_model(self, model: str) -> list[CostEntry]:
         """Get all entries for a specific model."""
-        return [e for e in self.entries if e.model == model]
+        with self._lock:
+            return [e for e in self.entries if e.model == model]
 
     def get_entries_by_provider(self, provider: str) -> list[CostEntry]:
         """Get all entries for a specific provider."""
-        return [e for e in self.entries if e.provider == provider]
+        with self._lock:
+            return [e for e in self.entries if e.provider == provider]
 
     def get_user_summary(self, user_id: str, user_tier: Optional[str] = None) -> dict[str, Any]:
         """
@@ -433,63 +453,56 @@ class CostTracker:
             >>> if summary['budget_exceeded']:
             ...     print("Budget exceeded!")
         """
-        summary = {
-            "user_id": user_id,
-            "total_cost": self.by_user.get(user_id, 0.0),
-            "total_entries": len(self.user_entries.get(user_id, [])),
-        }
+        with self._lock:
+            summary: dict[str, Any] = {
+                "user_id": user_id,
+                "total_cost": float(self.by_user.get(user_id, 0.0)),
+                "total_entries": len(self.user_entries.get(user_id, [])),
+            }
 
         # Add budget info if tier provided
         if user_tier and user_tier in self.user_budgets:
-            budget_config = self.user_budgets[user_tier]
+            with self._lock:
+                budget_config = self.user_budgets[user_tier]
+                now = datetime.now()
+                entries = list(self.user_entries.get(user_id, []))
+                period_start_map = dict(self.user_period_start.get(user_id, {}))
+                exceeded = set(self.user_budget_exceeded.get(user_id, set()))
+
             summary["user_tier"] = user_tier
             summary["budget_config"] = str(budget_config)
 
-            # Calculate period costs
-            now = datetime.now()
-            period_costs = {}
-
+            period_costs: dict[str, Any] = {}
             for period_name in ["daily", "weekly", "monthly", "total"]:
                 limit = getattr(budget_config, period_name)
-                if limit is not None:
-                    # Calculate period cost
-                    if (
-                        user_id in self.user_period_start
-                        and period_name in self.user_period_start[user_id]
-                    ):
-                        # Period tracking exists - use it
-                        period_start = self.user_period_start[user_id][period_name]
-                        period_cost = self._get_user_period_cost(
-                            user_id, period_start, now if period_name != "total" else None
-                        )
-                    elif user_id in self.user_entries and len(self.user_entries[user_id]) > 0:
-                        # Period tracking doesn't exist yet, but user has entries
-                        # Use earliest entry timestamp as period start
-                        earliest_entry = min(self.user_entries[user_id], key=lambda e: e.timestamp)
-                        period_start = earliest_entry.timestamp
-                        period_cost = self._get_user_period_cost(
-                            user_id, period_start, now if period_name != "total" else None
-                        )
-                    else:
-                        # No entries yet - cost is 0
-                        period_cost = 0.0
+                if limit is None:
+                    continue
 
-                    period_costs[period_name] = {
-                        "cost": period_cost,
-                        "limit": limit,
-                        "remaining": max(0, limit - period_cost),
-                        "used_pct": (period_cost / limit) * 100 if limit > 0 else 0,
-                        "exceeded": period_cost >= limit,
-                    }
+                if period_name in period_start_map:
+                    period_start = period_start_map[period_name]
+                    period_cost = self._get_user_period_cost(
+                        user_id, period_start, now if period_name != "total" else None
+                    )
+                elif entries:
+                    earliest_entry = min(entries, key=lambda e: e.timestamp)
+                    period_start = earliest_entry.timestamp
+                    period_cost = self._get_user_period_cost(
+                        user_id, period_start, now if period_name != "total" else None
+                    )
+                else:
+                    period_cost = 0.0
+
+                period_costs[period_name] = {
+                    "cost": period_cost,
+                    "limit": limit,
+                    "remaining": max(0, limit - period_cost),
+                    "used_pct": (period_cost / limit) * 100 if limit > 0 else 0,
+                    "exceeded": period_cost >= limit,
+                }
 
             summary["period_costs"] = period_costs
-
-            # Check if any budget exceeded
             period_key_prefix = f"{user_tier}:"
-            summary["budget_exceeded"] = any(
-                k.startswith(period_key_prefix)
-                for k in self.user_budget_exceeded.get(user_id, set())
-            )
+            summary["budget_exceeded"] = any(k.startswith(period_key_prefix) for k in exceeded)
 
         return summary
 
@@ -500,7 +513,8 @@ class CostTracker:
         Returns:
             List of user IDs
         """
-        return list(self.by_user.keys())
+        with self._lock:
+            return list(self.by_user.keys())
 
     def get_users_by_tier(self, tier: str) -> list[str]:
         """
@@ -516,17 +530,18 @@ class CostTracker:
         Returns:
             List of user IDs that have costs tracked with this tier
         """
-        users = []
-        for user_id in self.by_user.keys():
-            # Check if user has any warnings/exceeded for this tier
-            tier_prefix = f"{tier}:"
-            if any(k.startswith(tier_prefix) for k in self.user_budget_warned.get(user_id, set())):
-                users.append(user_id)
-            elif any(
-                k.startswith(tier_prefix) for k in self.user_budget_exceeded.get(user_id, set())
-            ):
-                users.append(user_id)
+        with self._lock:
+            user_ids = list(self.by_user.keys())
+            warned = {uid: set(self.user_budget_warned.get(uid, set())) for uid in user_ids}
+            exceeded = {uid: set(self.user_budget_exceeded.get(uid, set())) for uid in user_ids}
 
+        users: list[str] = []
+        tier_prefix = f"{tier}:"
+        for user_id in user_ids:
+            if any(k.startswith(tier_prefix) for k in warned.get(user_id, set())):
+                users.append(user_id)
+            elif any(k.startswith(tier_prefix) for k in exceeded.get(user_id, set())):
+                users.append(user_id)
         return users
 
     def can_afford(
@@ -562,8 +577,8 @@ class CostTracker:
         if not budget_config or not budget_config.has_any_limit():
             return True  # No limits, always allow
 
-        # Get current user cost
-        current_cost = self.by_user.get(user_id, 0.0)
+        with self._lock:
+            current_cost = float(self.by_user.get(user_id, 0.0))
         projected_cost = current_cost + estimated_cost
 
         # Check against daily budget (most common)
@@ -596,18 +611,25 @@ class CostTracker:
         Example:
             >>> tracker.export_to_json("costs.json")
         """
+        with self._lock:
+            meta = {
+                "budget_limit": self.budget_limit,
+                "enforcement_mode": self.enforcement_mode,
+                "total_cost": float(self.total_cost),
+                "total_entries": len(self.entries),
+            }
+            by_model = dict(self.by_model)
+            by_provider = dict(self.by_provider)
+            by_user = dict(self.by_user)
+            entries = list(self.entries)
+
         import json
 
         data = {
-            "metadata": {
-                "budget_limit": self.budget_limit,
-                "enforcement_mode": self.enforcement_mode,
-                "total_cost": self.total_cost,
-                "total_entries": len(self.entries),
-            },
-            "by_model": dict(self.by_model),
-            "by_provider": dict(self.by_provider),
-            "by_user": dict(self.by_user),
+            "metadata": meta,
+            "by_model": by_model,
+            "by_provider": by_provider,
+            "by_user": by_user,
             "entries": [
                 {
                     "timestamp": entry.timestamp.isoformat(),
@@ -618,7 +640,7 @@ class CostTracker:
                     "query_id": entry.query_id,
                     "metadata": entry.metadata,
                 }
-                for entry in self.entries
+                for entry in entries
             ],
         }
 
@@ -637,6 +659,9 @@ class CostTracker:
         Example:
             >>> tracker.export_to_csv("costs.csv")
         """
+        with self._lock:
+            entries = list(self.entries)
+
         import csv
 
         with open(filepath, "w", newline="") as f:
@@ -656,7 +681,7 @@ class CostTracker:
             )
 
             # Rows
-            for entry in self.entries:
+            for entry in entries:
                 writer.writerow(
                     [
                         entry.timestamp.isoformat(),
@@ -683,6 +708,9 @@ class CostTracker:
         Example:
             >>> tracker.export_to_sqlite("costs.db")
         """
+        with self._lock:
+            entries = list(self.entries)
+
         import json
         import sqlite3
 
@@ -706,7 +734,7 @@ class CostTracker:
         )
 
         # Insert entries
-        for entry in self.entries:
+        for entry in entries:
             cursor.execute(
                 """
                 INSERT INTO cost_entries (timestamp, model, provider, tokens, cost, query_id, metadata)
@@ -730,20 +758,21 @@ class CostTracker:
 
     def reset(self) -> None:
         """Reset all cost tracking (v0.1.1 - backward compatible)."""
-        # Reset global tracking
-        self.total_cost = 0.0
-        self.by_model.clear()
-        self.by_provider.clear()
-        self.entries.clear()
-        self.budget_warned = False
-        self.budget_exceeded = False
+        with self._lock:
+            # Reset global tracking
+            self.total_cost = 0.0
+            self.by_model.clear()
+            self.by_provider.clear()
+            self.entries.clear()
+            self.budget_warned = False
+            self.budget_exceeded = False
 
-        # NEW v0.2.0: Reset per-user tracking
-        self.by_user.clear()
-        self.user_entries.clear()
-        self.user_budget_warned.clear()
-        self.user_budget_exceeded.clear()
-        self.user_period_start.clear()
+            # NEW v0.2.0: Reset per-user tracking
+            self.by_user.clear()
+            self.user_entries.clear()
+            self.user_budget_warned.clear()
+            self.user_budget_exceeded.clear()
+            self.user_period_start.clear()
 
         logger.info("Cost tracker reset")
 

@@ -1,0 +1,131 @@
+{
+  "name": "@cascadeflow/vercel-ai",
+  "version": "0.1.0",
+  "description": "cascadeflow integration for the Vercel AI SDK (useChat handlers + provider ecosystem)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lemony-ai/cascadeflow.git",
+    "directory": "packages/integrations/vercel-ai"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "cascadeflow",
+    "vercel",
+    "ai-sdk",
+    "useChat",
+    "nextjs",
+    "edge"
+  ],
+  "dependencies": {
+    "@cascadeflow/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "ai": "^4.0.0 || ^5.0.0 || ^6.0.0",
+    "@ai-sdk/react": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/anthropic": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/azure": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/amazon-bedrock": "^4.0.0",
+    "@ai-sdk/cerebras": "^2.0.0",
+    "@ai-sdk/cohere": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/deepseek": "^2.0.0",
+    "@ai-sdk/fireworks": "^2.0.0",
+    "@ai-sdk/google": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/google-vertex": "^4.0.0",
+    "@ai-sdk/groq": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/mistral": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/openai": "^1.0.0 || ^2.0.0 || ^3.0.0",
+    "@ai-sdk/perplexity": "^3.0.0",
+    "@ai-sdk/replicate": "^2.0.0",
+    "@ai-sdk/togetherai": "^2.0.0",
+    "@ai-sdk/xai": "^1.0.0 || ^2.0.0 || ^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    },
+    "@ai-sdk/react": {
+      "optional": true
+    },
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/azure": {
+      "optional": true
+    },
+    "@ai-sdk/amazon-bedrock": {
+      "optional": true
+    },
+    "@ai-sdk/cerebras": {
+      "optional": true
+    },
+    "@ai-sdk/cohere": {
+      "optional": true
+    },
+    "@ai-sdk/deepseek": {
+      "optional": true
+    },
+    "@ai-sdk/fireworks": {
+      "optional": true
+    },
+    "@ai-sdk/google": {
+      "optional": true
+    },
+    "@ai-sdk/google-vertex": {
+      "optional": true
+    },
+    "@ai-sdk/groq": {
+      "optional": true
+    },
+    "@ai-sdk/mistral": {
+      "optional": true
+    },
+    "@ai-sdk/openai": {
+      "optional": true
+    },
+    "@ai-sdk/perplexity": {
+      "optional": true
+    },
+    "@ai-sdk/replicate": {
+      "optional": true
+    },
+    "@ai-sdk/togetherai": {
+      "optional": true
+    },
+    "@ai-sdk/xai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "ai": "^4.0.0",
+    "@ai-sdk/react": "^3.0.0",
+    "@types/node": "^20.10.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.6.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

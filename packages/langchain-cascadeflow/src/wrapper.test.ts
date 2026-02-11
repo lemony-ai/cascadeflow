@@ -12,6 +12,8 @@ class MockChatModel extends BaseChatModel {
   modelName: string;
   responses: ChatResult[];
   callCount = 0;
+  lastOptions: any;
+  lastInvokeOptions: any;
 
   constructor(modelName: string, responses: ChatResult[] = []) {
     super({});
@@ -28,6 +30,7 @@ class MockChatModel extends BaseChatModel {
     options: this['ParsedCallOptions'],
     runManager?: CallbackManagerForLLMRun
   ): Promise<ChatResult> {
+    this.lastOptions = options;
     const index = Math.min(this.callCount, this.responses.length - 1);
     const response = this.responses[index];
     this.callCount++;
@@ -35,6 +38,16 @@ class MockChatModel extends BaseChatModel {
       throw new Error('No mock response configured');
     }
     return response;
+  }
+
+  override async invoke(input: any, options?: any): Promise<any> {
+    this.lastInvokeOptions = options;
+    return super.invoke(input, options);
+  }
+
+  // Minimal compatibility for CascadeFlow.bindTools() tests.
+  bindTools(_tools: any[], _kwargs?: any): this {
+    return this;
   }
 
   get model() {
@@ -64,6 +77,21 @@ function createChatResult(
         totalTokens: promptTokens + completionTokens,
       },
     },
+  };
+}
+
+function createToolCallResult(toolName: string): ChatResult {
+  return {
+    generations: [
+      {
+        text: '',
+        message: new AIMessage({
+          content: '',
+          tool_calls: [{ name: toolName, args: { x: 1 } }],
+        } as any),
+      },
+    ],
+    llmOutput: {},
   };
 }
 
@@ -420,6 +448,72 @@ describe('CascadeFlow', () => {
   });
 
   describe('Edge Cases', () => {
+    it('should accept low-risk tool calls without escalating (empty content is OK)', async () => {
+      const drafterResponse = createToolCallResult('get_weather');
+      const verifierResponse = createChatResult('Verifier', 10, 10);
+
+      const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
+      const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
+
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        qualityThreshold: 0.99, // Would reject empty text, but tool calls should be accepted by policy.
+      }).bindTools([{ name: 'get_weather', description: 'Get current weather (read-only)' }]);
+
+      const messages = [new HumanMessage('What is the weather?')];
+      const result = await (cascade as any)._generate(messages, {});
+
+      expect(result.generations[0].message).toBeDefined();
+      expect(drafter.callCount).toBe(1);
+      expect(verifier.callCount).toBe(0);
+    });
+
+    it('should force verifier for high-risk tool calls', async () => {
+      const drafterResponse = createToolCallResult('delete_user');
+      const verifierResponse = createToolCallResult('delete_user');
+
+      const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
+      const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
+
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        qualityThreshold: 0.0,
+      }).bindTools([{ name: 'delete_user', description: 'Permanently deletes a user account' }]);
+
+      const messages = [new HumanMessage('Delete user 123')];
+      await (cascade as any)._generate(messages, {});
+
+      expect(drafter.callCount).toBe(1);
+      expect(verifier.callCount).toBe(1);
+    });
+
+    it('should attach cascadeflow tags/metadata to nested calls (LangSmith DX)', async () => {
+      const drafterResponse = createChatResult(
+        'The answer provided here is completely correct and demonstrates excellent understanding of the underlying concepts. This response shows a thorough grasp of the subject matter and provides clear, accurate information that addresses the question comprehensively with proper attention to detail and clarity.',
+        14,
+        8
+      );
+
+      const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
+      const verifier = new MockChatModel('gpt-4o', [drafterResponse]);
+
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+      });
+
+      const messages = [new HumanMessage('Test')];
+      await (cascade as any)._generate(messages, { tags: ['app'], metadata: { env: 'test' } });
+
+      expect(drafter.lastInvokeOptions?.tags).toContain('cascadeflow');
+      expect(drafter.lastInvokeOptions?.tags).toContain('cascadeflow:drafter');
+      expect(drafter.lastInvokeOptions?.tags).toContain('app');
+      expect(drafter.lastInvokeOptions?.metadata?.env).toBe('test');
+      expect(drafter.lastInvokeOptions?.metadata?.cascadeflow?.integration).toBe('langchain');
+    });
+
     it('should handle empty message array', async () => {
       const drafterResponse = createChatResult('Answer', 0, 5);
       const dummyResponse = createChatResult('Dummy', 0, 5);

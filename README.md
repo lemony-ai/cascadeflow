@@ -139,6 +139,17 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 
 ## Quick Start
 
+### Drop-In Gateway (Existing Apps)
+
+If you already have an app using the OpenAI or Anthropic APIs and want the fastest integration,
+run the gateway and point your existing client at it:
+
+```bash
+python -m cascadeflow.server --mode auto --port 8084
+```
+
+Docs: `docs/guides/gateway.md`
+
 ### <img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> Python
 
 ```python
@@ -359,6 +370,7 @@ cascadeflow is a **Language Model sub-node** that connects two AI Chat Model nod
 
 - ✅ Works with any AI Chat Model node (OpenAI, Anthropic, Ollama, Azure, etc.)
 - ✅ Mix providers (e.g., Ollama drafter + GPT-4o verifier)
+- ✅ Includes a CascadeFlow Agent node for tool-based agent workflows (drafter/verifier + tools + trace)
 - ✅ Real-time flow visualization in Logs tab
 - ✅ Detailed metrics: confidence scores, latency, cost savings
 

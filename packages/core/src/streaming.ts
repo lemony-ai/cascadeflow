@@ -154,6 +154,9 @@ export interface StreamOptions {
   /** Tools available */
   tools?: any[];
 
+  /** Provider-specific options forwarded to the provider (e.g. OpenAI `tool_choice`) */
+  extra?: Record<string, any>;
+
   /** Force direct execution (skip cascade) */
   forceDirect?: boolean;
 

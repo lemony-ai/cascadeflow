@@ -1,0 +1,133 @@
+# CascadeFlow Configuration: Anthropic-Only (Production)
+# Updated: 2026-02-10
+# 
+# Drafter: Haiku 4.5 / Sonnet 4.5 (domain-specific)
+# Verifier: Opus 4.5 (highest quality)
+# Heartbeat/Cron: Haiku 3.5 (cheapest)
+
+models:
+  # Sorted by cost - cheapest first becomes default drafter
+  - name: claude-haiku-4-5-20251001
+    provider: anthropic
+    cost: 0.0007  # Artificially low to ensure its the default drafter
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-3-5-haiku-20241022
+    provider: anthropic
+    cost: 0.0008
+    supports_tools: true
+    max_tokens: 4096
+
+  - name: claude-sonnet-4-5-20250929
+    provider: anthropic
+    cost: 0.003
+    supports_tools: true
+    max_tokens: 8192
+
+  - name: claude-opus-4-5-20251101
+    provider: anthropic
+    cost: 0.015
+    supports_tools: true
+    max_tokens: 8192
+
+# ═══════════════════════════════════════════════════════════════════
+# DOMAIN ROUTING
+# ═══════════════════════════════════════════════════════════════════
+
+domains:
+  general:
+    drafter: claude-haiku-4-5-20251001
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.55
+    temperature: 0.7
+    validation_method: quality
+
+  factual:
+    drafter: claude-haiku-4-5-20251001
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.55
+    temperature: 0.3
+    validation_method: quality
+
+  math:
+    drafter: claude-haiku-4-5-20251001
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.60
+    temperature: 0.1
+    validation_method: quality
+
+  conversation:
+    drafter: claude-haiku-4-5-20251001
+    verifier: claude-sonnet-4-5-20250929
+    threshold: 0.50
+    temperature: 0.8
+    validation_method: quality
+
+  comparison:
+    drafter: claude-haiku-4-5-20251001
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.60
+    temperature: 0.5
+    validation_method: quality
+
+  code:
+    drafter: claude-sonnet-4-5-20250929
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.65
+    temperature: 0.2
+    validation_method: syntax
+
+  reasoning:
+    drafter: claude-sonnet-4-5-20250929
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.70
+    temperature: 0.3
+    validation_method: quality
+
+  creative:
+    drafter: claude-sonnet-4-5-20250929
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.50
+    temperature: 0.9
+    validation_method: quality
+
+  summarization:
+    drafter: claude-haiku-4-5-20251001
+    verifier: claude-sonnet-4-5-20250929
+    threshold: 0.55
+    temperature: 0.5
+    validation_method: quality
+
+  translation:
+    drafter: claude-haiku-4-5-20251001
+    verifier: claude-opus-4-5-20251101
+    threshold: 0.60
+    temperature: 0.3
+    validation_method: quality
+
+# ═══════════════════════════════════════════════════════════════════
+# CHANNEL ROUTING
+# ═══════════════════════════════════════════════════════════════════
+
+channels:
+  heartbeat: claude-3-5-haiku-20241022
+  cron: claude-3-5-haiku-20241022
+  content: claude-haiku-4-5-20251001
+  web_search: claude-haiku-4-5-20251001
+  coding: claude-sonnet-4-5-20250929
+  voice: claude-opus-4-5-20251101
+  image_understanding: claude-opus-4-5-20251101
+  brain: claude-opus-4-5-20251101
+
+channel_failover:
+  heartbeat: cron
+  cron: content
+  coding: brain
+
+settings:
+  enable_cascade: true
+  enable_domain_detection: true
+  verbose: false
+  default_drafter: claude-haiku-4-5-20251001
+  default_verifier: claude-opus-4-5-20251101

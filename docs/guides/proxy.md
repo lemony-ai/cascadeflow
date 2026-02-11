@@ -4,6 +4,10 @@ cascadeflow includes lightweight proxy routing components to help you build
 provider-agnostic API gateways. You can route requests to multiple providers,
 track usage costs, and normalize request handling.
 
+If you want a drop-in integration for existing OpenAI/Anthropic SDK clients
+(change only `base_url`), use the **Gateway Server** instead:
+`docs/guides/gateway.md`.
+
 ## When to use the proxy components
 
 Use the proxy tooling when you need to:
@@ -22,7 +26,12 @@ Use the proxy tooling when you need to:
 
 ## Basic setup
 
+See also: `examples/proxy_service_basic.py`
+
 ```python
+import asyncio
+import os
+
 from cascadeflow.proxy import ProxyHandler, ProxyRequest, ProxyRoute, ProxyRouter, ProxyService
 from cascadeflow.telemetry import CostTracker
 
@@ -31,14 +40,14 @@ routes = [
         name="openai",
         provider="openai",
         base_url="https://api.openai.com",
-        api_key="${OPENAI_API_KEY}",
+        api_key=os.getenv("OPENAI_API_KEY"),
         models={"gpt-4o", "gpt-4o-mini"},
     ),
     ProxyRoute(
         name="anthropic",
         provider="anthropic",
         base_url="https://api.anthropic.com",
-        api_key="${ANTHROPIC_API_KEY}",
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
         models={"claude-3-5-sonnet"},
     ),
 ]
@@ -58,9 +67,12 @@ request = ProxyRequest(
     },
 )
 
-result = await service.handle(request)
-print(result.data)
-print(result.cost)
+async def main() -> None:
+    result = await service.handle(request)
+    print(result.data)
+    print(result.cost)
+
+asyncio.run(main())
 ```
 
 ## Routing behavior
@@ -77,7 +89,7 @@ override pricing per route with `cost_per_1k_tokens` when needed.
 
 ## Configuration tips
 
-- **API keys**: Set `api_key` per route or pass `Authorization` headers on each request.
+- **API keys**: Set `api_key` per route (usually from env vars) or pass `Authorization` headers on each request.
 - **Timeouts**: Adjust `ProxyRoute.timeout` for slow providers.
 - **Custom models**: Add custom model pricing via `ModelRegistry.register` if needed.
 

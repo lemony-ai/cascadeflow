@@ -1,0 +1,28 @@
+From 2137f09cb5c3fb8fe5a03b545005979912d0c000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Sascha=20B=C3=BChrle?= <sascha.buehrle@gmail.com>
+Date: Wed, 11 Feb 2026 12:10:33 +0100
+Subject: [PATCH] fix(openclaw): use HTTP/1.1 protocol for OpenAI-compat server
+
+Python BaseHTTPRequestHandler defaults to HTTP/1.0 which causes
+OpenClaw/pi-ai to fail parsing response content (returns empty).
+
+Fixes streaming and non-streaming response parsing.
+---
+ cascadeflow/integrations/openclaw/openai_server.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/cascadeflow/integrations/openclaw/openai_server.py b/cascadeflow/integrations/openclaw/openai_server.py
+index 323b195..d4d21fa 100644
+--- a/cascadeflow/integrations/openclaw/openai_server.py
++++ b/cascadeflow/integrations/openclaw/openai_server.py
+@@ -115,6 +115,7 @@ class OpenClawOpenAIServer:
+ 
+ 
+ class OpenAIRequestHandler(BaseHTTPRequestHandler):
++    protocol_version = "HTTP/1.1"
+     server_version = "CascadeflowOpenAI/0.1"
+ 
+     def _get_presented_token(self) -> Optional[str]:
+-- 
+2.47.3
+

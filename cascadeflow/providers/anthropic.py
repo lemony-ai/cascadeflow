@@ -244,6 +244,28 @@ class AnthropicProvider(BaseProvider):
         """
         return False
 
+    def _strip_internal_kwargs(self, extra: dict[str, Any]) -> dict[str, Any]:
+        """
+        Remove CascadeFlow/OpenClaw internal routing keys that must never be sent to Anthropic.
+
+        Anthropic rejects unknown top-level fields with 400: "Extra inputs are not permitted".
+        """
+        internal_keys = (
+            "domain_hint",
+            "domain_confidence_hint",
+            "kpi_flags",
+            "tenant_id",
+            "channel",
+            "method",
+            "event",
+            "profile",
+            "routing_strategy",
+            "routing_reason",
+        )
+        for k in internal_keys:
+            extra.pop(k, None)
+        return extra
+
     def _convert_tools_to_anthropic(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Convert tools from universal format to Anthropic format.
@@ -587,6 +609,8 @@ class AnthropicProvider(BaseProvider):
         """
         start_time = time.time()
 
+        extra = self._strip_internal_kwargs(dict(kwargs))
+
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic(tools) if tools else None
 
@@ -602,6 +626,10 @@ class AnthropicProvider(BaseProvider):
             **kwargs,
         }
         
+        # Add system prompt if extracted from messages
+        if extracted_system:
+            payload["system"] = extracted_system
+
         # Add system prompt if extracted from messages
         if extracted_system:
             payload["system"] = extracted_system
@@ -777,19 +805,35 @@ class AnthropicProvider(BaseProvider):
             return model_response
 
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
+            error_detail = ""
+            try:
+                error_detail = (e.response.text or "").strip()
+            except Exception:
+                error_detail = ""
+            if error_detail:
+                error_detail = error_detail[:500]
+            status = e.response.status_code
+            if status == 401:
                 raise ProviderError(
-                    "Invalid Anthropic API key", provider="anthropic", original_error=e
+                    "Invalid Anthropic API key",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
-            elif e.response.status_code == 429:
+            elif status == 429:
                 raise ProviderError(
-                    "Anthropic rate limit exceeded", provider="anthropic", original_error=e
+                    "Anthropic rate limit exceeded",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}",
+                    f"Anthropic API error: {status}"
+                    + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
+                    status_code=status,
                 )
         except httpx.RequestError as e:
             raise ProviderError(
@@ -841,6 +885,8 @@ class AnthropicProvider(BaseProvider):
         logprobs_requested = kwargs.pop("logprobs", False)
         kwargs.pop("top_logprobs", 5)
 
+        kwargs = self._strip_internal_kwargs(kwargs)
+
         # Auto-detect extended thinking support
         model_info = get_reasoning_model_info(model)
 
@@ -878,9 +924,19 @@ class AnthropicProvider(BaseProvider):
                 else None
             )
 
-            # Extract response (Anthropic format)
-            text_blocks = [block for block in data["content"] if block.get("type") == "text"]
-            content = text_blocks[0]["text"] if text_blocks else ""
+            # Extract response text from all text blocks.
+            # Some Anthropic responses include multiple text blocks and the first
+            # one may be empty; using only index 0 can silently drop real content.
+            content_blocks = data.get("content", [])
+            text_fragments: list[str] = []
+            for block in content_blocks:
+                block_type = block.get("type")
+                if block_type and block_type != "text":
+                    continue
+                text = block.get("text", "")
+                if text:
+                    text_fragments.append(str(text))
+            content = "".join(text_fragments)
 
             # Anthropic provides token counts in usage
             usage = data.get("usage", {})
@@ -981,19 +1037,35 @@ class AnthropicProvider(BaseProvider):
             return model_response
 
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
+            error_detail = ""
+            try:
+                error_detail = (e.response.text or "").strip()
+            except Exception:
+                error_detail = ""
+            if error_detail:
+                error_detail = error_detail[:500]
+            status = e.response.status_code
+            if status == 401:
                 raise ProviderError(
-                    "Invalid Anthropic API key", provider="anthropic", original_error=e
+                    "Invalid Anthropic API key",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
-            elif e.response.status_code == 429:
+            elif status == 429:
                 raise ProviderError(
-                    "Anthropic rate limit exceeded", provider="anthropic", original_error=e
+                    "Anthropic rate limit exceeded",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}",
+                    f"Anthropic API error: {status}"
+                    + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
+                    status_code=status,
                 )
         except httpx.RequestError as e:
             raise ProviderError(
@@ -1051,6 +1123,8 @@ class AnthropicProvider(BaseProvider):
             ...     print(chunk, end='', flush=True)
             Python is a high-level programming language...
         """
+        kwargs = self._strip_internal_kwargs(kwargs)
+
         # Build request payload with streaming enabled
         payload = {
             "model": model,
@@ -1112,19 +1186,35 @@ class AnthropicProvider(BaseProvider):
                             continue
 
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
+            error_detail = ""
+            try:
+                error_detail = (e.response.text or "").strip()
+            except Exception:
+                error_detail = ""
+            if error_detail:
+                error_detail = error_detail[:500]
+            status = e.response.status_code
+            if status == 401:
                 raise ProviderError(
-                    "Invalid Anthropic API key", provider="anthropic", original_error=e
+                    "Invalid Anthropic API key",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
-            elif e.response.status_code == 429:
+            elif status == 429:
                 raise ProviderError(
-                    "Anthropic rate limit exceeded", provider="anthropic", original_error=e
+                    "Anthropic rate limit exceeded",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}",
+                    f"Anthropic API error: {status}"
+                    + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
+                    status_code=status,
                 )
         except httpx.RequestError as e:
             raise ProviderError(

@@ -295,6 +295,18 @@ class ProductionConfidenceEstimator:
             base_confidence = (
                 0.40 * semantic_conf + 0.40 * alignment_score + 0.20 * (1.0 - query_difficulty)
             )
+            # Normalization: compensate for missing logprobs signal.
+            # With logprobs the 50% weight typically contributes ~0.45
+            # (good responses have logprobs_conf ~0.85-0.95), pushing the
+            # base to ~0.82.  Without logprobs the practical ceiling is
+            # ~0.74, causing the same-quality response to fail thresholds
+            # calibrated for logprobs providers (e.g. DOMAIN_GENERAL 0.70).
+            # A 1.12x boost when both semantic and alignment are positive
+            # re-centres the distribution so domain thresholds work across
+            # all providers.
+            if semantic_conf >= 0.50 and alignment_score >= 0.40:
+                base_confidence = min(0.95, base_confidence * 1.12)
+                components["no_logprobs_normalization"] = True
             method = "multi-signal-semantic"
 
         else:

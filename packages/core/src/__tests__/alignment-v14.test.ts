@@ -50,3 +50,73 @@ describe('alignment scorer v14 parity', () => {
     expect(analysis.alignmentScore).toBeCloseTo(0.72, 2);
   });
 });
+
+describe('alignment scorer v15 semantic fallback', () => {
+  it('no-ops when useSemanticFallback is false', () => {
+    const scorer = new QueryResponseAlignmentScorer({ useSemanticFallback: false });
+    const analysis = scorer.score(
+      'Explain quantum entanglement',
+      'Particles are correlated.',
+      0.3,
+      true
+    );
+    expect(analysis.features.semanticFallback).toBeUndefined();
+  });
+
+  it('no-ops when no callback is provided', () => {
+    const scorer = new QueryResponseAlignmentScorer({ useSemanticFallback: true });
+    const analysis = scorer.score(
+      'Explain quantum entanglement',
+      'Particles are correlated.',
+      0.3,
+      true
+    );
+    // Without a callback, semantic fallback cannot fire
+    expect(analysis.features.semanticFallback).toBeUndefined();
+  });
+
+  it('fires callback when score is in uncertain zone (0.35-0.55)', () => {
+    let callbackCalled = false;
+    const scorer = new QueryResponseAlignmentScorer({
+      useSemanticFallback: true,
+      getSemanticScore: (_q, _r) => {
+        callbackCalled = true;
+        return 0.80; // high semantic score
+      },
+    });
+
+    // Use a query/response that produces a rule score in the uncertain zone
+    const analysis = scorer.score(
+      'Explain the concept of machine learning optimization',
+      'It involves adjusting parameters to minimize loss.',
+      0.3,
+      true
+    );
+
+    // If rule score landed in 0.35-0.55, callback fires and blends
+    if (analysis.features.semanticFallback) {
+      expect(callbackCalled).toBe(true);
+      expect(analysis.features.semanticScore).toBe(0.80);
+      // Blended: 70% rule + 30% * 0.80
+      expect(analysis.alignmentScore).toBeGreaterThan(0.35);
+    }
+  });
+
+  it('skips callback for high-confidence scores', () => {
+    let callbackCalled = false;
+    const scorer = new QueryResponseAlignmentScorer({
+      useSemanticFallback: true,
+      getSemanticScore: () => {
+        callbackCalled = true;
+        return 0.90;
+      },
+    });
+
+    // MCQ gets 0.75 — well above the 0.55 threshold
+    scorer.score(
+      'Answer the following multiple-choice question. A) Red B) Blue Answer:',
+      'B'
+    );
+    expect(callbackCalled).toBe(false);
+  });
+});

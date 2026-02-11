@@ -221,7 +221,11 @@ export class HuggingFaceProvider extends BaseProvider {
       } else if (msg.role === 'user') {
         hfMessages.push({ role: 'user', content: msg.content });
       } else if (msg.role === 'assistant') {
-        hfMessages.push({ role: 'assistant', content: msg.content });
+        const assistantMsg: any = { role: 'assistant', content: msg.content };
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          assistantMsg.tool_calls = msg.tool_calls;
+        }
+        hfMessages.push(assistantMsg);
       } else if (msg.role === 'tool') {
         hfMessages.push({
           role: 'tool',

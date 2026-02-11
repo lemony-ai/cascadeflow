@@ -28,9 +28,13 @@ python examples/basic_usage.py
 | **basic_usage.py** | Learn cascading basics | ⭐ Easy | 5 min | First-time users |
 | **streaming_text.py** | Real-time streaming | ⭐⭐ Medium | 10 min | Interactive apps |
 | **tool_execution.py** | Function calling | ⭐⭐ Medium | 15 min | Agent builders |
+| **agentic_multi_agent.py** | Tool loops + multi-agent | ⭐⭐⭐ Advanced | 20 min | Agentic apps |
 | **cost_tracking.py** | Budget management | ⭐⭐ Medium | 15 min | Cost optimization |
 | **multi_provider.py** | Mix AI providers | ⭐⭐ Medium | 10 min | Multi-cloud |
 | **reasoning_models.py** | o1, o3, Claude 3.7, DeepSeek-R1 | ⭐⭐ Medium | 10 min | Complex reasoning |
+| **gateway_client_openai.py** | Drop-in gateway (OpenAI SDK) | ⭐ Easy | 2 min | Existing OpenAI apps |
+| **gateway_client_anthropic.py** | Drop-in gateway (Anthropic format) | ⭐ Easy | 2 min | Existing Anthropic apps |
+| **proxy_service_basic.py** | Build your own proxy (router + handler) | ⭐⭐ Medium | 10 min | Custom gateways |
 | **fastapi_integration.py** | REST API server | ⭐⭐⭐ Advanced | 20 min | Production APIs |
 | **production_patterns.py** | Enterprise patterns | ⭐⭐⭐ Advanced | 30 min | Production deployment |
 | **edge_device.py** | Edge AI (Jetson/Pi) | ⭐⭐⭐ Advanced | 20 min | Edge deployment |
@@ -43,7 +47,7 @@ python examples/basic_usage.py
 
 **I want to...**
 - **Stream responses?** → `streaming_text.py`, `streaming_tools.py`
-- **Use tools/functions?** → `tool_execution.py`, `streaming_tools.py`
+- **Use tools/functions?** → `tool_execution.py`, `agentic_multi_agent.py`, `streaming_tools.py`
 - **Track costs?** → `cost_tracking.py`, `user_budget_tracking.py`, `integrations/litellm_cost_tracking.py`
 - **Enforce budgets?** → `enforcement/basic_enforcement.py`, `enforcement/stripe_integration.py`
 - **Use multiple providers?** → `multi_provider.py`, `integrations/litellm_providers.py`
@@ -51,6 +55,8 @@ python examples/basic_usage.py
 - **Deploy to production?** → `production_patterns.py`, `fastapi_integration.py`
 - **Monitor in production?** → `integrations/opentelemetry_grafana.py`
 - **Run locally/edge?** → `edge_device.py`, `integrations/local_providers_setup.py`, `vllm_example.py`, `multi_instance_ollama.py`, `multi_instance_vllm.py`
+- **Integrate an existing OpenAI/Anthropic app quickly?** → `gateway_client_openai.py`, `gateway_client_anthropic.py`
+- **Build a custom gateway/proxy?** → `proxy_service_basic.py`
 - **Use reasoning models?** → `reasoning_models.py`
 - **Manage user budgets?** → `user_budget_tracking.py`, `profile_database_integration.py`
 - **Integrate with Stripe?** → `enforcement/stripe_integration.py`
@@ -192,7 +198,7 @@ agent = CascadeAgent(models=[
 </details>
 
 <details>
-<summary><h3>🔧 Tool & Function Calling (2 examples)</h3></summary>
+<summary><h3>🔧 Tool & Function Calling (3 examples)</h3></summary>
 
 Learn how to use tools and functions with cascadeflow.
 
@@ -202,6 +208,15 @@ Complete tool workflow with `ToolExecutor` - actual execution, not just detectio
 
 #### Streaming Tools
 **File:** [`streaming_tools.py`](streaming_tools.py)
+
+---
+
+#### Agentic + Multi-Agent Tool Loop 🤖
+**File:** [`agentic_multi_agent.py`](agentic_multi_agent.py)
+Shows a complete agentic workflow:
+- Tool loop with automatic tool execution (`tool_executor`, `max_steps`)
+- Multi-agent delegation as a tool (`delegate_to_researcher`)
+
 Watch tool calls form in real-time as JSON arrives.
 
 **Key difference:**
@@ -875,4 +890,3 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 **💰 Save 40-85% on AI costs with intelligent cascading!** 🚀
 
 [View All Documentation](../docs/) • [Python Examples](../examples/) • [TypeScript Examples](../packages/core/examples/) • [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
-

@@ -118,6 +118,19 @@ jobs:
         with:
           version: 8
 
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -129,6 +142,14 @@ jobs:
 
       - name: Lint n8n package
         run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow lint
+
+      - name: Smoke load built n8n nodes
+        run: |
+          node -e "require('./packages/integrations/n8n/dist/nodes/LmChatCascadeFlow/LmChatCascadeFlow.node.js')"
+          node -e "require('./packages/integrations/n8n/dist/nodes/CascadeFlowAgent/CascadeFlowAgent.node.js')"
+
+      - name: Test n8n package
+        run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow test
 
   # Python Code Quality
   lint-python:
@@ -148,7 +169,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black ruff mypy types-PyYAML
+          # Pin Black to the last version that supports Python 3.9.
+          # The repo supports Python >=3.9, and newer Black releases may format
+          # differently (or drop 3.9), causing CI-only formatting failures.
+          # Pin Ruff to avoid CI-only lint drift as Ruff evolves.
+          pip install "black==25.11.0" "ruff==0.15.0" mypy types-PyYAML
 
       - name: Check formatting with Black
         run: black --check cascadeflow tests examples

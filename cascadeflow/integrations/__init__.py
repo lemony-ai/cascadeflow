@@ -9,6 +9,10 @@ Provides optional integrations with:
 All integrations are optional and gracefully degrade if dependencies unavailable.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 # Try to import LiteLLM integration
 try:
     from .litellm import (

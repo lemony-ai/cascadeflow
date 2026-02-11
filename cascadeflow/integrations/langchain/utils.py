@@ -100,6 +100,15 @@ def calculate_quality(response: Any) -> float:
     Returns:
         Quality score between 0 and 1
     """
+    # Tool calls often come with empty `content` but are valid high-quality responses.
+    # Tool-call gating (high-risk tool calls must use verifier) is handled in the wrapper.
+    try:
+        if extract_tool_calls(response):
+            return 1.0
+    except Exception:
+        # Fall back to heuristics/logprobs
+        pass
+
     # 1. Try logprobs-based confidence (OpenAI)
     if hasattr(response, "generations") and response.generations:
         generation = response.generations[0]
@@ -164,6 +173,35 @@ def calculate_quality(response: Any) -> float:
     score -= hedge_count * 0.15  # Increased penalty from 0.1
 
     return max(0.1, min(1.0, score))
+
+
+def extract_tool_calls(response: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from a LangChain response (ChatResult/ChatGeneration/AIMessage).
+
+    LangChain providers commonly expose tool calls on AIMessage.tool_calls.
+    Some providers/versions may put tool calls in additional_kwargs.
+    """
+    # ChatResult -> ChatGeneration -> AIMessage
+    msg = None
+    if hasattr(response, "generations") and response.generations:
+        generation = response.generations[0]
+        msg = getattr(generation, "message", None)
+    else:
+        msg = getattr(response, "message", None) or response
+
+    if not msg:
+        return []
+
+    direct = getattr(msg, "tool_calls", None)
+    if isinstance(direct, list) and direct:
+        return direct
+
+    additional = getattr(msg, "additional_kwargs", None) or {}
+    ak_tool_calls = additional.get("tool_calls") or additional.get("toolCalls")
+    if isinstance(ak_tool_calls, list) and ak_tool_calls:
+        return ak_tool_calls
+
+    return []
 
 
 def calculate_savings(drafter_cost: float, verifier_cost: float) -> float:

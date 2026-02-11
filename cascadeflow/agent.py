@@ -52,6 +52,7 @@ Example:
     >>> print(f"Verifier: ${result.verifier_cost:.6f}") # $0.001500 ✅
 """
 
+import asyncio
 import logging
 import asyncio
 import sys
@@ -65,11 +66,13 @@ if TYPE_CHECKING:
     from .core.batch import BatchResult
     from .core.batch_config import BatchConfig
     from .profiles import UserProfile
+    from .rules.decision import RuleDecision
 
 from .core.cascade import WholeResponseCascade
 
 # Phase 2C: Interface module imports
 from .interface import TerminalVisualConsumer
+from .pricing import PricingResolver
 from .providers import PROVIDER_REGISTRY, get_available_providers
 from .pricing import PricingResolver
 from .quality import QualityConfig
@@ -88,6 +91,12 @@ from .routing import (
     ToolRouter,
     ToolRoutingDecision,
 )
+
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+# Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
+from .rules import RuleContext, RuleEngine
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
@@ -106,6 +115,13 @@ from .streaming import StreamEvent, StreamEventType, StreamManager
 
 # Phase 2B + v2.5: Telemetry module imports (with CostCalculator)
 from .telemetry import CallbackManager, CostCalculator, MetricsCollector
+from .tools.formats import normalize_tools
+from .utils.messages import (
+    detect_multi_turn,
+    get_last_user_message,
+    messages_to_prompt,
+    normalize_messages,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +223,10 @@ class CascadeAgent:
         enable_caching: bool = False,  # DEPRECATED - caching system being re-implemented
         cache_size: int = 1000,  # DEPRECATED - caching system being re-implemented
         enable_callbacks: bool = True,  # DEPRECATED - callbacks now always enabled
+        # ========================================================================
+        # 🆕 v2.9: Tool Execution
+        # ========================================================================
+        tool_executor: Optional[Any] = None,  # ToolExecutor instance or async callable
     ):
         """
         Initialize cascade agent with dual streaming managers and cost calculator.
@@ -338,6 +358,9 @@ class CascadeAgent:
         self.models = sorted(models, key=lambda m: m.cost)
         self.enable_cascade = enable_cascade
         self.verbose = verbose
+
+        # 🆕 v2.9: Tool execution support
+        self._tool_executor = tool_executor
 
         # Setup logging
         if verbose:
@@ -840,14 +863,58 @@ class CascadeAgent:
     async def _execute_tool_calls_parallel(
         self, tool_calls: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        async def _as_result(tool_call: dict[str, Any]) -> dict[str, Any]:
-            return {
-                "tool_call_id": tool_call.get("id"),
-                "name": tool_call.get("function", {}).get("name", "unknown_tool"),
-                "content": '{"status":"not_implemented"}',
-            }
+        """Execute tool calls in parallel using the registered tool executor.
 
-        return await asyncio.gather(*[_as_result(tc) for tc in tool_calls])
+        When a ``tool_executor`` callback or :class:`ToolExecutor` is
+        registered (via ``__init__``), each tool call is dispatched to it.
+        Otherwise the raw tool calls are returned with a descriptive
+        ``no_executor_registered`` message so the caller can handle
+        execution externally.
+        """
+        if self._tool_executor is None:
+            async def _stub(tc: dict[str, Any]) -> dict[str, Any]:
+                return {
+                    "tool_call_id": tc.get("id"),
+                    "name": tc.get("function", {}).get("name", "unknown_tool"),
+                    "content": '{"error":"no_executor_registered","hint":"Pass tool_executor to CascadeAgent to enable tool execution"}',
+                }
+
+            return list(await asyncio.gather(*[_stub(tc) for tc in tool_calls]))
+
+        async def _run_one(tc: dict[str, Any]) -> dict[str, Any]:
+            name = tc.get("function", {}).get("name", "unknown_tool")
+            call_id = tc.get("id", "")
+            try:
+                if hasattr(self._tool_executor, "execute"):
+                    from .tools.call import ToolCall as _ToolCall
+
+                    parsed = _ToolCall.from_provider("openai", tc)
+                    result = await self._tool_executor.execute(parsed)
+                    return {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": (
+                            str(result.result)
+                            if result.success
+                            else f'{{"error":"{result.error}"}}'
+                        ),
+                    }
+                else:
+                    result = await self._tool_executor(tc)
+                    return {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": str(result) if not isinstance(result, str) else result,
+                    }
+            except Exception as exc:
+                logger.error(f"Tool execution failed for {name}: {exc}")
+                return {
+                    "tool_call_id": call_id,
+                    "name": name,
+                    "content": f'{{"error":"{type(exc).__name__}: {exc}"}}',
+                }
+
+        return list(await asyncio.gather(*[_run_one(tc) for tc in tool_calls]))
 
     # ========================================================================
     # API 1: NON-STREAMING - WITH TOOL SUPPORT
@@ -855,7 +922,7 @@ class CascadeAgent:
 
     async def run(
         self,
-        query: str,
+        query: "str | list[dict[str, Any]]",
         max_tokens: int = 100,
         temperature: float = 0.7,
         complexity_hint: Optional[str] = None,
@@ -877,7 +944,10 @@ class CascadeAgent:
         Run query (NON-STREAMING) with comprehensive diagnostics and tool support.
 
         Args:
-            query: User query
+            query: User query string, OR a list of message dicts
+                   (e.g. [{"role": "user", "content": "hi"}]).
+                   When a list is passed it is treated as the messages parameter
+                   and the string query is derived automatically.
             max_tokens: Max tokens to generate
             temperature: Sampling temperature
             complexity_hint: Override complexity detection
@@ -897,6 +967,12 @@ class CascadeAgent:
         Returns:
             CascadeResult with content, cost, latency, tool_calls, and full diagnostics
         """
+        # Accept query as list[dict] for DX convenience:
+        #   agent.run([{"role": "user", "content": "hi"}])
+        if isinstance(query, list):
+            messages = query if messages is None else messages + query
+            query = ""
+
         overall_start = time.time()
         timing_breakdown = {}
         system_prompt = kwargs.pop("system_prompt", None)
@@ -1775,7 +1851,10 @@ class CascadeAgent:
         # 🚀 v2.4 KEY FIX: Select correct streaming manager
         streaming_manager = self._get_streaming_manager(tools)
 
-        # Yield events from selected manager
+        # Yield events from selected manager, capturing telemetry data
+        _stream_draft_decision = None  # Captured from DRAFT_DECISION event
+        _stream_complete_data = None  # Captured from COMPLETE event
+
         if use_cascade and streaming_manager:
             async for event in streaming_manager.stream(
                 query=query_text,
@@ -1789,6 +1868,11 @@ class CascadeAgent:
                 messages=normalized_messages,
                 **kwargs,
             ):
+                # Capture draft decision and completion for telemetry
+                if event.type == StreamEventType.DRAFT_DECISION:
+                    _stream_draft_decision = event.data
+                elif event.type == StreamEventType.COMPLETE:
+                    _stream_complete_data = getattr(event, "data", None)
                 yield event
         else:
             if streaming_manager:
@@ -1804,6 +1888,8 @@ class CascadeAgent:
                     messages=normalized_messages,
                     **kwargs,
                 ):
+                    if event.type == StreamEventType.COMPLETE:
+                        _stream_complete_data = getattr(event, "data", None)
                     yield event
             else:
                 # Fallback for manual streaming
@@ -1887,9 +1973,45 @@ class CascadeAgent:
                     },
                 )
 
-        # Basic telemetry recording
+        # Telemetry recording (v19: now includes draft acceptance from stream events)
         self.telemetry.stats["total_queries"] += 1
         self.telemetry.stats["streaming_used"] += 1
+
+        if use_cascade:
+            self.telemetry.stats["cascade_used"] += 1
+
+            # Track draft acceptance from DRAFT_DECISION stream event
+            if _stream_draft_decision is not None:
+                draft_was_accepted = _stream_draft_decision.get("accepted", False)
+                if draft_was_accepted:
+                    self.telemetry.stats["draft_accepted"] += 1
+                else:
+                    self.telemetry.stats["draft_rejected"] += 1
+
+                # Per-complexity acceptance tracking
+                cx = complexity.value
+                if cx not in self.telemetry.acceptance_by_complexity:
+                    self.telemetry.acceptance_by_complexity[cx] = {
+                        "accepted": 0,
+                        "rejected": 0,
+                    }
+                bucket = "accepted" if draft_was_accepted else "rejected"
+                self.telemetry.acceptance_by_complexity[cx][bucket] += 1
+
+                # Quality score tracking
+                quality_score = _stream_draft_decision.get("score")
+                if quality_score is not None:
+                    self.telemetry.quality_scores.append(quality_score)
+        else:
+            self.telemetry.stats["direct_routed"] += 1
+
+        # Track cost/latency from COMPLETE event
+        if _stream_complete_data and isinstance(_stream_complete_data, dict):
+            result_data = _stream_complete_data.get("result", {})
+            if isinstance(result_data, dict):
+                self.telemetry.stats["total_cost"] += result_data.get("total_cost", 0.0)
+                self.telemetry.stats["total_latency_ms"] += result_data.get("latency_ms", 0.0)
+
         if tools:
             if "tool_queries" not in self.telemetry.stats:
                 self.telemetry.stats["tool_queries"] = 0
@@ -2367,6 +2489,29 @@ class CascadeAgent:
                 )
             draft_accepted_value = quality_check_passed
 
+        # Some provider integrations can yield an empty verifier response while still returning
+        # draft/verifier text in metadata. Prefer a non-empty response for client-facing content.
+        final_content_source = "result"
+        final_content = getattr(spec_result, "content", "") or ""
+        if not isinstance(final_content, str):
+            final_content = str(final_content)
+
+        if not final_content.strip():
+            if use_cascade and not draft_accepted_value:
+                preferred = [("verifier", verifier_response), ("draft", draft_response)]
+            else:
+                preferred = [("draft", draft_response), ("verifier", verifier_response)]
+
+            for label, candidate in preferred:
+                if isinstance(candidate, str) and candidate.strip():
+                    final_content_source = label
+                    final_content = candidate
+                    break
+
+            # Keep response_length/word_count consistent with what we actually return.
+            response_length = len(final_content)
+            response_word_count = len(final_content.split())
+
         if use_cascade:
             metadata_costs = None
             if hasattr(spec_result, "metadata") and spec_result.metadata:
@@ -2511,6 +2656,7 @@ class CascadeAgent:
             "has_tools": bool(tools),
             "tool_count": len(tools) if tools else 0,
             "tool_calls": tool_calls,
+            "final_content_source": final_content_source,
         }
 
         # Copy token counts from provider response if available (for LiteLLM integration)
@@ -2546,7 +2692,7 @@ class CascadeAgent:
             metadata["direct_model"] = spec_result.model_used
 
         return CascadeResult(
-            content=spec_result.content,
+            content=final_content,
             model_used=spec_result.model_used,
             total_cost=total_cost,  # ✅ v2.5 FIX: Properly aggregated!
             latency_ms=total_latency_ms,

@@ -119,10 +119,28 @@ class QueryResponseAlignmentScorer:
     - Recognizes short responses with keywords as valid
     - No longer marks "4" for "2+2" as off-topic
     - Bidirectional keyword checking for trivial queries
+
+    v15: Semantic fallback for uncertain scores
+    - When rule-based score is in the uncertain zone (0.35-0.55),
+      uses SemanticAlignmentScorer for a second opinion
+    - Blends 70% rule + 30% semantic to reduce false negatives
+    - Only activates when FastEmbed is available (graceful degradation)
     """
 
-    def __init__(self):
-        """Initialize the alignment scorer with production constants."""
+    # Uncertain zone bounds for semantic fallback
+    SEMANTIC_FALLBACK_LOW = 0.35
+    SEMANTIC_FALLBACK_HIGH = 0.55
+
+    def __init__(self, use_semantic_fallback: bool = True):
+        """Initialize the alignment scorer with production constants.
+
+        Args:
+            use_semantic_fallback: Whether to use semantic embeddings as fallback
+                when rule-based score is in the uncertain zone (0.35-0.55).
+                Only activates if FastEmbed is available. Default: True.
+        """
+        self._use_semantic_fallback = use_semantic_fallback
+        self._semantic_scorer = None  # Lazy-initialized
         self.stopwords = {
             "the",
             "is",
@@ -1456,15 +1474,57 @@ class QueryResponseAlignmentScorer:
 
         # v7.11 FIX: Only apply off-topic penalty if truly off-topic
         # Don't penalize short valid answers that have keywords
+        #
+        # v19 FIX: Paraphrase floor for substantial responses.
+        # Modern LLMs (especially Anthropic models) commonly paraphrase
+        # rather than echoing query keywords verbatim. The keyword-based
+        # scorer fundamentally cannot assess alignment when no keywords
+        # overlap, producing scores of 0.10-0.23 for perfectly valid
+        # responses like:
+        #   "What are the benefits of meditation?" → mindfulness response → 0.15
+        #   "How does machine learning work?" → algorithms response → 0.15
+        # These low scores then trigger the alignment floor in confidence.py
+        # (0.25), capping confidence and causing 0% draft acceptance.
+        #
+        # Fix: For substantial responses (>= 15 words), set a minimum
+        # floor of 0.35 (moderate alignment assumed). Keyword-based scoring
+        # admits it can't reliably assess paraphrased responses.
+        # Short responses without keywords still get the harsh off-topic cap.
+        # The alignment floor in confidence.py (0.25) remains as safety net.
         if not has_keywords and len(query_lower.split()) > 2:
-            score = min(score * 0.60, self.OFF_TOPIC_CAP)
-            features["off_topic_penalty"] = True
+            response_word_count = len(response_lower.split())
+            if response_word_count >= 15:
+                # Substantial response without keyword overlap - likely paraphrasing
+                # Set minimum floor: can't reliably distinguish paraphrasing
+                # from off-topic when response is well-formed
+                score = max(score, 0.35)
+                features["paraphrase_floor"] = True
+            else:
+                # Short response without keyword overlap - likely truly off-topic
+                score = min(score * 0.60, self.OFF_TOPIC_CAP)
+                features["off_topic_penalty"] = True
 
         if is_trivial and has_keywords and coverage_score > 0:
             score *= 1.15
             features["trivial_boost"] = True
 
         final_score = max(0.0, min(1.0, score))
+
+        # v15: Semantic fallback for uncertain scores
+        # When rule-based score lands in the "uncertain zone" (0.35-0.55),
+        # the decision to accept/reject the draft is a coin flip.
+        # Use semantic embeddings as a second opinion to break the tie.
+        if (
+            self._use_semantic_fallback
+            and self.SEMANTIC_FALLBACK_LOW <= final_score <= self.SEMANTIC_FALLBACK_HIGH
+        ):
+            semantic_score = self._get_semantic_score(query, response)
+            if semantic_score is not None:
+                # Blend: 70% rule-based + 30% semantic
+                final_score = 0.70 * final_score + 0.30 * semantic_score
+                final_score = max(0.0, min(1.0, final_score))
+                features["semantic_fallback"] = True
+                features["semantic_score"] = semantic_score
 
         if verbose:
             return AlignmentAnalysis(
@@ -1476,6 +1536,22 @@ class QueryResponseAlignmentScorer:
             )
 
         return final_score
+
+    def _get_semantic_score(self, query: str, response: str) -> Optional[float]:
+        """Get semantic alignment score, lazy-initializing the scorer."""
+        if self._semantic_scorer is None:
+            try:
+                self._semantic_scorer = SemanticAlignmentScorer()
+            except Exception:
+                self._use_semantic_fallback = False
+                return None
+        if not self._semantic_scorer.is_available:
+            self._use_semantic_fallback = False
+            return None
+        try:
+            return self._semantic_scorer.score_alignment(query, response)
+        except Exception:
+            return None
 
     def _analyze_keyword_coverage_enhanced(
         self, query_lower: str, response_lower: str
