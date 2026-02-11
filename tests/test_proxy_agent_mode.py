@@ -149,6 +149,19 @@ def test_openai_agent_streaming(agent_proxy):
 
     assert any(line.startswith("data: ") for line in lines)
     assert lines[-1] == "data: [DONE]"
+    json_chunks = []
+    for line in lines:
+        if not line.startswith("data: "):
+            continue
+        payload = line[len("data: ") :]
+        if payload == "[DONE]":
+            continue
+        json_chunks.append(json.loads(payload))
+    assert json_chunks
+    assert json_chunks[0]["choices"][0]["delta"]["role"] == "assistant"
+    assert json_chunks[-1]["choices"][0]["finish_reason"] == "stop"
+    assert json_chunks[-1]["usage"]["total_tokens"] >= 1
+    assert json_chunks[-1]["usage"]["totalTokens"] >= 1
 
 
 def test_anthropic_agent_streaming(agent_proxy):
