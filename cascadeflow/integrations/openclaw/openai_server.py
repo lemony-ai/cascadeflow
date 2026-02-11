@@ -24,6 +24,28 @@ from .adapter import build_routing_decision
 from .pre_router import CATEGORY_TO_DOMAIN
 
 
+def _to_openai_tool_calls(
+    tool_calls: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert cascadeflow universal tool call format to OpenAI API format."""
+    result: list[dict[str, Any]] = []
+    for i, tc in enumerate(tool_calls):
+        args = tc.get("arguments", {})
+        args_str = json.dumps(args) if isinstance(args, dict) else str(args or "")
+        result.append(
+            {
+                "index": i,
+                "id": tc.get("id", f"call_{i}"),
+                "type": "function",
+                "function": {
+                    "name": tc.get("name", ""),
+                    "arguments": args_str,
+                },
+            }
+        )
+    return result
+
+
 @dataclass
 class OpenClawOpenAIConfig:
     host: str = "127.0.0.1"
@@ -371,6 +393,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         error_box: dict[str, Exception] = {}
         chunk_parts: list[str] = []
         pending_draft_chunks: list[str] = []
+        captured_tool_calls: list[dict[str, Any]] = []
         completion_result: dict[str, Any] = {}
         route_strategy: Optional[str] = None
         draft_accepted: Optional[bool] = None
@@ -475,6 +498,12 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 switched_to_verifier = True
                 pending_draft_chunks.clear()
                 continue
+            # Capture completed tool calls from ToolStreamManager.
+            if event_type == "tool_call_complete":
+                tc = getattr(event, "tool_call", None)
+                if isinstance(tc, dict):
+                    captured_tool_calls.append(tc)
+                continue
             if event_type not in {"chunk", "text_chunk"}:
                 continue
             content = getattr(event, "content", None)
@@ -529,6 +558,31 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if full_content and not chunk_parts:
             _emit_chunk(full_content)
 
+        # Merge tool calls from streaming events and complete result.
+        result_tool_calls = completion_result.get("tool_calls")
+        if isinstance(result_tool_calls, list) and result_tool_calls:
+            # Prefer complete-event tool calls (may be more complete).
+            captured_tool_calls = result_tool_calls
+        openai_tool_calls = _to_openai_tool_calls(captured_tool_calls) if captured_tool_calls else []
+
+        # Emit tool call delta chunks so OpenAI SDKs can parse them.
+        if openai_tool_calls:
+            tc_chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"tool_calls": openai_tool_calls},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            self.wfile.write(f"data: {json.dumps(tc_chunk)}\n\n".encode())
+            self.wfile.flush()
+
         prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
         completion_tokens = int(completion_result.get("completion_tokens") or 0)
         total_tokens_value = completion_result.get("total_tokens")
@@ -550,6 +604,11 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             "totalTokens": total_tokens,
         }
 
+        finish_reason = "tool_calls" if openai_tool_calls else "stop"
+        final_message: dict[str, Any] = {"role": "assistant", "content": full_content}
+        if openai_tool_calls:
+            final_message["tool_calls"] = openai_tool_calls
+
         final_chunk = {
             "id": "chatcmpl-cascadeflow",
             "object": "chat.completion.chunk",
@@ -559,9 +618,8 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 {
                     "index": 0,
                     "delta": {} if chunk_parts else {"content": full_content},
-                    # Compatibility: some streaming clients inspect final message content only.
-                    "message": {"role": "assistant", "content": full_content},
-                    "finish_reason": "stop",
+                    "message": final_message,
+                    "finish_reason": finish_reason,
                 }
             ],
             "usage": usage_payload,

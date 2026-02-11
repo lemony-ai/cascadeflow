@@ -291,6 +291,28 @@ class RoutingProxy:
         return [self._deterministic_embedding(t, dim=dim) for t in texts], "deterministic"
 
 
+def _to_openai_tool_calls(
+    tool_calls: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert cascadeflow universal tool call format to OpenAI API format."""
+    result: list[dict[str, Any]] = []
+    for i, tc in enumerate(tool_calls):
+        args = tc.get("arguments", {})
+        args_str = json.dumps(args) if isinstance(args, dict) else str(args or "")
+        result.append(
+            {
+                "index": i,
+                "id": tc.get("id", f"call_{i}"),
+                "type": "function",
+                "function": {
+                    "name": tc.get("name", ""),
+                    "arguments": args_str,
+                },
+            }
+        )
+    return result
+
+
 def _parse_metadata(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return dict(value)
@@ -975,6 +997,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         sentinel = object()
         error_box: dict[str, Exception] = {}
         chunk_parts: list[str] = []
+        captured_tool_calls: list[dict[str, Any]] = []
         completion_result: dict[str, Any] = {}
 
         async def _produce() -> None:
@@ -1022,7 +1045,12 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     if isinstance(result_payload, dict):
                         completion_result = result_payload
                 continue
-            if event_type != "chunk":
+            if event_type == "tool_call_complete":
+                tc = getattr(event, "tool_call", None)
+                if isinstance(tc, dict):
+                    captured_tool_calls.append(tc)
+                continue
+            if event_type not in {"chunk", "text_chunk"}:
                 continue
 
             content = getattr(event, "content", None)
@@ -1070,6 +1098,29 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(f"data: {json.dumps(fallback_chunk)}\n\n".encode())
             self.wfile.flush()
 
+        # Merge tool calls from streaming events and complete result.
+        result_tool_calls = completion_result.get("tool_calls")
+        if isinstance(result_tool_calls, list) and result_tool_calls:
+            captured_tool_calls = result_tool_calls
+        openai_tool_calls = _to_openai_tool_calls(captured_tool_calls) if captured_tool_calls else []
+
+        if openai_tool_calls:
+            tc_chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"tool_calls": openai_tool_calls},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            self.wfile.write(f"data: {json.dumps(tc_chunk)}\n\n".encode())
+            self.wfile.flush()
+
         prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
         completion_tokens = int(completion_result.get("completion_tokens") or 0)
         total_tokens_value = completion_result.get("total_tokens")
@@ -1091,6 +1142,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             "totalTokens": total_tokens,
         }
 
+        finish_reason = "tool_calls" if openai_tool_calls else "stop"
+        final_message: dict[str, Any] = {"role": "assistant", "content": full_content}
+        if openai_tool_calls:
+            final_message["tool_calls"] = openai_tool_calls
+
         final_chunk = {
             "id": "chatcmpl-cascadeflow",
             "object": "chat.completion.chunk",
@@ -1100,8 +1156,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 {
                     "index": 0,
                     "delta": {} if chunk_parts else {"content": full_content},
-                    "message": {"role": "assistant", "content": full_content},
-                    "finish_reason": "stop",
+                    "message": final_message,
+                    "finish_reason": finish_reason,
                 }
             ],
             "usage": usage_payload,
