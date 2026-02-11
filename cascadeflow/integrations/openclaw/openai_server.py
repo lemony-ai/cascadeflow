@@ -418,6 +418,10 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                     if isinstance(result_payload, dict):
                         completion_result = result_payload
                 continue
+            # When switching from draft to verifier, discard draft chunks
+            if event_type == "switch":
+                chunk_parts.clear()
+                continue
             if event_type != "chunk":
                 continue
             chunk = {
