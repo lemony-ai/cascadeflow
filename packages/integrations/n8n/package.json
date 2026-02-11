@@ -39,7 +39,8 @@
       "dist/credentials/CascadeFlowApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/LmChatCascadeFlow/LmChatCascadeFlow.node.js"
+      "dist/nodes/LmChatCascadeFlow/LmChatCascadeFlow.node.js",
+      "dist/nodes/CascadeFlowAgent/CascadeFlowAgent.node.js"
     ]
   },
   "devDependencies": {

@@ -61,7 +61,7 @@ The cascadeflow node is a **Language Model sub-node** that sits between your AI 
 
 **Result:** 70-80% of queries accept the drafter, saving 40-85% on costs.
 
-> **ℹ️ Note:** cascadeflow works with n8n Chain nodes but **not with AI Agent nodes**, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Note:** Use **CascadeFlow (Model)** with n8n Chain/LLM nodes, and **CascadeFlow Agent** for agent workflows (tool calling + multi-step). The Agent node adds trace metadata and supports tool routing.
 
 ## Installation
 
@@ -99,12 +99,12 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 2. **Add the cascadeflow node**
    - Connect the drafter model to the **Drafter** input
    - Connect the verifier model to the **Verifier** input
-   - Adjust the **Quality Threshold** (default: 0.7)
+   - Optionally adjust the **Quality Threshold** (default: 0.4, and per-complexity thresholds are enabled by default)
 
 3. **Connect to a Chain node**
    - The cascadeflow node outputs a Language Model connection
    - Connect it to nodes that accept AI models (Basic LLM Chain, Chain, etc.)
-   - **Note:** Does not work with AI Agent nodes (n8n limitation)
+   - For agent workflows, use the **CascadeFlow Agent** node (connect tools to its `Tools` input).
 
 ### Example Workflow
 
@@ -120,7 +120,7 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 │  gpt-4o-mini     │       │  cascadeflow     │       ┌──────────────────┐
 └──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
                            │                  │       │                  │
-┌──────────────────┐       │  Threshold: 0.7  │       └──────────────────┘
+┌──────────────────┐       │  Threshold: 0.4  │       └──────────────────┘
 │  OpenAI Model    │──────►│                  │
 │  gpt-4o          │       └──────────────────┘
 └──────────────────┘
@@ -132,11 +132,16 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 
 #### Quality Threshold (0-1)
 
-Controls how aggressively to accept drafter responses:
+Controls how aggressively to accept drafter responses when **Use Complexity Thresholds** is disabled.
 
-- **0.5-0.6**: Very aggressive (maximum cost savings, ~80-90% acceptance)
-- **0.7** (default): Balanced (good quality + savings, ~70-80% acceptance)
-- **0.8-0.9**: Conservative (highest quality, ~50-60% acceptance)
+Defaults to **0.4** to match the `simple` tier in CascadeFlow's default per-complexity thresholds.
+
+If you enable **Use Complexity Thresholds** (default), acceptance is driven by:
+- trivial: 0.25
+- simple: 0.4
+- moderate: 0.55
+- hard: 0.7
+- expert: 0.8
 
 Lower threshold = more cost savings, higher threshold = better quality assurance.
 
@@ -400,7 +405,7 @@ Note: Requires Ollama installed locally
 
 The logs provide complete visibility into the cascade decision-making process, showing exactly which path was taken for each request.
 
-> **ℹ️ Important:** cascadeflow does **not work with AI Agent nodes** in n8n, as n8n only allows whitelisted models for Agent inputs. Use with Basic LLM Chain, Chain, or other nodes that accept Language Model connections.
+> **ℹ️ Important:** If you need agent-style tool orchestration, use the **CascadeFlow Agent** node. It is designed for n8n agent flows and records a step-by-step trace in `response_metadata.cf.trace`.
 
 ## Compatibility
 
@@ -433,11 +438,11 @@ The logs provide complete visibility into the cascade decision-making process, s
 
 ### Issue: "This node cannot be connected" when connecting to AI Agent
 
-**Solution:** This is expected. cascadeflow does **not work with AI Agent nodes** because n8n only allows whitelisted models for Agent inputs. Use cascadeflow with:
+**Solution:** Use the **CascadeFlow Agent** node for agent workflows. Use the **CascadeFlow (Model)** node for Chain/LLM workflows.
 - ✅ Basic LLM Chain
 - ✅ Chain
 - ✅ Other nodes that accept Language Model connections
-- ❌ AI Agent (not supported)
+- ✅ CascadeFlow Agent (agent workflows)
 
 ### Issue: Always escalating to verifier
 

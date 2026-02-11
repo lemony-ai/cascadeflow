@@ -7,8 +7,9 @@ This tests that the integration is complete without making actual API calls.
 Run: python test_tool_structure.py
 """
 
-from cascadeflow import CascadeAgent
 from cascadeflow.config import ModelConfig
+
+from cascadeflow import CascadeAgent
 
 
 def test_structure():

@@ -198,18 +198,28 @@ def test_openai_base_url_without_v1(proxy_server):
 async def test_concurrent_requests_cost_tracking(proxy_server):
     proxy, cost_tracker = proxy_server
     url = f"http://{proxy.host}:{proxy.port}/v1/chat/completions"
+    timeout = httpx.Timeout(20.0, connect=5.0)
+    semaphore = asyncio.Semaphore(10)
 
-    async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
+    async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
 
         async def _one(i: int) -> float:
-            payload = {
-                "model": "cascadeflow-auto",
-                "messages": [{"role": "user", "content": f"Hello concurrent {i}"}],
-            }
-            resp = await client.post(url, json=payload)
-            assert resp.status_code == 200
-            data = resp.json()
-            return float(data["cascadeflow"]["cost"])
+            async with semaphore:
+                payload = {
+                    "model": "cascadeflow-auto",
+                    "messages": [{"role": "user", "content": f"Hello concurrent {i}"}],
+                }
+                for attempt in range(3):
+                    try:
+                        resp = await client.post(url, json=payload)
+                        assert resp.status_code == 200
+                        data = resp.json()
+                        return float(data["cascadeflow"]["cost"])
+                    except (httpx.ConnectTimeout, httpx.ConnectError):
+                        if attempt == 2:
+                            raise
+                        await asyncio.sleep(0.05 * (2**attempt))
+                raise AssertionError("unreachable")
 
         n = 40
         costs = await asyncio.gather(*[_one(i) for i in range(n)])

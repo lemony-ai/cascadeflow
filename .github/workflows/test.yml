@@ -143,6 +143,14 @@ jobs:
       - name: Lint n8n package
         run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow lint
 
+      - name: Smoke load built n8n nodes
+        run: |
+          node -e "require('./packages/integrations/n8n/dist/nodes/LmChatCascadeFlow/LmChatCascadeFlow.node.js')"
+          node -e "require('./packages/integrations/n8n/dist/nodes/CascadeFlowAgent/CascadeFlowAgent.node.js')"
+
+      - name: Test n8n package
+        run: pnpm --filter @cascadeflow/n8n-nodes-cascadeflow test
+
   # Python Code Quality
   lint-python:
     name: Python Code Quality
@@ -164,7 +172,8 @@ jobs:
           # Pin Black to the last version that supports Python 3.9.
           # The repo supports Python >=3.9, and newer Black releases may format
           # differently (or drop 3.9), causing CI-only formatting failures.
-          pip install "black==25.11.0" ruff mypy types-PyYAML
+          # Pin Ruff to avoid CI-only lint drift as Ruff evolves.
+          pip install "black==25.11.0" "ruff==0.15.0" mypy types-PyYAML
 
       - name: Check formatting with Black
         run: black --check cascadeflow tests examples
