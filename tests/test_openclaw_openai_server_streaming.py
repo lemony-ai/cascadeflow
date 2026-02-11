@@ -72,5 +72,11 @@ def test_openclaw_openai_server_stream_includes_role_and_final_finish_reason() -
         last = chunks[-1]["choices"][0]
         assert last["delta"] == {}
         assert last["finish_reason"] == "stop"
+        assert last["message"]["role"] == "assistant"
+        assert last["message"]["content"] == "Hi!"
+
+        usage = chunks[-1].get("usage", {})
+        assert usage.get("total_tokens", 0) >= 1
+        assert usage.get("totalTokens", 0) >= 1
     finally:
         server.stop()

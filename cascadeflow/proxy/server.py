@@ -326,15 +326,18 @@ def _normalize_result_metadata(result: Any) -> dict[str, Any]:
 def _build_openai_response(model: str, result: Any) -> dict[str, Any]:
     meta = _normalize_result_metadata(result)
 
-    prompt_tokens = meta.get("prompt_tokens")
-    completion_tokens = meta.get("completion_tokens")
-    total_tokens = meta.get("total_tokens")
+    prompt_tokens_raw = meta.get("prompt_tokens")
+    completion_tokens_raw = meta.get("completion_tokens")
+    total_tokens_raw = meta.get("total_tokens")
     tool_calls = meta.get("tool_calls")
 
+    prompt_tokens = int(prompt_tokens_raw or 0)
+    completion_tokens = int(completion_tokens_raw or 0)
+    total_tokens = int(total_tokens_raw) if total_tokens_raw is not None else None
     if total_tokens is None:
-        prompt_tokens = prompt_tokens or 0
-        completion_tokens = completion_tokens or 0
         total_tokens = prompt_tokens + completion_tokens
+    elif prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
+        completion_tokens = total_tokens
 
     message: dict[str, Any] = {"role": "assistant", "content": getattr(result, "content", "")}
     if tool_calls:
@@ -352,6 +355,9 @@ def _build_openai_response(model: str, result: Any) -> dict[str, Any]:
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
+            "promptTokens": prompt_tokens,
+            "completionTokens": completion_tokens,
+            "totalTokens": total_tokens,
         },
         "cascadeflow": {
             "model_used": getattr(result, "model_used", None),
@@ -708,6 +714,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 "prompt_tokens": input_tokens,
                 "completion_tokens": output_tokens,
                 "total_tokens": input_tokens + output_tokens,
+                "promptTokens": input_tokens,
+                "completionTokens": output_tokens,
+                "totalTokens": input_tokens + output_tokens,
             },
             "cascadeflow": {
                 "virtual_model": model,
@@ -818,6 +827,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 "prompt_tokens": input_tokens,
                 "completion_tokens": output_tokens,
                 "total_tokens": input_tokens + output_tokens,
+                "promptTokens": input_tokens,
+                "completionTokens": output_tokens,
+                "totalTokens": input_tokens + output_tokens,
             },
         }
         self._send_json(response)
@@ -880,6 +892,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "total_tokens": total_tokens,
+                "promptTokens": prompt_tokens,
+                "completionTokens": completion_tokens,
+                "totalTokens": total_tokens,
             },
             "cascadeflow": {
                 "model_used": getattr(result, "model_used", None),
@@ -917,7 +932,12 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 for idx, vec in enumerate(vectors)
             ],
             "model": model,
-            "usage": {"prompt_tokens": prompt_tokens, "total_tokens": prompt_tokens},
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "total_tokens": prompt_tokens,
+                "promptTokens": prompt_tokens,
+                "totalTokens": prompt_tokens,
+            },
             "cascadeflow": {"embedding_source": source},
         }
         self._send_json(response)
@@ -945,6 +965,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         event_queue: queue.Queue[object] = queue.Queue()
         sentinel = object()
         error_box: dict[str, Exception] = {}
+        chunk_parts: list[str] = []
+        completion_result: dict[str, Any] = {}
 
         async def _produce() -> None:
             try:
@@ -966,17 +988,38 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         future = proxy.submit_coroutine(_produce())
 
+        initial_chunk = {
+            "id": "chatcmpl-cascadeflow",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}
+            ],
+        }
+        self.wfile.write(f"data: {json.dumps(initial_chunk)}\n\n".encode())
+        self.wfile.flush()
+
         while True:
             item = event_queue.get()
             if item is sentinel:
                 break
             event = item
-            if getattr(getattr(event, "type", None), "value", None) != "chunk":
+            event_type = getattr(getattr(event, "type", None), "value", None)
+            if event_type == "complete":
+                event_data = getattr(event, "data", None)
+                if isinstance(event_data, dict):
+                    result_payload = event_data.get("result")
+                    if isinstance(result_payload, dict):
+                        completion_result = result_payload
+                continue
+            if event_type != "chunk":
                 continue
 
             content = getattr(event, "content", None)
             if not isinstance(content, str):
                 continue
+            chunk_parts.append(content)
 
             chunk = {
                 "id": "chatcmpl-cascadeflow",
@@ -995,6 +1038,43 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         if "error" in error_box:  # pragma: no cover
             self.log_error("Streaming error: %s", error_box["error"])
+
+        prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
+        completion_tokens = int(completion_result.get("completion_tokens") or 0)
+        total_tokens_value = completion_result.get("total_tokens")
+        total_tokens = int(total_tokens_value) if total_tokens_value is not None else 0
+        if total_tokens == 0:
+            total_tokens = prompt_tokens + completion_tokens
+        if prompt_tokens == 0 and completion_tokens == 0 and total_tokens == 0:
+            completion_tokens = max(1, len("".join(chunk_parts).split()))
+            total_tokens = completion_tokens
+        if prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
+            completion_tokens = total_tokens
+
+        final_chunk = {
+            "id": "chatcmpl-cascadeflow",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {},
+                    "message": {"role": "assistant", "content": "".join(chunk_parts)},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "promptTokens": prompt_tokens,
+                "completionTokens": completion_tokens,
+                "totalTokens": total_tokens,
+            },
+        }
+        self.wfile.write(f"data: {json.dumps(final_chunk)}\n\n".encode())
+        self.wfile.flush()
 
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()

@@ -361,6 +361,8 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         event_queue: queue.Queue[object] = queue.Queue()
         sentinel = object()
         error_box: dict[str, Exception] = {}
+        chunk_parts: list[str] = []
+        completion_result: dict[str, Any] = {}
 
         async def _produce() -> None:
             try:
@@ -406,7 +408,15 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             if item is sentinel:
                 break
             event = item
-            if getattr(event.type, "value", None) != "chunk":
+            event_type = getattr(getattr(event, "type", None), "value", None)
+            if event_type == "complete":
+                event_data = getattr(event, "data", None)
+                if isinstance(event_data, dict):
+                    result_payload = event_data.get("result")
+                    if isinstance(result_payload, dict):
+                        completion_result = result_payload
+                continue
+            if event_type != "chunk":
                 continue
             chunk = {
                 "id": "chatcmpl-cascadeflow",
@@ -421,6 +431,8 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                     }
                 ],
             }
+            if isinstance(getattr(event, "content", None), str):
+                chunk_parts.append(event.content)
             self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
             self.wfile.flush()
 
@@ -432,6 +444,28 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if "error" in error_box:
             self.log_error("Streaming error: %s", error_box["error"])
 
+        prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
+        completion_tokens = int(completion_result.get("completion_tokens") or 0)
+        total_tokens_value = completion_result.get("total_tokens")
+        total_tokens = int(total_tokens_value) if total_tokens_value is not None else 0
+        if total_tokens == 0:
+            total_tokens = prompt_tokens + completion_tokens
+        if prompt_tokens == 0 and completion_tokens == 0 and total_tokens == 0:
+            # Fallback estimate for streaming-only consumers that require usage.
+            completion_tokens = max(1, len("".join(chunk_parts).split()))
+            total_tokens = completion_tokens
+        if prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
+            completion_tokens = total_tokens
+        full_content = "".join(chunk_parts)
+        usage_payload = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "promptTokens": prompt_tokens,
+            "completionTokens": completion_tokens,
+            "totalTokens": total_tokens,
+        }
+
         final_chunk = {
             "id": "chatcmpl-cascadeflow",
             "object": "chat.completion.chunk",
@@ -441,9 +475,12 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 {
                     "index": 0,
                     "delta": {},
+                    # Compatibility: some streaming clients inspect final message content only.
+                    "message": {"role": "assistant", "content": full_content},
                     "finish_reason": "stop",
                 }
             ],
+            "usage": usage_payload,
         }
         self.wfile.write(f"data: {json.dumps(final_chunk)}\n\n".encode())
         self.wfile.flush()
@@ -553,15 +590,18 @@ def _normalize_result_metadata(result) -> dict[str, Any]:
 def _build_openai_response(model: str, result) -> dict[str, Any]:
     meta = _normalize_result_metadata(result)
 
-    prompt_tokens = meta.get("prompt_tokens")
-    completion_tokens = meta.get("completion_tokens")
-    total_tokens = meta.get("total_tokens")
+    prompt_tokens_raw = meta.get("prompt_tokens")
+    completion_tokens_raw = meta.get("completion_tokens")
+    total_tokens_raw = meta.get("total_tokens")
     tool_calls = meta.get("tool_calls")
 
+    prompt_tokens = int(prompt_tokens_raw or 0)
+    completion_tokens = int(completion_tokens_raw or 0)
+    total_tokens = int(total_tokens_raw) if total_tokens_raw is not None else None
     if total_tokens is None:
-        prompt_tokens = prompt_tokens or 0
-        completion_tokens = completion_tokens or 0
         total_tokens = prompt_tokens + completion_tokens
+    elif prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
+        completion_tokens = total_tokens
 
     content = getattr(result, "content", "") or ""
     if not isinstance(content, str):
@@ -599,6 +639,10 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
+            # Compatibility aliases for clients that normalize camelCase usage fields.
+            "promptTokens": prompt_tokens,
+            "completionTokens": completion_tokens,
+            "totalTokens": total_tokens,
         },
         "cascadeflow": {
             "model_used": result.model_used,
