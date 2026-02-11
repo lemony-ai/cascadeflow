@@ -953,7 +953,9 @@ class DomainDetector:
         # Boost conversation domain when multi-turn markers are present
         multi_turn_detected = is_multi_turn_prompt(query)
         if multi_turn_detected and not is_mcq:
-            scores[Domain.CONVERSATION] = min(1.0, scores.get(Domain.CONVERSATION, 0) + 0.6)
+            scores[Domain.CONVERSATION] = min(
+                1.0, scores.get(Domain.CONVERSATION, 0) + 0.6
+            )
 
         # Find domain with highest score
         if not scores or max(scores.values()) < self.confidence_threshold:
@@ -1443,7 +1445,7 @@ class SemanticDomainDetector:
         embedder: Optional["UnifiedEmbeddingService"] = None,
         confidence_threshold: float = 0.6,
         use_hybrid: bool = True,
-        model_name: str = "BAAI/bge-small-en-v1.5",
+        model_name: str = "BAAI/bge-base-en-v1.5",
     ):
         """
         Initialize semantic domain detector.
@@ -1575,7 +1577,9 @@ class SemanticDomainDetector:
         # Find best match using domain-specific thresholds
         detected_domain = max(scores, key=scores.get) if scores else Domain.GENERAL
         confidence = scores.get(detected_domain, 0.0)
-        domain_threshold = DOMAIN_THRESHOLDS.get(detected_domain, self.confidence_threshold)
+        domain_threshold = DOMAIN_THRESHOLDS.get(
+            detected_domain, self.confidence_threshold
+        )
         if not scores or confidence < domain_threshold:
             detected_domain = Domain.GENERAL
             confidence = 0.5

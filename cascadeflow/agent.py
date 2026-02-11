@@ -54,6 +54,7 @@ Example:
 
 import asyncio
 import logging
+import asyncio
 import sys
 import time
 from collections.abc import AsyncIterator
@@ -73,7 +74,14 @@ from .core.cascade import WholeResponseCascade
 from .interface import TerminalVisualConsumer
 from .pricing import PricingResolver
 from .providers import PROVIDER_REGISTRY, get_available_providers
+from .pricing import PricingResolver
 from .quality import QualityConfig
+
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+# Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
+from .rules import RuleContext, RuleEngine
 from .routing import (
     ComplexityRouter,
     DomainDetector,
@@ -94,6 +102,13 @@ from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
 from .schema.usage import Usage
+from .tools.formats import normalize_tools
+from .utils.messages import (
+    detect_multi_turn,
+    get_last_user_message,
+    messages_to_prompt,
+    normalize_messages,
+)
 
 # Streaming imports - BOTH managers (v2.4 FIX)
 from .streaming import StreamEvent, StreamEventType, StreamManager
@@ -233,11 +248,6 @@ class CascadeAgent:
             channel_models: Optional per-channel model allowlists
             channel_failover: Optional channel->failover mapping
             channel_strategies: Optional per-channel routing strategy overrides
-            tool_executor: Optional tool executor for running tool calls.
-                          Can be a :class:`~cascadeflow.tools.executor.ToolExecutor`
-                          instance or an async callable ``(tool_call_dict) -> str``.
-                          When not set, tool calls are returned to the caller without
-                          execution.
 
         Deprecated Args (v0.1.x compatibility):
             config: Old CascadeConfig (use quality_config instead)
@@ -862,8 +872,6 @@ class CascadeAgent:
         execution externally.
         """
         if self._tool_executor is None:
-            # No executor registered – return informative stub so the
-            # model understands the tool was not executed.
             async def _stub(tc: dict[str, Any]) -> dict[str, Any]:
                 return {
                     "tool_call_id": tc.get("id"),
@@ -877,7 +885,6 @@ class CascadeAgent:
             name = tc.get("function", {}).get("name", "unknown_tool")
             call_id = tc.get("id", "")
             try:
-                # Support both ToolExecutor instances and plain callables
                 if hasattr(self._tool_executor, "execute"):
                     from .tools.call import ToolCall as _ToolCall
 
@@ -893,7 +900,6 @@ class CascadeAgent:
                         ),
                     }
                 else:
-                    # Plain async callable: (tool_call_dict) -> str | Any
                     result = await self._tool_executor(tc)
                     return {
                         "tool_call_id": call_id,
@@ -1008,17 +1014,14 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None
 
         if domain_hint:
-            forced = str(domain_hint).strip().lower()
-            if forced:
-                detected_domain = forced
-                domain_confidence = (
-                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
-                )
-                domain_config = self.domain_configs.get(
-                    detected_domain
-                ) or get_builtin_domain_config(detected_domain)
-                timing_breakdown["domain_detection"] = 0.0
-                logger.info(f"Query domain: {detected_domain} (forced)")
+            detected_domain = domain_hint
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
+            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
+                detected_domain
+            )
+            timing_breakdown["domain_detection"] = 0.0
         elif self.domain_detector and self.enable_domain_detection:
             domain_start = time.time()
             domain_result = self.domain_detector.detect_with_scores(query_text)
@@ -1352,6 +1355,7 @@ class CascadeAgent:
             timing_breakdown=timing_breakdown,
             streaming=False,
             has_tools=bool(tools),
+            domain=detected_domain,
         )
 
         return cascade_result
@@ -1438,17 +1442,14 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None
 
         if domain_hint:
-            forced = str(domain_hint).strip().lower()
-            if forced:
-                detected_domain = forced
-                domain_confidence = (
-                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
-                )
-                domain_config = self.domain_configs.get(
-                    detected_domain
-                ) or get_builtin_domain_config(detected_domain)
-                timing_breakdown["domain_detection"] = 0.0
-                logger.info(f"[Streaming] Query domain: {detected_domain} (forced)")
+            detected_domain = domain_hint
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
+            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
+                detected_domain
+            )
+            timing_breakdown["domain_detection"] = 0.0
         elif self.domain_detector and self.enable_domain_detection:
             domain_start = time.time()
             domain_result = self.domain_detector.detect_with_scores(query_text)
@@ -1626,6 +1627,7 @@ class CascadeAgent:
             timing_breakdown=timing_breakdown,
             streaming=True,
             has_tools=bool(tools),
+            domain=detected_domain,
         )
 
         # Build result
@@ -1644,6 +1646,18 @@ class CascadeAgent:
             tenant_id=tenant_id,
             channel=channel,
         )
+
+        # Record metrics with corrected cost values from CostCalculator
+        self.telemetry.record(
+            result=cascade_result,
+            routing_strategy=routing_strategy,
+            complexity=complexity.value,
+            timing_breakdown=timing_breakdown,
+            streaming=False,
+            has_tools=bool(tools),
+        )
+
+        return cascade_result
 
     # ========================================================================
     # API 3: ASYNC ITERATOR - WITH INTELLIGENT MANAGER SELECTION
@@ -1719,16 +1733,13 @@ class CascadeAgent:
         domain_config: Optional[DomainConfig] = None
 
         if domain_hint:
-            forced = str(domain_hint).strip().lower()
-            if forced:
-                detected_domain = forced
-                domain_confidence = (
-                    domain_confidence_hint if domain_confidence_hint is not None else 1.0
-                )
-                domain_config = self.domain_configs.get(
-                    detected_domain
-                ) or get_builtin_domain_config(detected_domain)
-                logger.info(f"[stream_events] Query domain: {detected_domain} (forced)")
+            detected_domain = domain_hint
+            domain_confidence = (
+                domain_confidence_hint if domain_confidence_hint is not None else 1.0
+            )
+            domain_config = self.domain_configs.get(detected_domain) or get_builtin_domain_config(
+                detected_domain
+            )
         elif self.domain_detector and self.enable_domain_detection:
             domain_result = self.domain_detector.detect_with_scores(query_text)
             detected_domain = domain_result.domain.value
@@ -2221,18 +2232,6 @@ class CascadeAgent:
                 )
                 if not tool_calls_found:
                     break
-
-                # Preserve the assistant tool-call turn in the message history.
-                # Anthropic (and some other providers) require a preceding tool_use/tool_calls
-                # message before any tool_result messages are provided.
-                tool_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": response.content or "",
-                        "tool_calls": tool_calls_found,
-                    }
-                )
-
                 tool_results = await self._execute_tool_calls_parallel(tool_calls_found)
                 for tool_result in tool_results:
                     tool_messages.append({"role": "tool", **tool_result})
@@ -2259,6 +2258,11 @@ class CascadeAgent:
 
         usage = self.pricing_resolver.extract_usage(response)
         provider_cost = getattr(response, "cost", None)
+        tokens_used = (
+            response.tokens_used
+            if hasattr(response, "tokens_used") and response.tokens_used
+            else usage.total_tokens
+        )
         cost = self.pricing_resolver.resolve_cost(
             model=best_model.name,
             usage=usage,

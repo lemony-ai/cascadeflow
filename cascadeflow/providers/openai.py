@@ -864,6 +864,16 @@ class OpenAIProvider(BaseProvider):
                     f"Failed to parse OpenAI response: {e}", model=model, provider="openai"
                 )
 
+        # Build request payload with reasoning-model compatibility
+        model_info = get_reasoning_model_info(model)
+        is_gpt5 = model.lower().startswith("gpt-5")
+        extra = dict(kwargs)
+        extra.pop("max_tokens", None)
+        extra.pop("max_completion_tokens", None)
+        extra_tool_choice = extra.pop("tool_choice", None)
+        if tool_choice is None:
+            tool_choice = extra_tool_choice
+
         payload = {
             "model": model,
             "messages": messages,

@@ -103,6 +103,8 @@ try:
         OpenClawAdapter,
         OpenClawAdapterConfig,
         OpenClawGatewayAdapter,
+        OpenClawOpenAIServer,
+        OpenClawOpenAIConfig,
     )
 
     OPENCLAW_AVAILABLE = True
@@ -120,21 +122,6 @@ except ImportError:
     OpenClawGatewayAdapter = None
     OpenClawOpenAIServer = None
     OpenClawOpenAIConfig = None
-
-# Avoid importing the OpenAI-compatible HTTP server at module import time.
-# This keeps `python -m cascadeflow.integrations.openclaw.openai_server` clean
-# and reduces import-time side effects for users that don't need the server.
-if TYPE_CHECKING:  # pragma: no cover
-    from .openclaw import OpenClawOpenAIServer, OpenClawOpenAIConfig  # noqa: F401
-
-
-def __getattr__(name: str):
-    if name in {"OpenClawOpenAIServer", "OpenClawOpenAIConfig"}:
-        from .openclaw import OpenClawOpenAIServer, OpenClawOpenAIConfig
-
-        return OpenClawOpenAIServer if name == "OpenClawOpenAIServer" else OpenClawOpenAIConfig
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 
 __all__ = []
 

@@ -9,11 +9,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import queue
 import secrets
 import threading
 import time
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Optional
 
@@ -22,7 +25,10 @@ from cascadeflow.tools.formats import normalize_tools
 from cascadeflow.utils.messages import get_last_user_message
 
 from .adapter import build_routing_decision
+from .decision_trace import log_decision
 from .pre_router import CATEGORY_TO_DOMAIN
+
+oc_logger = logging.getLogger("cascadeflow.openclaw")
 
 
 def _to_openai_tool_calls(
@@ -78,7 +84,9 @@ class OpenClawOpenAIServer:
         if self._server:
             return self.port
 
-        server = ThreadingHTTPServer((self.config.host, self.config.port), OpenAIRequestHandler)
+        server = ThreadingHTTPServer(
+            (self.config.host, self.config.port), OpenAIRequestHandler
+        )
         server.openclaw_server = self  # type: ignore[attr-defined]
         self._server = server
 
@@ -174,7 +182,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             return self._handle_stats(server)
         if self.path == "/health":
             # Check if any providers were successfully initialized
-            providers_count = len(server.agent.providers) if server.agent.providers else 0
+            providers_count = (
+                len(server.agent.providers) if server.agent.providers else 0
+            )
             if providers_count == 0:
                 return self._send_json(
                     {
@@ -183,7 +193,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                         "message": "Server is running but no providers could be initialized. Check API keys.",
                     }
                 )
-            return self._send_json({"status": "ok", "providers_initialized": providers_count})
+            return self._send_json(
+                {"status": "ok", "providers_initialized": providers_count}
+            )
 
         self.send_response(404)
         self.end_headers()
@@ -201,8 +213,13 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             pass  # pragma: no cover - best effort only
 
         transfer_encoding = self.headers.get("Transfer-Encoding", "")
-        if isinstance(transfer_encoding, str) and transfer_encoding.lower().strip() == "chunked":
-            return self._send_openai_error("Chunked requests are not supported", status=400)
+        if (
+            isinstance(transfer_encoding, str)
+            and transfer_encoding.lower().strip() == "chunked"
+        ):
+            return self._send_openai_error(
+                "Chunked requests are not supported", status=400
+            )
 
         length = int(self.headers.get("Content-Length", "0"))
         if server.config.max_body_bytes and length > server.config.max_body_bytes:
@@ -220,7 +237,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-    def _handle_chat(self, server: OpenClawOpenAIServer, payload: dict[str, Any]) -> None:
+    def _handle_chat(
+        self, server: OpenClawOpenAIServer, payload: dict[str, Any]
+    ) -> None:
         messages = payload.get("messages", [])
         if not isinstance(messages, list) or not messages:
             return self._send_openai_error("Messages are required", status=400)
@@ -244,11 +263,17 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 if legacy_choice in {"auto", "none"}:
                     tool_choice = legacy_choice
                 else:
-                    tool_choice = {"type": "function", "function": {"name": legacy_choice}}
+                    tool_choice = {
+                        "type": "function",
+                        "function": {"name": legacy_choice},
+                    }
             elif isinstance(legacy_choice, dict):
                 name = legacy_choice.get("name")
                 if isinstance(name, str) and name:
-                    tool_choice = {"type": "function", "function": {"name": name}}
+                    tool_choice = {
+                        "type": "function",
+                        "function": {"name": name},
+                    }
         tools = normalize_tools(tools_payload)
         stream = bool(payload.get("stream"))
         stream_options = payload.get("stream_options")
@@ -325,6 +350,10 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         elif "cost" in model or "cheap" in model or "fast" in model:
             kpi_flags.setdefault("profile", "cost_savings")
 
+        request_id = f"req_{uuid.uuid4().hex[:12]}"
+        request_start = time.time()
+        query_text = get_last_user_message(messages) or ""
+
         if stream:
             return self._send_openai_stream(
                 server,
@@ -340,6 +369,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 tenant_id,
                 channel,
                 include_usage,
+                request_id=request_id,
+                request_start=request_start,
+                query_text=query_text,
             )
 
         try:
@@ -361,7 +393,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             self.log_error("Agent error: %s", exc)
             return self._send_openai_error(
-                f"Internal error: {type(exc).__name__}", status=500, error_type="server_error"
+                f"Internal error: {type(exc).__name__}",
+                status=500,
+                error_type="server_error",
             )
 
         # Check for upstream errors propagated through cascade metadata
@@ -369,13 +403,42 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if upstream_err and not _has_content(result):
             return self._send_upstream_error_from_meta(upstream_err)
 
+        total_ms = (time.time() - request_start) * 1000
+        meta = _normalize_result_metadata(result)
+        trace = _build_trace(
+            request_id=request_id,
+            query=query_text,
+            stream=False,
+            tools=tools,
+            domain_hint=domain_hint,
+            domain_confidence_hint=domain_confidence_hint,
+            meta=meta,
+            result=result,
+            total_ms=total_ms,
+        )
+        log_decision(trace)
+        accepted = meta.get("draft_accepted", False)
+        model_used = getattr(result, "model_used", "unknown")
+        oc_logger.info(
+            "DECISION req=%s accepted=%s model=%s cost=%.6f latency=%.0fms domain=%s q=%s",
+            request_id,
+            accepted,
+            model_used,
+            meta.get("total_cost", getattr(result, "total_cost", 0.0)),
+            total_ms,
+            domain_hint or "none",
+            query_text[:60],
+        )
+
         response = _build_openai_response(model, result)
         self._send_json(response)
 
     def _handle_stats(self, server: OpenClawOpenAIServer) -> None:
         telemetry = getattr(server.agent, "telemetry", None)
         if telemetry is None or not hasattr(telemetry, "export_to_dict"):
-            return self._send_openai_error("Metrics export not available", status=404)
+            return self._send_openai_error(
+                "Metrics export not available", status=404
+            )
 
         payload = telemetry.export_to_dict()
         self._send_json(payload)
@@ -395,6 +458,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         tenant_id: Optional[str],
         channel: Optional[str],
         include_usage: bool = False,
+        request_id: str = "",
+        request_start: float = 0.0,
+        query_text: str = "",
     ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -409,6 +475,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         pending_draft_chunks: list[str] = []
         captured_tool_calls: list[dict[str, Any]] = []
         completion_result: dict[str, Any] = {}
+        captured_decision: dict[str, Any] = {}
         route_strategy: Optional[str] = None
         draft_accepted: Optional[bool] = None
         switched_to_verifier = False
@@ -500,12 +567,16 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 continue
             if event_type == "draft_decision":
                 event_data = getattr(event, "data", None)
-                if isinstance(event_data, dict) and isinstance(event_data.get("accepted"), bool):
-                    draft_accepted = event_data.get("accepted")
-                    if draft_accepted:
-                        _flush_pending_draft()
-                    else:
-                        pending_draft_chunks.clear()
+                if isinstance(event_data, dict):
+                    captured_decision = (
+                        event_data if isinstance(event_data, dict) else {}
+                    )
+                    if isinstance(event_data.get("accepted"), bool):
+                        draft_accepted = event_data.get("accepted")
+                        if draft_accepted:
+                            _flush_pending_draft()
+                        else:
+                            pending_draft_chunks.clear()
                 continue
             # When switching from draft to verifier, discard buffered draft chunks.
             if event_type == "switch":
@@ -632,7 +703,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
         completion_tokens = int(completion_result.get("completion_tokens") or 0)
         total_tokens_value = completion_result.get("total_tokens")
-        total_tokens = int(total_tokens_value) if total_tokens_value is not None else 0
+        total_tokens = (
+            int(total_tokens_value) if total_tokens_value is not None else 0
+        )
         if total_tokens == 0:
             total_tokens = prompt_tokens + completion_tokens
         if prompt_tokens == 0 and completion_tokens == 0 and total_tokens == 0:
@@ -651,7 +724,10 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         }
 
         finish_reason = "tool_calls" if openai_tool_calls else "stop"
-        final_message: dict[str, Any] = {"role": "assistant", "content": full_content}
+        final_message: dict[str, Any] = {
+            "role": "assistant",
+            "content": full_content,
+        }
         if openai_tool_calls:
             final_message["tool_calls"] = openai_tool_calls
 
@@ -690,6 +766,32 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
+
+        total_ms = (time.time() - request_start) * 1000 if request_start else 0.0
+        trace = _build_stream_trace(
+            request_id=request_id,
+            query=query_text,
+            tools=tools,
+            domain_hint=domain_hint,
+            domain_confidence_hint=domain_confidence_hint,
+            complete_data=completion_result,
+            decision_data=captured_decision,
+            total_ms=total_ms,
+        )
+        log_decision(trace)
+        accepted = captured_decision.get("accepted", False)
+        model_used = completion_result.get("model_used", "unknown")
+        total_cost = completion_result.get("total_cost", 0.0)
+        oc_logger.info(
+            "DECISION req=%s accepted=%s model=%s cost=%.6f latency=%.0fms domain=%s q=%s",
+            request_id,
+            accepted,
+            model_used,
+            total_cost,
+            total_ms,
+            domain_hint or "none",
+            query_text[:60],
+        )
 
     def _send_json(self, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -746,13 +848,25 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         provider = error_info.get("provider", "upstream")
         err_msg = error_info.get("message", "Upstream provider error")
         if upstream_status == 529:
-            status, msg = 503, f"Upstream provider overloaded ({provider} 529). Please retry."
+            status, msg = (
+                503,
+                f"Upstream provider overloaded ({provider} 529). Please retry.",
+            )
         elif upstream_status == 429:
-            status, msg = 429, f"Upstream rate limit exceeded ({provider}). Please retry later."
+            status, msg = (
+                429,
+                f"Upstream rate limit exceeded ({provider}). Please retry later.",
+            )
         elif isinstance(upstream_status, int) and upstream_status >= 500:
-            status, msg = 502, f"Upstream server error ({provider} {upstream_status}): {err_msg}"
+            status, msg = (
+                502,
+                f"Upstream server error ({provider} {upstream_status}): {err_msg}",
+            )
         else:
-            status, msg = 502, f"Upstream provider error ({provider}): {err_msg}"
+            status, msg = (
+                502,
+                f"Upstream provider error ({provider}): {err_msg}",
+            )
         self.log_error("Upstream error from metadata: %s", msg)
         self._send_openai_error(msg, status=status, error_type="upstream_error")
 
@@ -762,13 +876,22 @@ def _describe_upstream_error(exc: Exception) -> tuple[str, int]:
     status = getattr(exc, "status_code", None) or 502
     provider = getattr(exc, "provider", None) or "upstream"
     if status == 529:
-        return f"Upstream provider overloaded ({provider} 529). Please retry.", 503
+        return (
+            f"Upstream provider overloaded ({provider} 529). Please retry.",
+            503,
+        )
     if status == 429:
-        return f"Upstream rate limit exceeded ({provider}). Please retry later.", 429
+        return (
+            f"Upstream rate limit exceeded ({provider}). Please retry later.",
+            429,
+        )
     if status == 401:
         return f"Upstream authentication error ({provider}).", 401
     if isinstance(status, int) and status >= 500:
-        return f"Upstream server error ({provider} {status}). Please retry.", 502
+        return (
+            f"Upstream server error ({provider} {status}). Please retry.",
+            502,
+        )
     return f"Upstream provider error: {exc}", 502
 
 
@@ -817,6 +940,149 @@ def _run_agent(
     )
 
 
+def _build_trace(
+    *,
+    request_id,
+    query,
+    stream,
+    tools,
+    domain_hint,
+    domain_confidence_hint,
+    meta,
+    result,
+    total_ms,
+):
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "request_id": request_id,
+        "query": query[:200],
+        "query_length": len(query),
+        "stream": stream,
+        "tools_sent": tools is not None,
+        "tool_count": len(tools) if tools else 0,
+        "routing": {
+            "strategy": meta.get("routing_strategy", "cascade"),
+            "domain": domain_hint,
+            "domain_confidence": domain_confidence_hint if domain_hint else None,
+            "complexity": meta.get("complexity"),
+        },
+        "draft": {
+            "model": meta.get("draft_model") or meta.get("drafter_model"),
+            "had_tool_calls": bool(meta.get("tool_calls")),
+            "text_length": len(getattr(result, "content", "") or ""),
+            "latency_ms": meta.get("draft_latency_ms")
+            or meta.get("drafter_latency_ms"),
+        },
+        "decision": {
+            "accepted": meta.get("draft_accepted", False),
+            "confidence": meta.get("draft_confidence"),
+            "alignment_score": meta.get("quality_score"),
+            "quality_score": meta.get("quality_score"),
+            "threshold": meta.get("quality_threshold"),
+            "reason": meta.get("routing_reason") or meta.get("reason"),
+            "checks": meta.get("checks", {}),
+        },
+        "verifier": {
+            "model": meta.get("verifier_model"),
+            "used": not meta.get("draft_accepted", False),
+            "latency_ms": meta.get("verifier_latency_ms"),
+        },
+        "cost": {
+            "draft_cost": meta.get("draft_cost") or meta.get("drafter_cost", 0.0),
+            "verifier_cost": meta.get("verifier_cost", 0.0),
+            "total_cost": meta.get(
+                "total_cost", getattr(result, "total_cost", 0.0)
+            ),
+            "baseline_cost": meta.get("bigonly_cost"),
+            "saved": meta.get("cost_saved"),
+        },
+        "tokens": {
+            "draft_input": meta.get("draft_prompt_tokens"),
+            "draft_output": meta.get("draft_completion_tokens"),
+            "verifier_input": meta.get("verifier_prompt_tokens")
+            or meta.get("prompt_tokens"),
+            "verifier_output": meta.get("verifier_completion_tokens")
+            or meta.get("completion_tokens"),
+            "total": meta.get("total_tokens"),
+        },
+        "latency_ms": total_ms,
+    }
+
+
+def _build_stream_trace(
+    *,
+    request_id,
+    query,
+    tools,
+    domain_hint,
+    domain_confidence_hint,
+    complete_data,
+    decision_data,
+    total_ms,
+):
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "request_id": request_id,
+        "query": query[:200],
+        "query_length": len(query),
+        "stream": True,
+        "tools_sent": tools is not None,
+        "tool_count": len(tools) if tools else 0,
+        "routing": {
+            "strategy": complete_data.get("routing_strategy", "cascade"),
+            "domain": domain_hint,
+            "domain_confidence": domain_confidence_hint if domain_hint else None,
+            "complexity": decision_data.get("complexity")
+            or complete_data.get("complexity"),
+        },
+        "draft": {
+            "model": decision_data.get("draft_model")
+            or complete_data.get("draft_model"),
+            "had_tool_calls": bool(complete_data.get("tool_calls")),
+            "text_length": complete_data.get("response_length", 0),
+            "latency_ms": complete_data.get("draft_latency_ms")
+            or complete_data.get("drafter_latency_ms"),
+        },
+        "decision": {
+            "accepted": decision_data.get(
+                "accepted", complete_data.get("draft_accepted", False)
+            ),
+            "confidence": decision_data.get("confidence"),
+            "alignment_score": decision_data.get("alignment_score")
+            or decision_data.get("score"),
+            "quality_score": decision_data.get("score"),
+            "threshold": decision_data.get("threshold")
+            or decision_data.get("quality_threshold"),
+            "reason": decision_data.get("reason"),
+            "checks": decision_data.get("checks", {}),
+        },
+        "verifier": {
+            "model": decision_data.get("verifier_model")
+            or complete_data.get("verifier_model"),
+            "used": not decision_data.get(
+                "accepted", complete_data.get("draft_accepted", False)
+            ),
+            "latency_ms": complete_data.get("verifier_latency_ms"),
+        },
+        "cost": {
+            "draft_cost": complete_data.get("draft_cost")
+            or complete_data.get("drafter_cost", 0.0),
+            "verifier_cost": complete_data.get("verifier_cost", 0.0),
+            "total_cost": complete_data.get("total_cost", 0.0),
+            "baseline_cost": complete_data.get("bigonly_cost"),
+            "saved": complete_data.get("cost_saved"),
+        },
+        "tokens": {
+            "draft_input": complete_data.get("draft_prompt_tokens"),
+            "draft_output": complete_data.get("draft_completion_tokens"),
+            "verifier_input": complete_data.get("verifier_prompt_tokens"),
+            "verifier_output": complete_data.get("verifier_completion_tokens"),
+            "total": complete_data.get("total_tokens"),
+        },
+        "latency_ms": total_ms,
+    }
+
+
 def _normalize_result_metadata(result) -> dict[str, Any]:
     """
     Ensure a stable cascadeflow.metadata contract for the OpenClaw OpenAI server.
@@ -852,7 +1118,9 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
 
     prompt_tokens = int(prompt_tokens_raw or 0)
     completion_tokens = int(completion_tokens_raw or 0)
-    total_tokens = int(total_tokens_raw) if total_tokens_raw is not None else None
+    total_tokens = (
+        int(total_tokens_raw) if total_tokens_raw is not None else None
+    )
     if total_tokens is None:
         total_tokens = prompt_tokens + completion_tokens
     elif prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
@@ -910,9 +1178,15 @@ __all__ = ["OpenClawOpenAIServer", "OpenClawOpenAIConfig"]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="OpenClaw OpenAI-compatible server")
-    parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8084, help="Bind port (default: 8084)")
+    parser = argparse.ArgumentParser(
+        description="OpenClaw OpenAI-compatible server"
+    )
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8084, help="Bind port (default: 8084)"
+    )
     parser.add_argument(
         "--config",
         help="Optional Cascadeflow config file (yaml/json) for models + channel routing",
@@ -923,9 +1197,15 @@ def main() -> None:
         help="Cascadeflow preset (balanced, cost_optimized, speed_optimized, quality_optimized, development)",
     )
     parser.add_argument(
-        "--no-classifier", action="store_true", help="Disable pre-router classifier"
+        "--no-classifier",
+        action="store_true",
+        help="Disable pre-router classifier",
     )
-    parser.add_argument("--no-stream", action="store_true", help="Disable streaming responses")
+    parser.add_argument(
+        "--no-stream",
+        action="store_true",
+        help="Disable streaming responses",
+    )
     parser.add_argument(
         "--auth-token",
         default=None,
@@ -948,8 +1228,15 @@ def main() -> None:
         default=30.0,
         help="Socket read timeout in seconds (default: 30).",
     )
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Enable verbose logging"
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
 
     if args.config:
         from cascadeflow.config_loader import load_agent
@@ -959,7 +1246,10 @@ def main() -> None:
         from cascadeflow.utils.presets import auto_agent
 
         agent = auto_agent(
-            preset=args.preset, verbose=args.verbose, enable_cascade=True, use_hybrid=True
+            preset=args.preset,
+            verbose=args.verbose,
+            enable_cascade=True,
+            use_hybrid=True,
         )
     server = OpenClawOpenAIServer(
         agent,

@@ -823,41 +823,6 @@ class CostCalculator:
         try:
             from cascadeflow.integrations.litellm import LITELLM_AVAILABLE, LiteLLMCostProvider
 
-            def _litellm_model_id() -> str:
-                """
-                LiteLLM expects provider-qualified model IDs for most non-OpenAI providers
-                (e.g. 'groq/llama-3.1-8b-instant'). Passing an unqualified model name can
-                cause LiteLLM to print noisy provider lists even if we catch the exception.
-                """
-
-                raw_name = str(getattr(model, "name", "") or "").strip()
-                if not raw_name:
-                    return raw_name
-                if "/" in raw_name:
-                    return raw_name
-
-                provider = str(getattr(model, "provider", "") or "").strip().lower()
-                prefix_map = {
-                    "openai": "",
-                    "anthropic": "anthropic",
-                    "groq": "groq",
-                    "deepseek": "deepseek",
-                    "huggingface": "huggingface",
-                    # LiteLLM uses 'together_ai/...'
-                    "together": "together_ai",
-                }
-
-                prefix = prefix_map.get(provider)
-                if prefix is None:
-                    # Heuristic for common unqualified names (keeps backwards compatibility).
-                    if raw_name.lower().startswith("claude-"):
-                        return f"anthropic/{raw_name}"
-                    return raw_name
-
-                if not prefix:
-                    return raw_name
-                return f"{prefix}/{raw_name}"
-
             # If only total tokens are known, approximate a split for cost estimation.
             in_tokens = input_tokens
             out_tokens = output_tokens
@@ -872,13 +837,13 @@ class CostCalculator:
                 provider = LiteLLMCostProvider()
                 litellm_model = _litellm_model_id()
                 cost = provider.calculate_cost(
-                    model=litellm_model,
+                    model=model.name,
                     input_tokens=in_tokens,
                     output_tokens=out_tokens,
                 )
                 if self.verbose:
                     logger.debug(
-                        f"LiteLLM cost for {litellm_model}: ${cost:.6f} ({in_tokens} in, {out_tokens} out)"
+                        f"LiteLLM cost for {model.name}: ${cost:.6f} ({in_tokens} in, {out_tokens} out)"
                     )
                 return cost
         except Exception as e:
@@ -939,9 +904,9 @@ class CostCalculator:
             if not rates:
                 rates = {"input": 0.030, "output": 0.060}
             if input_tokens or output_tokens:
-                return (input_tokens / 1000) * rates["input"] + (output_tokens / 1000) * rates[
-                    "output"
-                ]
+                return (input_tokens / 1000) * rates["input"] + (
+                    output_tokens / 1000
+                ) * rates["output"]
             blended = (rates["input"] * 0.3) + (rates["output"] * 0.7)
             return (total_tokens / 1000) * blended
 

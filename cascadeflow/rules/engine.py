@@ -70,9 +70,7 @@ class RuleEngine:
         domain_cascade_set = None
         if domain_cascade_complexities:
             try:
-                domain_cascade_set = {
-                    QueryComplexity(level.lower()) for level in domain_cascade_complexities
-                }
+                domain_cascade_set = {QueryComplexity(level.lower()) for level in domain_cascade_complexities}
             except ValueError as exc:
                 logger.warning("Invalid complexity in domain config: %s", exc)
                 domain_cascade_set = None
@@ -108,7 +106,9 @@ class RuleEngine:
 
             return RuleDecision(
                 routing_strategy=RoutingStrategy.DIRECT_BEST,
-                reason=(f"Rule: domain '{context.detected_domain}' + {complexity.value} → direct"),
+                reason=(
+                    f"Rule: domain '{context.detected_domain}' + {complexity.value} → direct"
+                ),
                 confidence=confidence,
                 metadata=metadata,
             )
@@ -194,9 +194,9 @@ class RuleEngine:
             return None
 
         strategy = None
-        strategy_value = self.channel_strategies.get(
-            selected_channel
-        ) or self.channel_strategies.get(channel)
+        strategy_value = self.channel_strategies.get(selected_channel) or self.channel_strategies.get(
+            channel
+        )
         if strategy_value:
             try:
                 strategy = (

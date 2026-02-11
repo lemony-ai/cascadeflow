@@ -11,13 +11,12 @@ This module tests the 17-domain detection system including:
 """
 
 import math
-
 import pytest
 
 from cascadeflow.routing.domain import (
+    FASTEMBED_DOMAIN_MODELS,
     DOMAIN_EXEMPLARS,
     DOMAIN_THRESHOLDS,
-    FASTEMBED_DOMAIN_MODELS,
     Domain,
     DomainDetectionResult,
     DomainDetector,
@@ -902,9 +901,7 @@ class _FakeEmbedder:
         return float(max(0.0, min(1.0, similarity)))
 
 
-def _semantic_detector_for_test(
-    query_vectors: dict[str, tuple[float, float]],
-) -> SemanticDomainDetector:
+def _semantic_detector_for_test(query_vectors: dict[str, tuple[float, float]]) -> SemanticDomainDetector:
     detector = SemanticDomainDetector(
         embedder=_FakeEmbedder(query_vectors),
         use_hybrid=True,
@@ -929,7 +926,9 @@ def test_fastembed_candidate_models_declared():
 def test_hybrid_rule_lock_preserves_high_confidence_rule_decisions():
     """Hybrid mode should keep strong rule-based detections when semantic disagrees."""
     query = "Use async await import in Python to implement this function"
-    detector = _semantic_detector_for_test({query: (0.0, 1.0)})  # Semantic bias toward DATA
+    detector = _semantic_detector_for_test(
+        {query: (0.0, 1.0)}  # Semantic bias toward DATA
+    )
 
     result = detector.detect_with_scores(query)
 
@@ -940,7 +939,9 @@ def test_hybrid_rule_lock_preserves_high_confidence_rule_decisions():
 def test_hybrid_semantic_signal_adds_value_when_rules_are_weak():
     """Hybrid mode should rely on semantic signal for weak/ambiguous rule queries."""
     query = "Can you help me with this?"
-    detector = _semantic_detector_for_test({query: (1.0, 0.0)})  # Semantic bias toward CODE
+    detector = _semantic_detector_for_test(
+        {query: (1.0, 0.0)}  # Semantic bias toward CODE
+    )
 
     result = detector.detect_with_scores(query)
 

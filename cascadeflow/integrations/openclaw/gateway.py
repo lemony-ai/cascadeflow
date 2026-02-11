@@ -7,6 +7,8 @@ This is a minimal bridge intended to be called by an OpenClaw transport layer.
 
 from typing import Any, Optional
 
+from cascadeflow.schema.exceptions import cascadeflowError
+
 from .wrapper import OpenClawAdapter, OpenClawAdapterConfig
 
 

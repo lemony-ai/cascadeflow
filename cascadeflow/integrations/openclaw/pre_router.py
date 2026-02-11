@@ -20,11 +20,10 @@ OPENCLAW_NATIVE_CATEGORIES = {
 }
 
 CATEGORY_TO_DOMAIN = {
-    "heartbeat": "heartbeat",
-    "cron": "cron",
     "coding": "code",
     "image_understanding": "multimodal",
     "brain": "general",
+    "cron": "general",
     "comparison": "comparison",
     "factual": "factual",
 }

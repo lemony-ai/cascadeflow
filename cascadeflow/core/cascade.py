@@ -1479,9 +1479,12 @@ class WholeResponseCascade:
         if complexity == "expert":
             passed = False
             if hasattr(validation_result, "reason"):
-                validation_result.reason = f"forced_escalation_expert (complexity={complexity})"
+                validation_result.reason = (
+                    f"forced_escalation_expert (complexity={complexity})"
+                )
             logger.info(
-                f"P0: Forced escalation for expert query " f"(quality_score={quality_score:.2f})"
+                f"P0: Forced escalation for expert query "
+                f"(quality_score={quality_score:.2f})"
             )
         elif complexity == "hard" and quality_score < 0.85:
             passed = False

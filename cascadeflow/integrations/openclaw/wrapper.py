@@ -67,7 +67,9 @@ class OpenClawAdapter:
             domain_hint = CATEGORY_TO_DOMAIN.get(routing.tags.get("category"))
 
         domain_confidence_hint = (
-            routing.hint.confidence if routing.hint else self.config.default_domain_confidence
+            routing.hint.confidence
+            if routing.hint
+            else self.config.default_domain_confidence
         )
 
         return await self.agent.run(

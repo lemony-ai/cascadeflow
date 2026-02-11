@@ -35,43 +35,16 @@ PROVIDER_CONFIGS = [
 ]
 
 TOOL_SCENARIOS: list[dict[str, Any]] = [
-    {
-        "name": "single_tool_basic",
-        "prompt": "Use weather_lookup for Berlin, then summarize in one sentence.",
-    },
-    {
-        "name": "single_tool_numeric",
-        "prompt": "Call calculator for 27*13 and return only the result.",
-    },
-    {
-        "name": "multiple_tools_chain",
-        "prompt": "Use search_docs then calculator to estimate tokens for 5 docs of 320 words each.",
-    },
-    {
-        "name": "multiple_tools_comparison",
-        "prompt": "Call stock_price for AAPL and MSFT and compare in 2 bullets.",
-    },
-    {
-        "name": "nested_tool_plan",
-        "prompt": "First call trip_planner, then weather_lookup for each stop, then summarize itinerary.",
-    },
-    {
-        "name": "tool_choice_auto",
-        "prompt": "If needed call currency_convert from EUR to USD for 100 EUR.",
-    },
+    {"name": "single_tool_basic", "prompt": "Use weather_lookup for Berlin, then summarize in one sentence."},
+    {"name": "single_tool_numeric", "prompt": "Call calculator for 27*13 and return only the result."},
+    {"name": "multiple_tools_chain", "prompt": "Use search_docs then calculator to estimate tokens for 5 docs of 320 words each."},
+    {"name": "multiple_tools_comparison", "prompt": "Call stock_price for AAPL and MSFT and compare in 2 bullets."},
+    {"name": "nested_tool_plan", "prompt": "First call trip_planner, then weather_lookup for each stop, then summarize itinerary."},
+    {"name": "tool_choice_auto", "prompt": "If needed call currency_convert from EUR to USD for 100 EUR."},
     {"name": "tool_choice_forced", "prompt": "You must call calculator to compute (18+6)/3."},
-    {
-        "name": "tool_error_bad_args",
-        "prompt": "Call weather_lookup with malformed args to test graceful tool error handling.",
-    },
-    {
-        "name": "tool_error_missing_tool",
-        "prompt": "Attempt to call non_existing_tool and then recover with a safe response.",
-    },
-    {
-        "name": "tool_fallback_no_tools",
-        "prompt": "Explain what would happen if no tools are available for a weather request.",
-    },
+    {"name": "tool_error_bad_args", "prompt": "Call weather_lookup with malformed args to test graceful tool error handling."},
+    {"name": "tool_error_missing_tool", "prompt": "Attempt to call non_existing_tool and then recover with a safe response."},
+    {"name": "tool_fallback_no_tools", "prompt": "Explain what would happen if no tools are available for a weather request."},
 ]
 
 QA_SCENARIOS: list[dict[str, str]] = [
@@ -237,8 +210,7 @@ def _read_stats(client: httpx.Client) -> StatsSnapshot:
 
 
 def _validate_response_structure(response: dict[str, Any]) -> None:
-    assert "choices" in response, "Missing choices in completion response"
-    assert response["choices"], "Missing choices in completion response"
+    assert "choices" in response and response["choices"], "Missing choices in completion response"
     message = response["choices"][0]["message"]
     assert "content" in message or "tool_calls" in message
 
@@ -256,9 +228,8 @@ def _validate_response_structure(response: dict[str, Any]) -> None:
         assert field in metadata, f"Missing cascadeflow.metadata.{field}"
 
 
-def _validate_stats_delta(
-    before: StatsSnapshot, after: StatsSnapshot, expected_queries: int
-) -> None:
+
+def _validate_stats_delta(before: StatsSnapshot, after: StatsSnapshot, expected_queries: int) -> None:
     assert after.total_queries >= before.total_queries + expected_queries
 
     computed_ratio = _acceptance_ratio(
@@ -312,7 +283,9 @@ def _chat_completion(
                 if content == "[DONE]":
                     break
                 event = json.loads(content)
-                delta = event.get("choices", [{}])[0].get("delta", {}).get("content")
+                delta = (
+                    event.get("choices", [{}])[0].get("delta", {}).get("content")
+                )
                 if delta:
                     chunks.append(delta)
 
@@ -420,9 +393,7 @@ def test_openclaw_multi_turn_context(
     MULTI_AGENT_TOOL_SCENARIOS,
     ids=[item["name"] for item in MULTI_AGENT_TOOL_SCENARIOS],
 )
-def test_openclaw_multi_agent_tools(
-    model: str, scenario: dict[str, str], client: httpx.Client
-) -> None:
+def test_openclaw_multi_agent_tools(model: str, scenario: dict[str, str], client: httpx.Client) -> None:
     before = _read_stats(client)
 
     response = _chat_completion(
@@ -438,9 +409,7 @@ def test_openclaw_multi_agent_tools(
 
 @pytest.mark.integration
 @pytest.mark.parametrize("model", PROVIDER_CONFIGS)
-@pytest.mark.parametrize(
-    "scenario", AGENT_LOOP_SCENARIOS, ids=[item["name"] for item in AGENT_LOOP_SCENARIOS]
-)
+@pytest.mark.parametrize("scenario", AGENT_LOOP_SCENARIOS, ids=[item["name"] for item in AGENT_LOOP_SCENARIOS])
 def test_openclaw_agent_loops(model: str, scenario: dict[str, str], client: httpx.Client) -> None:
     before = _read_stats(client)
 

@@ -441,9 +441,7 @@ class Benchmark(ABC):
         total_savings = total_baseline - total_cost
         avg_savings_pct = (total_savings / total_baseline * 100) if total_baseline > 0 else 0.0
         effective_avg_savings_pct = (
-            ((total_baseline - effective_total_cost) / total_baseline) * 100
-            if total_baseline > 0
-            else 0.0
+            ((total_baseline - effective_total_cost) / total_baseline) * 100 if total_baseline > 0 else 0.0
         )
 
         # Latency metrics

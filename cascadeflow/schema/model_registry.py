@@ -194,6 +194,67 @@ BUILTIN_MODELS: dict[str, ModelRegistryEntry] = {
         supports_streaming=True,
         supports_vision=True,
     ),
+    # Claude 4.x Series
+    "claude-opus-4-5": ModelRegistryEntry(
+        name="claude-opus-4-5-20251101",
+        provider="anthropic",
+        cost=0.005,
+        aliases=[
+            "claude-opus-4-5-20251101",
+            "claude-opus-4.5",
+            "claude-4-5-opus",
+        ],
+        context_window=200000,
+        supports_tools=True,
+        supports_streaming=True,
+        supports_vision=True,
+        release_date="2025-11-01",
+    ),
+    "claude-opus-4-6": ModelRegistryEntry(
+        name="claude-opus-4-6-20250610",
+        provider="anthropic",
+        cost=0.005,
+        aliases=[
+            "claude-opus-4-6-20250610",
+            "claude-opus-4.6",
+            "claude-4-6-opus",
+        ],
+        context_window=200000,
+        supports_tools=True,
+        supports_streaming=True,
+        supports_vision=True,
+        release_date="2025-06-10",
+    ),
+    "claude-sonnet-4-5": ModelRegistryEntry(
+        name="claude-sonnet-4-5-20250929",
+        provider="anthropic",
+        cost=0.003,
+        aliases=[
+            "claude-sonnet-4-5-20250929",
+            "claude-sonnet-4.5",
+            "claude-4-5-sonnet",
+        ],
+        context_window=200000,
+        supports_tools=True,
+        supports_streaming=True,
+        supports_vision=True,
+        release_date="2025-09-29",
+    ),
+    "claude-haiku-4-5": ModelRegistryEntry(
+        name="claude-haiku-4-5-20251001",
+        provider="anthropic",
+        cost=0.001,
+        aliases=[
+            "claude-haiku-4-5-20251001",
+            "claude-haiku-4.5",
+            "claude-4-5-haiku",
+        ],
+        context_window=200000,
+        supports_tools=True,
+        supports_streaming=True,
+        supports_vision=True,
+        release_date="2025-10-01",
+    ),
     # ========================================================================
     # Groq Models (Fast inference)
     # ========================================================================
@@ -366,9 +427,22 @@ class ModelRegistry:
         """
         self._register_internal(name, config)
 
+    # Known provider prefixes used by LiteLLM / OpenClaw routing
+    _PROVIDER_PREFIXES = (
+        "anthropic/",
+        "openai/",
+        "azure/",
+        "google/",
+        "gemini/",
+        "deepseek/",
+        "huggingface/",
+    )
+
     def get(self, name: str) -> ModelRegistryEntry:
         """
         Get a model by name or alias.
+
+        Handles LiteLLM-style provider prefixes (e.g. ``anthropic/claude-opus-4-6-20250610``).
 
         Args:
             name: Model name or alias
@@ -390,6 +464,16 @@ class ModelRegistry:
             canonical = self.aliases[normalized]
             return self.models[canonical]
 
+        # Strip provider prefix (e.g. "anthropic/claude-opus-4-6-20250610" -> "claude-opus-4-6-20250610")
+        for prefix in self._PROVIDER_PREFIXES:
+            if normalized.startswith(prefix):
+                stripped = normalized[len(prefix):]
+                if stripped in self.models:
+                    return self.models[stripped]
+                if stripped in self.aliases:
+                    return self.models[self.aliases[stripped]]
+                break
+
         available = ", ".join(list(self.models.keys())[:5])
         raise ValueError(
             f'Unknown model: "{name}". '
@@ -399,8 +483,11 @@ class ModelRegistry:
 
     def has(self, name: str) -> bool:
         """Check if a model exists in the registry."""
-        normalized = name.lower()
-        return normalized in self.models or normalized in self.aliases
+        try:
+            self.get(name)
+            return True
+        except ValueError:
+            return False
 
     def get_or_none(self, name: str) -> Optional[ModelRegistryEntry]:
         """Get a model if it exists, otherwise return None."""
