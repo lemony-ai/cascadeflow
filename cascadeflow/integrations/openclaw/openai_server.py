@@ -228,6 +228,10 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                     tool_choice = {"type": "function", "function": {"name": name}}
         tools = normalize_tools(tools_payload)
         stream = bool(payload.get("stream"))
+        stream_options = payload.get("stream_options")
+        include_usage = (
+            isinstance(stream_options, dict) and bool(stream_options.get("include_usage"))
+        )
 
         if stream and not server.config.allow_streaming:
             return self._send_openai_error("Streaming not enabled", status=400)
@@ -312,6 +316,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 kpi_flags,
                 tenant_id,
                 channel,
+                include_usage,
             )
 
         result = _run_agent(
@@ -353,6 +358,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         kpi_flags: dict[str, Any],
         tenant_id: Optional[str],
         channel: Optional[str],
+        include_usage: bool = False,
     ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -557,6 +563,21 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(f"data: {json.dumps(final_chunk)}\n\n".encode())
         self.wfile.flush()
 
+        # OpenAI spec: when stream_options.include_usage is set, send a separate
+        # usage-only chunk with choices=[] before [DONE].  The OpenAI Node SDK
+        # (used by pi-ai / OpenClaw) expects this format.
+        if include_usage:
+            usage_chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [],
+                "usage": usage_payload,
+            }
+            self.wfile.write(f"data: {json.dumps(usage_chunk)}\n\n".encode())
+            self.wfile.flush()
+
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 
@@ -566,6 +587,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         try:

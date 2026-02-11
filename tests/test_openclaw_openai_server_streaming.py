@@ -44,7 +44,10 @@ def _read_sse_json_lines(text: str) -> list[dict[str, Any]]:
     return chunks
 
 
-def _stream_request(events: list[_FakeEvent]) -> list[dict[str, Any]]:
+def _stream_request(
+    events: list[_FakeEvent],
+    include_usage: bool = False,
+) -> list[dict[str, Any]]:
     server = OpenClawOpenAIServer(
         _FakeAgent(events),
         OpenClawOpenAIConfig(host="127.0.0.1", port=0, allow_streaming=True),
@@ -52,11 +55,13 @@ def _stream_request(events: list[_FakeEvent]) -> list[dict[str, Any]]:
     port = server.start()
     try:
         url = f"http://127.0.0.1:{port}/v1/chat/completions"
-        payload = {
+        payload: dict[str, Any] = {
             "model": "cascadeflow",
             "messages": [{"role": "user", "content": "hi"}],
             "stream": True,
         }
+        if include_usage:
+            payload["stream_options"] = {"include_usage": True}
         r = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
         assert r.status_code == 200
         return _read_sse_json_lines(r.text)
@@ -170,3 +175,52 @@ def test_openclaw_openai_server_stream_uses_complete_content_when_no_chunks() ->
     usage = chunks[-1]["usage"]
     assert usage["total_tokens"] == 7
     assert usage["totalTokens"] == 7
+
+
+def test_openclaw_openai_server_stream_options_include_usage() -> None:
+    """When stream_options.include_usage is set, a separate usage-only chunk
+    with choices=[] must be sent after the stop chunk (OpenAI spec compliance,
+    required by pi-ai / OpenClaw via the OpenAI Node SDK)."""
+    chunks = _stream_request(
+        [
+            _FakeEvent(type=_FakeEventType("chunk"), content="Hi"),
+            _FakeEvent(
+                type=_FakeEventType("complete"),
+                data={"result": {"content": "Hi", "completion_tokens": 5, "total_tokens": 15}},
+            ),
+        ],
+        include_usage=True,
+    )
+    # Expect: initial, content, stop (with usage), usage-only
+    assert len(chunks) >= 3
+
+    # Find the stop chunk (has finish_reason == "stop" and non-empty choices)
+    stop_chunk = None
+    usage_only_chunk = None
+    for c in chunks:
+        choices = c.get("choices", [])
+        if choices and choices[0].get("finish_reason") == "stop":
+            stop_chunk = c
+        elif not choices and "usage" in c:
+            usage_only_chunk = c
+
+    assert stop_chunk is not None, "Missing stop chunk with finish_reason"
+    assert stop_chunk.get("usage", {}).get("total_tokens", 0) >= 1
+
+    # The separate usage-only chunk per OpenAI spec
+    assert usage_only_chunk is not None, "Missing separate usage-only chunk (choices=[])"
+    assert usage_only_chunk["choices"] == []
+    assert usage_only_chunk["usage"]["completion_tokens"] == 5
+    assert usage_only_chunk["usage"]["total_tokens"] == 15
+
+
+def test_openclaw_openai_server_stream_no_usage_chunk_without_stream_options() -> None:
+    """Without stream_options.include_usage, no separate usage-only chunk."""
+    chunks = _stream_request(
+        [
+            _FakeEvent(type=_FakeEventType("chunk"), content="Hi"),
+        ],
+        include_usage=False,
+    )
+    usage_only_chunks = [c for c in chunks if not c.get("choices")]
+    assert len(usage_only_chunks) == 0, "Should not send usage-only chunk without stream_options"
