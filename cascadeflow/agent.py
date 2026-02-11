@@ -1840,7 +1840,10 @@ class CascadeAgent:
         # 🚀 v2.4 KEY FIX: Select correct streaming manager
         streaming_manager = self._get_streaming_manager(tools)
 
-        # Yield events from selected manager
+        # Yield events from selected manager, capturing telemetry data
+        _stream_draft_decision = None  # Captured from DRAFT_DECISION event
+        _stream_complete_data = None  # Captured from COMPLETE event
+
         if use_cascade and streaming_manager:
             async for event in streaming_manager.stream(
                 query=query_text,
@@ -1854,6 +1857,11 @@ class CascadeAgent:
                 messages=normalized_messages,
                 **kwargs,
             ):
+                # Capture draft decision and completion for telemetry
+                if event.type == StreamEventType.DRAFT_DECISION:
+                    _stream_draft_decision = event.data
+                elif event.type == StreamEventType.COMPLETE:
+                    _stream_complete_data = getattr(event, "data", None)
                 yield event
         else:
             if streaming_manager:
@@ -1869,6 +1877,8 @@ class CascadeAgent:
                     messages=normalized_messages,
                     **kwargs,
                 ):
+                    if event.type == StreamEventType.COMPLETE:
+                        _stream_complete_data = getattr(event, "data", None)
                     yield event
             else:
                 # Fallback for manual streaming
@@ -1952,14 +1962,45 @@ class CascadeAgent:
                     },
                 )
 
-        # Basic telemetry recording
+        # Telemetry recording (v19: now includes draft acceptance from stream events)
         self.telemetry.stats["total_queries"] += 1
         self.telemetry.stats["streaming_used"] += 1
-        # 🔧 FIX: Track routing decision for streaming requests
+
         if use_cascade:
             self.telemetry.stats["cascade_used"] += 1
+
+            # Track draft acceptance from DRAFT_DECISION stream event
+            if _stream_draft_decision is not None:
+                draft_was_accepted = _stream_draft_decision.get("accepted", False)
+                if draft_was_accepted:
+                    self.telemetry.stats["draft_accepted"] += 1
+                else:
+                    self.telemetry.stats["draft_rejected"] += 1
+
+                # Per-complexity acceptance tracking
+                cx = complexity.value
+                if cx not in self.telemetry.acceptance_by_complexity:
+                    self.telemetry.acceptance_by_complexity[cx] = {
+                        "accepted": 0,
+                        "rejected": 0,
+                    }
+                bucket = "accepted" if draft_was_accepted else "rejected"
+                self.telemetry.acceptance_by_complexity[cx][bucket] += 1
+
+                # Quality score tracking
+                quality_score = _stream_draft_decision.get("score")
+                if quality_score is not None:
+                    self.telemetry.quality_scores.append(quality_score)
         else:
             self.telemetry.stats["direct_routed"] += 1
+
+        # Track cost/latency from COMPLETE event
+        if _stream_complete_data and isinstance(_stream_complete_data, dict):
+            result_data = _stream_complete_data.get("result", {})
+            if isinstance(result_data, dict):
+                self.telemetry.stats["total_cost"] += result_data.get("total_cost", 0.0)
+                self.telemetry.stats["total_latency_ms"] += result_data.get("latency_ms", 0.0)
+
         if tools:
             if "tool_queries" not in self.telemetry.stats:
                 self.telemetry.stats["tool_queries"] = 0
