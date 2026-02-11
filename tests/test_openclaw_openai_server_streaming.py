@@ -70,7 +70,7 @@ def test_openclaw_openai_server_stream_includes_role_and_final_finish_reason() -
             assert choice["finish_reason"] is None
 
         last = chunks[-1]["choices"][0]
-        assert last["delta"] == {}
+        assert last["delta"].get("content") == "Hi!"
         assert last["finish_reason"] == "stop"
         assert last["message"]["role"] == "assistant"
         assert last["message"]["content"] == "Hi!"
