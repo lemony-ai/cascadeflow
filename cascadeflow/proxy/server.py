@@ -497,6 +497,7 @@ def _anthropic_payload_to_openai_messages(payload: dict[str, Any]) -> list[dict[
 
 
 class ProxyRequestHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
     server_version = "CascadeFlowGateway/0.1"
 
     def _set_gateway_context(self, proxy: RoutingProxy, *, api: str, endpoint: str) -> None:
@@ -749,6 +750,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         tools, tool_choice = _extract_openai_tools(payload)
 
+        stream_options = payload.get("stream_options")
+        include_usage = (
+            isinstance(stream_options, dict) and bool(stream_options.get("include_usage"))
+        )
+
         if payload.get("stream"):
             if not proxy.config.allow_streaming:
                 return self._send_openai_error("Streaming not enabled", status=400)
@@ -764,6 +770,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 tool_choice=tool_choice,
                 complexity_hint=hints.get("complexity_hint"),
                 domain_hint=hints.get("domain_hint"),
+                include_usage=include_usage,
             )
 
         try:
@@ -954,10 +961,12 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         tool_choice: str | None,
         complexity_hint: str | None = None,
         domain_hint: str | None = None,
+        include_usage: bool = False,
     ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
         self._send_cors_headers(proxy)
         self._send_gateway_headers(proxy)
         self.end_headers()
@@ -1039,6 +1048,28 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if "error" in error_box:  # pragma: no cover
             self.log_error("Streaming error: %s", error_box["error"])
 
+        full_content = "".join(chunk_parts)
+        if not full_content:
+            completion_content = completion_result.get("content")
+            if isinstance(completion_content, str):
+                full_content = completion_content
+        # Emit a proper content chunk when no streaming chunks were captured.
+        # OpenAI SDKs only accumulate delta.content from chunks with
+        # finish_reason=null, so this must come before the stop chunk.
+        if full_content and not chunk_parts:
+            fallback_chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [
+                    {"index": 0, "delta": {"content": full_content}, "finish_reason": None}
+                ],
+            }
+            chunk_parts.append(full_content)
+            self.wfile.write(f"data: {json.dumps(fallback_chunk)}\n\n".encode())
+            self.wfile.flush()
+
         prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
         completion_tokens = int(completion_result.get("completion_tokens") or 0)
         total_tokens_value = completion_result.get("total_tokens")
@@ -1046,10 +1077,19 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if total_tokens == 0:
             total_tokens = prompt_tokens + completion_tokens
         if prompt_tokens == 0 and completion_tokens == 0 and total_tokens == 0:
-            completion_tokens = max(1, len("".join(chunk_parts).split()))
+            completion_tokens = max(1, len(full_content.split()))
             total_tokens = completion_tokens
         if prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
             completion_tokens = total_tokens
+
+        usage_payload = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "promptTokens": prompt_tokens,
+            "completionTokens": completion_tokens,
+            "totalTokens": total_tokens,
+        }
 
         final_chunk = {
             "id": "chatcmpl-cascadeflow",
@@ -1059,22 +1099,27 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             "choices": [
                 {
                     "index": 0,
-                    "delta": {},
-                    "message": {"role": "assistant", "content": "".join(chunk_parts)},
+                    "delta": {} if chunk_parts else {"content": full_content},
+                    "message": {"role": "assistant", "content": full_content},
                     "finish_reason": "stop",
                 }
             ],
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-                "promptTokens": prompt_tokens,
-                "completionTokens": completion_tokens,
-                "totalTokens": total_tokens,
-            },
+            "usage": usage_payload,
         }
         self.wfile.write(f"data: {json.dumps(final_chunk)}\n\n".encode())
         self.wfile.flush()
+
+        if include_usage:
+            usage_chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [],
+                "usage": usage_payload,
+            }
+            self.wfile.write(f"data: {json.dumps(usage_chunk)}\n\n".encode())
+            self.wfile.flush()
 
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
@@ -1205,6 +1250,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
         self._send_cors_headers(proxy)
         self._send_gateway_headers(proxy)
         self.end_headers()
@@ -1280,6 +1326,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
         self._send_cors_headers(proxy)
         self._send_gateway_headers(proxy)
         self.end_headers()
@@ -1315,6 +1362,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
         self._send_cors_headers(proxy)
         self._send_gateway_headers(proxy)
         self.end_headers()

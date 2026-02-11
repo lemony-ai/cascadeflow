@@ -169,9 +169,18 @@ def test_openclaw_openai_server_stream_uses_complete_content_when_no_chunks() ->
             )
         ]
     )
+    # Content must appear as a proper delta chunk (finish_reason=null) so that
+    # OpenAI SDKs accumulate it, not only in the stop chunk's delta.
+    content_deltas = [
+        c["choices"][0]["delta"].get("content", "")
+        for c in chunks
+        if c["choices"] and c["choices"][0].get("finish_reason") is None
+    ]
+    assert "from-complete" in content_deltas
+
     last = chunks[-1]["choices"][0]
     assert last["message"]["content"] == "from-complete"
-    assert last["delta"] == {"content": "from-complete"}
+    assert last["delta"] == {}
     usage = chunks[-1]["usage"]
     assert usage["total_tokens"] == 7
     assert usage["totalTokens"] == 7
