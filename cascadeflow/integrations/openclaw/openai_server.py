@@ -546,7 +546,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             "choices": [
                 {
                     "index": 0,
-                    "delta": {},  # Empty delta - full content is in message only
+                    "delta": {} if chunk_parts else {"content": full_content},
                     # Compatibility: some streaming clients inspect final message content only.
                     "message": {"role": "assistant", "content": full_content},
                     "finish_reason": "stop",

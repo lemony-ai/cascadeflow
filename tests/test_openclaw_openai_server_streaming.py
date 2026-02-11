@@ -84,7 +84,7 @@ def test_openclaw_openai_server_stream_includes_role_and_final_finish_reason() -
         assert choice["finish_reason"] is None
 
     last = chunks[-1]["choices"][0]
-    assert last["delta"].get("content") == "Hi!"
+    assert last["delta"] == {}
     assert last["finish_reason"] == "stop"
     assert last["message"]["role"] == "assistant"
     assert last["message"]["content"] == "Hi!"
@@ -166,7 +166,7 @@ def test_openclaw_openai_server_stream_uses_complete_content_when_no_chunks() ->
     )
     last = chunks[-1]["choices"][0]
     assert last["message"]["content"] == "from-complete"
-    assert last["delta"]["content"] == "from-complete"
+    assert last["delta"] == {"content": "from-complete"}
     usage = chunks[-1]["usage"]
     assert usage["total_tokens"] == 7
     assert usage["totalTokens"] == 7
