@@ -20,6 +20,7 @@ class _FakeEvent:
     type: _FakeEventType
     content: str = ""
     data: Any = None
+    tool_call: Any = None
 
 
 class _FakeAgent:
@@ -233,3 +234,60 @@ def test_openclaw_openai_server_stream_no_usage_chunk_without_stream_options() -
     )
     usage_only_chunks = [c for c in chunks if not c.get("choices")]
     assert len(usage_only_chunks) == 0, "Should not send usage-only chunk without stream_options"
+
+
+def test_openclaw_openai_server_stream_tool_calls() -> None:
+    """Tool call events must appear as OpenAI-format tool_calls in the SSE stream."""
+    chunks = _stream_request(
+        [
+            _FakeEvent(
+                type=_FakeEventType("text_chunk"),
+                content="I'll check the weather.",
+                data={"phase": "direct"},
+            ),
+            _FakeEvent(
+                type=_FakeEventType("tool_call_complete"),
+                tool_call={
+                    "id": "call_abc",
+                    "type": "function",
+                    "name": "get_weather",
+                    "arguments": {"city": "Zurich"},
+                },
+            ),
+            _FakeEvent(
+                type=_FakeEventType("complete"),
+                data={
+                    "result": {
+                        "content": "I'll check the weather.",
+                        "tool_calls": [
+                            {
+                                "id": "call_abc",
+                                "type": "function",
+                                "name": "get_weather",
+                                "arguments": {"city": "Zurich"},
+                            }
+                        ],
+                        "total_tokens": 20,
+                    }
+                },
+            ),
+        ]
+    )
+    # Find the tool call delta chunk (finish_reason=null, has tool_calls in delta)
+    tc_chunk = None
+    for c in chunks:
+        choices = c.get("choices", [])
+        if choices and choices[0].get("delta", {}).get("tool_calls"):
+            tc_chunk = c
+            break
+
+    assert tc_chunk is not None, "Missing tool_calls delta chunk"
+    tc = tc_chunk["choices"][0]["delta"]["tool_calls"][0]
+    assert tc["function"]["name"] == "get_weather"
+    assert json.loads(tc["function"]["arguments"]) == {"city": "Zurich"}
+    assert tc["id"] == "call_abc"
+
+    # Final stop chunk should have finish_reason="tool_calls"
+    last = chunks[-1]["choices"][0]
+    assert last["finish_reason"] == "tool_calls"
+    assert last["message"]["tool_calls"][0]["function"]["name"] == "get_weather"
