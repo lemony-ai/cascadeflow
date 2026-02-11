@@ -657,12 +657,66 @@ class ToolStreamManager:
                 )
 
             else:
-                # No tool calls found
-                draft_accepted = False
-                quality_score = 0.0
-                quality_check_ms = 0
+                # No tool calls found in draft — drafter responded with text.
+                # Fall through to text-based quality validation instead of
+                # blindly rejecting.  This lets the cascade accept a good text
+                # draft even when the request included tool definitions.
+                stripped_text = draft_content.strip()
 
-                logger.warning("No tool calls found in draft response")
+                if (
+                    stripped_text
+                    and len(stripped_text) > 10
+                    and hasattr(self.cascade, "quality_validator")
+                    and self.cascade.quality_validator is not None
+                ):
+                    logger.info(
+                        "No tool calls in draft; validating text response " "with quality validator"
+                    )
+                    quality_check_start = time.time()
+
+                    # Moderate baseline confidence — the model chose text over
+                    # tool calls, which is a reasonable decision for many queries.
+                    draft_confidence = 0.65
+
+                    validation_result = self.cascade.quality_validator.validate(
+                        draft_content=stripped_text,
+                        query=query,
+                        confidence=draft_confidence,
+                        complexity=complexity,
+                    )
+                    draft_accepted = validation_result.passed
+                    quality_score = validation_result.score
+                    quality_check_ms = (time.time() - quality_check_start) * 1000
+
+                    logger.info(
+                        f"Text fallback validation: "
+                        f"{'ACCEPTED' if draft_accepted else 'REJECTED'} "
+                        f"(score: {quality_score:.2f}, "
+                        f"overhead: {quality_check_ms:.1f}ms)"
+                    )
+                else:
+                    # Empty/trivial draft or no quality validator — reject
+                    draft_accepted = False
+                    quality_score = 0.0
+                    quality_check_ms = 0
+                    logger.warning(
+                        "No tool calls found in draft response "
+                        "(empty text or no quality validator)"
+                    )
+
+                # Always emit DRAFT_DECISION so telemetry captures the outcome
+                yield ToolStreamEvent(
+                    type=ToolStreamEventType.DRAFT_DECISION,
+                    data={
+                        "accepted": draft_accepted,
+                        "score": quality_score,
+                        "tool_calls_valid": False,
+                        "tool_calls_count": 0,
+                        "draft_model": draft_model.name,
+                        "verifier_model": self.cascade.verifier.name,
+                        "reason": ("text_quality_passed" if draft_accepted else "no_tool_calls"),
+                    },
+                )
 
             # ================================================================
             # STAGE 3: Execute Tools (if enabled and accepted)
