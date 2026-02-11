@@ -115,6 +115,7 @@ class OpenClawOpenAIServer:
 
 
 class OpenAIRequestHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
     server_version = "CascadeflowOpenAI/0.1"
 
     def _get_presented_token(self) -> Optional[str]:
