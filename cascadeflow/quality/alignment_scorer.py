@@ -1474,9 +1474,35 @@ class QueryResponseAlignmentScorer:
 
         # v7.11 FIX: Only apply off-topic penalty if truly off-topic
         # Don't penalize short valid answers that have keywords
+        #
+        # v19 FIX: Paraphrase floor for substantial responses.
+        # Modern LLMs (especially Anthropic models) commonly paraphrase
+        # rather than echoing query keywords verbatim. The keyword-based
+        # scorer fundamentally cannot assess alignment when no keywords
+        # overlap, producing scores of 0.10-0.23 for perfectly valid
+        # responses like:
+        #   "What are the benefits of meditation?" → mindfulness response → 0.15
+        #   "How does machine learning work?" → algorithms response → 0.15
+        # These low scores then trigger the alignment floor in confidence.py
+        # (0.25), capping confidence and causing 0% draft acceptance.
+        #
+        # Fix: For substantial responses (>= 15 words), set a minimum
+        # floor of 0.35 (moderate alignment assumed). Keyword-based scoring
+        # admits it can't reliably assess paraphrased responses.
+        # Short responses without keywords still get the harsh off-topic cap.
+        # The alignment floor in confidence.py (0.25) remains as safety net.
         if not has_keywords and len(query_lower.split()) > 2:
-            score = min(score * 0.60, self.OFF_TOPIC_CAP)
-            features["off_topic_penalty"] = True
+            response_word_count = len(response_lower.split())
+            if response_word_count >= 15:
+                # Substantial response without keyword overlap - likely paraphrasing
+                # Set minimum floor: can't reliably distinguish paraphrasing
+                # from off-topic when response is well-formed
+                score = max(score, 0.35)
+                features["paraphrase_floor"] = True
+            else:
+                # Short response without keyword overlap - likely truly off-topic
+                score = min(score * 0.60, self.OFF_TOPIC_CAP)
+                features["off_topic_penalty"] = True
 
         if is_trivial and has_keywords and coverage_score > 0:
             score *= 1.15
