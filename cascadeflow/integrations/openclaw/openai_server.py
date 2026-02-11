@@ -476,7 +476,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             "choices": [
                 {
                     "index": 0,
-                    "delta": {},
+                    "delta": {"content": full_content},
                     # Compatibility: some streaming clients inspect final message content only.
                     "message": {"role": "assistant", "content": full_content},
                     "finish_reason": "stop",
