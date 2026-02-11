@@ -94,6 +94,33 @@ class TestAnthropicProvider:
             assert "system" in payload
             assert payload["system"] == "You are a helpful assistant."
 
+    @pytest.mark.asyncio
+    async def test_complete_aggregates_multiple_text_blocks(self, anthropic_provider):
+        """Ensure non-streaming responses keep text from later Anthropic blocks."""
+        response_payload = {
+            "content": [
+                {"type": "text", "text": ""},
+                {"type": "text", "text": "Verifier answer from second block."},
+            ],
+            "stop_reason": "end_turn",
+            "id": "msg_test_multiblock",
+            "usage": {"input_tokens": 12, "output_tokens": 7},
+        }
+
+        with patch.object(anthropic_provider.client, "post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.json.return_value = response_payload
+            mock_response.raise_for_status = MagicMock()
+            mock_post.return_value = mock_response
+
+            result = await anthropic_provider.complete(
+                prompt="Why did this cascade?",
+                model="claude-sonnet-4-5-20250929",
+            )
+
+            assert isinstance(result, ModelResponse)
+            assert result.content == "Verifier answer from second block."
+
     def test_estimate_cost_sonnet(self, anthropic_provider):
         """Test cost estimation for Claude 3 Sonnet."""
         cost = anthropic_provider.estimate_cost(1000, "claude-3-sonnet-20240229")
