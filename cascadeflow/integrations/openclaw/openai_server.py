@@ -364,7 +364,37 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         sentinel = object()
         error_box: dict[str, Exception] = {}
         chunk_parts: list[str] = []
+        pending_draft_chunks: list[str] = []
         completion_result: dict[str, Any] = {}
+        route_strategy: Optional[str] = None
+        draft_accepted: Optional[bool] = None
+        switched_to_verifier = False
+
+        def _emit_chunk(content: str) -> None:
+            chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": content},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            chunk_parts.append(content)
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            self.wfile.flush()
+
+        def _flush_pending_draft() -> None:
+            if not pending_draft_chunks:
+                return
+            buffered = list(pending_draft_chunks)
+            pending_draft_chunks.clear()
+            for buffered_chunk in buffered:
+                _emit_chunk(buffered_chunk)
 
         async def _produce() -> None:
             try:
@@ -418,29 +448,60 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                     if isinstance(result_payload, dict):
                         completion_result = result_payload
                 continue
-            # When switching from draft to verifier, discard draft chunks
+            if event_type == "routing":
+                event_data = getattr(event, "data", None)
+                if isinstance(event_data, dict):
+                    strategy = event_data.get("strategy")
+                    if isinstance(strategy, str) and strategy:
+                        route_strategy = strategy
+                continue
+            if event_type == "draft_decision":
+                event_data = getattr(event, "data", None)
+                if isinstance(event_data, dict) and isinstance(event_data.get("accepted"), bool):
+                    draft_accepted = event_data.get("accepted")
+                    if draft_accepted:
+                        _flush_pending_draft()
+                    else:
+                        pending_draft_chunks.clear()
+                continue
+            # When switching from draft to verifier, discard buffered draft chunks.
             if event_type == "switch":
-                chunk_parts.clear()
+                switched_to_verifier = True
+                pending_draft_chunks.clear()
                 continue
-            if event_type != "chunk":
+            if event_type not in {"chunk", "text_chunk"}:
                 continue
-            chunk = {
-                "id": "chatcmpl-cascadeflow",
-                "object": "chat.completion.chunk",
-                "created": int(time.time()),
-                "model": model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {"content": event.content},
-                        "finish_reason": None,
-                    }
-                ],
-            }
-            if isinstance(getattr(event, "content", None), str):
-                chunk_parts.append(event.content)
-            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
-            self.wfile.flush()
+            content = getattr(event, "content", None)
+            if not isinstance(content, str) or not content:
+                continue
+
+            event_data = getattr(event, "data", None)
+            phase = event_data.get("phase") if isinstance(event_data, dict) else None
+
+            should_emit_now = False
+            if switched_to_verifier or phase == "verifier":
+                switched_to_verifier = True
+                should_emit_now = True
+            elif phase == "direct" or route_strategy == "direct":
+                should_emit_now = True
+            elif draft_accepted is True:
+                _flush_pending_draft()
+                should_emit_now = True
+            elif draft_accepted is False:
+                # Draft was rejected; stream only clearly non-draft content.
+                should_emit_now = bool(phase and phase != "draft")
+            elif phase not in {"draft", None}:
+                should_emit_now = True
+
+            if should_emit_now:
+                _emit_chunk(content)
+            else:
+                pending_draft_chunks.append(content)
+
+        # Some providers may not emit an explicit draft_decision event.
+        # If no verifier switch happened, release buffered draft chunks.
+        if pending_draft_chunks and not switched_to_verifier:
+            _flush_pending_draft()
 
         try:
             future.result(timeout=1)
@@ -450,6 +511,12 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if "error" in error_box:
             self.log_error("Streaming error: %s", error_box["error"])
 
+        full_content = "".join(chunk_parts)
+        if not full_content:
+            completion_content = completion_result.get("content")
+            if isinstance(completion_content, str):
+                full_content = completion_content
+
         prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
         completion_tokens = int(completion_result.get("completion_tokens") or 0)
         total_tokens_value = completion_result.get("total_tokens")
@@ -458,11 +525,10 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             total_tokens = prompt_tokens + completion_tokens
         if prompt_tokens == 0 and completion_tokens == 0 and total_tokens == 0:
             # Fallback estimate for streaming-only consumers that require usage.
-            completion_tokens = max(1, len("".join(chunk_parts).split()))
+            completion_tokens = max(1, len(full_content.split()))
             total_tokens = completion_tokens
         if prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
             completion_tokens = total_tokens
-        full_content = "".join(chunk_parts)
         usage_payload = {
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
@@ -480,7 +546,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             "choices": [
                 {
                     "index": 0,
-                    "delta": {},  # Empty delta - full content is in message only
+                    "delta": {} if chunk_parts else {"content": full_content},
                     # Compatibility: some streaming clients inspect final message content only.
                     "message": {"role": "assistant", "content": full_content},
                     "finish_reason": "stop",
