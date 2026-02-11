@@ -1398,12 +1398,18 @@ class WholeResponseCascade:
 
         except Exception as e:
             logger.error(f"Verifier error: {e}", exc_info=True)
+            error_info = {"type": type(e).__name__, "message": str(e)}
+            if hasattr(e, "status_code") and e.status_code:
+                error_info["status_code"] = e.status_code
+            if hasattr(e, "provider") and e.provider:
+                error_info["provider"] = e.provider
             return {
                 "content": "",
                 "confidence": 0.0,
                 "confidence_method": "error",
                 "tokens_used": 0,
                 "tool_calls": None,
+                "upstream_error": error_info,
             }
 
     def _should_accept_draft(
@@ -1664,6 +1670,10 @@ class WholeResponseCascade:
                 metadata["verifier_completion_tokens"] = verifier_result["completion_tokens"]
             if "total_tokens" in verifier_result:
                 metadata["verifier_total_tokens"] = verifier_result["total_tokens"]
+
+        # Propagate upstream provider errors into metadata so callers can detect them
+        if verifier_result and "upstream_error" in verifier_result:
+            metadata["upstream_error"] = verifier_result["upstream_error"]
 
         # Preserve legacy prompt/completion token keys for consumers
         if draft_accepted and draft_result:

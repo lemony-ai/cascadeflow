@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Optional
 
+from cascadeflow.schema.exceptions import ProviderError
 from cascadeflow.tools.formats import normalize_tools
 from cascadeflow.utils.messages import get_last_user_message
 
@@ -341,19 +342,32 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 include_usage,
             )
 
-        result = _run_agent(
-            server,
-            messages,
-            temperature,
-            max_tokens,
-            tools,
-            tool_choice,
-            domain_hint,
-            domain_confidence_hint,
-            kpi_flags,
-            tenant_id,
-            channel,
-        )
+        try:
+            result = _run_agent(
+                server,
+                messages,
+                temperature,
+                max_tokens,
+                tools,
+                tool_choice,
+                domain_hint,
+                domain_confidence_hint,
+                kpi_flags,
+                tenant_id,
+                channel,
+            )
+        except ProviderError as exc:
+            return self._send_upstream_error(exc)
+        except Exception as exc:
+            self.log_error("Agent error: %s", exc)
+            return self._send_openai_error(
+                f"Internal error: {type(exc).__name__}", status=500, error_type="server_error"
+            )
+
+        # Check for upstream errors propagated through cascade metadata
+        upstream_err = _extract_upstream_error(result)
+        if upstream_err and not _has_content(result):
+            return self._send_upstream_error_from_meta(upstream_err)
 
         response = _build_openai_response(model, result)
         self._send_json(response)
@@ -551,6 +565,36 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             completion_content = completion_result.get("content")
             if isinstance(completion_content, str):
                 full_content = completion_content
+
+        # If no content was produced and there's an upstream error, send an
+        # error event so the client gets a meaningful failure instead of an
+        # empty response.  The initial role chunk was already sent, so we send
+        # an error-content chunk followed by [DONE].
+        if not full_content and "error" in error_box:
+            exc = error_box["error"]
+            err_msg, err_status = _describe_upstream_error(exc)
+            error_chunk = {
+                "id": "chatcmpl-cascadeflow",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {},
+                        "finish_reason": "error",
+                    }
+                ],
+                "error": {
+                    "message": err_msg,
+                    "type": "upstream_error",
+                    "code": err_status,
+                },
+            }
+            self.wfile.write(f"data: {json.dumps(error_chunk)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            return
         # If no content chunks were emitted (e.g. draft-accepted where buffering
         # lost chunks), emit the content as a proper delta chunk now.  OpenAI SDKs
         # only accumulate delta.content from chunks with finish_reason=null and
@@ -687,6 +731,57 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(encoded)
         except BrokenPipeError:  # pragma: no cover - client disconnected
             return
+
+    def _send_upstream_error(self, exc: Exception) -> None:
+        """Send an OpenAI-format error response for an upstream provider failure."""
+        msg, status = _describe_upstream_error(exc)
+        self.log_error("Upstream provider error: %s", exc)
+        self._send_openai_error(msg, status=status, error_type="upstream_error")
+
+    def _send_upstream_error_from_meta(self, error_info: dict[str, Any]) -> None:
+        """Send an OpenAI-format error from cascade metadata upstream_error dict."""
+        upstream_status = error_info.get("status_code", 502)
+        provider = error_info.get("provider", "upstream")
+        err_msg = error_info.get("message", "Upstream provider error")
+        if upstream_status == 529:
+            status, msg = 503, f"Upstream provider overloaded ({provider} 529). Please retry."
+        elif upstream_status == 429:
+            status, msg = 429, f"Upstream rate limit exceeded ({provider}). Please retry later."
+        elif isinstance(upstream_status, int) and upstream_status >= 500:
+            status, msg = 502, f"Upstream server error ({provider} {upstream_status}): {err_msg}"
+        else:
+            status, msg = 502, f"Upstream provider error ({provider}): {err_msg}"
+        self.log_error("Upstream error from metadata: %s", msg)
+        self._send_openai_error(msg, status=status, error_type="upstream_error")
+
+
+def _describe_upstream_error(exc: Exception) -> tuple[str, int]:
+    """Return (message, http_status) for an upstream provider error."""
+    status = getattr(exc, "status_code", None) or 502
+    provider = getattr(exc, "provider", None) or "upstream"
+    if status == 529:
+        return f"Upstream provider overloaded ({provider} 529). Please retry.", 503
+    if status == 429:
+        return f"Upstream rate limit exceeded ({provider}). Please retry later.", 429
+    if status == 401:
+        return f"Upstream authentication error ({provider}).", 401
+    if isinstance(status, int) and status >= 500:
+        return f"Upstream server error ({provider} {status}). Please retry.", 502
+    return f"Upstream provider error: {exc}", 502
+
+
+def _extract_upstream_error(result) -> dict[str, Any] | None:
+    """Extract upstream_error dict from CascadeResult/SpeculativeResult metadata."""
+    meta = getattr(result, "metadata", None)
+    if isinstance(meta, dict):
+        return meta.get("upstream_error")
+    return None
+
+
+def _has_content(result) -> bool:
+    """Check if a result has non-empty content."""
+    content = getattr(result, "content", None)
+    return isinstance(content, str) and bool(content.strip())
 
 
 def _run_agent(

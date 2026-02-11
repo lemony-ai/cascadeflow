@@ -49,10 +49,17 @@ class ConfigError(cascadeflowError):
 class ProviderError(cascadeflowError):
     """Provider error."""
 
-    def __init__(self, message: str, provider: str = None, original_error: Exception = None):
+    def __init__(
+        self,
+        message: str,
+        provider: str = None,
+        original_error: Exception = None,
+        status_code: int = None,
+    ):
         super().__init__(message)
         self.provider = provider
         self.original_error = original_error
+        self.status_code = status_code
 
 
 class AuthenticationError(ProviderError):

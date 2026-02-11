@@ -819,20 +819,28 @@ class AnthropicProvider(BaseProvider):
                 error_detail = ""
             if error_detail:
                 error_detail = error_detail[:500]
-            if e.response.status_code == 401:
+            status = e.response.status_code
+            if status == 401:
                 raise ProviderError(
-                    "Invalid Anthropic API key", provider="anthropic", original_error=e
+                    "Invalid Anthropic API key",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
-            elif e.response.status_code == 429:
+            elif status == 429:
                 raise ProviderError(
-                    "Anthropic rate limit exceeded", provider="anthropic", original_error=e
+                    "Anthropic rate limit exceeded",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}"
+                    f"Anthropic API error: {status}"
                     + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
+                    status_code=status,
                 )
         except httpx.RequestError as e:
             raise ProviderError(
@@ -1043,20 +1051,28 @@ class AnthropicProvider(BaseProvider):
                 error_detail = ""
             if error_detail:
                 error_detail = error_detail[:500]
-            if e.response.status_code == 401:
+            status = e.response.status_code
+            if status == 401:
                 raise ProviderError(
-                    "Invalid Anthropic API key", provider="anthropic", original_error=e
+                    "Invalid Anthropic API key",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
-            elif e.response.status_code == 429:
+            elif status == 429:
                 raise ProviderError(
-                    "Anthropic rate limit exceeded", provider="anthropic", original_error=e
+                    "Anthropic rate limit exceeded",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}"
+                    f"Anthropic API error: {status}"
                     + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
+                    status_code=status,
                 )
         except httpx.RequestError as e:
             raise ProviderError(
@@ -1184,20 +1200,28 @@ class AnthropicProvider(BaseProvider):
                 error_detail = ""
             if error_detail:
                 error_detail = error_detail[:500]
-            if e.response.status_code == 401:
+            status = e.response.status_code
+            if status == 401:
                 raise ProviderError(
-                    "Invalid Anthropic API key", provider="anthropic", original_error=e
+                    "Invalid Anthropic API key",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
-            elif e.response.status_code == 429:
+            elif status == 429:
                 raise ProviderError(
-                    "Anthropic rate limit exceeded", provider="anthropic", original_error=e
+                    "Anthropic rate limit exceeded",
+                    provider="anthropic",
+                    original_error=e,
+                    status_code=status,
                 )
             else:
                 raise ProviderError(
-                    f"Anthropic API error: {e.response.status_code}"
+                    f"Anthropic API error: {status}"
                     + (f" - {error_detail}" if error_detail else ""),
                     provider="anthropic",
                     original_error=e,
+                    status_code=status,
                 )
         except httpx.RequestError as e:
             raise ProviderError(
