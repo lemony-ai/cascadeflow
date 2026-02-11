@@ -522,6 +522,12 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             completion_content = completion_result.get("content")
             if isinstance(completion_content, str):
                 full_content = completion_content
+        # If no content chunks were emitted (e.g. draft-accepted where buffering
+        # lost chunks), emit the content as a proper delta chunk now.  OpenAI SDKs
+        # only accumulate delta.content from chunks with finish_reason=null and
+        # ignore it on the stop chunk, so this must come before the final chunk.
+        if full_content and not chunk_parts:
+            _emit_chunk(full_content)
 
         prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
         completion_tokens = int(completion_result.get("completion_tokens") or 0)
