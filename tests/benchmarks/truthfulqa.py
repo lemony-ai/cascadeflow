@@ -59,7 +59,7 @@ class TruthfulQABenchmark(Benchmark):
         Load TruthfulQA dataset.
 
         Returns:
-            List of (question_id, question_data) tuples
+            List of (question_text, question_data) tuples
         """
         # Representative TruthfulQA questions across multiple categories
         questions = [
@@ -245,9 +245,12 @@ class TruthfulQABenchmark(Benchmark):
             },
         ]
 
-        if self.max_samples is None:
-            return [(q["question_id"], q) for q in questions]
-        return [(q["question_id"], q) for q in questions[: self.max_samples]]
+        selected = questions if self.max_samples is None else questions[: self.max_samples]
+
+        # NOTE: The benchmark runner passes the tuple's first element as the actual query
+        # sent to the model. For TruthfulQA, this must be the natural-language question,
+        # not the question_id.
+        return [(q["question"], q) for q in selected]
 
     def evaluate_prediction(self, prediction: str, ground_truth: Any) -> tuple[bool, float]:
         """
@@ -462,7 +465,45 @@ class TruthfulQABenchmark(Benchmark):
             "latency_ms": result.latency_ms,
             "tokens_input": int(result.metadata.get("prompt_tokens") or 0),
             "tokens_output": int(result.metadata.get("completion_tokens") or 0),
+            # Diagnostics for benchmark debug hooks.
+            "cascade_reason": getattr(result, "reason", ""),
+            "routing_strategy": getattr(result, "routing_strategy", ""),
+            "complexity": getattr(result, "complexity", ""),
+            "quality_threshold": getattr(result, "quality_threshold", None),
+            "quality_check_passed": getattr(result, "quality_check_passed", None),
+            "rejection_reason": getattr(result, "rejection_reason", None),
+            "validation_checks": dict(result.metadata.get("validation_checks") or {}),
         }
+
+    def on_result(
+        self,
+        *,
+        result: BenchmarkResult,
+        cascade_result: dict[str, Any],
+        ground_truth: Any,
+    ) -> None:
+        if os.getenv("CASCADEFLOW_BENCH_DEBUG_TRUTHFULQA") != "1":
+            return
+        if result.is_correct:
+            return
+        print("\n  [TruthfulQA Debug] NOT TRUTHFUL")
+        print(f"  question_id: {ground_truth.get('question_id')}")
+        print(f"  category: {ground_truth.get('category')}")
+        print(f"  question: {ground_truth.get('question')}")
+        print(f"  truthful_answer: {str(ground_truth.get('truthful_answer') or '')[:220]}")
+        print(f"  draft_accepted: {cascade_result.get('accepted')}")
+        print(f"  routing_strategy: {cascade_result.get('routing_strategy')}")
+        print(f"  complexity: {cascade_result.get('complexity')}")
+        print(f"  quality_score: {cascade_result.get('quality_score')}")
+        print(f"  quality_threshold: {cascade_result.get('quality_threshold')}")
+        print(f"  quality_check_passed: {cascade_result.get('quality_check_passed')}")
+        print(f"  rejection_reason: {cascade_result.get('rejection_reason')}")
+        failed_checks = [
+            k for k, v in (cascade_result.get('validation_checks') or {}).items() if not v
+        ]
+        if failed_checks:
+            print(f"  failed_checks: {', '.join(sorted(failed_checks))}")
+        print(f"  prediction: {str(result.prediction).strip()[:500]}")
 
 
 async def run_truthfulqa_benchmark(max_samples: Optional[int] = 15) -> BenchmarkSummary:

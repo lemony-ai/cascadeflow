@@ -418,7 +418,44 @@ Intent: [exact_intent_name]"""
             "latency_ms": latency_ms,
             "tokens_input": int(prompt_tokens or 0),
             "tokens_output": int(completion_tokens or 0),
+            # Diagnostics for benchmark debug hooks.
+            "cascade_reason": getattr(result, "reason", ""),
+            "routing_strategy": getattr(result, "routing_strategy", ""),
+            "complexity": getattr(result, "complexity", ""),
+            "quality_threshold": getattr(result, "quality_threshold", None),
+            "quality_check_passed": getattr(result, "quality_check_passed", None),
+            "rejection_reason": getattr(result, "rejection_reason", None),
+            "validation_checks": dict(result.metadata.get("validation_checks") or {}),
         }
+
+    def on_result(
+        self,
+        *,
+        result: BenchmarkResult,
+        cascade_result: dict[str, Any],
+        ground_truth: Any,
+    ) -> None:
+        if os.getenv("CASCADEFLOW_BENCH_DEBUG_BANKING77") != "1":
+            return
+        if result.is_correct:
+            return
+        print("\n  [Banking77 Debug] MISCLASSIFIED")
+        print(f"  query_id: {ground_truth.get('query_id')}")
+        print(f"  intent: {ground_truth.get('intent')}")
+        print(f"  text: {ground_truth.get('text')}")
+        print(f"  draft_accepted: {cascade_result.get('accepted')}")
+        print(f"  routing_strategy: {cascade_result.get('routing_strategy')}")
+        print(f"  complexity: {cascade_result.get('complexity')}")
+        print(f"  quality_score: {cascade_result.get('quality_score')}")
+        print(f"  quality_threshold: {cascade_result.get('quality_threshold')}")
+        print(f"  quality_check_passed: {cascade_result.get('quality_check_passed')}")
+        print(f"  rejection_reason: {cascade_result.get('rejection_reason')}")
+        failed_checks = [
+            k for k, v in (cascade_result.get('validation_checks') or {}).items() if not v
+        ]
+        if failed_checks:
+            print(f"  failed_checks: {', '.join(sorted(failed_checks))}")
+        print(f"  prediction: {str(result.prediction).strip()[:500]}")
 
 
 async def run_banking77_benchmark(
