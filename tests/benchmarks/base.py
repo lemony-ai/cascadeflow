@@ -341,7 +341,12 @@ class Benchmark(ABC):
                 model = "D" if cascade_result["accepted"] else "V"
                 # Never claim savings on incorrect results.
                 savings = result.cost_savings_pct if is_correct else 0.0
-                print(f"{status} [{model}] (${result.total_cost:.6f}, {savings:.1f}% savings)")
+                # Savings can be negative for escalated cases (draft + verifier) vs baseline (verifier only).
+                # Display negative values as "overhead" to avoid confusion during benchmark review.
+                savings_label = (
+                    f"{savings:.1f}% savings" if savings >= 0 else f"{abs(savings):.1f}% overhead"
+                )
+                print(f"{status} [{model}] (${result.total_cost:.6f}, {savings_label})")
 
             except Exception as e:
                 print(f"❌ ERROR: {e}")
