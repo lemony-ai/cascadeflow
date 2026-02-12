@@ -210,7 +210,8 @@ def _read_stats(client: httpx.Client) -> StatsSnapshot:
 
 
 def _validate_response_structure(response: dict[str, Any]) -> None:
-    assert "choices" in response and response["choices"], "Missing choices in completion response"
+    assert "choices" in response, "Missing choices in completion response"
+    assert response["choices"], "Empty choices in completion response"
     message = response["choices"][0]["message"]
     assert "content" in message or "tool_calls" in message
 

@@ -91,7 +91,10 @@ def _validator_expected_decision(query: str) -> Literal["accepted", "rejected"]:
     q = query.lower().strip()
 
     # Tool / delegation generally need stronger routing.
-    if any(k in q for k in ["call a tool", "function call", "use the tool", "delegate", "sub-agent", "agent"]) :
+    if any(
+        k in q
+        for k in ["call a tool", "function call", "use the tool", "delegate", "sub-agent", "agent"]
+    ):
         return "rejected"
     if re.search(r"\b(json schema|openapi|sql query|regex|proof|derive|complexity|optimiz)\b", q):
         return "rejected"
@@ -101,7 +104,9 @@ def _validator_expected_decision(query: str) -> Literal["accepted", "rejected"]:
         return "rejected"
 
     # Long queries: if they ask for deep reasoning, reject.
-    if len(q) > 700 and re.search(r"\b(analyze|compare|trade-?offs|deep|step-?by-?step|proof)\b", q):
+    if len(q) > 700 and re.search(
+        r"\b(analyze|compare|trade-?offs|deep|step-?by-?step|proof)\b", q
+    ):
         return "rejected"
 
     return "accepted"
@@ -188,8 +193,14 @@ def _generate_cases(seed: int) -> list[QueryCase]:
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": start},
-                    {"role": "assistant", "content": "Sure—first, a few questions: 1) ... 2) ... 3) ..."},
-                    {"role": "user", "content": "Answer the questions with reasonable assumptions and proceed."},
+                    {
+                        "role": "assistant",
+                        "content": "Sure—first, a few questions: 1) ... 2) ... 3) ...",
+                    },
+                    {
+                        "role": "user",
+                        "content": "Answer the questions with reasonable assumptions and proceed.",
+                    },
                 ],
             )
         )
@@ -208,7 +219,13 @@ def _generate_cases(seed: int) -> list[QueryCase]:
             rnd.choice(trivial_topics)
             + "\n\nWrite at least 600 words, with headings and bullet points. Keep it simple."
         )
-        cases.append(QueryCase(id=f"long_trivial_{i:03d}", category="super-long-trivial", messages=_mk_messages(prompt)))
+        cases.append(
+            QueryCase(
+                id=f"long_trivial_{i:03d}",
+                category="super-long-trivial",
+                messages=_mk_messages(prompt),
+            )
+        )
 
     # 3) Super long hard (42)
     hard_topics = [
@@ -219,8 +236,15 @@ def _generate_cases(seed: int) -> list[QueryCase]:
         "Provide a step-by-step approach to threat modeling a web app with authentication and payments, including mitigations.",
     ]
     for i in range(42):
-        prompt = rnd.choice(hard_topics) + "\n\nWrite 700-1000 words. Include a structured outline and concrete examples."
-        cases.append(QueryCase(id=f"long_hard_{i:03d}", category="super-long-hard", messages=_mk_messages(prompt)))
+        prompt = (
+            rnd.choice(hard_topics)
+            + "\n\nWrite 700-1000 words. Include a structured outline and concrete examples."
+        )
+        cases.append(
+            QueryCase(
+                id=f"long_hard_{i:03d}", category="super-long-hard", messages=_mk_messages(prompt)
+            )
+        )
 
     # 4) Super short hard (40)
     short_hard = [
@@ -232,7 +256,13 @@ def _generate_cases(seed: int) -> list[QueryCase]:
         "What are the CAP theorem tradeoffs?",
     ]
     for i in range(40):
-        cases.append(QueryCase(id=f"short_hard_{i:03d}", category="super-short-hard", messages=_mk_messages(rnd.choice(short_hard))))
+        cases.append(
+            QueryCase(
+                id=f"short_hard_{i:03d}",
+                category="super-short-hard",
+                messages=_mk_messages(rnd.choice(short_hard)),
+            )
+        )
 
     # 5) Super short trivial (40)
     short_trivial = [
@@ -244,7 +274,13 @@ def _generate_cases(seed: int) -> list[QueryCase]:
         "Is water wet?",
     ]
     for i in range(40):
-        cases.append(QueryCase(id=f"short_trivial_{i:03d}", category="super-short-trivial", messages=_mk_messages(rnd.choice(short_trivial))))
+        cases.append(
+            QueryCase(
+                id=f"short_trivial_{i:03d}",
+                category="super-short-trivial",
+                messages=_mk_messages(rnd.choice(short_trivial)),
+            )
+        )
 
     # 6) Tool calls / function calling queries (22)
     tool_call_prompts = [
@@ -256,7 +292,11 @@ def _generate_cases(seed: int) -> list[QueryCase]:
     ]
     for i in range(22):
         prompt = rnd.choice(tool_call_prompts)
-        cases.append(QueryCase(id=f"tool_calls_{i:03d}", category="tool-calls", messages=_mk_messages(prompt)))
+        cases.append(
+            QueryCase(
+                id=f"tool_calls_{i:03d}", category="tool-calls", messages=_mk_messages(prompt)
+            )
+        )
 
     # 7) Sub-agent patterns / delegation tasks (22)
     delegation_prompts = [
@@ -267,7 +307,13 @@ def _generate_cases(seed: int) -> list[QueryCase]:
     ]
     for i in range(22):
         prompt = rnd.choice(delegation_prompts)
-        cases.append(QueryCase(id=f"sub_agents_{i:03d}", category="sub-agent-patterns", messages=_mk_messages(prompt)))
+        cases.append(
+            QueryCase(
+                id=f"sub_agents_{i:03d}",
+                category="sub-agent-patterns",
+                messages=_mk_messages(prompt),
+            )
+        )
 
     if len(cases) != 250:
         raise RuntimeError(f"Expected 250 cases, got {len(cases)}")
@@ -276,14 +322,22 @@ def _generate_cases(seed: int) -> list[QueryCase]:
 
 
 def _make_report(results: list[dict[str, Any]], started_at: str, ended_at: str) -> str:
-    latencies = [r["cascadeflow"]["latency_ms"] for r in results if r.get("cascadeflow", {}).get("latency_ms") is not None]
+    latencies = [
+        r["cascadeflow"]["latency_ms"]
+        for r in results
+        if r.get("cascadeflow", {}).get("latency_ms") is not None
+    ]
     accept = sum(1 for r in results if r["decision"] == "accepted")
     reject = sum(1 for r in results if r["decision"] == "rejected")
     unknown = sum(1 for r in results if r["decision"] == "unknown")
     score = sum(int(r.get("validator", {}).get("decision_correct", 0)) for r in results)
 
     p50 = statistics.median(latencies) if latencies else 0.0
-    p95 = statistics.quantiles(latencies, n=20)[-1] if len(latencies) >= 20 else (max(latencies) if latencies else 0.0)
+    p95 = (
+        statistics.quantiles(latencies, n=20)[-1]
+        if len(latencies) >= 20
+        else (max(latencies) if latencies else 0.0)
+    )
     avg = statistics.mean(latencies) if latencies else 0.0
 
     lines: list[str] = []
@@ -333,11 +387,19 @@ def _make_report(results: list[dict[str, Any]], started_at: str, ended_at: str) 
     lines.append("")
     lines.append("### Opportunities")
     lines.append("")
-    lines.append("- Quality detection potential: focus on false-accept cases; extract features (length, domain, tool-intent, ambiguity).")
-    lines.append("- Complexity pre-routing: add a cheap complexity heuristic for very-short-hard and tool-intent queries.")
+    lines.append(
+        "- Quality detection potential: focus on false-accept cases; extract features (length, domain, tool-intent, ambiguity)."
+    )
+    lines.append(
+        "- Complexity pre-routing: add a cheap complexity heuristic for very-short-hard and tool-intent queries."
+    )
     lines.append("- Self-learning: use validator labels to train/threshold domain routing rules.")
-    lines.append("- Semantic caching: cache accepted responses for near-duplicate short-trivial prompts.")
-    lines.append("- Domain expansion: review highest-latency rejects that validator marks as accept.")
+    lines.append(
+        "- Semantic caching: cache accepted responses for near-duplicate short-trivial prompts."
+    )
+    lines.append(
+        "- Domain expansion: review highest-latency rejects that validator marks as accept."
+    )
     lines.append("")
 
     return "\n".join(lines) + "\n"
@@ -369,7 +431,9 @@ def main() -> int:
         cascadeflow_latency: float
         error: str | None = None
         try:
-            cascadeflow_resp, cascadeflow_latency = _post_json(args.cascadeflow_url, payload, timeout_s=args.timeout_s)
+            cascadeflow_resp, cascadeflow_latency = _post_json(
+                args.cascadeflow_url, payload, timeout_s=args.timeout_s
+            )
         except Exception as e:  # noqa: BLE001
             cascadeflow_resp, cascadeflow_latency = {}, 0.0
             error = f"cascadeflow_call_failed: {e}"
@@ -449,7 +513,9 @@ def main() -> int:
     print(f"Total: 250")
     print(f"Accepted: {accept}  Rejected: {reject}  Unknown: {unknown}")
     print(f"Score: {score}/250  Accuracy: {score/250:.3f}")
-    print(f"Avg latency (ms): {statistics.mean(latencies):.1f}  P50: {statistics.median(latencies):.1f}  Max: {max(latencies):.1f}")
+    print(
+        f"Avg latency (ms): {statistics.mean(latencies):.1f}  P50: {statistics.median(latencies):.1f}  Max: {max(latencies):.1f}"
+    )
     print(f"Wrote: {args.out_json}")
     print(f"Wrote: {args.out_md}")
 

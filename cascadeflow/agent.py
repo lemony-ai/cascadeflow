@@ -97,6 +97,11 @@ from .routing import (
 # Phase 3.2: Domain detection (NEW)
 # Phase 4: Tool complexity routing (NEW - v19)
 from .rules import RuleContext, RuleEngine
+
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+# Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
@@ -872,6 +877,7 @@ class CascadeAgent:
         execution externally.
         """
         if self._tool_executor is None:
+
             async def _stub(tc: dict[str, Any]) -> dict[str, Any]:
                 return {
                     "tool_call_id": tc.get("id"),
@@ -1619,19 +1625,8 @@ class CascadeAgent:
 
         total_latency_ms = (time.time() - start_time) * 1000
 
-        # Record metrics
-        self.telemetry.record(
-            result=result,
-            routing_strategy=routing_strategy,
-            complexity=complexity.value,
-            timing_breakdown=timing_breakdown,
-            streaming=True,
-            has_tools=bool(tools),
-            domain=detected_domain,
-        )
-
-        # Build result
-        return self._build_cascade_result(
+        # Build result first so telemetry gets the finalized draft_accepted
+        cascade_result = self._build_cascade_result(
             spec_result=result,
             query=query_text,
             complexity=complexity.value,
@@ -1653,8 +1648,9 @@ class CascadeAgent:
             routing_strategy=routing_strategy,
             complexity=complexity.value,
             timing_breakdown=timing_breakdown,
-            streaming=False,
+            streaming=True,
             has_tools=bool(tools),
+            domain=detected_domain,
         )
 
         return cascade_result
@@ -1868,10 +1864,13 @@ class CascadeAgent:
                 messages=normalized_messages,
                 **kwargs,
             ):
-                # Capture draft decision and completion for telemetry
-                if event.type == StreamEventType.DRAFT_DECISION:
+                # Capture draft decision and completion for telemetry.
+                # Compare by .value because ToolStreamEventType and
+                # StreamEventType are different enums with the same strings.
+                etype = event.type.value if hasattr(event.type, "value") else str(event.type)
+                if etype == StreamEventType.DRAFT_DECISION.value:
                     _stream_draft_decision = event.data
-                elif event.type == StreamEventType.COMPLETE:
+                elif etype == StreamEventType.COMPLETE.value:
                     _stream_complete_data = getattr(event, "data", None)
                 yield event
         else:
@@ -2016,6 +2015,29 @@ class CascadeAgent:
             if "tool_queries" not in self.telemetry.stats:
                 self.telemetry.stats["tool_queries"] = 0
             self.telemetry.stats["tool_queries"] += 1
+
+        # Domain-level tracking (mirrors telemetry.record() domain logic)
+        if detected_domain:
+            if detected_domain not in self.telemetry.stats_by_domain:
+                self.telemetry.stats_by_domain[detected_domain] = {
+                    "queries": 0,
+                    "draft_accepted": 0,
+                    "draft_rejected": 0,
+                    "total_cost": 0.0,
+                    "total_latency_ms": 0.0,
+                }
+            bucket = self.telemetry.stats_by_domain[detected_domain]
+            bucket["queries"] += 1
+            if _stream_complete_data and isinstance(_stream_complete_data, dict):
+                rd = _stream_complete_data.get("result", {})
+                if isinstance(rd, dict):
+                    bucket["total_cost"] += rd.get("total_cost", 0.0)
+                    bucket["total_latency_ms"] += rd.get("latency_ms", 0.0)
+            if use_cascade and _stream_draft_decision is not None:
+                if _stream_draft_decision.get("accepted", False):
+                    bucket["draft_accepted"] += 1
+                else:
+                    bucket["draft_rejected"] += 1
 
     async def stream(
         self,

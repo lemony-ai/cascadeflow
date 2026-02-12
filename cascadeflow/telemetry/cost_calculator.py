@@ -835,7 +835,6 @@ class CostCalculator:
                 in_tokens > 0 or out_tokens > 0
             ):
                 provider = LiteLLMCostProvider()
-                litellm_model = _litellm_model_id()
                 cost = provider.calculate_cost(
                     model=model.name,
                     input_tokens=in_tokens,

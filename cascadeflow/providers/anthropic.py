@@ -609,7 +609,7 @@ class AnthropicProvider(BaseProvider):
         """
         start_time = time.time()
 
-        extra = self._strip_internal_kwargs(dict(kwargs))
+        self._strip_internal_kwargs(dict(kwargs))
 
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic(tools) if tools else None
@@ -626,6 +626,10 @@ class AnthropicProvider(BaseProvider):
             **kwargs,
         }
         
+        # Add system prompt if extracted from messages
+        if extracted_system:
+            payload["system"] = extracted_system
+
         # Add system prompt if extracted from messages
         if extracted_system:
             payload["system"] = extracted_system

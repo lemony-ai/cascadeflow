@@ -467,7 +467,7 @@ class ModelRegistry:
         # Strip provider prefix (e.g. "anthropic/claude-opus-4-6-20250610" -> "claude-opus-4-6-20250610")
         for prefix in self._PROVIDER_PREFIXES:
             if normalized.startswith(prefix):
-                stripped = normalized[len(prefix):]
+                stripped = normalized[len(prefix) :]
                 if stripped in self.models:
                     return self.models[stripped]
                 if stripped in self.aliases:
