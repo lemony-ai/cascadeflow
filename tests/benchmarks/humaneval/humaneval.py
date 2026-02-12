@@ -202,6 +202,9 @@ class HumanEvalBenchmark(Benchmark):
 
         result = await agent.run(enhanced_query, max_tokens=400, temperature=0.0)
 
+        cost_saved = float(getattr(result, "cost_saved", 0.0) or 0.0)
+        baseline_cost = float(getattr(result, "baseline_cost", 0.0) or 0.0)
+
         return {
             "prediction": result.content,
             "model_used": result.model_used,
@@ -210,9 +213,11 @@ class HumanEvalBenchmark(Benchmark):
             "drafter_cost": result.draft_cost or 0.0,
             "verifier_cost": result.verifier_cost or 0.0,
             "total_cost": result.total_cost,
+            "cost_saved": cost_saved,
+            "baseline_cost": baseline_cost,
             "latency_ms": result.latency_ms,
-            "tokens_input": result.metadata.get("prompt_tokens", 0),
-            "tokens_output": result.metadata.get("completion_tokens", 0),
+            "tokens_input": int(result.metadata.get("prompt_tokens") or 0),
+            "tokens_output": int(result.metadata.get("completion_tokens") or 0),
         }
 
 

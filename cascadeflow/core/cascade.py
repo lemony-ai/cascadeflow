@@ -1472,17 +1472,48 @@ class WholeResponseCascade:
 
         passed = getattr(validation_result, "passed", False)
 
-        # P0 fix: Forced escalation for complex queries
-        # Expert queries ALWAYS escalate to verifier for quality assurance.
-        # Hard queries escalate unless the quality score is very high (>= 0.85).
+        # Additional semantic quality check if available.
+        #
+        # NOTE: We compute "special mode" BEFORE forced escalation logic so we can
+        # avoid doing "draft + forced verifier" for code/classification/tool/math,
+        # where we already have format-aware validation and can safely accept only
+        # when quality is extremely high.
+        skip_semantic = False
+        validation_details = getattr(validation_result, "details", {}) or {}
+        alignment_features = validation_details.get("alignment_features", {}) or {}
+        special_mode = False
+        if validation_details.get("code_mode") or validation_details.get("classification_mode"):
+            skip_semantic = True
+            special_mode = True
+        if validation_details.get("function_call_mode"):
+            skip_semantic = True
+            special_mode = True
+        if validation_details.get("math_mode"):
+            skip_semantic = True
+            special_mode = True
+        if alignment_features.get("is_multi_turn"):
+            skip_semantic = True
+            special_mode = True
+
+        # P0 fix: Forced escalation for complex queries (guarded).
+        # Default behavior: expert queries escalate to verifier, hard queries escalate unless
+        # quality score is very high (>= 0.85).
+        #
+        # Exception: for special modes (code/classification/function_call/math/multi-turn),
+        # allow expert drafts to be accepted when the validator score is extremely high,
+        # otherwise we end up paying for a draft we will never accept.
         quality_score = getattr(validation_result, "score", 0.0)
         if complexity == "expert":
-            passed = False
-            if hasattr(validation_result, "reason"):
-                validation_result.reason = f"forced_escalation_expert (complexity={complexity})"
-            logger.info(
-                f"P0: Forced escalation for expert query " f"(quality_score={quality_score:.2f})"
-            )
+            allow_expert_accept = special_mode and quality_score >= 0.95
+            if not allow_expert_accept:
+                passed = False
+                if hasattr(validation_result, "reason"):
+                    validation_result.reason = (
+                        f"forced_escalation_expert (complexity={complexity})"
+                    )
+                logger.info(
+                    f"P0: Forced escalation for expert query (quality_score={quality_score:.2f})"
+                )
         elif complexity == "hard" and quality_score < 0.85:
             passed = False
             if hasattr(validation_result, "reason"):
@@ -1490,22 +1521,8 @@ class WholeResponseCascade:
                     f"forced_escalation_hard (quality_score={quality_score:.2f} < 0.85)"
                 )
             logger.info(
-                f"P0: Forced escalation for hard query "
-                f"(quality_score={quality_score:.2f} < 0.85)"
+                f"P0: Forced escalation for hard query (quality_score={quality_score:.2f} < 0.85)"
             )
-
-        # Additional semantic quality check if available
-        skip_semantic = False
-        validation_details = getattr(validation_result, "details", {}) or {}
-        alignment_features = validation_details.get("alignment_features", {}) or {}
-        if validation_details.get("code_mode") or validation_details.get("classification_mode"):
-            skip_semantic = True
-        if validation_details.get("function_call_mode"):
-            skip_semantic = True
-        if validation_details.get("math_mode"):
-            skip_semantic = True
-        if alignment_features.get("is_multi_turn"):
-            skip_semantic = True
 
         if (
             passed

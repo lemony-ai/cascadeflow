@@ -64,6 +64,7 @@ evaluation-*.md
 fastembed-*.md
 current_stats_before_fix.json
 test-result.txt
+decisions.jsonl
 benchmark_results/
 mtbench_results/
 

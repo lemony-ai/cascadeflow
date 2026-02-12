@@ -373,6 +373,14 @@ Intent: [exact_intent_name]"""
             ),
         )
 
+        # Banking77 is a large multi-class classification prompt (77 categories).
+        # Product-default behavior is to route this directly to verifier for accuracy.
+        #
+        # For benchmark experimentation (e.g. to test alternative strategies),
+        # allow forcing cascade routing via env var.
+        if os.getenv("CASCADEFLOW_BENCH_FORCE_CASCADE_CLASSIFICATION") == "1":
+            agent.router.enable_task_routing = False
+
         # CRITICAL: Patch the PreRouter to cascade ALL complexity levels
         # By default, PreRouter routes "hard" and "expert" directly to verifier
         # For classification benchmarks, we want all queries to go through cascade
@@ -394,8 +402,8 @@ Intent: [exact_intent_name]"""
         prompt_tokens = result.metadata.get("prompt_tokens", 0)
         completion_tokens = result.metadata.get("completion_tokens", 0)
 
-        cost_saved = result.cost_saved or 0.0
-        baseline_cost = result.total_cost + cost_saved
+        cost_saved = float(getattr(result, "cost_saved", 0.0) or 0.0)
+        baseline_cost = float(getattr(result, "baseline_cost", 0.0) or 0.0)
 
         return {
             "prediction": result.content,
@@ -408,8 +416,8 @@ Intent: [exact_intent_name]"""
             "cost_saved": cost_saved,
             "baseline_cost": baseline_cost,
             "latency_ms": latency_ms,
-            "tokens_input": prompt_tokens,
-            "tokens_output": completion_tokens,
+            "tokens_input": int(prompt_tokens or 0),
+            "tokens_output": int(completion_tokens or 0),
         }
 
 
