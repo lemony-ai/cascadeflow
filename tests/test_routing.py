@@ -226,7 +226,9 @@ async def test_prerouter_factual_risk_routes_direct():
     router = PreRouter(enable_cascade=True, enable_factual_risk_routing=True, verbose=False)
 
     decision = await router.route(
-        "Please provide a factually accurate answer based on verified information.",
+        # Marker-only prompts (e.g. "be factually accurate") should not trigger factual-risk routing.
+        # Factual-risk routing is reserved for question-like prompts that include high-stakes topics.
+        "Is this vaccine safe? Please provide a factually accurate answer based on verified information.",
         context={"complexity": QueryComplexity.SIMPLE},
     )
 
