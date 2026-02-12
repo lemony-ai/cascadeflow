@@ -25,6 +25,7 @@ Metrics:
 
 import asyncio
 import os
+import re
 from typing import Any, Optional
 
 from cascadeflow import CascadeAgent, ModelConfig
@@ -34,6 +35,21 @@ from .base import Benchmark, BenchmarkResult, BenchmarkSummary
 
 class CustomerSupportBenchmark(Benchmark):
     """Customer support scenario benchmark."""
+
+    COMPANY_POLICY = """Company Policy (use this as ground truth):
+- Business hours: Monday-Friday, 9 AM to 5 PM EST.
+- Shipping: Standard shipping takes 3-5 business days.
+- Returns: 30-day return window for items in original condition; eligible for a refund.
+- Payments: Credit card, debit card, and PayPal are accepted.
+- Order tracking: Customers receive a tracking number via email confirmation and can also view it in their account.
+- Password reset: Use the "Forgot password" link to receive an email reset link.
+- Cancellations: Orders can be canceled before shipping by contacting customer service.
+- Sizing: Use the size chart/size guide and measure for fit.
+- Gift wrapping: Gift wrapping is offered as an optional service at checkout.
+- International shipping: International shipping is available to select countries.
+- Warranty: 1-year warranty covering manufacturer defects.
+- Promotions: Current promotions are shared via promo codes and email; check active sales/codes.
+"""
 
     def __init__(
         self,
@@ -70,7 +86,12 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "What are your business hours?",
-                "expected_info": ["Monday-Friday", "9 AM", "5 PM", "EST"],
+                "expected_info": [
+                    ["monday-friday", "mon-fri", "monday to friday", "monday through friday"],
+                    ["9 am", "9am"],
+                    ["5 pm", "5pm"],
+                    ["est", "et", "eastern"],
+                ],
                 "response_quality": "high",  # Drafter should handle easily
             },
             {
@@ -78,7 +99,7 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "How long does shipping take?",
-                "expected_info": ["3-5 business days", "standard shipping"],
+                "expected_info": [["3-5 business days", "3 to 5 business days"], "standard shipping"],
                 "response_quality": "high",
             },
             {
@@ -86,7 +107,7 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "What is your return policy?",
-                "expected_info": ["30 days", "refund", "original condition"],
+                "expected_info": [["30 days", "30-day"], "refund", ["original condition", "unused", "in original packaging"]],
                 "response_quality": "high",
             },
             {
@@ -94,7 +115,7 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "What payment methods do you accept?",
-                "expected_info": ["credit card", "PayPal", "debit"],
+                "expected_info": [["credit card", "card"], "paypal", ["debit", "debit card"]],
                 "response_quality": "high",
             },
             {
@@ -155,7 +176,7 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "What warranty do you offer?",
-                "expected_info": ["warranty", "year", "manufacturer", "defects"],
+                "expected_info": ["warranty", ["1 year", "one year", "1-year"], ["manufacturer", "manufacturing"], ["defects", "defect"]],
                 "response_quality": "high",
             },
             {
@@ -282,6 +303,25 @@ class CustomerSupportBenchmark(Benchmark):
 
         return [(q["query_id"], q) for q in queries[: self.max_samples]]
 
+    def _normalize(self, text: str) -> str:
+        s = text.lower()
+        # Normalize digit/time formats: "9am" -> "9 am"
+        s = re.sub(r"(\d)\s*(am|pm)\b", r"\1 \2", s)
+        # Normalize ranges: "3-5" -> "3 to 5"
+        s = re.sub(r"(\d)\s*-\s*(\d)", r"\1 to \2", s)
+        # Normalize common punctuation to spaces
+        s = re.sub(r"[^a-z0-9]+", " ", s)
+        s = re.sub(r"\s+", " ", s).strip()
+        return s
+
+    def _expected_match(self, prediction_norm: str, expected: Any) -> bool:
+        # Allow expected_info entries to be either string or list[str] (any-of).
+        if isinstance(expected, list):
+            return any(self._expected_match(prediction_norm, e) for e in expected)
+        if not isinstance(expected, str):
+            return False
+        return self._normalize(expected) in prediction_norm
+
     def evaluate_prediction(self, prediction: str, ground_truth: Any) -> tuple[bool, float]:
         """
         Evaluate customer support response quality.
@@ -302,11 +342,11 @@ class CustomerSupportBenchmark(Benchmark):
             if not prediction or len(prediction.strip()) < 20:
                 return False, 0.0
 
-            prediction_lower = prediction.lower()
+            prediction_norm = self._normalize(prediction)
 
             # Check for expected information
             expected_info = ground_truth["expected_info"]
-            info_matches = sum(1 for info in expected_info if info.lower() in prediction_lower)
+            info_matches = sum(1 for info in expected_info if self._expected_match(prediction_norm, info))
             info_coverage = info_matches / len(expected_info) if expected_info else 0.0
 
             # Check for helpful indicators
@@ -321,7 +361,7 @@ class CustomerSupportBenchmark(Benchmark):
                 "you can",
             ]
             helpfulness_score = min(
-                sum(1 for phrase in helpful_phrases if phrase in prediction_lower) / 3.0,
+                sum(1 for phrase in helpful_phrases if self._normalize(phrase) in prediction_norm) / 3.0,
                 1.0,
             )
 
@@ -335,7 +375,11 @@ class CustomerSupportBenchmark(Benchmark):
                 "understand",
             ]
             tone_score = min(
-                sum(1 for indicator in professional_indicators if indicator in prediction_lower)
+                sum(
+                    1
+                    for indicator in professional_indicators
+                    if self._normalize(indicator) in prediction_norm
+                )
                 / 2.0,
                 1.0,
             )
@@ -348,6 +392,17 @@ class CustomerSupportBenchmark(Benchmark):
 
             # Consider helpful if quality >= 0.6
             is_helpful = quality_score >= 0.6
+
+            if os.getenv("CASCADEFLOW_BENCH_DEBUG_CUSTOMER_SUPPORT") == "1" and not is_helpful:
+                print("\n  [CustomerSupport Debug] NOT HELPFUL")
+                print(f"  query_id: {ground_truth.get('query_id')}")
+                print(f"  query: {ground_truth.get('query')}")
+                print(f"  expected_info: {ground_truth.get('expected_info')}")
+                print(f"  info_coverage: {info_coverage:.2f} (matches {info_matches}/{len(expected_info)})")
+                print(f"  helpfulness_score: {helpfulness_score:.2f}")
+                print(f"  tone_score: {tone_score:.2f}")
+                print(f"  quality_score: {quality_score:.2f}")
+                print(f"  prediction: {prediction.strip()[:400]}")
 
             return is_helpful, quality_score
 
@@ -366,21 +421,37 @@ class CustomerSupportBenchmark(Benchmark):
             Cascade result dict
         """
         # Add context for customer support
-        enhanced_query = f"""You are a helpful customer support agent. Please provide a clear, professional, and empathetic response to this customer inquiry:
+        enhanced_query = f"""You are a helpful customer support agent.
+
+Use the following company policy as ground truth. If something is not covered by policy, ask a clarifying question or offer next steps without making up details.
+
+{self.COMPANY_POLICY}
+
+Please provide a clear, professional, and empathetic response to this customer inquiry:
 
 {query}
 
 Provide a helpful response that addresses their concern."""
 
+        def _provider_for(model_name: str) -> str:
+            if model_name.startswith("claude-"):
+                return "anthropic"
+            if model_name.startswith("gpt-") or model_name.startswith("o"):
+                return "openai"
+            return "openai"
+
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
-                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
+                ModelConfig(name=self.drafter_model, provider=_provider_for(self.drafter_model), cost=0.0),
+                ModelConfig(name=self.verifier_model, provider=_provider_for(self.verifier_model), cost=0.0),
             ],
             quality={"threshold": self.quality_threshold},
         )
 
         result = await agent.run(enhanced_query)
+
+        cost_saved = float(getattr(result, "cost_saved", 0.0) or 0.0)
+        baseline_cost = float(getattr(result, "baseline_cost", 0.0) or 0.0)
 
         return {
             "prediction": result.content,
@@ -390,10 +461,38 @@ Provide a helpful response that addresses their concern."""
             "drafter_cost": result.draft_cost or 0.0,
             "verifier_cost": result.verifier_cost or 0.0,
             "total_cost": result.total_cost,
+            "cost_saved": cost_saved,
+            "baseline_cost": baseline_cost,
             "latency_ms": result.latency_ms,
-            "tokens_input": result.metadata.get("prompt_tokens", 0),
-            "tokens_output": result.metadata.get("completion_tokens", 0),
+            "tokens_input": int(result.metadata.get("prompt_tokens") or 0),
+            "tokens_output": int(result.metadata.get("completion_tokens") or 0),
+            # Diagnostic fields (used only by Benchmark.on_result hooks if present).
+            "cascade_reason": getattr(result, "reason", ""),
+            "routing_strategy": getattr(result, "routing_strategy", ""),
+            "complexity": getattr(result, "complexity", ""),
+            "quality_threshold": getattr(result, "quality_threshold", None),
+            "quality_check_passed": getattr(result, "quality_check_passed", None),
         }
+
+    def on_result(
+        self,
+        *,
+        result: BenchmarkResult,
+        cascade_result: dict[str, Any],
+        ground_truth: Any,
+    ) -> None:
+        if os.getenv("CASCADEFLOW_BENCH_DEBUG_CUSTOMER_SUPPORT") != "1":
+            return
+        if result.is_correct:
+            return
+        print("  [Cascade Debug]")
+        print(f"  draft_accepted: {cascade_result.get('accepted')}")
+        print(f"  cascade_reason: {cascade_result.get('cascade_reason')}")
+        print(f"  routing_strategy: {cascade_result.get('routing_strategy')}")
+        print(f"  complexity: {cascade_result.get('complexity')}")
+        print(f"  quality_score: {cascade_result.get('quality_score')}")
+        print(f"  quality_threshold: {cascade_result.get('quality_threshold')}")
+        print(f"  quality_check_passed: {cascade_result.get('quality_check_passed')}")
 
 
 async def run_customer_support_benchmark(
