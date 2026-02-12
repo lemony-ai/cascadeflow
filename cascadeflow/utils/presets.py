@@ -189,6 +189,8 @@ def get_cost_optimized_agent(
         quality_config=quality_config,
         enable_cascade=enable_cascade,
         verbose=verbose,
+        enable_domain_detection=use_hybrid,
+        use_hybrid=use_hybrid,
     )
 
 
@@ -300,6 +302,8 @@ def get_balanced_agent(
         quality_config=quality_config,
         enable_cascade=enable_cascade,
         verbose=verbose,
+        enable_domain_detection=use_hybrid,
+        use_hybrid=use_hybrid,
     )
 
 
@@ -410,6 +414,8 @@ def get_speed_optimized_agent(
         quality_config=quality_config,
         enable_cascade=enable_cascade,
         verbose=verbose,
+        enable_domain_detection=use_hybrid,
+        use_hybrid=use_hybrid,
     )
 
 
@@ -524,6 +530,8 @@ def get_quality_optimized_agent(
         quality_config=quality_config,
         enable_cascade=enable_cascade,
         verbose=verbose,
+        enable_domain_detection=use_hybrid,
+        use_hybrid=use_hybrid,
     )
 
 
@@ -622,6 +630,8 @@ def get_development_agent(
         quality_config=quality_config,
         enable_cascade=enable_cascade,
         verbose=verbose,
+        enable_domain_detection=use_hybrid,
+        use_hybrid=use_hybrid,
     )
 
 

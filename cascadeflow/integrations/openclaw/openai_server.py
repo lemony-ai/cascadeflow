@@ -30,6 +30,18 @@ from .pre_router import CATEGORY_TO_DOMAIN
 
 oc_logger = logging.getLogger("cascadeflow.openclaw")
 
+_DEFAULT_SENTINELS = ("NO_REPLY",)
+
+
+def _strip_sentinel(content: str, sentinels: tuple[str, ...]) -> str:
+    """Strip known sentinel patterns from content. Returns empty string if only sentinels."""
+    if not content:
+        return content
+    cleaned = content.strip()
+    for sentinel in sentinels:
+        cleaned = cleaned.replace(sentinel, "")
+    return cleaned.strip()
+
 
 def _to_openai_tool_calls(
     tool_calls: list[dict[str, Any]],
@@ -403,7 +415,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             result=result,
             total_ms=total_ms,
         )
-        log_decision(trace)
+        # Skip ghost traces where cascade wasn't initialised (null models)
+        if trace.get("draft", {}).get("model"):
+            log_decision(trace)
         accepted = meta.get("draft_accepted", False)
         model_used = getattr(result, "model_used", "unknown")
         oc_logger.info(
@@ -614,11 +628,11 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if "error" in error_box:
             self.log_error("Streaming error: %s", error_box["error"])
 
-        full_content = "".join(chunk_parts)
+        full_content = _strip_sentinel("".join(chunk_parts), _DEFAULT_SENTINELS)
         if not full_content:
             completion_content = completion_result.get("content")
             if isinstance(completion_content, str):
-                full_content = completion_content
+                full_content = _strip_sentinel(completion_content, _DEFAULT_SENTINELS)
 
         # If no content was produced and there's an upstream error, send an
         # error event so the client gets a meaningful failure instead of an
@@ -759,7 +773,9 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             decision_data=captured_decision,
             total_ms=total_ms,
         )
-        log_decision(trace)
+        # Skip ghost traces where cascade wasn't initialised (null models)
+        if trace.get("draft", {}).get("model"):
+            log_decision(trace)
         accepted = captured_decision.get("accepted", False)
         model_used = completion_result.get("model_used", "unknown")
         total_cost = completion_result.get("total_cost", 0.0)
@@ -885,9 +901,11 @@ def _extract_upstream_error(result) -> dict[str, Any] | None:
 
 
 def _has_content(result) -> bool:
-    """Check if a result has non-empty content."""
+    """Check if a result has non-empty content (excluding sentinels)."""
     content = getattr(result, "content", None)
-    return isinstance(content, str) and bool(content.strip())
+    if not isinstance(content, str) or not content.strip():
+        return False
+    return bool(_strip_sentinel(content, _DEFAULT_SENTINELS))
 
 
 def _run_agent(
@@ -1094,16 +1112,19 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
     content = getattr(result, "content", "") or ""
     if not isinstance(content, str):
         content = str(content)
+    content = _strip_sentinel(content, _DEFAULT_SENTINELS)
 
     # Never return an empty assistant message if we have usable content in metadata.
     # This can happen when an upstream verifier returns only reasoning output.
     if not tool_calls and not content.strip():
         for source_key in ("verifier_response", "draft_response"):
             candidate = meta.get(source_key)
-            if isinstance(candidate, str) and candidate.strip():
-                meta.setdefault("openclaw_content_fallback", source_key)
-                content = candidate
-                break
+            if isinstance(candidate, str):
+                candidate = _strip_sentinel(candidate, _DEFAULT_SENTINELS)
+                if candidate.strip():
+                    meta.setdefault("openclaw_content_fallback", source_key)
+                    content = candidate
+                    break
 
     message: dict[str, Any] = {"role": "assistant", "content": content}
     if tool_calls:
