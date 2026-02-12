@@ -202,6 +202,9 @@ class HumanEvalBenchmark(Benchmark):
 
         result = await agent.run(enhanced_query, max_tokens=400, temperature=0.0)
 
+        cost_saved = float(getattr(result, "cost_saved", 0.0) or 0.0)
+        baseline_cost = float(getattr(result, "baseline_cost", 0.0) or 0.0)
+
         return {
             "prediction": result.content,
             "model_used": result.model_used,
@@ -210,10 +213,49 @@ class HumanEvalBenchmark(Benchmark):
             "drafter_cost": result.draft_cost or 0.0,
             "verifier_cost": result.verifier_cost or 0.0,
             "total_cost": result.total_cost,
+            "cost_saved": cost_saved,
+            "baseline_cost": baseline_cost,
             "latency_ms": result.latency_ms,
-            "tokens_input": result.metadata.get("prompt_tokens", 0),
-            "tokens_output": result.metadata.get("completion_tokens", 0),
+            "tokens_input": int(result.metadata.get("prompt_tokens") or 0),
+            "tokens_output": int(result.metadata.get("completion_tokens") or 0),
+            # Diagnostics for benchmark debug hooks.
+            "cascade_reason": getattr(result, "reason", ""),
+            "routing_strategy": getattr(result, "routing_strategy", ""),
+            "complexity": getattr(result, "complexity", ""),
+            "quality_threshold": getattr(result, "quality_threshold", None),
+            "quality_check_passed": getattr(result, "quality_check_passed", None),
+            "rejection_reason": getattr(result, "rejection_reason", None),
+            "validation_checks": dict(result.metadata.get("validation_checks") or {}),
         }
+
+    def on_result(
+        self,
+        *,
+        result: BenchmarkResult,
+        cascade_result: dict[str, Any],
+        ground_truth: Any,
+    ) -> None:
+        if os.getenv("CASCADEFLOW_BENCH_DEBUG_HUMANEVAL") != "1":
+            return
+        if result.is_correct:
+            return
+        print("\n  [HumanEval Debug] FAILED TESTS")
+        print(f"  task_id: {ground_truth.get('task_id')}")
+        print(f"  difficulty: {ground_truth.get('difficulty')}")
+        print(f"  draft_accepted: {cascade_result.get('accepted')}")
+        print(f"  routing_strategy: {cascade_result.get('routing_strategy')}")
+        print(f"  complexity: {cascade_result.get('complexity')}")
+        print(f"  quality_score: {cascade_result.get('quality_score')}")
+        print(f"  quality_threshold: {cascade_result.get('quality_threshold')}")
+        print(f"  quality_check_passed: {cascade_result.get('quality_check_passed')}")
+        print(f"  rejection_reason: {cascade_result.get('rejection_reason')}")
+        failed_checks = [
+            k for k, v in (cascade_result.get("validation_checks") or {}).items() if not v
+        ]
+        if failed_checks:
+            print(f"  failed_checks: {', '.join(sorted(failed_checks))}")
+        print(f"  prompt: {str(ground_truth.get('prompt') or '').strip()[:280]}")
+        print(f"  prediction: {str(result.prediction).strip()[:500]}")
 
 
 async def run_humaneval_benchmark(max_samples: Optional[int] = 10):

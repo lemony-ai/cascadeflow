@@ -337,11 +337,22 @@ class Benchmark(ABC):
 
                 self.results.append(result)
 
+                # Optional per-benchmark hook for additional diagnostics.
+                # Kept out of BenchmarkResult to avoid bloating default reports.
+                self.on_result(
+                    result=result, cascade_result=cascade_result, ground_truth=ground_truth
+                )
+
                 status = "✅ PASS" if is_correct else "❌ FAIL"
                 model = "D" if cascade_result["accepted"] else "V"
                 # Never claim savings on incorrect results.
                 savings = result.cost_savings_pct if is_correct else 0.0
-                print(f"{status} [{model}] (${result.total_cost:.6f}, {savings:.1f}% savings)")
+                # Savings can be negative for escalated cases (draft + verifier) vs baseline (verifier only).
+                # Display negative values as "overhead" to avoid confusion during benchmark review.
+                savings_label = (
+                    f"{savings:.1f}% savings" if savings >= 0 else f"{abs(savings):.1f}% overhead"
+                )
+                print(f"{status} [{model}] (${result.total_cost:.6f}, {savings_label})")
 
             except Exception as e:
                 print(f"❌ ERROR: {e}")
@@ -372,6 +383,16 @@ class Benchmark(ABC):
         self._print_summary(summary)
 
         return summary
+
+    def on_result(
+        self,
+        *,
+        result: BenchmarkResult,
+        cascade_result: dict[str, Any],
+        ground_truth: Any,
+    ) -> None:
+        """Optional hook for benchmark-specific diagnostics (default: no-op)."""
+        return
 
     def _generate_summary(self) -> BenchmarkSummary:
         """Generate aggregate summary from results."""

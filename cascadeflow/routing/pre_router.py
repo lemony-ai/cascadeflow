@@ -174,14 +174,20 @@ class PreRouter(Router):
     def _is_factual_risk_query(self, query: str) -> bool:
         """Return True if query should be treated as factual-risk."""
         lowered = query.lower()
-        if any(marker in lowered for marker in self.FACTUAL_RISK_MARKERS):
-            return True
+        marker_hit = any(marker in lowered for marker in self.FACTUAL_RISK_MARKERS)
 
         is_question = "?" in lowered or lowered.lstrip().startswith(self.QUESTION_STARTERS)
         if not is_question:
             return False
 
-        return any(topic in lowered for topic in self.FACTUAL_RISK_TOPICS)
+        topic_hit = any(topic in lowered for topic in self.FACTUAL_RISK_TOPICS)
+
+        # Tighten heuristic:
+        # - "marker only" (e.g. system prompt says "be factually accurate") should NOT
+        #   automatically force direct routing.
+        # - Direct factual-risk routing is reserved for (question + high-stakes topic),
+        #   optionally reinforced by marker phrases.
+        return topic_hit or (marker_hit and topic_hit)
 
     async def route(self, query: str, context: Optional[dict[str, Any]] = None) -> RoutingDecision:
         """
@@ -261,7 +267,8 @@ class PreRouter(Router):
 
         factual_risk_detected = False
         if self.enable_factual_risk_routing:
-            factual_risk_detected = self._is_factual_risk_query(query)
+            factual_risk_text = context.get("routing_text") or query
+            factual_risk_detected = self._is_factual_risk_query(str(factual_risk_text))
 
         # === STEP 3: Make Routing Decision ===
         force_direct = context.get("force_direct", False)

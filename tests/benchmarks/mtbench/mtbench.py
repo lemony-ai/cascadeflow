@@ -287,11 +287,27 @@ class MTBenchmark(Benchmark):
         print(f"\nConversation: {conversation_id} ({category})")
         print(f"  Turns: {len(turns)}")
 
+        def _provider_for(model_name: str) -> str:
+            # Keep benchmark configs simple: infer provider from model prefix.
+            if model_name.startswith("claude-"):
+                return "anthropic"
+            if model_name.startswith("gpt-") or model_name.startswith("o"):
+                return "openai"
+            return "openai"
+
         # Initialize agent with cascade configuration
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="anthropic", cost=0.003),
-                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.045),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=_provider_for(self.drafter_model),
+                    cost=0.0,
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=_provider_for(self.verifier_model),
+                    cost=0.0,
+                ),
             ],
             quality={"threshold": self.quality_threshold},
         )

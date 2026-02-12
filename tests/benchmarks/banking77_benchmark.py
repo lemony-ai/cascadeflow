@@ -373,6 +373,14 @@ Intent: [exact_intent_name]"""
             ),
         )
 
+        # Banking77 is a large multi-class classification prompt (77 categories).
+        # Product-default behavior is to route this directly to verifier for accuracy.
+        #
+        # For benchmark experimentation (e.g. to test alternative strategies),
+        # allow forcing cascade routing via env var.
+        if os.getenv("CASCADEFLOW_BENCH_FORCE_CASCADE_CLASSIFICATION") == "1":
+            agent.router.enable_task_routing = False
+
         # CRITICAL: Patch the PreRouter to cascade ALL complexity levels
         # By default, PreRouter routes "hard" and "expert" directly to verifier
         # For classification benchmarks, we want all queries to go through cascade
@@ -394,8 +402,8 @@ Intent: [exact_intent_name]"""
         prompt_tokens = result.metadata.get("prompt_tokens", 0)
         completion_tokens = result.metadata.get("completion_tokens", 0)
 
-        cost_saved = result.cost_saved or 0.0
-        baseline_cost = result.total_cost + cost_saved
+        cost_saved = float(getattr(result, "cost_saved", 0.0) or 0.0)
+        baseline_cost = float(getattr(result, "baseline_cost", 0.0) or 0.0)
 
         return {
             "prediction": result.content,
@@ -408,9 +416,46 @@ Intent: [exact_intent_name]"""
             "cost_saved": cost_saved,
             "baseline_cost": baseline_cost,
             "latency_ms": latency_ms,
-            "tokens_input": prompt_tokens,
-            "tokens_output": completion_tokens,
+            "tokens_input": int(prompt_tokens or 0),
+            "tokens_output": int(completion_tokens or 0),
+            # Diagnostics for benchmark debug hooks.
+            "cascade_reason": getattr(result, "reason", ""),
+            "routing_strategy": getattr(result, "routing_strategy", ""),
+            "complexity": getattr(result, "complexity", ""),
+            "quality_threshold": getattr(result, "quality_threshold", None),
+            "quality_check_passed": getattr(result, "quality_check_passed", None),
+            "rejection_reason": getattr(result, "rejection_reason", None),
+            "validation_checks": dict(result.metadata.get("validation_checks") or {}),
         }
+
+    def on_result(
+        self,
+        *,
+        result: BenchmarkResult,
+        cascade_result: dict[str, Any],
+        ground_truth: Any,
+    ) -> None:
+        if os.getenv("CASCADEFLOW_BENCH_DEBUG_BANKING77") != "1":
+            return
+        if result.is_correct:
+            return
+        print("\n  [Banking77 Debug] MISCLASSIFIED")
+        print(f"  query_id: {ground_truth.get('query_id')}")
+        print(f"  intent: {ground_truth.get('intent')}")
+        print(f"  text: {ground_truth.get('text')}")
+        print(f"  draft_accepted: {cascade_result.get('accepted')}")
+        print(f"  routing_strategy: {cascade_result.get('routing_strategy')}")
+        print(f"  complexity: {cascade_result.get('complexity')}")
+        print(f"  quality_score: {cascade_result.get('quality_score')}")
+        print(f"  quality_threshold: {cascade_result.get('quality_threshold')}")
+        print(f"  quality_check_passed: {cascade_result.get('quality_check_passed')}")
+        print(f"  rejection_reason: {cascade_result.get('rejection_reason')}")
+        failed_checks = [
+            k for k, v in (cascade_result.get("validation_checks") or {}).items() if not v
+        ]
+        if failed_checks:
+            print(f"  failed_checks: {', '.join(sorted(failed_checks))}")
+        print(f"  prediction: {str(result.prediction).strip()[:500]}")
 
 
 async def run_banking77_benchmark(

@@ -1205,6 +1205,11 @@ class CascadeAgent:
             "has_tools": bool(tools),
             "has_code": complexity_metadata.get("has_code", False),
             "has_multi_turn": has_multi_turn,
+            # Use the latest user turn for routing heuristics (factual-risk/task/tool prompts).
+            # This avoids routing being dominated by system prompts or earlier conversation context.
+            "routing_text": (
+                get_last_user_message(normalized_messages) if normalized_messages else query_text
+            ),
             # Domain context for domain-aware routing
             "detected_domain": detected_domain,
             "domain_config": domain_config,
