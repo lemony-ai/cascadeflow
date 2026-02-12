@@ -94,6 +94,10 @@ from .rules import RuleContext, RuleEngine
 # Phase 2A: Routing module imports
 # Phase 3.2: Domain detection (NEW)
 # Phase 4: Tool complexity routing (NEW - v19)
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+# Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError

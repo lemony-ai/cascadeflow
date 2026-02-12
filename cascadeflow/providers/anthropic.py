@@ -645,6 +645,10 @@ class AnthropicProvider(BaseProvider):
         if extracted_system:
             payload["system"] = extracted_system
 
+        # Add system prompt if extracted from messages
+        if extracted_system:
+            payload["system"] = extracted_system
+
         # Add tools if provided
         if anthropic_tools:
             payload["tools"] = anthropic_tools
