@@ -517,7 +517,7 @@ class TruthfulQABenchmark(Benchmark):
         print(f"  quality_check_passed: {cascade_result.get('quality_check_passed')}")
         print(f"  rejection_reason: {cascade_result.get('rejection_reason')}")
         failed_checks = [
-            k for k, v in (cascade_result.get('validation_checks') or {}).items() if not v
+            k for k, v in (cascade_result.get("validation_checks") or {}).items() if not v
         ]
         if failed_checks:
             print(f"  failed_checks: {', '.join(sorted(failed_checks))}")

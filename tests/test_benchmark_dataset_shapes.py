@@ -40,4 +40,3 @@ def test_mtbench_load_dataset_returns_conversation_id_for_lookup() -> None:
     bench = MTBenchmark(max_samples=1)
     query, ground_truth = bench.load_dataset()[0]
     assert query == ground_truth["conversation_id"]
-

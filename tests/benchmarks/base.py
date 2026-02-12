@@ -339,7 +339,9 @@ class Benchmark(ABC):
 
                 # Optional per-benchmark hook for additional diagnostics.
                 # Kept out of BenchmarkResult to avoid bloating default reports.
-                self.on_result(result=result, cascade_result=cascade_result, ground_truth=ground_truth)
+                self.on_result(
+                    result=result, cascade_result=cascade_result, ground_truth=ground_truth
+                )
 
                 status = "✅ PASS" if is_correct else "❌ FAIL"
                 model = "D" if cascade_result["accepted"] else "V"

@@ -99,7 +99,10 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "How long does shipping take?",
-                "expected_info": [["3-5 business days", "3 to 5 business days"], "standard shipping"],
+                "expected_info": [
+                    ["3-5 business days", "3 to 5 business days"],
+                    "standard shipping",
+                ],
                 "response_quality": "high",
             },
             {
@@ -107,7 +110,11 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "What is your return policy?",
-                "expected_info": [["30 days", "30-day"], "refund", ["original condition", "unused", "in original packaging"]],
+                "expected_info": [
+                    ["30 days", "30-day"],
+                    "refund",
+                    ["original condition", "unused", "in original packaging"],
+                ],
                 "response_quality": "high",
             },
             {
@@ -176,7 +183,12 @@ class CustomerSupportBenchmark(Benchmark):
                 "category": "simple_faq",
                 "complexity": "simple",
                 "query": "What warranty do you offer?",
-                "expected_info": ["warranty", ["1 year", "one year", "1-year"], ["manufacturer", "manufacturing"], ["defects", "defect"]],
+                "expected_info": [
+                    "warranty",
+                    ["1 year", "one year", "1-year"],
+                    ["manufacturer", "manufacturing"],
+                    ["defects", "defect"],
+                ],
                 "response_quality": "high",
             },
             {
@@ -239,7 +251,12 @@ class CustomerSupportBenchmark(Benchmark):
                     "processing",
                     "check",
                     "status",
-                    ["original payment method", "original payment", "to your card", "to your paypal"],
+                    [
+                        "original payment method",
+                        "original payment",
+                        "to your card",
+                        "to your paypal",
+                    ],
                 ],
                 "response_quality": "medium",
             },
@@ -345,7 +362,9 @@ class CustomerSupportBenchmark(Benchmark):
 
             # Check for expected information
             expected_info = ground_truth["expected_info"]
-            info_matches = sum(1 for info in expected_info if self._expected_match(prediction_norm, info))
+            info_matches = sum(
+                1 for info in expected_info if self._expected_match(prediction_norm, info)
+            )
             info_coverage = info_matches / len(expected_info) if expected_info else 0.0
 
             # Check for helpful indicators
@@ -394,8 +413,7 @@ class CustomerSupportBenchmark(Benchmark):
             )
 
             helpfulness_score = min(
-                (phrase_hits + (1 if has_steps else 0) + (1 if has_actionable_marker else 0))
-                / 3.0,
+                (phrase_hits + (1 if has_steps else 0) + (1 if has_actionable_marker else 0)) / 3.0,
                 1.0,
             )
 
@@ -432,7 +450,9 @@ class CustomerSupportBenchmark(Benchmark):
                 print(f"  query_id: {ground_truth.get('query_id')}")
                 print(f"  query: {ground_truth.get('query')}")
                 print(f"  expected_info: {ground_truth.get('expected_info')}")
-                print(f"  info_coverage: {info_coverage:.2f} (matches {info_matches}/{len(expected_info)})")
+                print(
+                    f"  info_coverage: {info_coverage:.2f} (matches {info_matches}/{len(expected_info)})"
+                )
                 print(f"  helpfulness_score: {helpfulness_score:.2f}")
                 print(f"  tone_score: {tone_score:.2f}")
                 print(f"  quality_score: {quality_score:.2f}")
@@ -482,8 +502,12 @@ Write the customer support response:"""
 
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider=_provider_for(self.drafter_model), cost=0.0),
-                ModelConfig(name=self.verifier_model, provider=_provider_for(self.verifier_model), cost=0.0),
+                ModelConfig(
+                    name=self.drafter_model, provider=_provider_for(self.drafter_model), cost=0.0
+                ),
+                ModelConfig(
+                    name=self.verifier_model, provider=_provider_for(self.verifier_model), cost=0.0
+                ),
             ],
             quality={"threshold": self.quality_threshold},
         )
