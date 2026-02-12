@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from typing import Any, Optional, Union
 
 from cascadeflow.quality.complexity import QueryComplexity
-from cascadeflow.schema.domain_config import DomainConfig
 from cascadeflow.schema.config import UserTier, WorkflowProfile
+from cascadeflow.schema.domain_config import DomainConfig
 
 
 @dataclass(frozen=True)

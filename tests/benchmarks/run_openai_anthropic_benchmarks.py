@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Cross-Provider Benchmark: OpenAI (drafter) + Anthropic (verifier)
+"""Anthropic-Only Benchmark: Haiku 4.5 (drafter) + Sonnet 4.5 (verifier)
 
 Validates cascadeflow performance across 4 standard benchmarks:
 - MMLU: Multiple-choice knowledge (40 questions, 4 categories)
-- Banking77: Intent classification (50 samples from HuggingFace)
+- Banking77: Intent classification (30 samples)
 - TruthfulQA: Factual accuracy (15 myth-busting questions)
 - GSM8K: Grade-school math reasoning (10 problems)
 
-Setup:
-  Draft model:  gpt-4o-mini  (OpenAI)   — $0.15/$0.60 per 1M tokens
-  Verifier:     claude-sonnet-4-5 (Anthropic) — $3/$15 per 1M tokens
+Setup (Anthropic preset):
+  Draft model:  claude-haiku-4-5-20251001   — $1/$5 per 1M tokens
+  Verifier:     claude-sonnet-4-5-20250929  — $3/$15 per 1M tokens
+  Quality:      QualityConfig.for_cascade()
 
 Targets:
   Accuracy:  >90%
@@ -34,7 +35,6 @@ if env_path.exists():
             os.environ.setdefault(key.strip(), val.strip())
 
 # Verify keys
-assert os.environ.get("OPENAI_API_KEY"), "OPENAI_API_KEY not set"
 assert os.environ.get("ANTHROPIC_API_KEY"), "ANTHROPIC_API_KEY not set"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -44,20 +44,20 @@ from cascadeflow.quality import QualityConfig
 
 # ─── Config ────────────────────────────────────────────────────────────────────
 
-DRAFTER = "gpt-4o-mini"
-DRAFTER_PROVIDER = "openai"
-DRAFTER_COST_BLEND = 0.000375  # blended $/1K tokens
+DRAFTER = "claude-haiku-4-5-20251001"
+DRAFTER_PROVIDER = "anthropic"
+DRAFTER_COST_BLEND = 0.003  # blended $/1K tokens ($1/$5 per 1M)
 
 VERIFIER = "claude-sonnet-4-5-20250929"
 VERIFIER_PROVIDER = "anthropic"
-VERIFIER_COST_BLEND = 0.009  # blended $/1K tokens
+VERIFIER_COST_BLEND = 0.009  # blended $/1K tokens ($3/$15 per 1M)
 
 # Baseline: what it would cost to always use verifier
 # Claude Sonnet 4.5: $3/1M input, $15/1M output
 BASELINE_INPUT_RATE = 3.0 / 1_000_000
 BASELINE_OUTPUT_RATE = 15.0 / 1_000_000
 
-QUALITY_THRESHOLD = 0.50  # for_cascade default
+QUALITY_THRESHOLD = None  # Will use QualityConfig.for_cascade() defaults
 
 
 @dataclass
@@ -150,13 +150,13 @@ def estimate_baseline_cost(input_tokens: int, output_tokens: int) -> float:
     return input_tokens * BASELINE_INPUT_RATE + output_tokens * BASELINE_OUTPUT_RATE
 
 
-def make_agent(threshold=QUALITY_THRESHOLD, **kwargs):
+def make_agent(**kwargs):
     return CascadeAgent(
         models=[
             ModelConfig(name=DRAFTER, provider=DRAFTER_PROVIDER, cost=DRAFTER_COST_BLEND),
             ModelConfig(name=VERIFIER, provider=VERIFIER_PROVIDER, cost=VERIFIER_COST_BLEND),
         ],
-        quality={"threshold": threshold},
+        quality_config=QualityConfig.for_cascade(),
         **kwargs,
     )
 
@@ -1080,9 +1080,9 @@ Intent: [exact_intent_name]"""
 def print_report(reports: dict[str, BenchmarkReport]):
     print("\n")
     print("=" * 80)
-    print("  CASCADEFLOW CROSS-PROVIDER BENCHMARK RESULTS")
-    print(f"  Drafter: {DRAFTER} (OpenAI)  |  Verifier: {VERIFIER} (Anthropic)")
-    print(f"  Quality Threshold: {QUALITY_THRESHOLD}")
+    print("  CASCADEFLOW ANTHROPIC-ONLY BENCHMARK RESULTS")
+    print(f"  Drafter: {DRAFTER} (Anthropic)  |  Verifier: {VERIFIER} (Anthropic)")
+    print("  Quality Config: QualityConfig.for_cascade()")
     print("=" * 80)
 
     overall_correct = 0
@@ -1138,28 +1138,25 @@ def print_report(reports: dict[str, BenchmarkReport]):
     print(f"{'='*80}")
     if overall_acc >= 90 and overall_savings >= 50:
         print("  Status: TARGETS MET — No threshold tuning needed.")
-        print(
-            f"  Current threshold {QUALITY_THRESHOLD} achieves both >90% accuracy and >50% savings."
-        )
+        print("  QualityConfig.for_cascade() achieves both >90% accuracy and >50% savings.")
     elif overall_acc >= 90 and overall_savings < 50:
-        print("  Status: ACCURACY OK, SAVINGS LOW — Lower threshold recommended.")
+        print("  Status: ACCURACY OK, SAVINGS LOW — Lower thresholds recommended.")
         print(
-            f"  Current: threshold={QUALITY_THRESHOLD}, accuracy={overall_acc:.1f}%, savings={overall_savings:.1f}%"
+            f"  Current: for_cascade(), accuracy={overall_acc:.1f}%, savings={overall_savings:.1f}%"
         )
-        print("  Try: threshold=0.35-0.45 to increase acceptance rate and boost savings.")
-        print("  The drafter is accurate enough; more queries should be accepted.")
+        print("  Try: Lower confidence_thresholds or fix has_content check for short answers.")
     elif overall_acc < 90 and overall_savings >= 50:
-        print("  Status: SAVINGS OK, ACCURACY LOW — Raise threshold recommended.")
+        print("  Status: SAVINGS OK, ACCURACY LOW — Raise thresholds recommended.")
         print(
-            f"  Current: threshold={QUALITY_THRESHOLD}, accuracy={overall_acc:.1f}%, savings={overall_savings:.1f}%"
+            f"  Current: for_cascade(), accuracy={overall_acc:.1f}%, savings={overall_savings:.1f}%"
         )
-        print("  Try: threshold=0.55-0.65 to be stricter about accepting drafts.")
+        print("  Try: Use for_production() or raise confidence_thresholds.")
     else:
         print("  Status: BOTH BELOW TARGET — Significant tuning needed.")
         print(
-            f"  Current: threshold={QUALITY_THRESHOLD}, accuracy={overall_acc:.1f}%, savings={overall_savings:.1f}%"
+            f"  Current: for_cascade(), accuracy={overall_acc:.1f}%, savings={overall_savings:.1f}%"
         )
-        print("  Consider: Using a stronger drafter (gpt-4o) or adjusting per-domain thresholds.")
+        print("  Consider: Fix content checks, adjust per-domain thresholds.")
     print(f"{'='*80}\n")
 
 
@@ -1201,7 +1198,7 @@ async def main():
             "n_correct": r.n_correct,
             "n_accepted": r.n_accepted,
         }
-    results_path = Path(__file__).parent / "results_openai_anthropic.json"
+    results_path = Path(__file__).parent / "results_anthropic_preset.json"
     results_path.write_text(json.dumps(out, indent=2))
     print(f"Results saved to {results_path}")
 

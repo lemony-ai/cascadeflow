@@ -84,9 +84,7 @@ class OpenClawOpenAIServer:
         if self._server:
             return self.port
 
-        server = ThreadingHTTPServer(
-            (self.config.host, self.config.port), OpenAIRequestHandler
-        )
+        server = ThreadingHTTPServer((self.config.host, self.config.port), OpenAIRequestHandler)
         server.openclaw_server = self  # type: ignore[attr-defined]
         self._server = server
 
@@ -182,9 +180,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             return self._handle_stats(server)
         if self.path == "/health":
             # Check if any providers were successfully initialized
-            providers_count = (
-                len(server.agent.providers) if server.agent.providers else 0
-            )
+            providers_count = len(server.agent.providers) if server.agent.providers else 0
             if providers_count == 0:
                 return self._send_json(
                     {
@@ -193,9 +189,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                         "message": "Server is running but no providers could be initialized. Check API keys.",
                     }
                 )
-            return self._send_json(
-                {"status": "ok", "providers_initialized": providers_count}
-            )
+            return self._send_json({"status": "ok", "providers_initialized": providers_count})
 
         self.send_response(404)
         self.end_headers()
@@ -213,13 +207,8 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             pass  # pragma: no cover - best effort only
 
         transfer_encoding = self.headers.get("Transfer-Encoding", "")
-        if (
-            isinstance(transfer_encoding, str)
-            and transfer_encoding.lower().strip() == "chunked"
-        ):
-            return self._send_openai_error(
-                "Chunked requests are not supported", status=400
-            )
+        if isinstance(transfer_encoding, str) and transfer_encoding.lower().strip() == "chunked":
+            return self._send_openai_error("Chunked requests are not supported", status=400)
 
         length = int(self.headers.get("Content-Length", "0"))
         if server.config.max_body_bytes and length > server.config.max_body_bytes:
@@ -237,9 +226,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-    def _handle_chat(
-        self, server: OpenClawOpenAIServer, payload: dict[str, Any]
-    ) -> None:
+    def _handle_chat(self, server: OpenClawOpenAIServer, payload: dict[str, Any]) -> None:
         messages = payload.get("messages", [])
         if not isinstance(messages, list) or not messages:
             return self._send_openai_error("Messages are required", status=400)
@@ -436,9 +423,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
     def _handle_stats(self, server: OpenClawOpenAIServer) -> None:
         telemetry = getattr(server.agent, "telemetry", None)
         if telemetry is None or not hasattr(telemetry, "export_to_dict"):
-            return self._send_openai_error(
-                "Metrics export not available", status=404
-            )
+            return self._send_openai_error("Metrics export not available", status=404)
 
         payload = telemetry.export_to_dict()
         self._send_json(payload)
@@ -568,9 +553,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             if event_type == "draft_decision":
                 event_data = getattr(event, "data", None)
                 if isinstance(event_data, dict):
-                    captured_decision = (
-                        event_data if isinstance(event_data, dict) else {}
-                    )
+                    captured_decision = event_data if isinstance(event_data, dict) else {}
                     if isinstance(event_data.get("accepted"), bool):
                         draft_accepted = event_data.get("accepted")
                         if draft_accepted:
@@ -703,9 +686,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         prompt_tokens = int(completion_result.get("prompt_tokens") or 0)
         completion_tokens = int(completion_result.get("completion_tokens") or 0)
         total_tokens_value = completion_result.get("total_tokens")
-        total_tokens = (
-            int(total_tokens_value) if total_tokens_value is not None else 0
-        )
+        total_tokens = int(total_tokens_value) if total_tokens_value is not None else 0
         if total_tokens == 0:
             total_tokens = prompt_tokens + completion_tokens
         if prompt_tokens == 0 and completion_tokens == 0 and total_tokens == 0:
@@ -970,8 +951,7 @@ def _build_trace(
             "model": meta.get("draft_model") or meta.get("drafter_model"),
             "had_tool_calls": bool(meta.get("tool_calls")),
             "text_length": len(getattr(result, "content", "") or ""),
-            "latency_ms": meta.get("draft_latency_ms")
-            or meta.get("drafter_latency_ms"),
+            "latency_ms": meta.get("draft_latency_ms") or meta.get("drafter_latency_ms"),
         },
         "decision": {
             "accepted": meta.get("draft_accepted", False),
@@ -990,17 +970,14 @@ def _build_trace(
         "cost": {
             "draft_cost": meta.get("draft_cost") or meta.get("drafter_cost", 0.0),
             "verifier_cost": meta.get("verifier_cost", 0.0),
-            "total_cost": meta.get(
-                "total_cost", getattr(result, "total_cost", 0.0)
-            ),
+            "total_cost": meta.get("total_cost", getattr(result, "total_cost", 0.0)),
             "baseline_cost": meta.get("bigonly_cost"),
             "saved": meta.get("cost_saved"),
         },
         "tokens": {
             "draft_input": meta.get("draft_prompt_tokens"),
             "draft_output": meta.get("draft_completion_tokens"),
-            "verifier_input": meta.get("verifier_prompt_tokens")
-            or meta.get("prompt_tokens"),
+            "verifier_input": meta.get("verifier_prompt_tokens") or meta.get("prompt_tokens"),
             "verifier_output": meta.get("verifier_completion_tokens")
             or meta.get("completion_tokens"),
             "total": meta.get("total_tokens"),
@@ -1032,41 +1009,31 @@ def _build_stream_trace(
             "strategy": complete_data.get("routing_strategy", "cascade"),
             "domain": domain_hint,
             "domain_confidence": domain_confidence_hint if domain_hint else None,
-            "complexity": decision_data.get("complexity")
-            or complete_data.get("complexity"),
+            "complexity": decision_data.get("complexity") or complete_data.get("complexity"),
         },
         "draft": {
-            "model": decision_data.get("draft_model")
-            or complete_data.get("draft_model"),
+            "model": decision_data.get("draft_model") or complete_data.get("draft_model"),
             "had_tool_calls": bool(complete_data.get("tool_calls")),
             "text_length": complete_data.get("response_length", 0),
             "latency_ms": complete_data.get("draft_latency_ms")
             or complete_data.get("drafter_latency_ms"),
         },
         "decision": {
-            "accepted": decision_data.get(
-                "accepted", complete_data.get("draft_accepted", False)
-            ),
+            "accepted": decision_data.get("accepted", complete_data.get("draft_accepted", False)),
             "confidence": decision_data.get("confidence"),
-            "alignment_score": decision_data.get("alignment_score")
-            or decision_data.get("score"),
+            "alignment_score": decision_data.get("alignment_score") or decision_data.get("score"),
             "quality_score": decision_data.get("score"),
-            "threshold": decision_data.get("threshold")
-            or decision_data.get("quality_threshold"),
+            "threshold": decision_data.get("threshold") or decision_data.get("quality_threshold"),
             "reason": decision_data.get("reason"),
             "checks": decision_data.get("checks", {}),
         },
         "verifier": {
-            "model": decision_data.get("verifier_model")
-            or complete_data.get("verifier_model"),
-            "used": not decision_data.get(
-                "accepted", complete_data.get("draft_accepted", False)
-            ),
+            "model": decision_data.get("verifier_model") or complete_data.get("verifier_model"),
+            "used": not decision_data.get("accepted", complete_data.get("draft_accepted", False)),
             "latency_ms": complete_data.get("verifier_latency_ms"),
         },
         "cost": {
-            "draft_cost": complete_data.get("draft_cost")
-            or complete_data.get("drafter_cost", 0.0),
+            "draft_cost": complete_data.get("draft_cost") or complete_data.get("drafter_cost", 0.0),
             "verifier_cost": complete_data.get("verifier_cost", 0.0),
             "total_cost": complete_data.get("total_cost", 0.0),
             "baseline_cost": complete_data.get("bigonly_cost"),
@@ -1118,9 +1085,7 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
 
     prompt_tokens = int(prompt_tokens_raw or 0)
     completion_tokens = int(completion_tokens_raw or 0)
-    total_tokens = (
-        int(total_tokens_raw) if total_tokens_raw is not None else None
-    )
+    total_tokens = int(total_tokens_raw) if total_tokens_raw is not None else None
     if total_tokens is None:
         total_tokens = prompt_tokens + completion_tokens
     elif prompt_tokens == 0 and completion_tokens == 0 and total_tokens > 0:
@@ -1178,15 +1143,9 @@ __all__ = ["OpenClawOpenAIServer", "OpenClawOpenAIConfig"]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="OpenClaw OpenAI-compatible server"
-    )
-    parser.add_argument(
-        "--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)"
-    )
-    parser.add_argument(
-        "--port", type=int, default=8084, help="Bind port (default: 8084)"
-    )
+    parser = argparse.ArgumentParser(description="OpenClaw OpenAI-compatible server")
+    parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8084, help="Bind port (default: 8084)")
     parser.add_argument(
         "--config",
         help="Optional Cascadeflow config file (yaml/json) for models + channel routing",
@@ -1228,9 +1187,7 @@ def main() -> None:
         default=30.0,
         help="Socket read timeout in seconds (default: 30).",
     )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Enable verbose logging"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     logging.basicConfig(

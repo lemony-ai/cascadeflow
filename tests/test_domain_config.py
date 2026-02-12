@@ -19,4 +19,3 @@ def test_builtin_factual_requires_verifier():
     assert config is not None
     assert config.require_verifier is True
     assert config.threshold == 0.9
-

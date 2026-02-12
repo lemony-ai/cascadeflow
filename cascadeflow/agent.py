@@ -2265,11 +2265,6 @@ class CascadeAgent:
 
         usage = self.pricing_resolver.extract_usage(response)
         provider_cost = getattr(response, "cost", None)
-        tokens_used = (
-            response.tokens_used
-            if hasattr(response, "tokens_used") and response.tokens_used
-            else usage.total_tokens
-        )
         cost = self.pricing_resolver.resolve_cost(
             model=best_model.name,
             usage=usage,
