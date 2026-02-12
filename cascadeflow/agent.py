@@ -54,7 +54,6 @@ Example:
 
 import asyncio
 import logging
-import asyncio
 import sys
 import time
 from collections.abc import AsyncIterator
@@ -74,14 +73,7 @@ from .core.cascade import WholeResponseCascade
 from .interface import TerminalVisualConsumer
 from .pricing import PricingResolver
 from .providers import PROVIDER_REGISTRY, get_available_providers
-from .pricing import PricingResolver
 from .quality import QualityConfig
-
-# Phase 3: Tool routing
-# Phase 2A: Routing module imports
-# Phase 3.2: Domain detection (NEW)
-# Phase 4: Tool complexity routing (NEW - v19)
-from .rules import RuleContext, RuleEngine
 from .routing import (
     ComplexityRouter,
     DomainDetector,
@@ -102,18 +94,15 @@ from .rules import RuleContext, RuleEngine
 # Phase 2A: Routing module imports
 # Phase 3.2: Domain detection (NEW)
 # Phase 4: Tool complexity routing (NEW - v19)
+# Phase 3: Tool routing
+# Phase 2A: Routing module imports
+# Phase 3.2: Domain detection (NEW)
+# Phase 4: Tool complexity routing (NEW - v19)
 from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
 from .schema.usage import Usage
-from .tools.formats import normalize_tools
-from .utils.messages import (
-    detect_multi_turn,
-    get_last_user_message,
-    messages_to_prompt,
-    normalize_messages,
-)
 
 # Streaming imports - BOTH managers (v2.4 FIX)
 from .streaming import StreamEvent, StreamEventType, StreamManager
@@ -2280,11 +2269,6 @@ class CascadeAgent:
 
         usage = self.pricing_resolver.extract_usage(response)
         provider_cost = getattr(response, "cost", None)
-        tokens_used = (
-            response.tokens_used
-            if hasattr(response, "tokens_used") and response.tokens_used
-            else usage.total_tokens
-        )
         cost = self.pricing_resolver.resolve_cost(
             model=best_model.name,
             usage=usage,

@@ -903,9 +903,9 @@ class CostCalculator:
             if not rates:
                 rates = {"input": 0.030, "output": 0.060}
             if input_tokens or output_tokens:
-                return (input_tokens / 1000) * rates["input"] + (
-                    output_tokens / 1000
-                ) * rates["output"]
+                return (input_tokens / 1000) * rates["input"] + (output_tokens / 1000) * rates[
+                    "output"
+                ]
             blended = (rates["input"] * 0.3) + (rates["output"] * 0.7)
             return (total_tokens / 1000) * blended
 
