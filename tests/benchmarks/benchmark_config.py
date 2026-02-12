@@ -11,6 +11,7 @@ Targets (vs GPT-4o/GPT-5 only):
 
 from dataclasses import dataclass, field
 from enum import Enum
+import os
 from typing import Any, Optional
 
 
@@ -216,6 +217,42 @@ class BenchmarkConfig:
     # Benchmark limits
     max_samples: Optional[int] = None
     timeout_seconds: float = 60.0
+
+    def __post_init__(self) -> None:
+        """
+        Allow benchmark runs to override models via env vars.
+
+        This is benchmark-only (doesn't change product defaults). It enables quick
+        provider A/B runs, e.g. OpenAI-only (gpt-5-mini -> gpt-5).
+        """
+        env_drafter = os.getenv("CASCADEFLOW_BENCH_DRAFTER_MODEL")
+        env_verifier = os.getenv("CASCADEFLOW_BENCH_VERIFIER_MODEL")
+        env_baseline = os.getenv("CASCADEFLOW_BENCH_BASELINE_MODEL")
+
+        changed = False
+        if env_drafter:
+            self.default_drafter = env_drafter
+            changed = True
+        if env_verifier:
+            self.default_verifier = env_verifier
+            changed = True
+        if env_baseline:
+            self.baseline_model = env_baseline
+            changed = True
+        elif env_verifier:
+            # Baseline comparisons are typically "always verifier".
+            self.baseline_model = env_verifier
+            changed = True
+
+        # If overridden, default to overriding all domain configs too so "full" mode
+        # doesn't accidentally mix providers.
+        keep_domain = os.getenv("CASCADEFLOW_BENCH_KEEP_DOMAIN_MODELS") == "1"
+        if changed and not keep_domain:
+            for _, cfg in self.domain_configs.items():
+                if env_drafter:
+                    cfg.drafter = env_drafter
+                if env_verifier:
+                    cfg.verifier = env_verifier
 
     @classmethod
     def baseline(cls) -> "BenchmarkConfig":
