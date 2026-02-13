@@ -556,11 +556,19 @@ class OpenRouterProvider(BaseProvider):
         tool_calls = []
         for tc in raw_tool_calls:
             func = tc.get("function", {})
+            raw_args = func.get("arguments", "{}")
+            if isinstance(raw_args, str):
+                try:
+                    parsed_args = json.loads(raw_args)
+                except (json.JSONDecodeError, TypeError):
+                    parsed_args = raw_args
+            else:
+                parsed_args = raw_args
             tool_calls.append(
                 {
                     "id": tc.get("id", ""),
                     "name": func.get("name", ""),
-                    "arguments": func.get("arguments", "{}"),
+                    "arguments": parsed_args,
                 }
             )
 

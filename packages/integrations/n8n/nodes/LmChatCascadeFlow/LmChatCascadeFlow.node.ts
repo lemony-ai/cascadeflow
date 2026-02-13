@@ -24,14 +24,13 @@ import {
 } from './config';
 import { buildCascadeMetadata } from './cascade-metadata';
 
-// Quality validation, cost tracking, routing, and circuit breaker - optional import
+// Quality validation, cost tracking, and routing - optional import
 let QualityValidator: any;
 let CASCADE_QUALITY_CONFIG: any;
 let CostCalculator: any;
 let ComplexityDetector: any;
 let PreRouter: any;
-let DomainDetector: any;
-let CircuitBreaker: any;
+let DomainRouter: any;
 
 try {
   const cascadeCore = require('@cascadeflow/core');
@@ -40,8 +39,7 @@ try {
   CostCalculator = cascadeCore.CostCalculator;
   ComplexityDetector = cascadeCore.ComplexityDetector;
   PreRouter = cascadeCore.PreRouter;
-  DomainDetector = cascadeCore.DomainDetector;
-  CircuitBreaker = cascadeCore.CircuitBreaker;
+  DomainRouter = cascadeCore.DomainRouter;
 } catch (e) {
   // @cascadeflow/core not available - use simple validation and estimates
   console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
@@ -96,14 +94,11 @@ export class CascadeChatModel extends BaseChatModel {
   // Complexity detector for intelligent routing
   private complexityDetector: any;
 
-  // Domain detector for semantic domain routing
+  // Domain router for semantic domain routing
   private domainDetector: any;
 
   // PreRouter for complexity-based direct routing
   private preRouter: any;
-
-  // Circuit breaker for fault tolerance
-  private circuitBreaker: any;
 
   constructor(
     drafterModelGetter: () => Promise<BaseChatModel>,
@@ -117,7 +112,6 @@ export class CascadeChatModel extends BaseChatModel {
     enabledDomains: DomainType[] = [],
     domainModelGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map(),
     domainConfigs: Map<DomainType, DomainConfig> = new Map(),
-    useCircuitBreaker: boolean = true,
     confidenceThresholds?: ComplexityThresholds
   ) {
     super({});
@@ -188,34 +182,17 @@ export class CascadeChatModel extends BaseChatModel {
       this.complexityDetector = null;
     }
 
-    // Initialize domain detector if domain routing is enabled
-    if (useDomainRouting && DomainDetector && enabledDomains.length > 0) {
+    // Initialize domain router if domain routing is enabled
+    if (useDomainRouting && DomainRouter && enabledDomains.length > 0) {
       try {
-        this.domainDetector = new DomainDetector({ enabledDomains });
+        this.domainDetector = new DomainRouter();
         console.log(`🎯 CascadeFlow domain routing enabled for: ${enabledDomains.join(', ')}`);
       } catch (e) {
-        console.warn('⚠️  Domain detector initialization failed');
+        console.warn('⚠️  Domain router initialization failed');
         this.domainDetector = null;
       }
     } else {
       this.domainDetector = null;
-    }
-
-    // Initialize circuit breaker for fault tolerance
-    if (useCircuitBreaker && CircuitBreaker) {
-      try {
-        this.circuitBreaker = new CircuitBreaker({
-          failureThreshold: 3,
-          recoveryTimeout: 30000, // 30 seconds
-          halfOpenMaxCalls: 2,
-        });
-        console.log('🛡️  CascadeFlow circuit breaker enabled');
-      } catch (e) {
-        console.warn('⚠️  Circuit breaker initialization failed');
-        this.circuitBreaker = null;
-      }
-    } else {
-      this.circuitBreaker = null;
     }
   }
 
@@ -609,18 +586,7 @@ export class CascadeChatModel extends BaseChatModel {
         }
       }
 
-      // Step 3: Execute with circuit breaker protection if available
-      const executeWithProtection = async (model: BaseChatModel, modelType: string) => {
-        if (this.circuitBreaker) {
-          return await this.circuitBreaker.execute(
-            modelType,
-            async () => await model.invoke(messages, options)
-          );
-        }
-        return await model.invoke(messages, options);
-      };
-
-      // Step 3a: If complexity routing says skip drafter, go directly to verifier
+      // Step 3: If complexity routing says skip drafter, go directly to verifier
       if (shouldSkipDrafter) {
         const verifierModel = await this.getVerifierModel();
         const verifierInfo = this.getModelInfo(verifierModel);
@@ -628,7 +594,7 @@ export class CascadeChatModel extends BaseChatModel {
         await runManager?.handleText(`⚡ Direct route: Using verifier for ${complexity} query\n`);
 
         const verifierStartTime = Date.now();
-        const verifierMessage = await executeWithProtection(verifierModel, 'verifier');
+        const verifierMessage = await verifierModel.invoke(messages, options);
         const verifierLatency = Date.now() - verifierStartTime;
 
         this.verifierCount++;
@@ -693,7 +659,7 @@ export class CascadeChatModel extends BaseChatModel {
       console.log(`🎯 CascadeFlow: Trying ${modelType} model: ${modelInfo}`);
 
       const drafterStartTime = Date.now();
-      const drafterMessage = await executeWithProtection(modelToUse, modelType);
+      const drafterMessage = await modelToUse.invoke(messages, options);
       const drafterLatency = Date.now() - drafterStartTime;
 
       if (domainModel && detectedDomain) {
@@ -888,7 +854,7 @@ export class CascadeChatModel extends BaseChatModel {
       const verifierStartTime = Date.now();
       const verifierModel = await this.getVerifierModel();
       const verifierInfo = this.getModelInfo(verifierModel);
-      const verifierMessage = await executeWithProtection(verifierModel, 'verifier');
+      const verifierMessage = await verifierModel.invoke(messages, options);
       const verifierLatency = Date.now() - verifierStartTime;
 
       this.verifierCount++;
@@ -949,16 +915,14 @@ export class CascadeChatModel extends BaseChatModel {
         }],
       };
     } catch (error) {
-      // Handle circuit breaker open state
       const errorMsg = error instanceof Error ? error.message : String(error);
-      const isCircuitOpen = errorMsg.includes('Circuit breaker') || errorMsg.includes('circuit is open');
 
       const errorLog = `
 ┌─────────────────────────────────────────────┐
-│  ❌ FLOW: ${isCircuitOpen ? 'CIRCUIT OPEN' : 'DRAFTER ERROR'} - FALLBACK PATH    │
+│  ❌ FLOW: DRAFTER ERROR - FALLBACK PATH     │
 └─────────────────────────────────────────────┘
-   Query → Drafter ❌ ${isCircuitOpen ? 'CIRCUIT OPEN' : 'ERROR'} → Verifier → Response
-   🔄 Fallback: ${isCircuitOpen ? 'Circuit breaker open' : 'Drafter failed'}, using verifier as backup
+   Query → Drafter ❌ ERROR → Verifier → Response
+   🔄 Fallback: Drafter failed, using verifier as backup
    Error: ${errorMsg}
    🔄 Loading verifier model...
 `;
@@ -974,7 +938,7 @@ export class CascadeChatModel extends BaseChatModel {
 
       const fallbackCompleteLog = `   ✅ Verifier fallback completed successfully
    Model used: ${verifierInfo}
-   💰 Cost: $${verifierCost.toFixed(6)} (fallback due to ${isCircuitOpen ? 'circuit open' : 'error'})
+   💰 Cost: $${verifierCost.toFixed(6)} (fallback due to error)
 `;
 
       await runManager?.handleText(fallbackCompleteLog);
@@ -984,7 +948,7 @@ export class CascadeChatModel extends BaseChatModel {
         (verifierMessage as any).response_metadata = {};
       }
       (verifierMessage as any).response_metadata.cascadeflow = {
-        flow: isCircuitOpen ? 'circuit_breaker_fallback' : 'error_fallback',
+        flow: 'error_fallback',
         error: errorMsg,
         cost_savings_percent: 0,
         model_used: 'verifier',
@@ -1479,13 +1443,6 @@ export class LmChatCascadeFlow implements INodeType {
         default: true,
         description: 'Whether to route queries directly to the verifier based on detected complexity',
       },
-      {
-        displayName: 'Enable Circuit Breaker',
-        name: 'useCircuitBreaker',
-        type: 'boolean',
-        default: true,
-        description: 'Whether to use circuit breaker for fault tolerance (auto-fallback on repeated failures)',
-      },
       // Domain routing settings
       ...generateDomainProperties(),
     ],
@@ -1498,7 +1455,6 @@ export class LmChatCascadeFlow implements INodeType {
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
     const useComplexityThresholds = this.getNodeParameter('useComplexityThresholds', 0, true) as boolean;
-    const useCircuitBreaker = this.getNodeParameter('useCircuitBreaker', 0, true) as boolean;
     const confidenceThresholds = useComplexityThresholds
       ? {
           trivial: this.getNodeParameter('trivialThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.trivial) as number,
@@ -1601,7 +1557,6 @@ export class LmChatCascadeFlow implements INodeType {
     console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
     console.log(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
     console.log(`   Complexity thresholds: ${useComplexityThresholds ? 'enabled' : 'disabled'}`);
-    console.log(`   Circuit breaker: ${useCircuitBreaker ? 'enabled' : 'disabled'}`);
     console.log(`   Domain routing: ${enableDomainRouting ? 'enabled' : 'disabled'}`);
     if (enabledDomains.length > 0) {
       console.log(`   Enabled domains: ${enabledDomains.join(', ')}`);
@@ -1623,7 +1578,6 @@ export class LmChatCascadeFlow implements INodeType {
       enabledDomains,
       domainModelGetters,
       domainConfigs,
-      useCircuitBreaker,
       confidenceThresholds
     );
 

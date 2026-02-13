@@ -217,6 +217,7 @@ export class VercelAISDKProvider extends BaseProvider {
       messages,
       maxTokens: request.maxTokens,
       temperature: request.temperature,
+      ...(request.extra?.tools ? { tools: request.extra.tools } : {}),
       ...(request.extra?.aiSdkOptions ?? {}),
     });
 
@@ -225,6 +226,7 @@ export class VercelAISDKProvider extends BaseProvider {
       model: request.model,
       usage: buildUsage(result.usage),
       finish_reason: result.finishReason,
+      tool_calls: (result as any).toolCalls,
       raw: result,
     };
   }
@@ -239,6 +241,7 @@ export class VercelAISDKProvider extends BaseProvider {
       messages,
       maxTokens: request.maxTokens,
       temperature: request.temperature,
+      ...(request.extra?.tools ? { tools: request.extra.tools } : {}),
       ...(request.extra?.aiSdkOptions ?? {}),
     });
 

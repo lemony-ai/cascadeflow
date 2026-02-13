@@ -26,17 +26,30 @@ export function extractToolCalls(response: any): any[] {
  */
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   // OpenAI
+  'gpt-5': { input: 10.00, output: 30.00 },
+  'gpt-5-mini': { input: 0.20, output: 0.80 },
   'gpt-4o-mini': { input: 0.150, output: 0.600 },
   'gpt-4o': { input: 2.50, output: 10.00 },
   'gpt-4-turbo': { input: 10.00, output: 30.00 },
   'gpt-3.5-turbo': { input: 0.50, output: 1.50 },
 
-  // Anthropic
+  // Anthropic (4.x)
+  'claude-opus-4-5': { input: 5.00, output: 25.00 },
+  'claude-sonnet-4': { input: 3.00, output: 15.00 },
+  'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },
+  'claude-haiku-3-5': { input: 1.00, output: 5.00 },
+  'claude-haiku-4-5': { input: 1.00, output: 5.00 },
+
+  // Anthropic (3.x)
   'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 },
   'claude-3-5-haiku-20241022': { input: 0.80, output: 4.00 },
   'claude-3-opus-20240229': { input: 15.00, output: 75.00 },
   'claude-3-sonnet-20240229': { input: 3.00, output: 15.00 },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
+
+  // DeepSeek
+  'deepseek-chat': { input: 0.14, output: 0.28 },
+  'deepseek-coder': { input: 0.14, output: 0.28 },
 };
 
 /**
