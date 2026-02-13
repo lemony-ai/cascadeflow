@@ -105,7 +105,6 @@ dev = [
     "isort>=5.12.0",
     "pre-commit>=3.5.0",
     "rich>=13.0.0",
-    "python-dotenv>=1.0.0",
 ]
 
 # Documentation tools
@@ -132,7 +131,7 @@ Homepage = "https://lemony.ai"
 Documentation = "https://github.com/lemony-ai/cascadeflow"
 Repository = "https://github.com/lemony-ai/cascadeflow"
 "Bug Tracker" = "https://github.com/lemony-ai/cascadeflow/issues"
-Changelog = "https://github.com/lemony-ai/cascadeflow/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/lemony-ai/cascadeflow/releases"
 
 [tool.setuptools]
 packages = {find = {where = ["."], exclude = ["tests*", "examples*", "docs*", "packages*", "node_modules*", ".venv*", "build*", "dist*"]}}

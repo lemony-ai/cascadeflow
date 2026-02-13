@@ -95,7 +95,7 @@ def main():
         {"name": "gpt-4", "in": 1000, "out": 500},
         {"name": "gpt-4o-mini", "in": 1000, "out": 500},
         {"name": "anthropic/claude-3-opus-20240229", "in": 1000, "out": 500},
-        {"name": "anthropic/claude-3-haiku-20240307", "in": 1000, "out": 500},
+        {"name": "anthropic/claude-haiku-3-5-20241022", "in": 1000, "out": 500},
     ]
 
     print("▶ Cost comparison (1000 input, 500 output tokens):")
@@ -147,7 +147,7 @@ def main():
         {"model": "gpt-4", "in": 500, "out": 250, "desc": "Complex analysis"},
         {"model": "gpt-4", "in": 300, "out": 150, "desc": "Follow-up question"},
         {"model": "gpt-4o-mini", "in": 200, "out": 100, "desc": "Simple query"},
-        {"model": "gpt-3.5-turbo", "in": 100, "out": 50, "desc": "Quick check"},
+        {"model": "gpt-4o-mini", "in": 100, "out": 50, "desc": "Quick check"},
     ]
 
     for i, query in enumerate(queries, 1):
@@ -228,9 +228,8 @@ def main():
     comparison_models = [
         "gpt-4",
         "gpt-4o-mini",
-        "gpt-3.5-turbo",
         "anthropic/claude-3-opus-20240229",
-        "anthropic/claude-3-haiku-20240307",
+        "anthropic/claude-haiku-3-5-20241022",
     ]
 
     costs = []

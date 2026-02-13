@@ -1,4 +1,4 @@
-"""Basic usage example for CascadeFlow LangChain integration.
+"""Basic usage example for cascadeflow LangChain integration.
 
 This example demonstrates:
 - Basic cascade setup with OpenAI models
@@ -25,7 +25,7 @@ async def main():
         return
 
     print("=" * 60)
-    print("CascadeFlow LangChain Integration - Basic Usage")
+    print("cascadeflow LangChain Integration - Basic Usage")
     print("=" * 60)
 
     # Setup drafter (cheap, fast) and verifier (expensive, accurate)
