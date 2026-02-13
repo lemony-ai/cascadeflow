@@ -601,6 +601,7 @@ class LiteLLMBudgetTracker:
         self.fallback_to_cascadeflow = fallback_to_cascadeflow
         self.budget_manager = None
         self.cost_provider = LiteLLMCostProvider()
+        self._user_budgets: dict[str, dict] = {}
 
         if BUDGET_MANAGER_AVAILABLE:
             self.budget_manager = BudgetManager(project_name="cascadeflow")
@@ -633,11 +634,18 @@ class LiteLLMBudgetTracker:
         Example:
             >>> tracker.set_user_budget("user_123", max_budget=10.0)
         """
+        self._user_budgets[user] = {
+            "max_budget": max_budget,
+            "current_cost": 0.0,
+        }
+
         if self.budget_manager:
-            self.budget_manager.create_budget(user=user, max_budget=max_budget)
-            logger.info(f"Set budget for {user}: ${max_budget:.2f}")
-        else:
-            logger.warning(f"Cannot set budget for {user} - BudgetManager unavailable")
+            try:
+                self.budget_manager.create_budget(user=user, total_budget=max_budget)
+            except Exception as e:
+                logger.debug(f"BudgetManager.create_budget failed for {user}: {e}")
+
+        logger.info(f"Set budget for {user}: ${max_budget:.2f}")
 
     def update_cost(
         self,
@@ -677,36 +685,26 @@ class LiteLLMBudgetTracker:
             ...     response=api_response
             ... )
         """
-        if self.budget_manager:
-            try:
-                # If we have actual API response, use it
-                if response:
-                    cost = self.budget_manager.update_cost(completion_obj=response, user=user)
-                else:
-                    # Calculate cost from tokens
-                    cost = self.cost_provider.calculate_cost(
-                        model=model,
-                        input_tokens=prompt_tokens,
-                        output_tokens=completion_tokens,
-                    )
-
-                    # Update budget manager
-                    self.budget_manager.update_cost(user=user, cost=cost)
-
-                logger.debug(f"Updated cost for {user}: ${cost:.6f}")
-                return cost
-
-            except Exception as e:
-                logger.error(f"Error updating cost for {user}: {e}")
-                # Fall through to fallback
-
-        # Fallback to cascadeflow CostTracker
-        if self.fallback_to_cascadeflow and hasattr(self, "cost_tracker"):
+        # Calculate cost from tokens or response
+        if response:
             cost = self.cost_provider.calculate_cost(
                 model=model,
                 input_tokens=prompt_tokens,
                 output_tokens=completion_tokens,
             )
+        else:
+            cost = self.cost_provider.calculate_cost(
+                model=model,
+                input_tokens=prompt_tokens,
+                output_tokens=completion_tokens,
+            )
+
+        # Track in internal budget dict
+        if user in self._user_budgets:
+            self._user_budgets[user]["current_cost"] += cost
+
+        # Also track in cascadeflow CostTracker if available
+        if self.fallback_to_cascadeflow and hasattr(self, "cost_tracker") and self.cost_tracker:
             self.cost_tracker.add_cost(
                 model=model,
                 provider="",
@@ -714,14 +712,9 @@ class LiteLLMBudgetTracker:
                 cost=cost,
                 user_id=user,
             )
-            return cost
 
-        # Just calculate cost without tracking
-        return self.cost_provider.calculate_cost(
-            model=model,
-            input_tokens=prompt_tokens,
-            output_tokens=completion_tokens,
-        )
+        logger.debug(f"Updated cost for {user}: ${cost:.6f}")
+        return cost
 
     def get_user_budget(self, user: str) -> dict:
         """
@@ -742,23 +735,19 @@ class LiteLLMBudgetTracker:
             >>> print(f"Spent: ${info['current_cost']:.2f}")
             >>> print(f"Remaining: ${info['remaining']:.2f}")
         """
-        if self.budget_manager:
-            try:
-                budget = self.budget_manager.get_budget(user)
+        budget = self._user_budgets.get(user)
+        if budget:
+            max_budget = budget["max_budget"]
+            current_cost = budget["current_cost"]
+            remaining = max_budget - current_cost
+            exceeded = current_cost > max_budget
 
-                max_budget = budget.get("max_budget", 0)
-                current_cost = budget.get("current_cost", 0)
-                remaining = max_budget - current_cost
-                exceeded = current_cost > max_budget
-
-                return {
-                    "max_budget": max_budget,
-                    "current_cost": current_cost,
-                    "remaining": remaining,
-                    "exceeded": exceeded,
-                }
-            except Exception as e:
-                logger.error(f"Error getting budget for {user}: {e}")
+            return {
+                "max_budget": max_budget,
+                "current_cost": current_cost,
+                "remaining": remaining,
+                "exceeded": exceeded,
+            }
 
         return {
             "max_budget": 0,
@@ -805,12 +794,9 @@ class LiteLLMBudgetTracker:
         Example:
             >>> tracker.reset_user_budget("user_123")
         """
-        if self.budget_manager:
-            try:
-                self.budget_manager.reset_cost(user=user)
-                logger.info(f"Reset budget for {user}")
-            except Exception as e:
-                logger.error(f"Error resetting budget for {user}: {e}")
+        if user in self._user_budgets:
+            self._user_budgets[user]["current_cost"] = 0.0
+            logger.info(f"Reset budget for {user}")
 
 
 # ============================================================================

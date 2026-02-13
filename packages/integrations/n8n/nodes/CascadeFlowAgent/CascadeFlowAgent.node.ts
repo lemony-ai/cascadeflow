@@ -447,14 +447,6 @@ export class CascadeFlowAgent implements INodeType {
         description: 'Whether to route complex queries directly to the verifier',
       },
       {
-        displayName: 'Enable Circuit Breaker',
-        name: 'useCircuitBreaker',
-        type: 'boolean',
-        default: true,
-        description:
-          'Whether to use circuit breaker for fault tolerance (auto-fallback on repeated failures)',
-      },
-      {
         displayName: 'Max Tool Iterations',
         name: 'maxIterations',
         type: 'number',
@@ -513,7 +505,6 @@ export class CascadeFlowAgent implements INodeType {
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
     const useComplexityThresholds = this.getNodeParameter('useComplexityThresholds', 0, true) as boolean;
-    const useCircuitBreaker = this.getNodeParameter('useCircuitBreaker', 0, true) as boolean;
     const maxIterations = this.getNodeParameter('maxIterations', 0, 3) as number;
 
     const confidenceThresholds = useComplexityThresholds
@@ -575,7 +566,6 @@ export class CascadeFlowAgent implements INodeType {
       [],
       new Map(),
       new Map(),
-      useCircuitBreaker,
       confidenceThresholds
     );
 
