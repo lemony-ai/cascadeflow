@@ -18,12 +18,6 @@ Requirements:
 - pip install fastembed  # Optional for semantic quality
 """
 
-import sys
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 def demo_semantic_quality():
     """Demo 1: Optional Semantic ML Quality Validation."""

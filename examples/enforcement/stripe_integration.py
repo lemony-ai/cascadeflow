@@ -161,7 +161,7 @@ def main():
             print("  → ⬇️  DEGRADED - Using cheaper model")
             # Use cheaper model
             tracker.add_cost(
-                model="gpt-3.5-turbo",  # Cheaper model
+                model="gpt-4o-mini",  # Cheaper model
                 provider="openai",
                 tokens=1000,
                 cost=estimated_cost * 0.1,  # 10x cheaper

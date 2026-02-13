@@ -2,12 +2,12 @@
 LangGraph Multi-Agent Example (Python, optional)
 
 Demonstrates (conceptually):
-- Multi-agent / graph orchestration with CascadeFlow
+- Multi-agent / graph orchestration with cascadeflow
 - Tool binding + high-risk verifier policy
 
 Notes:
 - Requires optional dependency: `pip install langgraph`
-- This file is an example only; it is not required for CascadeFlow core usage.
+- This file is an example only; it is not required for cascadeflow core usage.
 
 Setup:
   export OPENAI_API_KEY="sk-..."
@@ -16,11 +16,6 @@ Setup:
 """
 
 import os
-import sys
-from pathlib import Path
-
-# Allow running directly from a source checkout without `pip install -e .`.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from langchain_openai import ChatOpenAI
 

@@ -34,7 +34,7 @@ def create_profile_from_user_data(user_data: dict) -> UserProfile:
         "id": "user_123",
         "subscription": "pro",  # or "free", "starter", "business", "enterprise"
         "daily_budget_override": 15.00,  # optional
-        "preferred_models": ["gpt-4", "claude-3-haiku-20240307"],  # optional
+        "preferred_models": ["gpt-4", "claude-haiku-3-5-20241022"],  # optional
         "domains": ["code", "medical"],  # NEW: Domain preferences
     }
     """
@@ -82,7 +82,7 @@ def create_domain_specific_profile(user_id: str, domains: list) -> UserProfile:
 
     if "code" in domains:
         # For code domains, prefer models good at coding
-        domain_models["code"] = ["gpt-4", "claude-3-haiku-20240307"]
+        domain_models["code"] = ["gpt-4", "claude-haiku-3-5-20241022"]
 
     if "medical" in domains:
         # For medical domains, might want specific fine-tuned models
@@ -220,7 +220,7 @@ async def simple_integration_example():
         "preferred_models": ["gpt-4o-mini"],
         "domains": ["code", "finance"],  # NEW: Domain-specific needs
         "domain_models": {  # NEW: Override models per domain
-            "code": ["gpt-4", "claude-3-haiku-20240307"],
+            "code": ["gpt-4", "claude-haiku-3-5-20241022"],
             "finance": ["gpt-4"],  # Use most capable for finance
         },
     }

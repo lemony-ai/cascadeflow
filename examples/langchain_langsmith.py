@@ -1,4 +1,4 @@
-"""LangSmith tracing example for CascadeFlow LangChain integration.
+"""LangSmith tracing example for cascadeflow LangChain integration.
 
 Demonstrates LangSmith integration with cascade metadata tracking.
 
@@ -30,7 +30,7 @@ async def main():
         print("Warning: LANGSMITH_TRACING not set to 'true'")
 
     print("=" * 80)
-    print("CascadeFlow LangSmith Integration - Python")
+    print("cascadeflow LangSmith Integration - Python")
     print("=" * 80)
 
     # Check if LangSmith tracing is enabled

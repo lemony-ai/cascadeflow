@@ -33,7 +33,7 @@ async def main() -> None:
             provider="openai",
             base_url="https://api.openai.com",
             api_key=openai_key,
-            models={"gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"},
+            models={"gpt-4o-mini", "gpt-4o"},
         )
     ]
 

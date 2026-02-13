@@ -2,20 +2,14 @@
 LangChain LCEL Pipeline Example (Python)
 
 Demonstrates:
-- Prompt -> CascadeFlow -> parser composition (LCEL-style)
-- LangSmith tags/metadata passed through CascadeFlow nested runs
+- Prompt -> cascadeflow -> parser composition (LCEL-style)
+- LangSmith tags/metadata passed through cascadeflow nested runs
 
 Setup:
   export OPENAI_API_KEY="sk-..."
   pip install -U langchain-core langchain-openai
   python examples/langchain_lcel_pipeline.py
 """
-
-import sys
-from pathlib import Path
-
-# Allow running directly from a source checkout without `pip install -e .`.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import os
 

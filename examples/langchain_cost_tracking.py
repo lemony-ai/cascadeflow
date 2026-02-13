@@ -1,4 +1,4 @@
-"""Cost tracking and budget management example for CascadeFlow.
+"""Cost tracking and budget management example for cascadeflow.
 
 Demonstrates Python-specific features that TypeScript doesn't have:
 - Budget tracking with warnings

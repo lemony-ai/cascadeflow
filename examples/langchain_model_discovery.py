@@ -1,4 +1,4 @@
-"""Model discovery example for CascadeFlow LangChain integration.
+"""Model discovery example for cascadeflow LangChain integration.
 
 Demonstrates automatic discovery and analysis of optimal cascade pairs.
 
@@ -7,12 +7,8 @@ Run:
 """
 
 import os
-import sys
 
 from langchain_openai import ChatOpenAI
-
-# Add parent directory to path for local import
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cascadeflow.integrations.langchain import (
     CascadeFlow,
@@ -33,14 +29,13 @@ def main():
         return
 
     print("\n" + "=" * 80)
-    print("CascadeFlow Model Discovery - Python LangChain")
+    print("cascadeflow Model Discovery - Python LangChain")
     print("=" * 80)
 
     # YOUR models (configured with YOUR API keys)
     my_models = [
         ChatOpenAI(model="gpt-4o-mini"),
         ChatOpenAI(model="gpt-4o"),
-        ChatOpenAI(model="gpt-3.5-turbo"),
     ]
 
     print("\n1. ANALYZE INDIVIDUAL MODELS")
@@ -85,9 +80,9 @@ def main():
         print(f"Recommendation: {best['analysis']['recommendation']}\n")
 
         # Use the best pair
-        print("Creating CascadeFlow with best pair...")
+        print("Creating cascadeflow with best pair...")
         CascadeFlow(drafter=best["drafter"], verifier=best["verifier"], quality_threshold=0.7)
-        print("✓ CascadeFlow created successfully!")
+        print("✓ cascadeflow created successfully!")
 
     print("\n4. COMPARE MODELS")
     print("-" * 80)

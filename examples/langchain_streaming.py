@@ -1,4 +1,4 @@
-"""Streaming example with CascadeFlow LangChain integration.
+"""Streaming example with cascadeflow LangChain integration.
 
 Demonstrates optimistic drafter streaming with mid-stream cascade.
 
@@ -13,12 +13,8 @@ Run:
 
 import asyncio
 import os
-import sys
 
 from langchain_openai import ChatOpenAI
-
-# Add parent directory to path for local import
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cascadeflow.integrations.langchain import CascadeFlow
 
@@ -161,7 +157,7 @@ async def main():
         return
 
     print("\n" + "=" * 80)
-    print("CascadeFlow LangChain - Streaming Examples")
+    print("cascadeflow LangChain - Streaming Examples")
     print("=" * 80)
     print("\nDemonstrating optimistic drafter streaming with mid-stream cascade.\n")
 

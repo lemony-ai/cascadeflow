@@ -46,7 +46,7 @@ def main():
     # Free user makes 3 small queries
     for i in range(3):
         tracker.add_cost(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             provider="openai",
             tokens=500,
             cost=0.015,  # $0.015 per query

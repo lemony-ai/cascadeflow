@@ -181,7 +181,7 @@ For advanced use cases, you can add ML-based semantic similarity checking to val
 **Step 1:** Install the optional ML package:
 
 ```bash
-pip install cascadeflow[ml]  # Adds semantic similarity via FastEmbed (~80MB model)
+pip install cascadeflow[semantic]  # Adds semantic similarity via FastEmbed (~80MB model)
 ```
 
 **Step 2:** Use semantic quality validation:
@@ -370,7 +370,7 @@ cascadeflow is a **Language Model sub-node** that connects two AI Chat Model nod
 
 - ✅ Works with any AI Chat Model node (OpenAI, Anthropic, Ollama, Azure, etc.)
 - ✅ Mix providers (e.g., Ollama drafter + GPT-4o verifier)
-- ✅ Includes a CascadeFlow Agent node for tool-based agent workflows (drafter/verifier + tools + trace)
+- ✅ Includes a cascadeflow Agent node for tool-based agent workflows (drafter/verifier + tools + trace)
 - ✅ Real-time flow visualization in Logs tab
 - ✅ Detailed metrics: confidence scores, latency, cost savings
 
@@ -395,7 +395,7 @@ npm install @cascadeflow/langchain @langchain/core @langchain/openai
 **<img src=".github/assets/CF_python_color.svg" width="18" height="18" alt="Python" style="vertical-align: middle;"/> Python**
 
 ```bash
-pip install cascadeflow[langchain]
+pip install cascadeflow langchain-openai
 ```
 
 ### Quick Start
@@ -409,7 +409,7 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { withCascade } from '@cascadeflow/langchain';
 
 const cascade = withCascade({
-  drafter: new ChatOpenAI({ modelName: 'gpt-5-mini' }),      // $0.25/$2 per 1M tokens
+  drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),      // $0.15/$0.60 per 1M tokens
   verifier: new ChatAnthropic({ modelName: 'claude-sonnet-4-5' }),  // $3/$15 per 1M tokens
   qualityThreshold: 0.8, // 80% queries use drafter
 });
@@ -564,7 +564,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
 | **Preset Usage** | Use built-in presets for quick setup | [View](./docs/guides/presets.md) |
 | **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
-| **Reasoning Models**  | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
+| **Reasoning Models**  | Use reasoning models (o1/o3, Claude Sonnet 4, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
 | **Streaming Text** | Stream responses from cascade agents | [View](./examples/streaming_text.py) |
 | **Cost Tracking** | Track and analyze costs across queries | [View](./examples/cost_tracking.py) |
@@ -599,7 +599,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | **LangChain Model Discovery** | Discover and analyze LangChain models | [View](./examples/langchain_model_discovery.py) |
 | **LangChain LangSmith** | Cost tracking with LangSmith integration | [View](./examples/langchain_langsmith.py) |
 | **LangChain Cost Tracking** | Track costs with callback handlers | [View](./examples/langchain_cost_tracking.py) |
-| **LangChain Benchmark** | Comprehensive cascade benchmarking | [View](./examples/langchain_cascade_benchmark.py) |
+| **LangChain LCEL Pipeline** | LCEL chains with cascade routing | [View](./examples/langchain_lcel_pipeline.py) |
 
 </details>
 
@@ -613,7 +613,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | **Basic Usage** | Simple cascade setup (Node.js) | [View](./packages/core/examples/nodejs/basic-usage.ts) |
 | **Tool Calling** | Function calling with tools (Node.js) | [View](./packages/core/examples/nodejs/tool-calling.ts) |
 | **Multi-Provider** | Mix providers in TypeScript (Node.js) | [View](./packages/core/examples/nodejs/multi-provider.ts) |
-| **Reasoning Models**  | Use reasoning models (o1/o3, Claude 3.7, DeepSeek-R1) | [View](./packages/core/examples/nodejs/reasoning-models.ts) |
+| **Reasoning Models**  | Use reasoning models (o1/o3, Claude Sonnet 4, DeepSeek-R1) | [View](./packages/core/examples/nodejs/reasoning-models.ts) |
 | **Cost Tracking** | Track and analyze costs across queries | [View](./packages/core/examples/nodejs/cost-tracking.ts) |
 | **Semantic Quality**  | ML-based semantic validation with embeddings | [View](./packages/core/examples/nodejs/semantic-quality.ts) |
 | **Streaming** | Stream responses in TypeScript | [View](./packages/core/examples/streaming.ts) |
@@ -715,11 +715,14 @@ We ❤️ contributions!
 ## Roadmap
 
 - **Cascade Profiler** - Analyzes your AI API logs to calculate cost savings potential and generate optimized cascadeflow configurations automatically
-- **User Tier Management** - Cost controls and limits per user tier with advanced routing
-- **Semantic Quality Validators** - Optional lightweight local quality scoring (200MB CPU model, no external API calls)
-- **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
-- **Domain Aware Cascading** - Multi-stage pipelines tailored to specific domains
-- **Benchmark Reports** - Automated performance and cost benchmarking
+
+### Recently Shipped
+
+- ✅ **User Tier Management** - Cost controls and limits per user tier with advanced routing
+- ✅ **Semantic Quality Validators** - Lightweight local quality scoring via FastEmbed
+- ✅ **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
+- ✅ **Domain Aware Cascading** - ML-based semantic domain detection with per-domain routing
+- ✅ **Benchmark Reports** - Automated benchmarking (MMLU, GSM8K, MT-Bench, HumanEval, TruthfulQA)
 
 ---
 

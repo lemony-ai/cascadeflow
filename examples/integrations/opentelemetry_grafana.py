@@ -34,9 +34,6 @@ Dimensions (tags):
 
 import asyncio
 import os
-import sys
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from cascadeflow.integrations.otel import (
     MetricDimensions,
@@ -84,7 +81,7 @@ async def simulate_queries():
         {
             "user_id": "user_free_001",
             "user_tier": "free",
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-4o-mini",
             "provider": "openai",
             "cost": 0.0005,
             "tokens_input": 50,
@@ -120,7 +117,7 @@ async def simulate_queries():
         {
             "user_id": "user_pro_002",
             "user_tier": "pro",
-            "model": "claude-3-haiku-20240307",
+            "model": "claude-haiku-3-5-20241022",
             "provider": "anthropic",
             "cost": 0.0008,
             "tokens_input": 80,
