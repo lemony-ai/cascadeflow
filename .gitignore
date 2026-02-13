@@ -46,6 +46,11 @@ venv.bak/
 # ============================================================================
 CLAUDE.md
 .claude/
+AGENTS.md
+CODEX.md
+
+# AI assistant skill definitions
+skills/
 
 # ============================================================================
 # INTERNAL PLANNING (local only, not for GitHub)
@@ -65,6 +70,7 @@ fastembed-*.md
 current_stats_before_fix.json
 test-result.txt
 decisions.jsonl
+*.patch
 benchmark_results/
 mtbench_results/
 
@@ -305,6 +311,12 @@ test_all_*.py
 test_semantic_*.py
 test_milestone*.py
 comprehensive_test.py
+
+# Root-level config duplicates (canonical copies in examples/configs/)
+/anthropic-only.yaml
+/mixed-anthropic-openai.yaml
+/mixed-domains*.yaml
+/openai-only.yaml
 
 # Local demos and packaged artifacts (keep out of main)
 investor-demo/
