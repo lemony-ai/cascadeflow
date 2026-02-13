@@ -15,6 +15,7 @@ import secrets
 import threading
 import time
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,6 +32,37 @@ from .pre_router import CATEGORY_TO_DOMAIN
 oc_logger = logging.getLogger("cascadeflow.openclaw")
 
 _DEFAULT_SENTINELS = ("NO_REPLY",)
+
+
+class DemoRateLimiter:
+    """In-memory per-IP rate limiter for demo mode."""
+
+    def __init__(self, max_queries: int = 20, window_seconds: int = 3600):
+        self.max_queries = max_queries
+        self.window_seconds = window_seconds
+        self._lock = threading.Lock()
+        self._timestamps: dict[str, list[float]] = defaultdict(list)
+
+    def _prune(self, ip: str, now: float) -> None:
+        cutoff = now - self.window_seconds
+        self._timestamps[ip] = [t for t in self._timestamps[ip] if t > cutoff]
+
+    def check(self, ip: str) -> tuple[bool, int]:
+        """Check if ip is allowed. Returns (allowed, remaining)."""
+        now = time.time()
+        with self._lock:
+            self._prune(ip, now)
+            used = len(self._timestamps[ip])
+            remaining = max(0, self.max_queries - used)
+            return (used < self.max_queries, remaining)
+
+    def record(self, ip: str) -> int:
+        """Record a query for ip. Returns remaining queries."""
+        now = time.time()
+        with self._lock:
+            self._prune(ip, now)
+            self._timestamps[ip].append(now)
+            return max(0, self.max_queries - len(self._timestamps[ip]))
 
 
 def _strip_sentinel(content: str, sentinels: tuple[str, ...]) -> str:
@@ -79,6 +111,10 @@ class OpenClawOpenAIConfig:
     # Request hardening (production-friendly defaults, should not break local usage).
     max_body_bytes: int = 2_000_000
     socket_timeout_s: float = 30.0
+    # Demo mode: allow unauthenticated requests with per-IP rate limiting.
+    demo_mode: bool = False
+    demo_max_queries: int = 20
+    demo_window_seconds: int = 3600
 
 
 class OpenClawOpenAIServer:
@@ -87,6 +123,14 @@ class OpenClawOpenAIServer:
     def __init__(self, agent, config: Optional[OpenClawOpenAIConfig] = None):
         self.agent = agent
         self.config = config or OpenClawOpenAIConfig()
+        self._demo_limiter: DemoRateLimiter | None = (
+            DemoRateLimiter(
+                max_queries=self.config.demo_max_queries,
+                window_seconds=self.config.demo_window_seconds,
+            )
+            if self.config.demo_mode
+            else None
+        )
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -169,7 +213,37 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             return api_key.strip()
         return None
 
+    def _get_client_ip(self) -> str:
+        """Get client IP, respecting X-Forwarded-For for proxied requests."""
+        forwarded = self.headers.get("X-Forwarded-For")
+        if isinstance(forwarded, str) and forwarded.strip():
+            return forwarded.split(",")[0].strip()
+        return self.client_address[0]
+
+    def _is_demo_request(self) -> bool:
+        """True when demo_mode is on and the request has no valid auth token."""
+        server: OpenClawOpenAIServer = self.server.openclaw_server  # type: ignore[attr-defined]
+        if not server.config.demo_mode:
+            return False
+        expected = server.config.auth_token
+        if not expected:
+            return True  # No auth_token configured — all requests are demo
+        presented = self._get_presented_token()
+        if isinstance(presented, str) and secrets.compare_digest(presented, expected):
+            return False  # Valid auth — not a demo request
+        return True
+
     def _require_auth(self, expected: Optional[str]) -> bool:
+        server: OpenClawOpenAIServer = self.server.openclaw_server  # type: ignore[attr-defined]
+        if server.config.demo_mode:
+            # In demo mode, allow unauthenticated/invalid-token requests through
+            if not expected:
+                return True
+            presented = self._get_presented_token()
+            if isinstance(presented, str) and secrets.compare_digest(presented, expected):
+                return True
+            # No valid token — allow through as demo (rate limited in _handle_chat)
+            return True
         if not expected:
             return True
         presented = self._get_presented_token()
@@ -239,6 +313,20 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _handle_chat(self, server: OpenClawOpenAIServer, payload: dict[str, Any]) -> None:
+        # Demo rate limiting
+        is_demo = self._is_demo_request()
+        if is_demo and server._demo_limiter:
+            ip = self._get_client_ip()
+            allowed, remaining = server._demo_limiter.check(ip)
+            if not allowed:
+                return self._send_openai_error(
+                    f"Demo limit reached ({server.config.demo_max_queries} queries/"
+                    f"{server.config.demo_window_seconds}s). "
+                    "Thank you for trying cascadeflow!",
+                    status=429,
+                    error_type="rate_limit_error",
+                )
+
         messages = payload.get("messages", [])
         if not isinstance(messages, list) or not messages:
             return self._send_openai_error("Messages are required", status=400)
@@ -371,6 +459,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                 request_id=request_id,
                 request_start=request_start,
                 query_text=query_text,
+                is_demo=is_demo,
             )
 
         try:
@@ -432,6 +521,16 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         )
 
         response = _build_openai_response(model, result)
+
+        # Inject demo metadata
+        if is_demo and server._demo_limiter:
+            remaining = server._demo_limiter.record(self._get_client_ip())
+            response.setdefault("cascadeflow", {}).setdefault("metadata", {})
+            response["cascadeflow"]["metadata"]["demo_queries_remaining"] = remaining
+            response["cascadeflow"]["metadata"][
+                "demo_queries_limit"
+            ] = server.config.demo_max_queries
+
         self._send_json(response)
 
     def _handle_stats(self, server: OpenClawOpenAIServer) -> None:
@@ -460,6 +559,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         request_id: str = "",
         request_start: float = 0.0,
         query_text: str = "",
+        is_demo: bool = False,
     ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -726,7 +826,7 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
         if openai_tool_calls:
             final_message["tool_calls"] = openai_tool_calls
 
-        final_chunk = {
+        final_chunk: dict[str, Any] = {
             "id": "chatcmpl-cascadeflow",
             "object": "chat.completion.chunk",
             "created": int(time.time()),
@@ -741,6 +841,17 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
             ],
             "usage": usage_payload,
         }
+
+        # Inject demo metadata into streaming final chunk
+        if is_demo and server._demo_limiter:
+            remaining = server._demo_limiter.record(self._get_client_ip())
+            final_chunk["cascadeflow"] = {
+                "metadata": {
+                    "demo_queries_remaining": remaining,
+                    "demo_queries_limit": server.config.demo_max_queries,
+                },
+            }
+
         self.wfile.write(f"data: {json.dumps(final_chunk)}\n\n".encode())
         self.wfile.flush()
 
@@ -1209,6 +1320,23 @@ def main() -> None:
         help="Socket read timeout in seconds (default: 30).",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--demo-mode",
+        action="store_true",
+        help="Enable demo mode: allow unauthenticated requests with per-IP rate limiting.",
+    )
+    parser.add_argument(
+        "--demo-max-queries",
+        type=int,
+        default=20,
+        help="Max demo queries per IP per window (default: 20).",
+    )
+    parser.add_argument(
+        "--demo-window",
+        type=int,
+        default=3600,
+        help="Demo rate limit window in seconds (default: 3600).",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -1240,10 +1368,15 @@ def main() -> None:
             stats_auth_token=args.stats_auth_token,
             max_body_bytes=args.max_body_bytes,
             socket_timeout_s=args.socket_timeout,
+            demo_mode=args.demo_mode,
+            demo_max_queries=args.demo_max_queries,
+            demo_window_seconds=args.demo_window,
         ),
     )
     port = server.start()
     print(f"OpenClaw OpenAI server running at http://{server.host}:{port}/v1")
+    if args.demo_mode:
+        print(f"  Demo mode: {args.demo_max_queries} queries/{args.demo_window}s per IP")
     try:
         while True:
             time.sleep(1)
