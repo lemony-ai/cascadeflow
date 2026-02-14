@@ -2,6 +2,10 @@
   "name": "@cascadeflow/vercel-ai",
   "version": "0.1.0",
   "description": "cascadeflow integration for the Vercel AI SDK (useChat handlers + provider ecosystem)",
+  "author": {
+    "name": "Lemony Inc.",
+    "email": "hello@lemony.ai"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -124,6 +128,9 @@
     "tsup": "^8.5.1",
     "typescript": "^5.3.3",
     "vitest": "^1.6.1"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=18.0.0"
