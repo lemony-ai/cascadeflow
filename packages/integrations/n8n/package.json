@@ -57,6 +57,9 @@
   "peerDependencies": {
     "n8n-workflow": "*"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@langchain/core": "^0.3.0",
     "@cascadeflow/core": "^0.6.0"

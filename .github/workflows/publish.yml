@@ -78,6 +78,11 @@ jobs:
           cd packages/langchain-cascadeflow
           pnpm build
 
+      - name: Build @cascadeflow/vercel-ai
+        run: |
+          cd packages/integrations/vercel-ai
+          pnpm build
+
       - name: Store @cascadeflow/core package
         uses: actions/upload-artifact@v4
         with:
@@ -101,6 +106,12 @@ jobs:
         with:
           name: npm-cascadeflow-langchain-cascadeflow
           path: packages/langchain-cascadeflow/
+
+      - name: Store @cascadeflow/vercel-ai package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-cascadeflow-vercel-ai
+          path: packages/integrations/vercel-ai/
 
   publish-to-pypi:
     name: Publish to PyPI
@@ -161,6 +172,12 @@ jobs:
           name: npm-cascadeflow-langchain-cascadeflow
           path: packages/langchain-cascadeflow/
 
+      - name: Download @cascadeflow/vercel-ai
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-cascadeflow-vercel-ai
+          path: packages/integrations/vercel-ai/
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
@@ -172,34 +189,55 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      # Update npm to v11.5.1+ for OIDC trusted publishing support
+      # Update npm for OIDC trusted publishing support
       - name: Update npm to latest
         run: npm install -g npm@latest
+
+      # pnpm pack resolves workspace: protocol refs, then npm publish uses OIDC
+      - name: Publish @cascadeflow/ml
+        continue-on-error: true
+        run: |
+          cd packages/ml
+          TARBALL=$(pnpm pack --pack-destination .)
+          npm publish "$TARBALL" --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/core
         continue-on-error: true
         run: |
           cd packages/core
-          npm publish --access public --provenance
-        # OIDC authentication - no token needed!
-
-      - name: Publish @cascadeflow/ml
-        continue-on-error: true
-        run: |
-          cd packages/ml
-          npm publish --access public --provenance
+          TARBALL=$(pnpm pack --pack-destination .)
+          npm publish "$TARBALL" --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/n8n-nodes-cascadeflow
         continue-on-error: true
         run: |
           cd packages/integrations/n8n
-          npm publish --access public --provenance
+          TARBALL=$(pnpm pack --pack-destination .)
+          npm publish "$TARBALL" --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/langchain
         continue-on-error: true
         run: |
           cd packages/langchain-cascadeflow
-          npm publish --access public --provenance
+          TARBALL=$(pnpm pack --pack-destination .)
+          npm publish "$TARBALL" --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @cascadeflow/vercel-ai
+        continue-on-error: true
+        run: |
+          cd packages/integrations/vercel-ai
+          TARBALL=$(pnpm pack --pack-destination .)
+          npm publish "$TARBALL" --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-to-testpypi:
     name: Publish to TestPyPI

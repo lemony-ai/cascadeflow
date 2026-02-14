@@ -100,6 +100,9 @@
     "vitest": "^1.0.4",
     "zod": "^4.1.12"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.0.0"
   }
