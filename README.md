@@ -411,8 +411,8 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { withCascade } from '@cascadeflow/langchain';
 
 const cascade = withCascade({
-  drafter: new ChatOpenAI({ modelName: 'gpt-4o-mini' }),      // $0.15/$0.60 per 1M tokens
-  verifier: new ChatAnthropic({ modelName: 'claude-sonnet-4-5' }),  // $3/$15 per 1M tokens
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),      // $0.15/$0.60 per 1M tokens
+  verifier: new ChatAnthropic({ model: 'claude-sonnet-4-5' }),  // $3/$15 per 1M tokens
   qualityThreshold: 0.8, // 80% queries use drafter
 });
 
