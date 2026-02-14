@@ -14,7 +14,7 @@
 [![n8n version](https://img.shields.io/npm/v/@cascadeflow/n8n-nodes-cascadeflow?color=orange&label=n8n)](https://www.npmjs.com/package/@cascadeflow/n8n-nodes-cascadeflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/badge/cascadeflow)](https://pepy.tech/project/cascadeflow)
-[![npm Downloads](https://img.shields.io/npm/dt/@cascadeflow/n8n-nodes-cascadeflow?label=npm%20downloads&color=CB3837)](https://www.npmjs.com/search?q=%40cascadeflow)
+[![npm Downloads](https://img.shields.io/npm/dt/@cascadeflow/n8n-nodes-cascadeflow?label=npm%20downloads&color=orange)](https://www.npmjs.com/search?q=%40cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 [![Python Docs](https://img.shields.io/badge/docs-Python-blue)](./docs/)
 [![TypeScript Docs](https://img.shields.io/badge/docs-TypeScript-red)](./docs/)
@@ -23,11 +23,11 @@
 
 <br>
 
-**[Cost Savings Benchmarks](./tests/benchmarks/):** 69% (MT-Bench), 93% (GSM8K), 52% (MMLU) savings, retaining 96% GPT-5 quality.
+**[Cost Savings Benchmarks](./tests/benchmarks/):** 69% (MT-Bench), 93% (GSM8K), 52% (MMLU), 80% (TruthfulQA) savings, retaining 96% GPT-5 quality.
 
 <br>
 
-**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](#-langchain-integration) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
+**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](#-langchain-integration) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [<img src=".github/assets/CF_vercel_color.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"/> Vercel AI](./packages/integrations/vercel-ai/) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://clawhub.ai/saschabuehrle/cascadeflow) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
 
 </div>
 
@@ -76,7 +76,7 @@ cascadeflow uses **speculative execution with quality validation**:
 3. **Dynamically escalates** to larger models only when quality validation fails ($1.25-3.00/1M tokens)
 4. **Learns patterns** to optimize future cascading decisions and domain specific routing
 
-Zero configuration. Works with YOUR existing models (7 Providers currently supported).
+Zero configuration. Works with YOUR existing models (>17 providers currently supported).
 
 In practice, 60-70% of queries are handled by small, efficient models (8-20x cost difference) without requiring escalation
 
@@ -128,9 +128,10 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  Provider Abstraction Layer                           │  │
 │  │                                                       │  │
-│  │  Unified interface for 7+ providers                   │  │
+│  │  Unified interface for >17 providers                   │  │
 │  │  • OpenAI • Anthropic • Groq • Ollama                 │  │
 │  │  • Together • vLLM • HuggingFace • LiteLLM            │  │
+│  │  • Vercel AI SDK (17+ additional providers)            │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
@@ -569,6 +570,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
 | **Streaming Text** | Stream responses from cascade agents | [View](./examples/streaming_text.py) |
 | **Cost Tracking** | Track and analyze costs across queries | [View](./examples/cost_tracking.py) |
+| **Agentic Multi-Agent** | Multi-turn tool loops & agent-as-a-tool delegation | [View](./examples/agentic_multi_agent.py) |
 
 </details>
 
@@ -601,6 +603,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | **LangChain LangSmith** | Cost tracking with LangSmith integration | [View](./examples/langchain_langsmith.py) |
 | **LangChain Cost Tracking** | Track costs with callback handlers | [View](./examples/langchain_cost_tracking.py) |
 | **LangChain LCEL Pipeline** | LCEL chains with cascade routing | [View](./examples/langchain_lcel_pipeline.py) |
+| **LangGraph Multi-Agent** | LangGraph multi-agent orchestration | [View](./examples/langchain_langgraph_multi_agent.py) |
 
 </details>
 
@@ -618,6 +621,9 @@ console.log(`Warnings: ${validation.warnings}`);
 | **Cost Tracking** | Track and analyze costs across queries | [View](./packages/core/examples/nodejs/cost-tracking.ts) |
 | **Semantic Quality**  | ML-based semantic validation with embeddings | [View](./packages/core/examples/nodejs/semantic-quality.ts) |
 | **Streaming** | Stream responses in TypeScript | [View](./packages/core/examples/streaming.ts) |
+| **Tool Execution** | Tool execution engine and result handling | [View](./packages/core/examples/nodejs/tool-execution.ts) |
+| **Streaming Tools** | Stream tool calls with event detection | [View](./packages/core/examples/nodejs/streaming-tools.ts) |
+| **Agentic Multi-Agent** | Multi-turn tool loops & multi-agent orchestration | [View](./packages/core/examples/nodejs/agentic-multi-agent.ts) |
 
 </details>
 
@@ -634,6 +640,8 @@ console.log(`Warnings: ${validation.warnings}`);
 | **LangChain Cross-Provider** | Haiku → GPT-5 with PreRouter | [View](./packages/langchain-cascadeflow/examples/cross-provider-escalation.ts) |
 | **LangChain LangSmith** | Cost tracking with LangSmith | [View](./packages/langchain-cascadeflow/examples/langsmith-tracing.ts) |
 | **LangChain Cost Tracking** | Compare cascadeflow vs LangSmith cost tracking | [View](./packages/langchain-cascadeflow/examples/cost-tracking-providers.ts) |
+| **LangGraph Multi-Agent** | LangGraph multi-agent orchestration | [View](./packages/langchain-cascadeflow/examples/langgraph-multi-agent.ts) |
+| **LangChain Tool Risk Gating** | Tool routing based on risk and complexity | [View](./packages/langchain-cascadeflow/examples/tool-risk-gating.ts) |
 
 </details>
 
@@ -652,6 +660,9 @@ console.log(`Warnings: ${validation.warnings}`);
 | **Streaming Guide** | Stream responses from cascade agents | [Read](./docs/guides/streaming.md) |
 | **Tools Guide** | Function calling and tool usage | [Read](./docs/guides/tools.md) |
 | **Cost Tracking** | Track and analyze API costs | [Read](./docs/guides/cost_tracking.md) |
+| **Agentic Patterns (Python)** | Tool loops, multi-agent, agent-as-a-tool delegation | [Read](./docs/guides/agentic-python.md) |
+| **Agentic Patterns (TypeScript)** | Tool loops, multi-agent orchestration | [Read](./docs/guides/agentic-typescript.md) |
+| **Gateway Guide** | Drop-in OpenAI/Anthropic-compatible server | [Read](./docs/guides/gateway.md) |
 
 </details>
 
@@ -669,6 +680,12 @@ console.log(`Warnings: ${validation.warnings}`);
 | **FastAPI Integration** | Integrate with FastAPI applications | [Read](./docs/guides/fastapi.md) |
 | **LangChain Integration** | Use cascadeflow with LangChain | [Read](./docs/guides/langchain_integration.md) |
 | **n8n Integration** | Use cascadeflow in n8n workflows | [Read](./docs/guides/n8n_integration.md) |
+| **Local Providers** | Ollama & vLLM self-hosted deployment | [Read](./docs/guides/local-providers.md) |
+| **OpenClaw Provider** | OpenClaw custom provider setup | [Read](./docs/guides/openclaw_provider.md) |
+| **Enterprise Guide** | Enterprise deployments and configuration | [Read](./docs/guides/enterprise.md) |
+| **Quick Integration** | Integrate cascadeflow fast | [Read](./docs/guides/integrate_fast.md) |
+| **User Budget Tracking** | Per-user cost limits and budgets | [Read](./docs/guides/user-budget-tracking.md) |
+| **Proxy Routing** | Provider-aware proxy routing | [Read](./docs/guides/proxy.md) |
 
 </details>
 
@@ -693,6 +710,9 @@ console.log(`Warnings: ${validation.warnings}`);
 | 🔧 **Tool Calling Support**  | Universal format, works across all providers                                                                                           |
 | 📊 **Cost Tracking**  | Built-in analytics + OpenTelemetry export (vendor-neutral)                                                                             |
 | 🚀 **3-Line Integration** | Zero architecture changes needed                                                                                                       |
+| 🔁 **Agent Loops** | Multi-turn tool execution with automatic tool call, result, re-prompt cycles |
+| 📋 **Message & Tool Call Lists** | Full conversation history with tool_calls and tool_call_id preservation across turns |
+| 🪝 **Hooks & Callbacks** | Telemetry callbacks, cost events, and streaming hooks for observability |
 | 🏭 **Production Ready**  | Streaming, batch processing, tool handling, reasoning model support, caching, error recovery, anomaly detection |
 
 ---
@@ -713,12 +733,14 @@ We ❤️ contributions!
 
 ---
 
-## Roadmap
+## Recently Shipped
 
-- **Cascade Profiler** - Analyzes your AI API logs to calculate cost savings potential and generate optimized cascadeflow configurations automatically
-
-### Recently Shipped
-
+- ✅ **Agent Loops & Multi-Agent** - Multi-turn tool execution, agent-as-a-tool delegation, LangGraph orchestration
+- ✅ **Tool Execution Engine** - Automatic tool call routing, parallel execution, risk gating
+- ✅ **Hooks & Callbacks** - Telemetry callbacks, cost events, streaming hooks for observability
+- ✅ **Vercel AI SDK Integration** - 17+ additional providers with automatic provider detection
+- ✅ **OpenClaw Provider** - Custom provider for OpenClaw deployments
+- ✅ **Gateway Server** - Drop-in OpenAI/Anthropic-compatible proxy endpoint
 - ✅ **User Tier Management** - Cost controls and limits per user tier with advanced routing
 - ✅ **Semantic Quality Validators** - Lightweight local quality scoring via FastEmbed
 - ✅ **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
