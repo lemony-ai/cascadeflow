@@ -115,6 +115,8 @@ class OpenClawOpenAIConfig:
     demo_mode: bool = False
     demo_max_queries: int = 20
     demo_window_seconds: int = 3600
+    # Optional directory for serving static files (e.g. install.sh).
+    static_dir: Optional[str] = None
 
 
 class OpenClawOpenAIServer:
@@ -276,6 +278,24 @@ class OpenAIRequestHandler(BaseHTTPRequestHandler):
                     }
                 )
             return self._send_json({"status": "ok", "providers_initialized": providers_count})
+
+        # Serve static files (e.g. /install.sh) from configured directory
+        if server.config.static_dir:
+            import os
+
+            # Sanitize path to prevent directory traversal
+            clean = os.path.normpath(self.path.lstrip("/"))
+            if not clean.startswith("..") and os.sep not in clean:
+                fpath = os.path.join(server.config.static_dir, clean)
+                if os.path.isfile(fpath):
+                    with open(fpath, "rb") as f:
+                        body = f.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
 
         self.send_response(404)
         self.end_headers()
@@ -1337,6 +1357,11 @@ def main() -> None:
         default=3600,
         help="Demo rate limit window in seconds (default: 3600).",
     )
+    parser.add_argument(
+        "--static-dir",
+        default=None,
+        help="Directory to serve static files from (e.g. install.sh).",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -1371,6 +1396,7 @@ def main() -> None:
             demo_mode=args.demo_mode,
             demo_max_queries=args.demo_max_queries,
             demo_window_seconds=args.demo_window,
+            static_dir=args.static_dir,
         ),
     )
     port = server.start()
