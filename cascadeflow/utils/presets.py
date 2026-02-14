@@ -147,15 +147,25 @@ def get_cost_optimized_agent(
         )
 
     if providers["anthropic"]:
-        models.append(
-            ModelConfig(
-                name="claude-3-haiku-20240307",
-                provider="anthropic",
-                cost=0.00025,
-                speed_ms=700,
-                quality_score=0.80,
-                supports_tools=True,
-            )
+        models.extend(
+            [
+                ModelConfig(
+                    name="claude-haiku-4-5-20251001",
+                    provider="anthropic",
+                    cost=0.0001,
+                    speed_ms=600,
+                    quality_score=0.80,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="claude-sonnet-4-5-20250929",
+                    provider="anthropic",
+                    cost=0.003,
+                    speed_ms=1000,
+                    quality_score=0.95,
+                    supports_tools=True,
+                ),
+            ]
         )
 
     if not models:
@@ -269,15 +279,25 @@ def get_balanced_agent(
         )
 
     if providers["anthropic"]:
-        models.append(
-            ModelConfig(
-                name="claude-sonnet-4-5-20250929",
-                provider="anthropic",
-                cost=0.003,
-                speed_ms=1000,
-                quality_score=0.95,
-                supports_tools=True,
-            )
+        models.extend(
+            [
+                ModelConfig(
+                    name="claude-haiku-4-5-20251001",
+                    provider="anthropic",
+                    cost=0.0001,
+                    speed_ms=600,
+                    quality_score=0.80,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="claude-sonnet-4-5-20250929",
+                    provider="anthropic",
+                    cost=0.003,
+                    speed_ms=1000,
+                    quality_score=0.95,
+                    supports_tools=True,
+                ),
+            ]
         )
 
     if not models:
@@ -383,10 +403,32 @@ def get_speed_optimized_agent(
             )
         )
 
+    if providers["anthropic"]:
+        models.extend(
+            [
+                ModelConfig(
+                    name="claude-haiku-4-5-20251001",
+                    provider="anthropic",
+                    cost=0.0001,
+                    speed_ms=600,
+                    quality_score=0.80,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="claude-sonnet-4-5-20250929",
+                    provider="anthropic",
+                    cost=0.003,
+                    speed_ms=1000,
+                    quality_score=0.95,
+                    supports_tools=True,
+                ),
+            ]
+        )
+
     if not models:
         raise RuntimeError(
             "No API keys found. Set at least one of: "
-            "OPENAI_API_KEY, GROQ_API_KEY, TOGETHER_API_KEY"
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, TOGETHER_API_KEY"
         )
 
     # Speed-optimized quality config (lower thresholds)
@@ -483,15 +525,25 @@ def get_quality_optimized_agent(
         )
 
     if providers["anthropic"]:
-        models.append(
-            ModelConfig(
-                name="claude-sonnet-4-5-20250929",
-                provider="anthropic",
-                cost=0.003,
-                speed_ms=1000,
-                quality_score=0.95,
-                supports_tools=True,
-            )
+        models.extend(
+            [
+                ModelConfig(
+                    name="claude-haiku-4-5-20251001",
+                    provider="anthropic",
+                    cost=0.0001,
+                    speed_ms=600,
+                    quality_score=0.80,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="claude-sonnet-4-5-20250929",
+                    provider="anthropic",
+                    cost=0.003,
+                    speed_ms=1000,
+                    quality_score=0.95,
+                    supports_tools=True,
+                ),
+            ]
         )
 
     if not models:
@@ -606,6 +658,28 @@ def get_development_agent(
                 quality_score=0.85,
                 supports_tools=True,
             )
+        )
+
+    if providers["anthropic"]:
+        models.extend(
+            [
+                ModelConfig(
+                    name="claude-haiku-4-5-20251001",
+                    provider="anthropic",
+                    cost=0.0001,
+                    speed_ms=600,
+                    quality_score=0.80,
+                    supports_tools=True,
+                ),
+                ModelConfig(
+                    name="claude-sonnet-4-5-20250929",
+                    provider="anthropic",
+                    cost=0.003,
+                    speed_ms=1000,
+                    quality_score=0.95,
+                    supports_tools=True,
+                ),
+            ]
         )
 
     if not models:
