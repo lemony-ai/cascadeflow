@@ -37,7 +37,6 @@ jobs:
         run: python -m build
 
       - name: Generate changelog
-        id: changelog
         run: |
           # Get commits since last tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
@@ -46,27 +45,15 @@ jobs:
           else
             CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --reverse)
           fi
-          
+
           # Write to file for multiline handling
           echo "$CHANGELOG" > changelog.txt
 
-      - name: Create Release
-        uses: actions/create-release@v1
+      - name: Create GitHub Release with assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}
-          body_path: changelog.txt
-          draft: false
-          prerelease: false
-
-      - name: Upload Release Assets
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/cascadeflow-${{ steps.get_version.outputs.VERSION }}.tar.gz
-          asset_name: cascadeflow-${{ steps.get_version.outputs.VERSION }}.tar.gz
-          asset_content_type: application/gzip
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Release ${{ steps.get_version.outputs.VERSION }}" \
+            --notes-file changelog.txt \
+            ./dist/cascadeflow-${{ steps.get_version.outputs.VERSION }}.tar.gz
