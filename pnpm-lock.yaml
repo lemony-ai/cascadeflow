@@ -50,7 +50,7 @@ importers:
   packages/core:
     dependencies:
       '@cascadeflow/ml':
-        specifier: ^0.6.5
+        specifier: ^0.7.0
         version: link:../ml
       '@xenova/transformers':
         specifier: ^2.17.2
@@ -131,7 +131,7 @@ importers:
     dependencies:
       '@cascadeflow/core':
         specifier: ^0.6.0
-        version: link:../../core
+        version: 0.6.5
       '@langchain/core':
         specifier: ^0.3.0
         version: 0.3.80(openai@4.104.0)
@@ -775,6 +775,45 @@ packages:
   /@babel/runtime@7.28.6:
     resolution: {integrity: sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA==}
     engines: {node: '>=6.9.0'}
+
+  /@cascadeflow/core@0.6.5:
+    resolution: {integrity: sha512-q2hZn7nb12q6Dm03Yzks2dgfLLoWZSwaQ5ZkHuolpmxYVZo6355pMCMrgx6sf+hyNmU9ORsrWMRJyZOkPL0U9g==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@anthropic-ai/sdk': ^0.30.0
+      '@huggingface/inference': ^2.8.0
+      '@xenova/transformers': ^2.17.2
+      groq-sdk: ^0.5.0
+      openai: ^4.0.0
+    peerDependenciesMeta:
+      '@anthropic-ai/sdk':
+        optional: true
+      '@huggingface/inference':
+        optional: true
+      '@xenova/transformers':
+        optional: true
+      groq-sdk:
+        optional: true
+      openai:
+        optional: true
+    dependencies:
+      '@cascadeflow/ml': 0.6.5
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+    dev: false
+
+  /@cascadeflow/ml@0.6.5:
+    resolution: {integrity: sha512-305mrkicxYoJAEXISaUytHqPWccZMr8/KJgyocu7pLkLw3byXP4KGcD8ws4M6sheEAXhiukqYhQKktnIp833Vg==}
+    engines: {node: '>=18.0.0'}
+    dependencies:
+      '@xenova/transformers': 2.17.2
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+    dev: false
 
   /@cfworker/json-schema@4.1.1:
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
