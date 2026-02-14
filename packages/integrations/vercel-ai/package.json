@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/vercel-ai",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "cascadeflow integration for the Vercel AI SDK (useChat handlers + provider ecosystem)",
   "author": {
     "name": "Lemony Inc.",

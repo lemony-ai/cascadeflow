@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/ml",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "ML semantic detection for cascadeflow TypeScript - Feature parity with Python",
   "author": {
     "name": "Lemony Inc.",
