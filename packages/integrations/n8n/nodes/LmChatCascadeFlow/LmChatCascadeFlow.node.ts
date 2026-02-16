@@ -31,6 +31,7 @@ let CostCalculator: any;
 let ComplexityDetector: any;
 let PreRouter: any;
 let DomainRouter: any;
+let ToolCascadeValidator: any;
 
 try {
   const cascadeCore = require('@cascadeflow/core');
@@ -40,6 +41,7 @@ try {
   ComplexityDetector = cascadeCore.ComplexityDetector;
   PreRouter = cascadeCore.PreRouter;
   DomainRouter = cascadeCore.DomainRouter;
+  ToolCascadeValidator = cascadeCore.ToolCascadeValidator;
 } catch (e) {
   // @cascadeflow/core not available - use simple validation and estimates
   console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
@@ -100,6 +102,14 @@ export class CascadeChatModel extends BaseChatModel {
   // PreRouter for complexity-based direct routing
   private preRouter: any;
 
+  // Tool call validation
+  private enableToolCallValidation: boolean;
+  private toolCascadeValidator: any;
+
+  // Domain-specific verifiers
+  private domainVerifiers: Map<DomainType, BaseChatModel | undefined> = new Map();
+  private domainVerifierGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map();
+
   constructor(
     drafterModelGetter: () => Promise<BaseChatModel>,
     verifierModelGetter: () => Promise<BaseChatModel>,
@@ -112,7 +122,9 @@ export class CascadeChatModel extends BaseChatModel {
     enabledDomains: DomainType[] = [],
     domainModelGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map(),
     domainConfigs: Map<DomainType, DomainConfig> = new Map(),
-    confidenceThresholds?: ComplexityThresholds
+    confidenceThresholds?: ComplexityThresholds,
+    enableToolCallValidation: boolean = false,
+    domainVerifierGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map(),
   ) {
     super({});
     this.drafterModelGetter = drafterModelGetter;
@@ -193,6 +205,26 @@ export class CascadeChatModel extends BaseChatModel {
       }
     } else {
       this.domainDetector = null;
+    }
+
+    // Initialize tool call validation
+    this.enableToolCallValidation = enableToolCallValidation;
+    if (enableToolCallValidation && ToolCascadeValidator) {
+      try {
+        this.toolCascadeValidator = new ToolCascadeValidator();
+        console.log('🔧 CascadeFlow tool call validation enabled');
+      } catch (e) {
+        console.warn('⚠️  Tool cascade validator initialization failed');
+        this.toolCascadeValidator = null;
+      }
+    } else {
+      this.toolCascadeValidator = null;
+    }
+
+    // Store domain verifier getters for lazy loading
+    this.domainVerifierGetters = domainVerifierGetters;
+    for (const [domain] of domainVerifierGetters.entries()) {
+      this.domainVerifiers.set(domain, undefined);
     }
   }
 
@@ -283,6 +315,33 @@ export class CascadeChatModel extends BaseChatModel {
       const model = await getter();
       if (model) {
         this.domainModels.set(domain, model);
+        return model;
+      }
+    } catch {
+      // Treat as "not connected"
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get a connected domain-specific verifier model (lazy-loaded).
+   */
+  private async getDomainVerifier(domain: DomainType): Promise<BaseChatModel | undefined> {
+    const existingModel = this.domainVerifiers.get(domain);
+    if (existingModel) {
+      return existingModel;
+    }
+
+    const getter = this.domainVerifierGetters.get(domain);
+    if (!getter) {
+      return undefined;
+    }
+
+    try {
+      const model = await getter();
+      if (model) {
+        this.domainVerifiers.set(domain, model);
         return model;
       }
     } catch {
@@ -452,6 +511,52 @@ export class CascadeChatModel extends BaseChatModel {
   }
 
   /**
+   * Validate tool calls using ToolCascadeValidator.
+   * Returns { valid, score } or null if validation is unavailable.
+   */
+  private validateToolCallsQuality(message: BaseMessage): { valid: boolean; score: number; errors: string[] } | null {
+    if (!this.enableToolCallValidation || !this.toolCascadeValidator) {
+      return null;
+    }
+
+    try {
+      const additionalKwargs = (message as any).additional_kwargs || {};
+      const responseMetadata = (message as any).response_metadata || {};
+      const rawToolCalls = additionalKwargs.tool_calls || responseMetadata.tool_calls || [];
+
+      if (!Array.isArray(rawToolCalls) || rawToolCalls.length === 0) {
+        return null;
+      }
+
+      // Normalize tool calls to the format ToolCascadeValidator expects
+      const toolCalls = rawToolCalls.map((tc: any) => {
+        const args = tc?.function?.arguments ?? tc?.arguments ?? '{}';
+        let parsedArgs: Record<string, any> = {};
+        try {
+          parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+        } catch {
+          parsedArgs = { raw: args };
+        }
+        return {
+          id: tc?.id ?? tc?.function?.name ?? `tool_${Date.now()}`,
+          name: tc?.function?.name ?? tc?.name,
+          arguments: parsedArgs,
+        };
+      });
+
+      const result = this.toolCascadeValidator.validate(toolCalls, []);
+      return {
+        valid: result.valid,
+        score: result.score,
+        errors: result.errors || [],
+      };
+    } catch (e) {
+      console.warn('⚠️  Tool call validation failed:', e);
+      return null;
+    }
+  }
+
+  /**
    * Calculate accurate cost from message token usage
    */
   private async calculateMessageCost(
@@ -482,11 +587,17 @@ export class CascadeChatModel extends BaseChatModel {
     // Fallback to rough estimates based on model name
     const estimatesPerMillion: Record<string, { input: number; output: number }> = {
       'gpt-4o-mini': { input: 0.15, output: 0.6 },
-      'gpt-4o': { input: 5.0, output: 15.0 },
+      'gpt-4o': { input: 2.5, output: 10.0 },
+      'gpt-5-mini': { input: 0.20, output: 0.80 },
       'gpt-4-turbo': { input: 10.0, output: 30.0 },
       'gpt-4': { input: 30.0, output: 60.0 },
       'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
+      'claude-3-5-haiku': { input: 1.0, output: 5.0 },
+      'claude-haiku-4-5': { input: 1.0, output: 5.0 },
       'claude-3-5-sonnet': { input: 3.0, output: 15.0 },
+      'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
+      'claude-sonnet-4': { input: 3.0, output: 15.0 },
+      'claude-opus-4-5': { input: 5.0, output: 25.0 },
       'claude-3-haiku': { input: 0.25, output: 1.25 },
       default: { input: 1.0, output: 2.0 },
     };
@@ -673,7 +784,84 @@ export class CascadeChatModel extends BaseChatModel {
 
       if (hasToolCalls) {
         const toolCallsCount = this.getToolCallsCount(drafterMessage);
-        const toolLog = `   🔧 Tool calls detected (${toolCallsCount}) - bypassing quality check\n`;
+
+        // Step 5a: Validate tool calls if validation is enabled
+        const toolValidation = this.validateToolCallsQuality(drafterMessage);
+        if (toolValidation && !toolValidation.valid) {
+          const validationLog = `   🔧 Tool calls detected (${toolCallsCount}) - validation FAILED (score: ${toolValidation.score.toFixed(2)})\n   Errors: ${toolValidation.errors.join(', ')}\n   Escalating to verifier for tool calls...\n`;
+          await runManager?.handleText(validationLog);
+          console.log(validationLog);
+
+          // Escalate to verifier for tool call generation
+          const verifierModel = await this.getVerifierModel();
+          const verifierInfo = this.getModelInfo(verifierModel);
+          const verifierStartTime = Date.now();
+          const verifierMessage = await verifierModel.invoke(messages, options);
+          const verifierLatency = Date.now() - verifierStartTime;
+
+          this.verifierCount++;
+
+          const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+          const drafterCost = await this.calculateMessageCost(drafterMessage, modelToUse);
+          const totalCost = drafterCost + verifierCost;
+
+          const flowLog = `
+┌──────────────────────────────────────────────────┐
+│  🔧 FLOW: TOOL CALLS ESCALATED (VALIDATION FAIL)│
+└──────────────────────────────────────────────────┘
+   Query → ${modelType} → Tool Validation ❌ → Verifier → Response
+   Tool validation score: ${toolValidation.score.toFixed(2)}
+   Model used: ${verifierInfo}
+   Latency: ${drafterLatency + verifierLatency}ms
+   💰 Cost: $${totalCost.toFixed(6)}
+   📊 Stats: ${this.drafterCount} drafter, ${this.verifierCount} verifier
+`;
+
+          await runManager?.handleText(flowLog);
+          console.log(flowLog);
+
+          if (!verifierMessage.response_metadata) {
+            (verifierMessage as any).response_metadata = {};
+          }
+          (verifierMessage as any).response_metadata.cascadeflow = {
+            flow: 'tool_calls_escalated',
+            has_tool_calls: true,
+            tool_calls_count: toolCallsCount,
+            tool_validation_score: toolValidation.score,
+            tool_validation_errors: toolValidation.errors,
+            domain: detectedDomain,
+            latency_ms: drafterLatency + verifierLatency,
+            model_used: 'verifier',
+          };
+          const costBreakdown = {
+            drafter: drafterCost,
+            verifier: verifierCost,
+            total: totalCost,
+            ...(detectedDomain ? { domain: drafterCost } : {}),
+          };
+          this.attachCascadeMetadata(
+            verifierMessage,
+            buildCascadeMetadata({
+              modelUsed: 'verifier',
+              domain: detectedDomain,
+              costs: costBreakdown,
+              baselineCost: totalCost,
+            })
+          );
+
+          return {
+            generations: [{
+              text: verifierMessage.content.toString(),
+              message: verifierMessage,
+            }],
+          };
+        }
+
+        // Step 5b: Tool calls passed validation (or validation disabled) - direct pass
+        const validationNote = toolValidation
+          ? ` - validation passed (score: ${toolValidation.score.toFixed(2)})`
+          : ' - bypassing quality check';
+        const toolLog = `   🔧 Tool calls detected (${toolCallsCount})${validationNote}\n`;
         await runManager?.handleText(toolLog);
         console.log(toolLog);
 
@@ -699,6 +887,7 @@ export class CascadeChatModel extends BaseChatModel {
           flow: 'tool_calls_direct',
           has_tool_calls: true,
           tool_calls_count: toolCallsCount,
+          tool_validation_score: toolValidation?.score,
           domain: detectedDomain,
           latency_ms: drafterLatency,
           model_used: modelType
@@ -835,24 +1024,39 @@ export class CascadeChatModel extends BaseChatModel {
         };
       }
 
-      // Step 8: Otherwise, escalate to verifier
+      // Step 8: Otherwise, escalate to verifier (domain-specific if available)
+      let escalationVerifier: BaseChatModel;
+      let escalationVerifierLabel = 'verifier';
+
+      if (detectedDomain) {
+        const domainVerifier = await this.getDomainVerifier(detectedDomain);
+        if (domainVerifier) {
+          escalationVerifier = domainVerifier;
+          escalationVerifierLabel = `domain_verifier:${detectedDomain}`;
+        } else {
+          escalationVerifier = await this.getVerifierModel();
+        }
+      } else {
+        escalationVerifier = await this.getVerifierModel();
+      }
+
       const escalateLog = `
 ┌────────────────────────────────────────────────┐
 │  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │
 └────────────────────────────────────────────────┘
-   Query → ${detectedDomain ? `Domain(${detectedDomain}) → ` : ''}${modelType} → Quality Check ❌ → Verifier → Response
-   🔄 Escalating: ${modelType} quality too low, using verifier
+   Query → ${detectedDomain ? `Domain(${detectedDomain}) → ` : ''}${modelType} → Quality Check ❌ → ${escalationVerifierLabel} → Response
+   🔄 Escalating: ${modelType} quality too low, using ${escalationVerifierLabel}
    Confidence: ${validationResult.confidence.toFixed(2)} < ${effectiveThreshold} (threshold)
    Reason: ${validationResult.reason}
    ${modelType} latency: ${drafterLatency}ms
-   🔄 Loading verifier model...
+   🔄 Loading ${escalationVerifierLabel} model...
 `;
 
       await runManager?.handleText(escalateLog);
       console.log(escalateLog);
 
       const verifierStartTime = Date.now();
-      const verifierModel = await this.getVerifierModel();
+      const verifierModel = escalationVerifier;
       const verifierInfo = this.getModelInfo(verifierModel);
       const verifierMessage = await verifierModel.invoke(messages, options);
       const verifierLatency = Date.now() - verifierStartTime;
@@ -888,7 +1092,7 @@ export class CascadeChatModel extends BaseChatModel {
         verifier_latency_ms: verifierLatency,
         total_latency_ms: totalLatency,
         cost_usd: totalCost,
-        model_used: 'verifier',
+        model_used: escalationVerifierLabel,
         reason: validationResult.reason
       };
       const costBreakdown = {
@@ -900,7 +1104,7 @@ export class CascadeChatModel extends BaseChatModel {
       this.attachCascadeMetadata(
         verifierMessage,
         buildCascadeMetadata({
-          modelUsed: 'verifier',
+          modelUsed: escalationVerifierLabel,
           domain: detectedDomain,
           confidence: validationResult.confidence,
           costs: costBreakdown,
@@ -1168,14 +1372,26 @@ function generateDomainProperties(): any[] {
     value: value,
     description: DOMAIN_DESCRIPTIONS[value],
   }));
-  const domainToggleProperties = DOMAIN_UI_CONFIGS.map(({ domain, toggleName }) => ({
-    displayName: `Enable ${DOMAIN_DISPLAY_NAMES[domain]} Domain`,
-    name: toggleName,
-    type: 'boolean',
-    default: false,
-    displayOptions: { show: { enableDomainRouting: [true] } },
-    description: `Whether to enable ${DOMAIN_DESCRIPTIONS[domain]}. When enabled, adds a "${DOMAIN_DISPLAY_NAMES[domain]} Model" input port.`,
-  }));
+  const domainToggleProperties: any[] = [];
+  for (const { domain, toggleName, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+    const displayName = DOMAIN_DISPLAY_NAMES[domain];
+    domainToggleProperties.push({
+      displayName: `Enable ${displayName} Domain`,
+      name: toggleName,
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: `Whether to enable ${DOMAIN_DESCRIPTIONS[domain]}. When enabled, adds a "${displayName}" input port.`,
+    });
+    domainToggleProperties.push({
+      displayName: `Use ${displayName} Verifier`,
+      name: verifierToggleName,
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true], [toggleName]: [true] } },
+      description: `Whether to use a domain-specific verifier instead of the default verifier for ${displayName} queries`,
+    });
+  }
 
   return [
     {
@@ -1271,71 +1487,37 @@ export class LmChatCascadeFlow implements INodeType {
     },
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: `={{ ((params) => {
-      // Always include Verifier and Drafter
       const inputs = [
-        {
-          displayName: 'Verifier',
-          type: 'ai_languageModel',
-          maxConnections: 1,
-          required: true,
-        },
-        {
-          displayName: 'Drafter',
-          type: 'ai_languageModel',
-          maxConnections: 1,
-          required: true,
-        },
+        { displayName: 'Verifier', type: 'ai_languageModel', maxConnections: 1, required: true },
+        { displayName: 'Drafter', type: 'ai_languageModel', maxConnections: 1, required: true },
       ];
 
-      // Add domain model inputs based on individual toggles
       if (params?.enableDomainRouting) {
-        if (params?.enableCodeDomain) {
-          inputs.push({ displayName: 'Code', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableDataDomain) {
-          inputs.push({ displayName: 'Data Analysis', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableStructuredDomain) {
-          inputs.push({ displayName: 'Structured Output', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableRagDomain) {
-          inputs.push({ displayName: 'RAG (Retrieval)', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableConversationDomain) {
-          inputs.push({ displayName: 'Conversation', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableToolDomain) {
-          inputs.push({ displayName: 'Tool Calling', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableCreativeDomain) {
-          inputs.push({ displayName: 'Creative', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableSummaryDomain) {
-          inputs.push({ displayName: 'Summary', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableTranslationDomain) {
-          inputs.push({ displayName: 'Translation', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableMathDomain) {
-          inputs.push({ displayName: 'Math', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableScienceDomain) {
-          inputs.push({ displayName: 'Science', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableMedicalDomain) {
-          inputs.push({ displayName: 'Medical', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableLegalDomain) {
-          inputs.push({ displayName: 'Legal', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableFinancialDomain) {
-          inputs.push({ displayName: 'Financial', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableMultimodalDomain) {
-          inputs.push({ displayName: 'Multimodal', type: 'ai_languageModel', maxConnections: 1, required: false });
-        }
-        if (params?.enableGeneralDomain) {
-          inputs.push({ displayName: 'General', type: 'ai_languageModel', maxConnections: 1, required: false });
+        const domains = [
+          { toggle: 'enableCodeDomain', label: 'Code', verifier: 'useCodeDomainVerifier' },
+          { toggle: 'enableDataDomain', label: 'Data Analysis', verifier: 'useDataDomainVerifier' },
+          { toggle: 'enableStructuredDomain', label: 'Structured Output', verifier: 'useStructuredDomainVerifier' },
+          { toggle: 'enableRagDomain', label: 'RAG (Retrieval)', verifier: 'useRagDomainVerifier' },
+          { toggle: 'enableConversationDomain', label: 'Conversation', verifier: 'useConversationDomainVerifier' },
+          { toggle: 'enableToolDomain', label: 'Tool Calling', verifier: 'useToolDomainVerifier' },
+          { toggle: 'enableCreativeDomain', label: 'Creative', verifier: 'useCreativeDomainVerifier' },
+          { toggle: 'enableSummaryDomain', label: 'Summary', verifier: 'useSummaryDomainVerifier' },
+          { toggle: 'enableTranslationDomain', label: 'Translation', verifier: 'useTranslationDomainVerifier' },
+          { toggle: 'enableMathDomain', label: 'Math', verifier: 'useMathDomainVerifier' },
+          { toggle: 'enableScienceDomain', label: 'Science', verifier: 'useScienceDomainVerifier' },
+          { toggle: 'enableMedicalDomain', label: 'Medical', verifier: 'useMedicalDomainVerifier' },
+          { toggle: 'enableLegalDomain', label: 'Legal', verifier: 'useLegalDomainVerifier' },
+          { toggle: 'enableFinancialDomain', label: 'Financial', verifier: 'useFinancialDomainVerifier' },
+          { toggle: 'enableMultimodalDomain', label: 'Multimodal', verifier: 'useMultimodalDomainVerifier' },
+          { toggle: 'enableGeneralDomain', label: 'General', verifier: 'useGeneralDomainVerifier' },
+        ];
+        for (const d of domains) {
+          if (params?.[d.toggle]) {
+            inputs.push({ displayName: d.label, type: 'ai_languageModel', maxConnections: 1, required: false });
+            if (params?.[d.verifier]) {
+              inputs.push({ displayName: d.label + ' Verifier', type: 'ai_languageModel', maxConnections: 1, required: false });
+            }
+          }
         }
       }
 
@@ -1443,6 +1625,13 @@ export class LmChatCascadeFlow implements INodeType {
         default: true,
         description: 'Whether to route queries directly to the verifier based on detected complexity',
       },
+      {
+        displayName: 'Enable Tool Call Validation',
+        name: 'enableToolCallValidation',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to validate drafter tool calls (JSON syntax, schema, safety) before accepting them. When validation fails, tool calls are escalated to the verifier.',
+      },
       // Domain routing settings
       ...generateDomainProperties(),
     ],
@@ -1464,6 +1653,9 @@ export class LmChatCascadeFlow implements INodeType {
           expert: this.getNodeParameter('expertThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.expert) as number,
         }
       : undefined;
+
+    // Get tool call validation parameter
+    const enableToolCallValidation = this.getNodeParameter('enableToolCallValidation', 0, false) as boolean;
 
     // Get domain routing parameters
     const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
@@ -1523,27 +1715,37 @@ export class LmChatCascadeFlow implements INodeType {
     };
 
     // Dynamic domain input indices based on which domains are enabled
-    // Inputs: 0=Verifier, 1=Drafter, then domain models in order they appear in enabledDomains
-    const domainInputMap = new Map<DomainType, number>();
-    enabledDomains.forEach((domain, index) => {
-      domainInputMap.set(domain, 2 + index); // Start at index 2 (after Verifier and Drafter)
-    });
-
-    // Create domain model getters for enabled domains
+    // Inputs: 0=Verifier, 1=Drafter, then domain models/verifiers in order
+    // Each enabled domain takes 1 port (drafter), plus 1 more if domain verifier is enabled
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
+    const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
 
-    for (const domain of enabledDomains) {
-      const domainIndex = domainInputMap.get(domain);
-      if (domainIndex !== undefined) {
-        domainModelGetters.set(domain, async () => {
+    let nextPortIndex = 2; // After Verifier (0) and Drafter (1)
+    for (const { domain, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+      if (!enabledDomains.includes(domain)) continue;
+
+      const drafterIndex = nextPortIndex++;
+      domainModelGetters.set(domain, async () => {
+        try {
+          const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
+          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+          return model || undefined;
+        } catch {
+          return undefined;
+        }
+      });
+
+      const useDomainVerifier = this.getNodeParameter(verifierToggleName, 0, false) as boolean;
+      if (useDomainVerifier) {
+        const verifierIndex = nextPortIndex++;
+        domainVerifierGetters.set(domain, async () => {
           try {
-            const domainData = await this.getInputConnectionData('ai_languageModel' as any, domainIndex);
-            const domainModel = (Array.isArray(domainData) ? domainData[0] : domainData) as BaseChatModel;
-            return domainModel || undefined;
+            const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
+            const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+            return model || undefined;
           } catch {
             return undefined;
           }
-          return undefined;
         });
       }
     }
@@ -1557,9 +1759,13 @@ export class LmChatCascadeFlow implements INodeType {
     console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
     console.log(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
     console.log(`   Complexity thresholds: ${useComplexityThresholds ? 'enabled' : 'disabled'}`);
+    console.log(`   Tool call validation: ${enableToolCallValidation ? 'enabled' : 'disabled'}`);
     console.log(`   Domain routing: ${enableDomainRouting ? 'enabled' : 'disabled'}`);
     if (enabledDomains.length > 0) {
       console.log(`   Enabled domains: ${enabledDomains.join(', ')}`);
+      if (domainVerifierGetters.size > 0) {
+        console.log(`   Domain verifiers: ${Array.from(domainVerifierGetters.keys()).join(', ')}`);
+      }
     }
     if (useComplexityThresholds && confidenceThresholds) {
       console.log(`   Thresholds: ${JSON.stringify(confidenceThresholds)}`);
@@ -1578,7 +1784,9 @@ export class LmChatCascadeFlow implements INodeType {
       enabledDomains,
       domainModelGetters,
       domainConfigs,
-      confidenceThresholds
+      confidenceThresholds,
+      enableToolCallValidation,
+      domainVerifierGetters,
     );
 
     return {
