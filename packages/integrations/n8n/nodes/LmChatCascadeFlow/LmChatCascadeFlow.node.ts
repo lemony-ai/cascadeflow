@@ -1373,7 +1373,7 @@ function generateDomainProperties(): any[] {
     description: DOMAIN_DESCRIPTIONS[value],
   }));
   const domainToggleProperties: any[] = [];
-  for (const { domain, toggleName, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+  for (const { domain, toggleName } of DOMAIN_UI_CONFIGS) {
     const displayName = DOMAIN_DISPLAY_NAMES[domain];
     domainToggleProperties.push({
       displayName: `Enable ${displayName} Domain`,
@@ -1382,14 +1382,6 @@ function generateDomainProperties(): any[] {
       default: false,
       displayOptions: { show: { enableDomainRouting: [true] } },
       description: `Whether to enable ${DOMAIN_DESCRIPTIONS[domain]}. When enabled, adds a "${displayName}" input port.`,
-    });
-    domainToggleProperties.push({
-      displayName: `Use ${displayName} Verifier`,
-      name: verifierToggleName,
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true], [toggleName]: [true] } },
-      description: `Whether to use a domain-specific verifier instead of the default verifier for ${displayName} queries`,
     });
   }
 
@@ -1403,6 +1395,14 @@ function generateDomainProperties(): any[] {
     },
     // Individual domain toggles - each one adds its own model input port
     ...domainToggleProperties,
+    {
+      displayName: 'Enable Domain Verifiers',
+      name: 'enableDomainVerifiers',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to add a domain-specific verifier port for each enabled domain. Connect a model to override the global verifier for that domain.',
+    },
     {
       displayName: 'Domain-Specific Settings',
       name: 'domainSettings',
@@ -1493,29 +1493,30 @@ export class LmChatCascadeFlow implements INodeType {
       ];
 
       if (params?.enableDomainRouting) {
+        const dv = !!params?.enableDomainVerifiers;
         const domains = [
-          { toggle: 'enableCodeDomain', label: 'Code', verifier: 'useCodeDomainVerifier' },
-          { toggle: 'enableDataDomain', label: 'Data Analysis', verifier: 'useDataDomainVerifier' },
-          { toggle: 'enableStructuredDomain', label: 'Structured Output', verifier: 'useStructuredDomainVerifier' },
-          { toggle: 'enableRagDomain', label: 'RAG (Retrieval)', verifier: 'useRagDomainVerifier' },
-          { toggle: 'enableConversationDomain', label: 'Conversation', verifier: 'useConversationDomainVerifier' },
-          { toggle: 'enableToolDomain', label: 'Tool Calling', verifier: 'useToolDomainVerifier' },
-          { toggle: 'enableCreativeDomain', label: 'Creative', verifier: 'useCreativeDomainVerifier' },
-          { toggle: 'enableSummaryDomain', label: 'Summary', verifier: 'useSummaryDomainVerifier' },
-          { toggle: 'enableTranslationDomain', label: 'Translation', verifier: 'useTranslationDomainVerifier' },
-          { toggle: 'enableMathDomain', label: 'Math', verifier: 'useMathDomainVerifier' },
-          { toggle: 'enableScienceDomain', label: 'Science', verifier: 'useScienceDomainVerifier' },
-          { toggle: 'enableMedicalDomain', label: 'Medical', verifier: 'useMedicalDomainVerifier' },
-          { toggle: 'enableLegalDomain', label: 'Legal', verifier: 'useLegalDomainVerifier' },
-          { toggle: 'enableFinancialDomain', label: 'Financial', verifier: 'useFinancialDomainVerifier' },
-          { toggle: 'enableMultimodalDomain', label: 'Multimodal', verifier: 'useMultimodalDomainVerifier' },
-          { toggle: 'enableGeneralDomain', label: 'General', verifier: 'useGeneralDomainVerifier' },
+          { t: 'enableCodeDomain', l: 'Code' },
+          { t: 'enableDataDomain', l: 'Data' },
+          { t: 'enableStructuredDomain', l: 'Struct.' },
+          { t: 'enableRagDomain', l: 'RAG' },
+          { t: 'enableConversationDomain', l: 'Conv.' },
+          { t: 'enableToolDomain', l: 'Tool' },
+          { t: 'enableCreativeDomain', l: 'Creative' },
+          { t: 'enableSummaryDomain', l: 'Summary' },
+          { t: 'enableTranslationDomain', l: 'Transl.' },
+          { t: 'enableMathDomain', l: 'Math' },
+          { t: 'enableScienceDomain', l: 'Science' },
+          { t: 'enableMedicalDomain', l: 'Medical' },
+          { t: 'enableLegalDomain', l: 'Legal' },
+          { t: 'enableFinancialDomain', l: 'Finance' },
+          { t: 'enableMultimodalDomain', l: 'Multi.' },
+          { t: 'enableGeneralDomain', l: 'General' },
         ];
         for (const d of domains) {
-          if (params?.[d.toggle]) {
-            inputs.push({ displayName: d.label, type: 'ai_languageModel', maxConnections: 1, required: false });
-            if (params?.[d.verifier]) {
-              inputs.push({ displayName: d.label + ' Verifier', type: 'ai_languageModel', maxConnections: 1, required: false });
+          if (params?.[d.t]) {
+            inputs.push({ displayName: d.l, type: 'ai_languageModel', maxConnections: 1, required: false });
+            if (dv) {
+              inputs.push({ displayName: d.l + ' V.', type: 'ai_languageModel', maxConnections: 1, required: false });
             }
           }
         }
@@ -1717,15 +1718,15 @@ export class LmChatCascadeFlow implements INodeType {
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
     const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
 
+    const enableDomainVerifiers = this.getNodeParameter('enableDomainVerifiers', 0, false) as boolean;
     let nextModelIndex = 2; // After Verifier (0) and Drafter (1)
-    for (const { domain, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+    for (const { domain } of DOMAIN_UI_CONFIGS) {
       if (!enabledDomains.includes(domain)) continue;
 
       const model = allModels[nextModelIndex++] as BaseChatModel | undefined;
       domainModelGetters.set(domain, async () => model || undefined);
 
-      const useDomainVerifier = this.getNodeParameter(verifierToggleName, 0, false) as boolean;
-      if (useDomainVerifier) {
+      if (enableDomainVerifiers) {
         const verifierModel = allModels[nextModelIndex++] as BaseChatModel | undefined;
         domainVerifierGetters.set(domain, async () => verifierModel || undefined);
       }
@@ -1744,9 +1745,7 @@ export class LmChatCascadeFlow implements INodeType {
     console.log(`   Domain routing: ${enableDomainRouting ? 'enabled' : 'disabled'}`);
     if (enabledDomains.length > 0) {
       console.log(`   Enabled domains: ${enabledDomains.join(', ')}`);
-      if (domainVerifierGetters.size > 0) {
-        console.log(`   Domain verifiers: ${Array.from(domainVerifierGetters.keys()).join(', ')}`);
-      }
+      console.log(`   Domain verifiers: ${enableDomainVerifiers ? 'enabled' : 'disabled'}`);
     }
     if (useComplexityThresholds && confidenceThresholds) {
       console.log(`   Thresholds: ${JSON.stringify(confidenceThresholds)}`);
