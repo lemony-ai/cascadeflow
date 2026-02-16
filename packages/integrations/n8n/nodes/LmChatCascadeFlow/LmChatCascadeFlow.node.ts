@@ -1684,20 +1684,18 @@ export class LmChatCascadeFlow implements INodeType {
       }
     }
 
-    // Eagerly resolve drafter model (index 1) — triggers n8n visual highlighting
-    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
-    const resolvedDrafter = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
-    if (!resolvedDrafter) {
-      throw new NodeOperationError(
-        this.getNode(),
-        'Drafter model is required. Please connect your DRAFTER model to the BOTTOM port (labeled "Drafter").'
-      );
-    }
-    const drafterModelGetter = async () => resolvedDrafter;
+    // Resolve ALL connected language models in a single getInputConnectionData call.
+    // n8n resolves ALL sub-nodes of the given connectionType (the 2nd param is a
+    // data-item index, NOT a port selector). The returned array is in reversed slot
+    // order due to internal unshift, so we reverse it back. This matches the
+    // built-in AI Agent node pattern (getChatModel in ToolsAgent/common.ts).
+    const allModelData = await this.getInputConnectionData('ai_languageModel' as any, 0);
+    const allModels = Array.isArray(allModelData)
+      ? ([...allModelData].reverse() as BaseChatModel[])
+      : [allModelData as BaseChatModel];
 
-    // Eagerly resolve verifier model (index 0) — triggers n8n visual highlighting
-    const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
-    const resolvedVerifier = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
+    // Port order after reverse: 0=Verifier, 1=Drafter, 2+=domain models/verifiers
+    const resolvedVerifier = allModels[0];
     if (!resolvedVerifier) {
       throw new NodeOperationError(
         this.getNode(),
@@ -1706,35 +1704,30 @@ export class LmChatCascadeFlow implements INodeType {
     }
     const verifierModelGetter = async () => resolvedVerifier;
 
-    // Eagerly resolve domain models — triggers n8n visual highlighting for each
+    const resolvedDrafter = allModels[1];
+    if (!resolvedDrafter) {
+      throw new NodeOperationError(
+        this.getNode(),
+        'Drafter model is required. Please connect your DRAFTER model to the BOTTOM port (labeled "Drafter").'
+      );
+    }
+    const drafterModelGetter = async () => resolvedDrafter;
+
+    // Domain models and domain verifiers occupy indices 2+ in slot definition order
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
     const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
 
-    let nextPortIndex = 2; // After Verifier (0) and Drafter (1)
+    let nextModelIndex = 2; // After Verifier (0) and Drafter (1)
     for (const { domain, verifierToggleName } of DOMAIN_UI_CONFIGS) {
       if (!enabledDomains.includes(domain)) continue;
 
-      const drafterIndex = nextPortIndex++;
-      try {
-        const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
-        const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-        const resolvedModel = model || undefined;
-        domainModelGetters.set(domain, async () => resolvedModel);
-      } catch {
-        domainModelGetters.set(domain, async () => undefined);
-      }
+      const model = allModels[nextModelIndex++] as BaseChatModel | undefined;
+      domainModelGetters.set(domain, async () => model || undefined);
 
       const useDomainVerifier = this.getNodeParameter(verifierToggleName, 0, false) as boolean;
       if (useDomainVerifier) {
-        const verifierIndex = nextPortIndex++;
-        try {
-          const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
-          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-          const resolvedModel = model || undefined;
-          domainVerifierGetters.set(domain, async () => resolvedModel);
-        } catch {
-          domainVerifierGetters.set(domain, async () => undefined);
-        }
+        const verifierModel = allModels[nextModelIndex++] as BaseChatModel | undefined;
+        domainVerifierGetters.set(domain, async () => verifierModel || undefined);
       }
     }
 
