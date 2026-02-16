@@ -80,6 +80,7 @@ export interface ReportProxyUsageInput {
 
 export interface PaygenticReporterConfig {
   quantityMode?: PaygenticQuantityMode;
+  costScale?: number;
   failOpen?: boolean;
 }
 
@@ -350,11 +351,16 @@ export class PaygenticClient {
 export class PaygenticUsageReporter {
   private readonly client: PaygenticClient;
   private readonly quantityMode: PaygenticQuantityMode;
+  private readonly costScale: number;
   private readonly failOpen: boolean;
 
   constructor(client: PaygenticClient, config: PaygenticReporterConfig = {}) {
     this.client = client;
     this.quantityMode = config.quantityMode ?? 'tokens';
+    this.costScale = config.costScale ?? 1_000_000;
+    if (!Number.isFinite(this.costScale) || this.costScale <= 0) {
+      throw new Error('costScale must be a positive number');
+    }
     this.failOpen = config.failOpen ?? true;
   }
 
@@ -375,11 +381,13 @@ export class PaygenticUsageReporter {
 
     if (this.quantityMode === 'tokens') {
       const tokens = this.totalTokens(result.usage);
-      return tokens > 0 ? tokens : null;
+      const quantity = Math.round(tokens);
+      return quantity > 0 ? quantity : null;
     }
 
     const cost = result.cost ?? 0;
-    return cost > 0 ? cost : null;
+    const scaledCost = Math.round(cost * this.costScale);
+    return scaledCost > 0 ? scaledCost : null;
   }
 
   public buildUsageEvent(input: ReportProxyUsageInput): PaygenticUsageEventInput | null {
@@ -403,6 +411,10 @@ export class PaygenticUsageReporter {
       total_tokens: this.totalTokens(usage),
       ...(input.metadata ?? {}),
     };
+    if (this.quantityMode === 'cost_usd') {
+      metadata.cost_scale = this.costScale;
+      metadata.cost_usd_raw = input.result.cost;
+    }
 
     return {
       customerId: input.customerId,

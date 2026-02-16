@@ -93,4 +93,34 @@ describe('@cascadeflow/paygentic', () => {
 
     expect(result).toBeNull();
   });
+
+  it('scales cost_usd mode into integer quantity', async () => {
+    const client = {
+      createIdempotencyKey: vi.fn(() => 'idem_cost'),
+      createUsageEvent: vi.fn(async () => ({ eventId: 'evt_cost' })),
+    } as unknown as PaygenticClient;
+
+    const reporter = new PaygenticUsageReporter(client, {
+      quantityMode: 'cost_usd',
+      costScale: 1_000_000,
+      failOpen: false,
+    });
+
+    const response = await reporter.reportProxyUsage({
+      customerId: 'cust_cost',
+      requestId: 'req_cost',
+      result: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        cost: 0.00123,
+        usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+      },
+    });
+
+    expect(response).toEqual({ eventId: 'evt_cost' });
+    const payload = (client.createUsageEvent as any).mock.calls[0][0];
+    expect(payload.quantity).toBe(1230);
+    expect(payload.metadata.cost_scale).toBe(1_000_000);
+    expect(payload.metadata.cost_usd_raw).toBe(0.00123);
+  });
 });

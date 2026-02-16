@@ -552,29 +552,35 @@ class PaygenticUsageReporter:
         client: PaygenticClient,
         *,
         quantity_mode: str = "tokens",
+        cost_scale: int = 1_000_000,
         customer_header: str = "x-cascadeflow-customer-id",
         request_id_header: str = "x-request-id",
     ) -> None:
         if quantity_mode not in {"tokens", "cost_usd", "requests"}:
             raise ValueError("quantity_mode must be one of: tokens, cost_usd, requests")
+        if cost_scale <= 0:
+            raise ValueError("cost_scale must be a positive integer")
         self.client = client
         self.quantity_mode = quantity_mode
+        self.cost_scale = int(cost_scale)
         self.customer_header = customer_header.lower()
         self.request_id_header = request_id_header.lower()
 
-    def _extract_quantity(self, result: ProxyResult) -> float | None:
+    def _extract_quantity(self, result: ProxyResult) -> int | None:
         if self.quantity_mode == "requests":
-            return 1.0
+            return 1
 
         if self.quantity_mode == "tokens":
             usage = getattr(result, "usage", None)
             if not usage:
                 return None
             tokens = float(getattr(usage, "total_tokens", 0) or 0)
-            return tokens if tokens > 0 else None
+            quantity = int(round(tokens))
+            return quantity if quantity > 0 else None
 
         cost = float(getattr(result, "cost", 0) or 0)
-        return cost if cost > 0 else None
+        scaled_cost = int(round(cost * self.cost_scale))
+        return scaled_cost if scaled_cost > 0 else None
 
     def _build_metadata(
         self,
@@ -594,6 +600,9 @@ class PaygenticUsageReporter:
             metadata["input_tokens"] = getattr(usage, "input_tokens", None)
             metadata["output_tokens"] = getattr(usage, "output_tokens", None)
             metadata["total_tokens"] = getattr(usage, "total_tokens", None)
+        if self.quantity_mode == "cost_usd":
+            metadata["cost_scale"] = self.cost_scale
+            metadata["cost_usd_raw"] = getattr(result, "cost", None)
 
         if extra_metadata:
             metadata.update(extra_metadata)

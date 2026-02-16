@@ -30,6 +30,7 @@ const paygentic = new PaygenticClient({
 
 const reporter = new PaygenticUsageReporter(paygentic, {
   quantityMode: 'tokens', // 'tokens' | 'cost_usd' | 'requests'
+  // costScale: 1_000_000, // only used for cost_usd mode
 });
 
 await reporter.reportProxyUsage({
@@ -65,7 +66,11 @@ config = PaygenticConfig(
 )
 
 client = PaygenticClient(config)
-reporter = PaygenticUsageReporter(client, quantity_mode="tokens")
+reporter = PaygenticUsageReporter(
+    client,
+    quantity_mode="tokens",
+    # cost_scale=1_000_000,  # only used for cost_usd mode
+)
 
 # Example with a proxy-style result object
 await reporter.report_proxy_result(
@@ -108,8 +113,11 @@ For customer creation, include `name` and an `address` object with at least:
 Choose what your meter tracks:
 
 - `tokens`: total tokens per request
-- `cost_usd`: request cost value
+- `cost_usd`: request cost scaled into integer units (default scale: `1_000_000`)
 - `requests`: one unit per completed request
+
+Paygentic validates `quantity` as an integer. For `cost_usd`, cascadeflow scales the USD
+cost into integer units before sending.
 
 ## Proxy Wrapping (Python)
 

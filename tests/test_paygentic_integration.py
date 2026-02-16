@@ -134,9 +134,50 @@ async def test_usage_reporter_maps_proxy_result_to_usage_event() -> None:
     body = captured["body"]
     assert isinstance(body, dict)
     assert body["customerId"] == "cust_42"
-    assert body["properties"][0]["quantity"] == 150.0
+    assert body["properties"][0]["quantity"] == 150
     assert body["metadata"]["tenant"] == "team-a"
     assert body["metadata"]["quantity_mode"] == "tokens"
+
+    await async_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_usage_reporter_cost_mode_scales_to_integer_quantity() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"eventId": "evt_cost"})
+
+    async_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    paygentic = PaygenticClient(_config(), async_client=async_client)
+    reporter = PaygenticUsageReporter(paygentic, quantity_mode="cost_usd", cost_scale=1_000_000)
+
+    result = ProxyResult(
+        status_code=200,
+        headers={},
+        data={"ok": True},
+        provider="openai",
+        model="gpt-5-mini",
+        latency_ms=10.0,
+        usage=ProxyUsage(input_tokens=10, output_tokens=10, total_tokens=20),
+        cost=0.00123,
+    )
+
+    response = await reporter.report_proxy_result(
+        result=result,
+        customer_id="cust_cost_1",
+        request_id="req_cost_1",
+        timestamp="2026-02-16T20:00:00Z",
+    )
+
+    assert response == {"eventId": "evt_cost"}
+    body = captured["body"]
+    assert isinstance(body, dict)
+    assert body["properties"][0]["quantity"] == 1230
+    assert body["metadata"]["cost_scale"] == 1_000_000
+    assert body["metadata"]["cost_usd_raw"] == 0.00123
+    assert body["metadata"]["quantity_mode"] == "cost_usd"
 
     await async_client.aclose()
 

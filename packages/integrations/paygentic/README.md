@@ -27,6 +27,7 @@ const paygentic = new PaygenticClient({
 
 const reporter = new PaygenticUsageReporter(paygentic, {
   quantityMode: 'tokens', // 'tokens' | 'cost_usd' | 'requests'
+  // costScale: 1_000_000, // only used for cost_usd mode
 });
 
 await reporter.reportProxyUsage({
@@ -66,3 +67,11 @@ await paygentic.createSubscription({
 ```
 
 See `examples/basic-usage.ts` for a complete flow.
+
+## Quantity Modes
+
+- `tokens`: reports total tokens per request
+- `cost_usd`: reports integer-scaled USD cost (`cost * costScale`, default `1_000_000`)
+- `requests`: reports 1 per completed request
+
+Paygentic validates usage quantity as an integer, so cost reporting is scaled before sending.
