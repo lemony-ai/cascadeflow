@@ -768,39 +768,33 @@ export class CascadeFlowAgent implements INodeType {
       }
     }
 
-    const drafterModelGetter = async () => {
-      const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
-      const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
+    // Eagerly resolve drafter model (index 1) — triggers n8n visual highlighting
+    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
+    const resolvedDrafter = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
+    if (!resolvedDrafter) {
+      throw new NodeOperationError(
+        this.getNode(),
+        'Drafter model is required. Please connect your DRAFTER model to the Drafter port.'
+      );
+    }
+    const drafterModelGetter = async () => resolvedDrafter;
 
-      if (!drafterModel) {
-        throw new NodeOperationError(
-          this.getNode(),
-          'Drafter model is required. Please connect your DRAFTER model to the Drafter port.'
-        );
-      }
-
-      return drafterModel;
-    };
-
-    const verifierModelGetter = async () => {
-      const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
-      const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
-
-      if (!verifierModel) {
-        throw new NodeOperationError(
-          this.getNode(),
-          'Verifier model is required. Please connect your VERIFIER model to the Verifier port.'
-        );
-      }
-
-      return verifierModel;
-    };
+    // Eagerly resolve verifier model (index 0) — triggers n8n visual highlighting
+    const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
+    const resolvedVerifier = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
+    if (!resolvedVerifier) {
+      throw new NodeOperationError(
+        this.getNode(),
+        'Verifier model is required. Please connect your VERIFIER model to the Verifier port.'
+      );
+    }
+    const verifierModelGetter = async () => resolvedVerifier;
 
     // Tools port is always at index 2 (after Verifier and Drafter)
     const toolsData = await this.getInputConnectionData('ai_tool' as any, 2).catch(() => [] as any);
     const tools = (Array.isArray(toolsData) ? toolsData : toolsData ? [toolsData] : []) as ToolLike[];
 
-    // Domain model getters — ports start after the fixed 3 (Verifier, Drafter, Tools)
+    // Eagerly resolve domain models — triggers n8n visual highlighting for each
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
     const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
 
@@ -809,28 +803,26 @@ export class CascadeFlowAgent implements INodeType {
       if (!enabledDomains.includes(domain)) continue;
 
       const drafterIndex = nextPortIndex++;
-      domainModelGetters.set(domain, async () => {
-        try {
-          const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
-          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-          return model || undefined;
-        } catch {
-          return undefined;
-        }
-      });
+      try {
+        const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
+        const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+        const resolvedModel = model || undefined;
+        domainModelGetters.set(domain, async () => resolvedModel);
+      } catch {
+        domainModelGetters.set(domain, async () => undefined);
+      }
 
       const useDomainVerifier = this.getNodeParameter(verifierToggleName, 0, false) as boolean;
       if (useDomainVerifier) {
         const verifierIndex = nextPortIndex++;
-        domainVerifierGetters.set(domain, async () => {
-          try {
-            const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
-            const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-            return model || undefined;
-          } catch {
-            return undefined;
-          }
-        });
+        try {
+          const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
+          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+          const resolvedModel = model || undefined;
+          domainVerifierGetters.set(domain, async () => resolvedModel);
+        } catch {
+          domainVerifierGetters.set(domain, async () => undefined);
+        }
       }
     }
 
