@@ -1684,39 +1684,29 @@ export class LmChatCascadeFlow implements INodeType {
       }
     }
 
-    // Lazy loader for drafter (index 1 - bottom port, labeled "Drafter")
-    const drafterModelGetter = async () => {
-      const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
-      const drafterModel = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
+    // Eagerly resolve drafter model (index 1) — triggers n8n visual highlighting
+    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
+    const resolvedDrafter = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
+    if (!resolvedDrafter) {
+      throw new NodeOperationError(
+        this.getNode(),
+        'Drafter model is required. Please connect your DRAFTER model to the BOTTOM port (labeled "Drafter").'
+      );
+    }
+    const drafterModelGetter = async () => resolvedDrafter;
 
-      if (!drafterModel) {
-        throw new NodeOperationError(
-          this.getNode(),
-          'Drafter model is required. Please connect your DRAFTER model to the BOTTOM port (labeled "Drafter").'
-        );
-      }
+    // Eagerly resolve verifier model (index 0) — triggers n8n visual highlighting
+    const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
+    const resolvedVerifier = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
+    if (!resolvedVerifier) {
+      throw new NodeOperationError(
+        this.getNode(),
+        'Verifier model is required. Please connect your VERIFIER model to the TOP port (labeled "Verifier").'
+      );
+    }
+    const verifierModelGetter = async () => resolvedVerifier;
 
-      return drafterModel;
-    };
-
-    // Create lazy loader for verifier (index 0 - top port, labeled "Verifier")
-    const verifierModelGetter = async () => {
-      const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
-      const verifierModel = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
-
-      if (!verifierModel) {
-        throw new NodeOperationError(
-          this.getNode(),
-          'Verifier model is required. Please connect your VERIFIER model to the TOP port (labeled "Verifier").'
-        );
-      }
-
-      return verifierModel;
-    };
-
-    // Dynamic domain input indices based on which domains are enabled
-    // Inputs: 0=Verifier, 1=Drafter, then domain models/verifiers in order
-    // Each enabled domain takes 1 port (drafter), plus 1 more if domain verifier is enabled
+    // Eagerly resolve domain models — triggers n8n visual highlighting for each
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
     const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
 
@@ -1725,35 +1715,33 @@ export class LmChatCascadeFlow implements INodeType {
       if (!enabledDomains.includes(domain)) continue;
 
       const drafterIndex = nextPortIndex++;
-      domainModelGetters.set(domain, async () => {
-        try {
-          const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
-          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-          return model || undefined;
-        } catch {
-          return undefined;
-        }
-      });
+      try {
+        const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
+        const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+        const resolvedModel = model || undefined;
+        domainModelGetters.set(domain, async () => resolvedModel);
+      } catch {
+        domainModelGetters.set(domain, async () => undefined);
+      }
 
       const useDomainVerifier = this.getNodeParameter(verifierToggleName, 0, false) as boolean;
       if (useDomainVerifier) {
         const verifierIndex = nextPortIndex++;
-        domainVerifierGetters.set(domain, async () => {
-          try {
-            const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
-            const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-            return model || undefined;
-          } catch {
-            return undefined;
-          }
-        });
+        try {
+          const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
+          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+          const resolvedModel = model || undefined;
+          domainVerifierGetters.set(domain, async () => resolvedModel);
+        } catch {
+          domainVerifierGetters.set(domain, async () => undefined);
+        }
       }
     }
 
     console.log('🚀 CascadeFlow v2 initialized');
     console.log(`   PORT MAPPING:`);
-    console.log(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: lazy-loaded`);
-    console.log(`   └─ BOTTOM port (labeled "Drafter") → DRAFTER model: lazy-loaded`);
+    console.log(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: resolved`);
+    console.log(`   └─ BOTTOM port (labeled "Drafter") → DRAFTER model: resolved`);
     console.log(`   Quality threshold: ${qualityThreshold}`);
     console.log(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
     console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
