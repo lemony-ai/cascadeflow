@@ -1389,7 +1389,7 @@ function generateDomainProperties(): any[] {
       type: 'boolean',
       default: false,
       displayOptions: { show: { enableDomainRouting: [true], [toggleName]: [true] } },
-      description: `Use a domain-specific verifier instead of the default verifier for ${displayName} queries`,
+      description: `Whether to use a domain-specific verifier instead of the default verifier for ${displayName} queries`,
     });
   }
 
