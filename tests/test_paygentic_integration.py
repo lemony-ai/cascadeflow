@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import httpx
 import pytest
@@ -218,6 +219,7 @@ async def test_proxy_service_is_fail_open_when_reporting_fails() -> None:
 
     assert result.status_code == 200
     assert result.provider == "openai"
+    await proxy.flush()
 
 
 def test_proxy_service_skips_reporting_when_customer_header_missing() -> None:
@@ -261,3 +263,100 @@ def test_proxy_service_skips_reporting_when_customer_header_missing() -> None:
 
     assert result.status_code == 200
     assert reporter.called is False
+
+
+@pytest.mark.asyncio
+async def test_proxy_service_background_reporting_is_non_blocking_by_default() -> None:
+    class FakeService:
+        async def handle(self, request: ProxyRequest) -> ProxyResult:
+            return ProxyResult(
+                status_code=200,
+                headers={},
+                data={"ok": True},
+                provider="openai",
+                model="gpt-4o-mini",
+                latency_ms=7.0,
+                usage=ProxyUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+                cost=0.0001,
+            )
+
+    class SlowReporter:
+        customer_header = "x-cascadeflow-customer-id"
+        request_id_header = "x-request-id"
+
+        def __init__(self) -> None:
+            self.called = False
+
+        async def report_proxy_result(self, **kwargs):
+            await asyncio.sleep(0.1)
+            self.called = True
+            return {"ok": True}
+
+    import asyncio
+
+    reporter = SlowReporter()
+    proxy = PaygenticProxyService(FakeService(), reporter)
+    request = ProxyRequest(
+        method="POST",
+        path="/v1/chat/completions",
+        headers={"x-cascadeflow-customer-id": "cust-bg", "x-request-id": "req-bg"},
+        body={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}]},
+    )
+
+    start = time.perf_counter()
+    result = await proxy.handle(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    assert result.status_code == 200
+    assert elapsed_ms < 80.0
+    assert reporter.called is False
+
+    await proxy.flush(timeout=2.0)
+    assert reporter.called is True
+
+
+@pytest.mark.asyncio
+async def test_proxy_service_can_run_reporting_in_blocking_mode() -> None:
+    class FakeService:
+        async def handle(self, request: ProxyRequest) -> ProxyResult:
+            return ProxyResult(
+                status_code=200,
+                headers={},
+                data={"ok": True},
+                provider="openai",
+                model="gpt-4o-mini",
+                latency_ms=7.0,
+                usage=ProxyUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+                cost=0.0001,
+            )
+
+    class SlowReporter:
+        customer_header = "x-cascadeflow-customer-id"
+        request_id_header = "x-request-id"
+
+        def __init__(self) -> None:
+            self.called = False
+
+        async def report_proxy_result(self, **kwargs):
+            await asyncio.sleep(0.1)
+            self.called = True
+            return {"ok": True}
+
+    import asyncio
+
+    reporter = SlowReporter()
+    proxy = PaygenticProxyService(FakeService(), reporter, report_in_background=False)
+    request = ProxyRequest(
+        method="POST",
+        path="/v1/chat/completions",
+        headers={"x-cascadeflow-customer-id": "cust-sync", "x-request-id": "req-sync"},
+        body={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}]},
+    )
+
+    start = time.perf_counter()
+    result = await proxy.handle(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    assert result.status_code == 200
+    assert elapsed_ms >= 80.0
+    assert reporter.called is True

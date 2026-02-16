@@ -130,12 +130,17 @@ from cascadeflow.integrations.paygentic import PaygenticProxyService
 billing_proxy = PaygenticProxyService(
     service=proxy_service,
     reporter=reporter,
+    # report_in_background=True is the default and avoids user-facing latency.
+    # Set False if you require synchronous billing write confirmation.
+    report_in_background=True,
 )
 
 result = await billing_proxy.handle(proxy_request)
 ```
 
 The wrapper looks for `x-cascadeflow-customer-id` by default.
+Reporting runs in the background by default, so request latency remains focused on
+model execution rather than billing I/O.
 
 ## Notes
 

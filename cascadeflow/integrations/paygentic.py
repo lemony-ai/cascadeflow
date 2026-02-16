@@ -691,11 +691,41 @@ class PaygenticProxyService:
         *,
         customer_resolver: Callable[[ProxyRequest, ProxyResult], str | None] | None = None,
         request_id_resolver: Callable[[ProxyRequest, ProxyResult], str | None] | None = None,
+        report_in_background: bool = True,
     ) -> None:
         self.service = service
         self.reporter = reporter
         self.customer_resolver = customer_resolver
         self.request_id_resolver = request_id_resolver
+        self.report_in_background = report_in_background
+        self._pending_tasks: set[asyncio.Task[dict[str, Any] | None]] = set()
+
+    def _track_task(self, task: asyncio.Task[dict[str, Any] | None]) -> None:
+        self._pending_tasks.add(task)
+        task.add_done_callback(self._on_task_done)
+
+    def _on_task_done(self, task: asyncio.Task[dict[str, Any] | None]) -> None:
+        self._pending_tasks.discard(task)
+        if task.cancelled():
+            return
+        try:
+            task.result()
+        except Exception as exc:  # pragma: no cover - defensive logging path
+            logger.warning("Paygentic background reporting task failed (ignored): %s", exc)
+
+    async def flush(self, *, timeout: float | None = None) -> None:
+        """Wait for in-flight background reporting tasks.
+
+        This is optional and mainly useful for graceful shutdown and tests.
+        """
+        if not self._pending_tasks:
+            return
+        tasks = tuple(self._pending_tasks)
+        done, pending = await asyncio.wait(tasks, timeout=timeout)
+        self._pending_tasks.difference_update(done)
+        for task in pending:
+            task.cancel()
+            self._pending_tasks.discard(task)
 
     async def handle(self, request: ProxyRequest) -> ProxyResult:
         result = await self.service.handle(request)
@@ -714,11 +744,21 @@ class PaygenticProxyService:
         else:
             request_id = _header_value(request.headers, self.reporter.request_id_header)
 
-        await self.reporter.report_proxy_result(
-            result=result,
-            customer_id=customer_id,
-            request_id=request_id,
-        )
+        if self.report_in_background:
+            task = asyncio.create_task(
+                self.reporter.report_proxy_result(
+                    result=result,
+                    customer_id=customer_id,
+                    request_id=request_id,
+                )
+            )
+            self._track_task(task)
+        else:
+            await self.reporter.report_proxy_result(
+                result=result,
+                customer_id=customer_id,
+                request_id=request_id,
+            )
         return result
 
 
