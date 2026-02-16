@@ -28,6 +28,18 @@ Use cascadeflow as a drop-in backend for Vercel AI SDK UI hooks like `useChat` (
 
 ---
 
+### 💳 Billing & Metering
+
+#### [Paygentic](./paygentic/) - `@cascadeflow/paygentic`
+Optional Paygentic integration for usage metering and billing lifecycle helpers.
+
+- **Install:** `pnpm add @cascadeflow/core @cascadeflow/paygentic`
+- **Features:** Usage event reporting, deterministic idempotency keys, customer/subscription helper APIs
+- **Use Cases:** SaaS billing, usage-based pricing, cost attribution per customer
+- **[Documentation](./paygentic/README.md)**
+
+---
+
 ## Adding a New Integration
 
 We welcome community contributions! Here's how to add a new integration:

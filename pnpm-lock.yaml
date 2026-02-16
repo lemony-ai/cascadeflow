@@ -164,6 +164,25 @@ importers:
         specifier: ^1.0.4
         version: 1.6.1(@types/node@20.19.30)
 
+  packages/integrations/paygentic:
+    dependencies:
+      '@cascadeflow/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.30
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.1
+        version: 1.6.1(@types/node@20.19.30)
+
   packages/integrations/vercel-ai:
     dependencies:
       '@ai-sdk/amazon-bedrock':

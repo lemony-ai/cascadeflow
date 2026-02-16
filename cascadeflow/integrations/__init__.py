@@ -123,6 +123,29 @@ except ImportError:
     OpenClawOpenAIServer = None
     OpenClawOpenAIConfig = None
 
+# Paygentic integration helpers (no external deps beyond core httpx)
+try:
+    from .paygentic import (
+        DEFAULT_PAYGENTIC_LIVE_URL,
+        DEFAULT_PAYGENTIC_SANDBOX_URL,
+        PaygenticAPIError,
+        PaygenticConfig,
+        PaygenticClient,
+        PaygenticUsageReporter,
+        PaygenticProxyService,
+    )
+
+    PAYGENTIC_AVAILABLE = True
+except ImportError:
+    PAYGENTIC_AVAILABLE = False
+    DEFAULT_PAYGENTIC_LIVE_URL = None
+    DEFAULT_PAYGENTIC_SANDBOX_URL = None
+    PaygenticAPIError = None
+    PaygenticConfig = None
+    PaygenticClient = None
+    PaygenticUsageReporter = None
+    PaygenticProxyService = None
+
 __all__ = []
 
 if LITELLM_AVAILABLE:
@@ -186,12 +209,26 @@ if LANGCHAIN_AVAILABLE:
             ]
         )
 
+if PAYGENTIC_AVAILABLE:
+    __all__.extend(
+        [
+            "DEFAULT_PAYGENTIC_LIVE_URL",
+            "DEFAULT_PAYGENTIC_SANDBOX_URL",
+            "PaygenticAPIError",
+            "PaygenticConfig",
+            "PaygenticClient",
+            "PaygenticUsageReporter",
+            "PaygenticProxyService",
+        ]
+    )
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
     "opentelemetry": OPENTELEMETRY_AVAILABLE,
     "langchain": LANGCHAIN_AVAILABLE,
     "openclaw": OPENCLAW_AVAILABLE,
+    "paygentic": PAYGENTIC_AVAILABLE,
 }
 
 
@@ -214,4 +251,5 @@ def get_integration_info():
         "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
         "langchain_available": LANGCHAIN_AVAILABLE,
         "openclaw_available": OPENCLAW_AVAILABLE,
+        "paygentic_available": PAYGENTIC_AVAILABLE,
     }

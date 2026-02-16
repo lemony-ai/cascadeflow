@@ -5,6 +5,7 @@ This directory contains production-ready integration examples for cascadeflow wi
 ## 📋 Table of Contents
 
 - [LiteLLM Integration](#-litellm-integration) - Access 10+ providers with automatic cost tracking
+- [Paygentic Integration](#-paygentic-integration) - Usage event reporting and billing lifecycle helpers
 - [Local Providers](#-local-providers-setup) - Ollama and vLLM configuration examples
 - [OpenTelemetry & Grafana](#-opentelemetry--grafana) - Production observability and metrics
 - [Provider Testing](#-provider-testing) - Validate API keys and provider configuration
@@ -134,6 +135,30 @@ export HF_TOKEN="..."
 - GPT-4o only: $30,000/year
 - With DeepSeek/Gemini cascade: $1,500-$9,000/year
 - **Savings: $21,000-$28,500/year (70-95%)**
+
+---
+
+## 💳 Paygentic Integration
+
+**File:** [`paygentic_usage.py`](paygentic_usage.py)
+
+Opt-in example for reporting cascade usage to Paygentic.
+
+### Quick Start
+
+```bash
+export PAYGENTIC_API_KEY="..."
+export PAYGENTIC_MERCHANT_ID="..."
+export PAYGENTIC_BILLABLE_METRIC_ID="..."
+
+python examples/integrations/paygentic_usage.py
+```
+
+### What It Shows
+
+- Explicit `PaygenticClient` setup (no default auto-enable)
+- Usage event reporting based on proxy-style token/cost output
+- Safe integration behavior: billing instrumentation remains decoupled from core request execution
 
 ---
 
@@ -364,6 +389,7 @@ Cost Calculation Tests
 |------|---------|-------------------|
 | `litellm_providers.py` | Comprehensive LiteLLM demo with 8 examples | No (for cost info) |
 | `litellm_cost_tracking.py` | Cost tracking and provider validation | No (for cost info) |
+| `paygentic_usage.py` | Usage event reporting to Paygentic | Yes |
 | `local_providers_setup.py` | Ollama and vLLM setup guide | No |
 | `opentelemetry_grafana.py` | Production observability example | No |
 | `test_all_providers.py` | API key validation and testing | Optional |
@@ -441,6 +467,7 @@ Always use provider prefixes for LiteLLM:
 
 - **Provider Guide:** [docs/guides/providers.md](../../docs/guides/providers.md)
 - **Cost Tracking:** [docs/guides/cost_tracking.md](../../docs/guides/cost_tracking.md)
+- **Paygentic Guide:** [docs/guides/paygentic_integration.md](../../docs/guides/paygentic_integration.md)
 - **Production Guide:** [docs/guides/production.md](../../docs/guides/production.md)
 
 ---
@@ -448,9 +475,10 @@ Always use provider prefixes for LiteLLM:
 ## 🚀 Next Steps
 
 1. **Try LiteLLM:** `python examples/integrations/litellm_providers.py`
-2. **Setup local providers:** `python examples/integrations/local_providers_setup.py`
-3. **Test your API keys:** `python examples/integrations/test_all_providers.py`
-4. **Add monitoring:** Follow OpenTelemetry section above
+2. **Try Paygentic usage reporting:** `python examples/integrations/paygentic_usage.py`
+3. **Setup local providers:** `python examples/integrations/local_providers_setup.py`
+4. **Test your API keys:** `python examples/integrations/test_all_providers.py`
+5. **Add monitoring:** Follow OpenTelemetry section above
 
 ---
 
