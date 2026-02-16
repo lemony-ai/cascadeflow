@@ -60,23 +60,24 @@ export const DOMAIN_DESCRIPTIONS: Record<DomainType, string> = {
 export const DOMAIN_UI_CONFIGS: Array<{
   domain: DomainType;
   toggleName: string;
+  verifierToggleName: string;
 }> = [
-  { domain: 'code', toggleName: 'enableCodeDomain' },
-  { domain: 'data', toggleName: 'enableDataDomain' },
-  { domain: 'structured', toggleName: 'enableStructuredDomain' },
-  { domain: 'rag', toggleName: 'enableRagDomain' },
-  { domain: 'conversation', toggleName: 'enableConversationDomain' },
-  { domain: 'tool', toggleName: 'enableToolDomain' },
-  { domain: 'creative', toggleName: 'enableCreativeDomain' },
-  { domain: 'summary', toggleName: 'enableSummaryDomain' },
-  { domain: 'translation', toggleName: 'enableTranslationDomain' },
-  { domain: 'math', toggleName: 'enableMathDomain' },
-  { domain: 'science', toggleName: 'enableScienceDomain' },
-  { domain: 'medical', toggleName: 'enableMedicalDomain' },
-  { domain: 'legal', toggleName: 'enableLegalDomain' },
-  { domain: 'financial', toggleName: 'enableFinancialDomain' },
-  { domain: 'multimodal', toggleName: 'enableMultimodalDomain' },
-  { domain: 'general', toggleName: 'enableGeneralDomain' },
+  { domain: 'code', toggleName: 'enableCodeDomain', verifierToggleName: 'useCodeDomainVerifier' },
+  { domain: 'data', toggleName: 'enableDataDomain', verifierToggleName: 'useDataDomainVerifier' },
+  { domain: 'structured', toggleName: 'enableStructuredDomain', verifierToggleName: 'useStructuredDomainVerifier' },
+  { domain: 'rag', toggleName: 'enableRagDomain', verifierToggleName: 'useRagDomainVerifier' },
+  { domain: 'conversation', toggleName: 'enableConversationDomain', verifierToggleName: 'useConversationDomainVerifier' },
+  { domain: 'tool', toggleName: 'enableToolDomain', verifierToggleName: 'useToolDomainVerifier' },
+  { domain: 'creative', toggleName: 'enableCreativeDomain', verifierToggleName: 'useCreativeDomainVerifier' },
+  { domain: 'summary', toggleName: 'enableSummaryDomain', verifierToggleName: 'useSummaryDomainVerifier' },
+  { domain: 'translation', toggleName: 'enableTranslationDomain', verifierToggleName: 'useTranslationDomainVerifier' },
+  { domain: 'math', toggleName: 'enableMathDomain', verifierToggleName: 'useMathDomainVerifier' },
+  { domain: 'science', toggleName: 'enableScienceDomain', verifierToggleName: 'useScienceDomainVerifier' },
+  { domain: 'medical', toggleName: 'enableMedicalDomain', verifierToggleName: 'useMedicalDomainVerifier' },
+  { domain: 'legal', toggleName: 'enableLegalDomain', verifierToggleName: 'useLegalDomainVerifier' },
+  { domain: 'financial', toggleName: 'enableFinancialDomain', verifierToggleName: 'useFinancialDomainVerifier' },
+  { domain: 'multimodal', toggleName: 'enableMultimodalDomain', verifierToggleName: 'useMultimodalDomainVerifier' },
+  { domain: 'general', toggleName: 'enableGeneralDomain', verifierToggleName: 'useGeneralDomainVerifier' },
 ];
 
 export const DEFAULT_COMPLEXITY_THRESHOLDS = {

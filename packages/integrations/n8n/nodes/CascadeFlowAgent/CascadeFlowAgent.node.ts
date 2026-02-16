@@ -12,6 +12,24 @@ import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 
 import { CascadeChatModel } from '../LmChatCascadeFlow/LmChatCascadeFlow.node';
+import {
+  DEFAULT_COMPLEXITY_THRESHOLDS,
+  DOMAIN_DISPLAY_NAMES,
+  DOMAIN_UI_CONFIGS,
+  DOMAINS,
+  DOMAIN_DESCRIPTIONS,
+  type DomainType,
+  getEnabledDomains,
+} from '../LmChatCascadeFlow/config';
+
+// Tool cascade validator - optional import
+let ToolCascadeValidator: any;
+try {
+  const cascadeCore = require('@cascadeflow/core');
+  ToolCascadeValidator = cascadeCore.ToolCascadeValidator;
+} catch (e) {
+  // @cascadeflow/core not available
+}
 
 type ToolRoutingMode = 'cascade' | 'verifier';
 
@@ -37,17 +55,31 @@ export interface ToolLike {
 export class CascadeFlowAgentExecutor {
   private toolMap: Map<string, ToolLike>;
   private routingRules: Map<string, ToolRoutingMode>;
+  private enableToolCascadeValidation: boolean;
+  private toolCascadeValidator: any;
 
   constructor(
     private cascadeModel: CascadeChatModel,
     tools: ToolLike[],
     routingRules: ToolRoutingRule[],
-    private maxIterations: number
+    private maxIterations: number,
+    enableToolCascadeValidation: boolean = false,
   ) {
     this.toolMap = new Map(
       tools.filter((tool) => tool?.name).map((tool) => [tool.name as string, tool])
     );
     this.routingRules = new Map(routingRules.map((rule) => [rule.toolName, rule.routing]));
+
+    this.enableToolCascadeValidation = enableToolCascadeValidation;
+    if (enableToolCascadeValidation && ToolCascadeValidator) {
+      try {
+        this.toolCascadeValidator = new ToolCascadeValidator();
+      } catch {
+        this.toolCascadeValidator = null;
+      }
+    } else {
+      this.toolCascadeValidator = null;
+    }
   }
 
   private normalizeMessages(input: any): BaseMessage[] {
@@ -203,6 +235,32 @@ export class CascadeFlowAgentExecutor {
     return 'cascade';
   }
 
+  /**
+   * Validate tool calls using ToolCascadeValidator.
+   * Returns { valid, score, errors } or null if unavailable.
+   */
+  private validateToolCalls(toolCalls: ToolCallInfo[]): { valid: boolean; score: number; errors: string[] } | null {
+    if (!this.enableToolCascadeValidation || !this.toolCascadeValidator) {
+      return null;
+    }
+
+    try {
+      const normalized = toolCalls.map((tc) => ({
+        id: tc.id,
+        name: tc.name,
+        arguments: tc.args,
+      }));
+      const result = this.toolCascadeValidator.validate(normalized, []);
+      return {
+        valid: result.valid,
+        score: result.score,
+        errors: result.errors || [],
+      };
+    } catch {
+      return null;
+    }
+  }
+
   private buildTraceEntry(message: BaseMessage, toolCalls: ToolCallInfo[] = []) {
     const responseMetadata = (message as any).response_metadata || {};
     const cf = responseMetadata.cf || {};
@@ -236,6 +294,39 @@ export class CascadeFlowAgentExecutor {
       if (toolCalls.length === 0) {
         finalMessage = message;
         break;
+      }
+
+      // Validate tool calls if enabled
+      const validation = this.validateToolCalls(toolCalls);
+      if (validation && !validation.valid) {
+        console.log(`🔧 Agent tool call validation failed (score: ${validation.score.toFixed(2)}), escalating to verifier`);
+        const verifierMessage = await this.cascadeModel.invokeVerifierDirect(currentMessages, options);
+        const verifierToolCalls = this.extractToolCalls(verifierMessage);
+        trace.push({
+          ...this.buildTraceEntry(verifierMessage, verifierToolCalls),
+          tool_validation_failed: true,
+          tool_validation_score: validation.score,
+          tool_validation_errors: validation.errors,
+        });
+
+        if (verifierToolCalls.length === 0) {
+          finalMessage = verifierMessage;
+          break;
+        }
+
+        // Use verifier's tool calls instead
+        currentMessages = [...currentMessages, verifierMessage];
+        for (const call of verifierToolCalls) {
+          const toolResult = await this.executeTool(call);
+          currentMessages.push(
+            new ToolMessage({
+              content: toolResult,
+              tool_call_id: call.id,
+            })
+          );
+        }
+        iterations += 1;
+        continue;
       }
 
       const routing = this.resolveRouting(toolCalls);
@@ -297,15 +388,113 @@ export class CascadeFlowAgentExecutor {
   }
 }
 
+// =============================================================================
+// Generate domain toggle properties for n8n UI (reused from LmChatCascadeFlow)
+// =============================================================================
+function generateDomainProperties(): any[] {
+  const domainOptions = Object.entries(DOMAINS).map(([_key, value]) => ({
+    name: DOMAIN_DISPLAY_NAMES[value],
+    value: value,
+    description: DOMAIN_DESCRIPTIONS[value],
+  }));
+
+  const domainToggleProperties: any[] = [];
+  for (const { domain, toggleName, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+    const displayName = DOMAIN_DISPLAY_NAMES[domain];
+    domainToggleProperties.push({
+      displayName: `Enable ${displayName} Domain`,
+      name: toggleName,
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: `Whether to enable ${DOMAIN_DESCRIPTIONS[domain]}. When enabled, adds a "${displayName}" input port.`,
+    });
+    domainToggleProperties.push({
+      displayName: `Use ${displayName} Verifier`,
+      name: verifierToggleName,
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true], [toggleName]: [true] } },
+      description: `Use a domain-specific verifier instead of the default verifier for ${displayName} queries`,
+    });
+  }
+
+  return [
+    {
+      displayName: 'Enable Domain Routing',
+      name: 'enableDomainRouting',
+      type: 'boolean',
+      default: false,
+      description: 'Whether to enable intelligent routing based on detected query domain (math, code, legal, etc.)',
+    },
+    ...domainToggleProperties,
+    {
+      displayName: 'Domain-Specific Settings',
+      name: 'domainSettings',
+      type: 'fixedCollection',
+      typeOptions: {
+        multipleValues: true,
+      },
+      displayOptions: {
+        show: {
+          enableDomainRouting: [true],
+        },
+      },
+      default: {},
+      options: [
+        {
+          name: 'domainConfig',
+          displayName: 'Domain Configuration',
+          values: [
+            {
+              displayName: 'Domain',
+              name: 'domain',
+              type: 'options',
+              options: domainOptions,
+              default: 'general',
+              description: 'Select the domain to configure',
+            },
+            {
+              displayName: 'Quality Threshold',
+              name: 'threshold',
+              type: 'number',
+              default: 0.4,
+              typeOptions: {
+                minValue: 0,
+                maxValue: 1,
+                numberPrecision: 2,
+              },
+              description: 'Quality threshold for this domain (overrides global threshold)',
+            },
+            {
+              displayName: 'Temperature',
+              name: 'temperature',
+              type: 'number',
+              default: 0.7,
+              typeOptions: {
+                minValue: 0,
+                maxValue: 2,
+                numberPrecision: 1,
+              },
+              description: 'Temperature setting for this domain',
+            },
+          ],
+        },
+      ],
+      description: 'Configure per-domain quality thresholds and temperatures',
+    },
+  ];
+}
+
 export class CascadeFlowAgent implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'CascadeFlow Agent',
     name: 'cascadeFlowAgent',
     icon: 'file:cascadeflow.svg',
     group: ['transform'],
-    version: 1,
+    version: 2,
     description:
-      'CascadeFlow AI Agent with drafter/verifier orchestration, tool routing, and trace metadata.',
+      'CascadeFlow AI Agent with drafter/verifier orchestration, tool routing, domain routing, and trace metadata.',
     defaults: {
       name: 'CascadeFlow Agent',
     },
@@ -323,26 +512,44 @@ export class CascadeFlowAgent implements INodeType {
       },
     },
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
-    inputs: [
-      {
-        displayName: 'Verifier',
-        type: 'ai_languageModel',
-        maxConnections: 1,
-        required: true,
-      },
-      {
-        displayName: 'Drafter',
-        type: 'ai_languageModel',
-        maxConnections: 1,
-        required: true,
-      },
-      {
-        displayName: 'Tools',
-        type: 'ai_tool' as any,
-        maxConnections: 99,
-        required: false,
-      },
-    ],
+    inputs: `={{ ((params) => {
+      const inputs = [
+        { displayName: 'Verifier', type: 'ai_languageModel', maxConnections: 1, required: true },
+        { displayName: 'Drafter', type: 'ai_languageModel', maxConnections: 1, required: true },
+        { displayName: 'Tools', type: 'ai_tool', maxConnections: 99, required: false },
+      ];
+
+      if (params?.enableDomainRouting) {
+        const domains = [
+          { toggle: 'enableCodeDomain', label: 'Code', verifier: 'useCodeDomainVerifier' },
+          { toggle: 'enableDataDomain', label: 'Data Analysis', verifier: 'useDataDomainVerifier' },
+          { toggle: 'enableStructuredDomain', label: 'Structured Output', verifier: 'useStructuredDomainVerifier' },
+          { toggle: 'enableRagDomain', label: 'RAG (Retrieval)', verifier: 'useRagDomainVerifier' },
+          { toggle: 'enableConversationDomain', label: 'Conversation', verifier: 'useConversationDomainVerifier' },
+          { toggle: 'enableToolDomain', label: 'Tool Calling', verifier: 'useToolDomainVerifier' },
+          { toggle: 'enableCreativeDomain', label: 'Creative', verifier: 'useCreativeDomainVerifier' },
+          { toggle: 'enableSummaryDomain', label: 'Summary', verifier: 'useSummaryDomainVerifier' },
+          { toggle: 'enableTranslationDomain', label: 'Translation', verifier: 'useTranslationDomainVerifier' },
+          { toggle: 'enableMathDomain', label: 'Math', verifier: 'useMathDomainVerifier' },
+          { toggle: 'enableScienceDomain', label: 'Science', verifier: 'useScienceDomainVerifier' },
+          { toggle: 'enableMedicalDomain', label: 'Medical', verifier: 'useMedicalDomainVerifier' },
+          { toggle: 'enableLegalDomain', label: 'Legal', verifier: 'useLegalDomainVerifier' },
+          { toggle: 'enableFinancialDomain', label: 'Financial', verifier: 'useFinancialDomainVerifier' },
+          { toggle: 'enableMultimodalDomain', label: 'Multimodal', verifier: 'useMultimodalDomainVerifier' },
+          { toggle: 'enableGeneralDomain', label: 'General', verifier: 'useGeneralDomainVerifier' },
+        ];
+        for (const d of domains) {
+          if (params?.[d.toggle]) {
+            inputs.push({ displayName: d.label, type: 'ai_languageModel', maxConnections: 1, required: false });
+            if (params?.[d.verifier]) {
+              inputs.push({ displayName: d.label + ' Verifier', type: 'ai_languageModel', maxConnections: 1, required: false });
+            }
+          }
+        }
+      }
+
+      return inputs;
+    })($parameter) }}`,
     // eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
     outputs: ['ai_agent' as any],
     outputNames: ['Agent'],
@@ -447,6 +654,13 @@ export class CascadeFlowAgent implements INodeType {
         description: 'Whether to route complex queries directly to the verifier',
       },
       {
+        displayName: 'Enable Tool Call Validation',
+        name: 'enableToolCascadeValidation',
+        type: 'boolean',
+        default: false,
+        description: 'Whether to validate drafter tool calls (JSON syntax, schema, safety) before executing them. When validation fails, tool calls are re-generated by the verifier.',
+      },
+      {
         displayName: 'Max Tool Iterations',
         name: 'maxIterations',
         type: 'number',
@@ -497,6 +711,8 @@ export class CascadeFlowAgent implements INodeType {
         ],
         description: 'Override routing for specific tools (e.g., force verifier after tool call)',
       },
+      // Domain routing settings
+      ...generateDomainProperties(),
     ],
   };
 
@@ -505,20 +721,52 @@ export class CascadeFlowAgent implements INodeType {
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
     const useComplexityThresholds = this.getNodeParameter('useComplexityThresholds', 0, true) as boolean;
+    const enableToolCascadeValidation = this.getNodeParameter('enableToolCascadeValidation', 0, false) as boolean;
     const maxIterations = this.getNodeParameter('maxIterations', 0, 3) as number;
 
     const confidenceThresholds = useComplexityThresholds
       ? {
-          trivial: this.getNodeParameter('trivialThreshold', 0, 0.25) as number,
-          simple: this.getNodeParameter('simpleThreshold', 0, 0.4) as number,
-          moderate: this.getNodeParameter('moderateThreshold', 0, 0.55) as number,
-          hard: this.getNodeParameter('hardThreshold', 0, 0.7) as number,
-          expert: this.getNodeParameter('expertThreshold', 0, 0.8) as number,
+          trivial: this.getNodeParameter('trivialThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.trivial) as number,
+          simple: this.getNodeParameter('simpleThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.simple) as number,
+          moderate: this.getNodeParameter('moderateThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.moderate) as number,
+          hard: this.getNodeParameter('hardThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.hard) as number,
+          expert: this.getNodeParameter('expertThreshold', 0, DEFAULT_COMPLEXITY_THRESHOLDS.expert) as number,
         }
       : undefined;
 
     const toolRoutingRaw = this.getNodeParameter('toolRoutingRules', 0, { rule: [] }) as any;
     const toolRoutingRules = (toolRoutingRaw?.rule ?? []) as ToolRoutingRule[];
+
+    // Get domain routing parameters
+    const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
+
+    const enabledDomains: DomainType[] = [];
+    if (enableDomainRouting) {
+      const toggleParams: Record<string, boolean> = {};
+      for (const { toggleName } of DOMAIN_UI_CONFIGS) {
+        toggleParams[toggleName] = this.getNodeParameter(toggleName, 0, false) as boolean;
+      }
+      enabledDomains.push(...getEnabledDomains(toggleParams));
+    }
+
+    // Get domain-specific settings
+    const domainSettingsRaw = this.getNodeParameter('domainSettings', 0, { domainConfig: [] }) as any;
+    interface DomainConfig {
+      enabled: boolean;
+      threshold: number;
+      temperature: number;
+    }
+    const domainConfigs = new Map<DomainType, DomainConfig>();
+
+    if (domainSettingsRaw?.domainConfig) {
+      for (const config of domainSettingsRaw.domainConfig) {
+        domainConfigs.set(config.domain, {
+          enabled: enabledDomains.includes(config.domain),
+          threshold: config.threshold || qualityThreshold,
+          temperature: config.temperature || 0.7,
+        });
+      }
+    }
 
     const drafterModelGetter = async () => {
       const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
@@ -548,8 +796,43 @@ export class CascadeFlowAgent implements INodeType {
       return verifierModel;
     };
 
+    // Tools port is always at index 2 (after Verifier and Drafter)
     const toolsData = await this.getInputConnectionData('ai_tool' as any, 2).catch(() => [] as any);
     const tools = (Array.isArray(toolsData) ? toolsData : toolsData ? [toolsData] : []) as ToolLike[];
+
+    // Domain model getters — ports start after the fixed 3 (Verifier, Drafter, Tools)
+    const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
+    const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
+
+    let nextPortIndex = 3; // After Verifier (0), Drafter (1), Tools (2)
+    for (const { domain, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+      if (!enabledDomains.includes(domain)) continue;
+
+      const drafterIndex = nextPortIndex++;
+      domainModelGetters.set(domain, async () => {
+        try {
+          const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
+          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+          return model || undefined;
+        } catch {
+          return undefined;
+        }
+      });
+
+      const useDomainVerifier = this.getNodeParameter(verifierToggleName, 0, false) as boolean;
+      if (useDomainVerifier) {
+        const verifierIndex = nextPortIndex++;
+        domainVerifierGetters.set(domain, async () => {
+          try {
+            const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
+            const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
+            return model || undefined;
+          } catch {
+            return undefined;
+          }
+        });
+      }
+    }
 
     // Keep semantic validation off in n8n to avoid OOM / heavy model loads.
     const useSemanticValidation = false;
@@ -562,18 +845,21 @@ export class CascadeFlowAgent implements INodeType {
       useAlignmentScoring,
       useComplexityRouting,
       useComplexityThresholds,
-      false,
-      [],
-      new Map(),
-      new Map(),
-      confidenceThresholds
+      enableDomainRouting,
+      enabledDomains,
+      domainModelGetters,
+      domainConfigs,
+      confidenceThresholds,
+      false, // enableToolCallValidation handled by the agent executor
+      domainVerifierGetters,
     );
 
     const agentExecutor = new CascadeFlowAgentExecutor(
       cascadeModel,
       tools,
       toolRoutingRules,
-      maxIterations
+      maxIterations,
+      enableToolCascadeValidation,
     );
 
     return {
