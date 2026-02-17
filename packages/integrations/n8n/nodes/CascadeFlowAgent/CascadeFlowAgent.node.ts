@@ -419,7 +419,6 @@ function generateDomainProperties(): any[] {
       default: false,
       description: 'Whether to enable intelligent routing based on detected query domain (math, code, legal, etc.)',
     },
-    ...domainToggleProperties,
     {
       displayName: 'Enable Domain Verifiers',
       name: 'enableDomainVerifiers',
@@ -428,6 +427,7 @@ function generateDomainProperties(): any[] {
       displayOptions: { show: { enableDomainRouting: [true] } },
       description: 'Whether to add a domain-specific verifier port for each enabled domain. Connect a model to override the global verifier for that domain.',
     },
+    ...domainToggleProperties,
     {
       displayName: 'Domain-Specific Settings',
       name: 'domainSettings',
