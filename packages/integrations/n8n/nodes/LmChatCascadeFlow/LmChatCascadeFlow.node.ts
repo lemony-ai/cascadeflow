@@ -1401,6 +1401,13 @@ function generateDomainProperties(): any[] {
       displayOptions: { show: { enableDomainRouting: [true] } },
       description: 'Whether to add a domain-specific verifier port for each enabled domain. Connect a model to override the global verifier for that domain.',
     },
+    {
+      displayName: 'Enable the domains you want to route to. Each enabled domain adds a model input port on the node.',
+      name: 'domainsNotice',
+      type: 'notice',
+      default: '',
+      displayOptions: { show: { enableDomainRouting: [true] } },
+    },
     // Individual domain toggles - each one adds its own model input port
     ...domainToggleProperties,
     {
@@ -1633,7 +1640,12 @@ export class LmChatCascadeFlow implements INodeType {
         default: false,
         description: 'Whether to validate drafter tool calls (JSON syntax, schema, safety) before accepting them. When validation fails, tool calls are escalated to the verifier.',
       },
-      // Domain routing settings
+      {
+        displayName: 'Domain Routing',
+        name: 'domainRoutingHeading',
+        type: 'notice',
+        default: '',
+      },
       ...generateDomainProperties(),
     ],
   };
