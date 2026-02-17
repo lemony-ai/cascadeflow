@@ -7,6 +7,8 @@ Use Paygentic with cascadeflow as an **explicit opt-in integration** for usage-b
 - Not installed or enabled by default for TypeScript
 - Never auto-activated in Python
 - Fail-open reporting: billing API failures do not break model responses
+- Low-latency defaults for proxy users (`delivery_mode="background"`)
+- Stronger durability is opt-in (`delivery_mode="durable_outbox"`)
 
 ## TypeScript Setup
 
@@ -130,9 +132,8 @@ from cascadeflow.integrations.paygentic import PaygenticProxyService
 billing_proxy = PaygenticProxyService(
     service=proxy_service,
     reporter=reporter,
-    # report_in_background=True is the default and avoids user-facing latency.
-    # Set False if you require synchronous billing write confirmation.
-    report_in_background=True,
+    # Default mode: no user-facing wait for billing requests.
+    delivery_mode="background",
 )
 
 result = await billing_proxy.handle(proxy_request)
@@ -141,6 +142,32 @@ result = await billing_proxy.handle(proxy_request)
 The wrapper looks for `x-cascadeflow-customer-id` by default.
 Reporting runs in the background by default, so request latency remains focused on
 model execution rather than billing I/O.
+
+### Delivery Modes
+
+- `background` (default): fire-and-forget async reporting for best request latency
+- `sync`: await Paygentic write in request path
+- `durable_outbox`: enqueue to local SQLite outbox and retry with backoff
+
+Example durable mode:
+
+```python
+billing_proxy = PaygenticProxyService(
+    service=proxy_service,
+    reporter=reporter,
+    delivery_mode="durable_outbox",
+    outbox_path=".cascadeflow/paygentic-outbox.db",
+    outbox_poll_interval_seconds=0.5,
+    outbox_max_attempts=8,
+    outbox_retry_backoff_seconds=1.0,
+)
+```
+
+Operational helpers:
+
+- `await billing_proxy.flush(timeout=...)` drains in-flight/background reporting
+- `await billing_proxy.close(timeout=...)` flushes + closes outbox resources
+- `billing_proxy.get_delivery_stats()` exposes sent/failed/outbox counters
 
 ## Notes
 

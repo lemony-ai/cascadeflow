@@ -362,6 +362,7 @@ Cost tracking with LiteLLM integration and provider validation.
 **File:** [`integrations/paygentic_usage.py`](integrations/paygentic_usage.py)
 **Time:** 10 minutes
 Opt-in usage metering with Paygentic for production billing workflows.
+Python proxy flows support `delivery_mode="background"` by default, with optional `sync` or `durable_outbox`.
 
 ---
 

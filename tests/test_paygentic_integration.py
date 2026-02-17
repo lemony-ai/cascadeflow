@@ -280,17 +280,30 @@ async def test_proxy_service_background_reporting_is_non_blocking_by_default() -
                 cost=0.0001,
             )
 
+    class SlowClient:
+        def __init__(self) -> None:
+            self.called = False
+
+        async def acreate_usage_event(self, **kwargs):
+            await asyncio.sleep(0.1)
+            self.called = True
+            return {"ok": True}
+
     class SlowReporter:
         customer_header = "x-cascadeflow-customer-id"
         request_id_header = "x-request-id"
 
         def __init__(self) -> None:
-            self.called = False
+            self.client = SlowClient()
 
-        async def report_proxy_result(self, **kwargs):
-            await asyncio.sleep(0.1)
-            self.called = True
-            return {"ok": True}
+        def build_usage_event(self, **kwargs):
+            return {
+                "customer_id": "cust-bg",
+                "quantity": 15,
+                "timestamp": "2026-02-17T00:00:00Z",
+                "idempotency_key": "idem-bg",
+                "metadata": {"source": "test"},
+            }
 
     import asyncio
 
@@ -309,10 +322,13 @@ async def test_proxy_service_background_reporting_is_non_blocking_by_default() -
 
     assert result.status_code == 200
     assert elapsed_ms < 80.0
-    assert reporter.called is False
+    assert reporter.client.called is False
 
     await proxy.flush(timeout=2.0)
-    assert reporter.called is True
+    assert reporter.client.called is True
+    stats = proxy.get_delivery_stats()
+    assert stats["delivery_mode"] == "background"
+    assert stats["sent_success"] == 1
 
 
 @pytest.mark.asyncio
@@ -330,17 +346,30 @@ async def test_proxy_service_can_run_reporting_in_blocking_mode() -> None:
                 cost=0.0001,
             )
 
+    class SlowClient:
+        def __init__(self) -> None:
+            self.called = False
+
+        async def acreate_usage_event(self, **kwargs):
+            await asyncio.sleep(0.1)
+            self.called = True
+            return {"ok": True}
+
     class SlowReporter:
         customer_header = "x-cascadeflow-customer-id"
         request_id_header = "x-request-id"
 
         def __init__(self) -> None:
-            self.called = False
+            self.client = SlowClient()
 
-        async def report_proxy_result(self, **kwargs):
-            await asyncio.sleep(0.1)
-            self.called = True
-            return {"ok": True}
+        def build_usage_event(self, **kwargs):
+            return {
+                "customer_id": "cust-sync",
+                "quantity": 15,
+                "timestamp": "2026-02-17T00:00:00Z",
+                "idempotency_key": "idem-sync",
+                "metadata": {"source": "test"},
+            }
 
     import asyncio
 
@@ -359,4 +388,226 @@ async def test_proxy_service_can_run_reporting_in_blocking_mode() -> None:
 
     assert result.status_code == 200
     assert elapsed_ms >= 80.0
-    assert reporter.called is True
+    assert reporter.client.called is True
+
+
+@pytest.mark.asyncio
+async def test_proxy_service_explicit_delivery_mode_overrides_legacy_flag() -> None:
+    class FakeService:
+        async def handle(self, request: ProxyRequest) -> ProxyResult:
+            return ProxyResult(
+                status_code=200,
+                headers={},
+                data={"ok": True},
+                provider="openai",
+                model="gpt-4o-mini",
+                latency_ms=7.0,
+                usage=ProxyUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+                cost=0.0001,
+            )
+
+    class SlowClient:
+        def __init__(self) -> None:
+            self.called = False
+
+        async def acreate_usage_event(self, **kwargs):
+            await asyncio.sleep(0.1)
+            self.called = True
+            return {"ok": True}
+
+    class Reporter:
+        customer_header = "x-cascadeflow-customer-id"
+        request_id_header = "x-request-id"
+
+        def __init__(self) -> None:
+            self.client = SlowClient()
+
+        def build_usage_event(self, **kwargs):
+            return {
+                "customer_id": "cust-sync",
+                "quantity": 15,
+                "timestamp": "2026-02-17T00:00:00Z",
+                "idempotency_key": "idem-sync-override",
+                "metadata": {"source": "test"},
+            }
+
+    import asyncio
+
+    reporter = Reporter()
+    proxy = PaygenticProxyService(
+        FakeService(),
+        reporter,
+        report_in_background=True,
+        delivery_mode="sync",
+    )
+    request = ProxyRequest(
+        method="POST",
+        path="/v1/chat/completions",
+        headers={"x-cascadeflow-customer-id": "cust-sync", "x-request-id": "req-sync"},
+        body={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}]},
+    )
+
+    start = time.perf_counter()
+    result = await proxy.handle(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    assert result.status_code == 200
+    assert elapsed_ms >= 80.0
+    assert reporter.client.called is True
+    assert proxy.get_delivery_stats()["delivery_mode"] == "sync"
+
+
+@pytest.mark.asyncio
+async def test_proxy_service_durable_outbox_retries_and_flushes(tmp_path) -> None:
+    class FakeService:
+        async def handle(self, request: ProxyRequest) -> ProxyResult:
+            return ProxyResult(
+                status_code=200,
+                headers={},
+                data={"ok": True},
+                provider="openai",
+                model="gpt-4o-mini",
+                latency_ms=7.0,
+                usage=ProxyUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+                cost=0.0001,
+            )
+
+    class FlakyClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def acreate_usage_event(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("temporary paygentic outage")
+            return {"ok": True}
+
+    class Reporter:
+        customer_header = "x-cascadeflow-customer-id"
+        request_id_header = "x-request-id"
+
+        def __init__(self) -> None:
+            self.client = FlakyClient()
+
+        def build_usage_event(self, **kwargs):
+            return {
+                "customer_id": "cust-outbox",
+                "quantity": 15,
+                "timestamp": "2026-02-17T00:00:00Z",
+                "idempotency_key": "idem-outbox-1",
+                "metadata": {"source": "test"},
+            }
+
+    outbox_path = tmp_path / "nested" / "queue" / "paygentic-outbox.db"
+    reporter = Reporter()
+    proxy = PaygenticProxyService(
+        FakeService(),
+        reporter,
+        delivery_mode="durable_outbox",
+        outbox_path=str(outbox_path),
+        outbox_poll_interval_seconds=0.01,
+        outbox_retry_backoff_seconds=0.01,
+        outbox_max_attempts=5,
+    )
+    request = ProxyRequest(
+        method="POST",
+        path="/v1/chat/completions",
+        headers={"x-cascadeflow-customer-id": "cust-outbox", "x-request-id": "req-outbox"},
+        body={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}]},
+    )
+
+    result = await proxy.handle(request)
+    assert result.status_code == 200
+    assert outbox_path.exists()
+
+    await proxy.flush(timeout=2.0)
+    stats = proxy.get_delivery_stats()
+    assert reporter.client.calls >= 2
+    assert stats["delivery_mode"] == "durable_outbox"
+    assert stats["outbox_enqueued"] == 1
+    assert stats["sent_failed"] >= 1
+    assert stats["sent_success"] >= 1
+    assert stats["outbox_size"] == 0
+    await proxy.close(timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_proxy_service_durable_outbox_deduplicates_and_drops_after_max_attempts(tmp_path) -> None:
+    class FakeService:
+        async def handle(self, request: ProxyRequest) -> ProxyResult:
+            return ProxyResult(
+                status_code=200,
+                headers={},
+                data={"ok": True},
+                provider="openai",
+                model="gpt-4o-mini",
+                latency_ms=7.0,
+                usage=ProxyUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+                cost=0.0001,
+            )
+
+    class AlwaysFailClient:
+        async def acreate_usage_event(self, **kwargs):
+            raise RuntimeError("still failing")
+
+    class Reporter:
+        customer_header = "x-cascadeflow-customer-id"
+        request_id_header = "x-request-id"
+
+        def __init__(self) -> None:
+            self.client = AlwaysFailClient()
+
+        def build_usage_event(self, **kwargs):
+            return {
+                "customer_id": "cust-outbox",
+                "quantity": 15,
+                "timestamp": "2026-02-17T00:00:00Z",
+                "idempotency_key": "idem-outbox-fixed",
+                "metadata": {"source": "test"},
+            }
+
+    outbox_path = tmp_path / "dedupe" / "paygentic-outbox.db"
+    reporter = Reporter()
+    proxy = PaygenticProxyService(
+        FakeService(),
+        reporter,
+        delivery_mode="durable_outbox",
+        outbox_path=str(outbox_path),
+        outbox_poll_interval_seconds=0.01,
+        outbox_retry_backoff_seconds=0.01,
+        outbox_max_attempts=2,
+    )
+    request = ProxyRequest(
+        method="POST",
+        path="/v1/chat/completions",
+        headers={"x-cascadeflow-customer-id": "cust-outbox", "x-request-id": "req-outbox"},
+        body={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}]},
+    )
+
+    first = await proxy.handle(request)
+    second = await proxy.handle(request)
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    await proxy.flush(timeout=2.0)
+    stats = proxy.get_delivery_stats()
+    assert stats["outbox_enqueued"] == 1
+    assert stats["outbox_deduplicated"] == 1
+    assert stats["outbox_dropped"] == 1
+    assert stats["outbox_size"] == 0
+    await proxy.close(timeout=1.0)
+
+
+def test_proxy_service_durable_outbox_requires_path() -> None:
+    class FakeService:
+        async def handle(self, request: ProxyRequest) -> ProxyResult:  # pragma: no cover - not executed
+            raise NotImplementedError
+
+    reporter = PaygenticUsageReporter(
+        PaygenticClient(
+            _config(),
+            async_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200))),
+        )
+    )
+    with pytest.raises(ValueError, match="outbox_path is required"):
+        PaygenticProxyService(FakeService(), reporter, delivery_mode="durable_outbox")

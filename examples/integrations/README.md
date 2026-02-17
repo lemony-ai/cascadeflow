@@ -159,6 +159,7 @@ python examples/integrations/paygentic_usage.py
 - Explicit `PaygenticClient` setup (no default auto-enable)
 - Usage event reporting based on proxy-style token/cost output
 - Safe integration behavior: billing instrumentation remains decoupled from core request execution
+- Python proxy wrapper supports `delivery_mode="background"` (default), `sync`, or `durable_outbox`
 
 ---
 
@@ -389,7 +390,7 @@ Cost Calculation Tests
 |------|---------|-------------------|
 | `litellm_providers.py` | Comprehensive LiteLLM demo with 8 examples | No (for cost info) |
 | `litellm_cost_tracking.py` | Cost tracking and provider validation | No (for cost info) |
-| `paygentic_usage.py` | Usage event reporting to Paygentic | Yes |
+| `paygentic_usage.py` | Usage event reporting to Paygentic (opt-in, fail-open) | Yes |
 | `local_providers_setup.py` | Ollama and vLLM setup guide | No |
 | `opentelemetry_grafana.py` | Production observability example | No |
 | `test_all_providers.py` | API key validation and testing | Optional |

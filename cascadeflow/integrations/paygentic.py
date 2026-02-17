@@ -17,6 +17,8 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
+import sqlite3
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -34,6 +36,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_PAYGENTIC_LIVE_URL = "https://api.paygentic.io"
 DEFAULT_PAYGENTIC_SANDBOX_URL = "https://api.sandbox.paygentic.io"
 _TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+PAYGENTIC_DELIVERY_MODES = {"sync", "background", "durable_outbox"}
 
 
 class PaygenticAPIError(RuntimeError):
@@ -133,6 +136,91 @@ def _canonical_part(value: Any) -> str:
     if isinstance(value, (dict, list)):
         return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return str(value)
+
+
+class _PaygenticOutbox:
+    """Simple SQLite-backed outbox for durable delivery retries."""
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        parent = os.path.dirname(os.path.abspath(path))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        self._conn = sqlite3.connect(path)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS paygentic_outbox (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                payload_json TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at REAL NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                last_error TEXT
+            )
+            """
+        )
+        self._conn.commit()
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def enqueue(self, payload: dict[str, Any]) -> bool:
+        idem = str(payload.get("idempotency_key", "")).strip()
+        if not idem:
+            raise ValueError("Outbox payload requires idempotency_key")
+        now = time.time()
+        cursor = self._conn.execute(
+            """
+            INSERT INTO paygentic_outbox
+                (idempotency_key, payload_json, attempts, next_attempt_at, created_at, updated_at)
+            VALUES (?, ?, 0, ?, ?, ?)
+            ON CONFLICT(idempotency_key) DO NOTHING
+            """,
+            (idem, json.dumps(payload, sort_keys=True), now, now, now),
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
+
+    def size(self) -> int:
+        row = self._conn.execute("SELECT COUNT(*) FROM paygentic_outbox").fetchone()
+        return int(row[0] if row else 0)
+
+    def fetch_ready(self, *, now: float, limit: int) -> list[tuple[int, int, dict[str, Any]]]:
+        rows = self._conn.execute(
+            """
+            SELECT id, attempts, payload_json
+            FROM paygentic_outbox
+            WHERE next_attempt_at <= ?
+            ORDER BY id ASC
+            LIMIT ?
+            """,
+            (now, limit),
+        ).fetchall()
+        events: list[tuple[int, int, dict[str, Any]]] = []
+        for row in rows:
+            event_id = int(row[0])
+            attempts = int(row[1])
+            payload = json.loads(row[2])
+            events.append((event_id, attempts, payload))
+        return events
+
+    def ack(self, event_id: int) -> None:
+        self._conn.execute("DELETE FROM paygentic_outbox WHERE id = ?", (event_id,))
+        self._conn.commit()
+
+    def reschedule(self, event_id: int, *, attempts: int, next_attempt_at: float, error: str) -> None:
+        self._conn.execute(
+            """
+            UPDATE paygentic_outbox
+            SET attempts = ?, next_attempt_at = ?, updated_at = ?, last_error = ?
+            WHERE id = ?
+            """,
+            (attempts, next_attempt_at, time.time(), error[:1000], event_id),
+        )
+        self._conn.commit()
 
 
 class PaygenticClient:
@@ -692,13 +780,45 @@ class PaygenticProxyService:
         customer_resolver: Callable[[ProxyRequest, ProxyResult], str | None] | None = None,
         request_id_resolver: Callable[[ProxyRequest, ProxyResult], str | None] | None = None,
         report_in_background: bool = True,
+        delivery_mode: str | None = None,
+        outbox_path: str | None = None,
+        outbox_batch_size: int = 100,
+        outbox_poll_interval_seconds: float = 0.5,
+        outbox_max_attempts: int = 8,
+        outbox_retry_backoff_seconds: float = 1.0,
     ) -> None:
         self.service = service
         self.reporter = reporter
         self.customer_resolver = customer_resolver
         self.request_id_resolver = request_id_resolver
-        self.report_in_background = report_in_background
+        resolved_mode = (
+            ("background" if report_in_background else "sync")
+            if delivery_mode is None
+            else delivery_mode
+        )
+        if resolved_mode not in PAYGENTIC_DELIVERY_MODES:
+            allowed = ", ".join(sorted(PAYGENTIC_DELIVERY_MODES))
+            raise ValueError(f"delivery_mode must be one of: {allowed}")
+        if resolved_mode == "durable_outbox" and not outbox_path:
+            raise ValueError("outbox_path is required when delivery_mode='durable_outbox'")
+
+        self.delivery_mode = resolved_mode
+        self.report_in_background = self.delivery_mode == "background"
+        self.outbox_batch_size = max(1, int(outbox_batch_size))
+        self.outbox_poll_interval_seconds = max(0.05, float(outbox_poll_interval_seconds))
+        self.outbox_max_attempts = max(1, int(outbox_max_attempts))
+        self.outbox_retry_backoff_seconds = max(0.05, float(outbox_retry_backoff_seconds))
         self._pending_tasks: set[asyncio.Task[dict[str, Any] | None]] = set()
+        self._outbox = _PaygenticOutbox(outbox_path) if self.delivery_mode == "durable_outbox" else None
+        self._outbox_worker_task: asyncio.Task[None] | None = None
+        self._outbox_stop_event: asyncio.Event | None = None
+        self._delivery_stats: dict[str, int] = {
+            "sent_success": 0,
+            "sent_failed": 0,
+            "outbox_enqueued": 0,
+            "outbox_deduplicated": 0,
+            "outbox_dropped": 0,
+        }
 
     def _track_task(self, task: asyncio.Task[dict[str, Any] | None]) -> None:
         self._pending_tasks.add(task)
@@ -713,21 +833,126 @@ class PaygenticProxyService:
         except Exception as exc:  # pragma: no cover - defensive logging path
             logger.warning("Paygentic background reporting task failed (ignored): %s", exc)
 
+    async def _send_payload(self, payload: dict[str, Any]) -> bool:
+        try:
+            await self.reporter.client.acreate_usage_event(**payload)
+            self._delivery_stats["sent_success"] += 1
+            return True
+        except Exception as exc:  # pragma: no cover - intentionally fail-open
+            self._delivery_stats["sent_failed"] += 1
+            logger.warning("Paygentic usage reporting failed (ignored): %s", exc)
+            return False
+
+    def _ensure_outbox_worker(self) -> None:
+        if self.delivery_mode != "durable_outbox":
+            return
+        if self._outbox_worker_task and not self._outbox_worker_task.done():
+            return
+        if self._outbox_stop_event is None:
+            self._outbox_stop_event = asyncio.Event()
+        else:
+            self._outbox_stop_event.clear()
+        self._outbox_worker_task = asyncio.create_task(self._run_outbox_worker())
+
+    async def _run_outbox_worker(self) -> None:
+        if self._outbox_stop_event is None:
+            return
+        while not self._outbox_stop_event.is_set():
+            processed = await self._drain_outbox_once(limit=self.outbox_batch_size)
+            if processed == 0:
+                await asyncio.sleep(self.outbox_poll_interval_seconds)
+
+    async def _drain_outbox_once(self, *, limit: int) -> int:
+        if self._outbox is None:
+            return 0
+        events = self._outbox.fetch_ready(now=time.time(), limit=limit)
+        if not events:
+            return 0
+
+        processed = 0
+        for event_id, attempts, payload in events:
+            processed += 1
+            ok = await self._send_payload(payload)
+            if ok:
+                self._outbox.ack(event_id)
+                continue
+
+            next_attempt = attempts + 1
+            if next_attempt >= self.outbox_max_attempts:
+                self._outbox.ack(event_id)
+                self._delivery_stats["outbox_dropped"] += 1
+                continue
+
+            delay = self.outbox_retry_backoff_seconds * (2 ** max(0, next_attempt - 1))
+            self._outbox.reschedule(
+                event_id,
+                attempts=next_attempt,
+                next_attempt_at=time.time() + delay,
+                error="delivery_failed",
+            )
+
+        return processed
+
     async def flush(self, *, timeout: float | None = None) -> None:
         """Wait for in-flight background reporting tasks.
 
         This is optional and mainly useful for graceful shutdown and tests.
         """
-        if not self._pending_tasks:
+        deadline = None if timeout is None else time.time() + timeout
+
+        if self._pending_tasks:
+            tasks = tuple(self._pending_tasks)
+            wait_timeout = None if deadline is None else max(0.0, deadline - time.time())
+            done, pending = await asyncio.wait(tasks, timeout=wait_timeout)
+            self._pending_tasks.difference_update(done)
+            for task in pending:
+                task.cancel()
+                self._pending_tasks.discard(task)
+
+        if self.delivery_mode != "durable_outbox" or self._outbox is None:
             return
-        tasks = tuple(self._pending_tasks)
-        done, pending = await asyncio.wait(tasks, timeout=timeout)
-        self._pending_tasks.difference_update(done)
-        for task in pending:
-            task.cancel()
-            self._pending_tasks.discard(task)
+
+        while self._outbox.size() > 0:
+            if deadline is not None and time.time() >= deadline:
+                break
+            processed = await self._drain_outbox_once(limit=self.outbox_batch_size)
+            if processed == 0:
+                sleep_for = self.outbox_poll_interval_seconds
+                if deadline is not None:
+                    sleep_for = min(sleep_for, max(0.0, deadline - time.time()))
+                if sleep_for <= 0:
+                    break
+                await asyncio.sleep(sleep_for)
+
+    async def close(self, *, timeout: float | None = None) -> None:
+        """Flush and release outbox resources for graceful shutdown."""
+        await self.flush(timeout=timeout)
+        if self._outbox_worker_task and not self._outbox_worker_task.done():
+            if self._outbox_stop_event is not None:
+                self._outbox_stop_event.set()
+            wait_timeout = 5.0 if timeout is None else max(0.0, min(5.0, timeout))
+            try:
+                await asyncio.wait_for(self._outbox_worker_task, timeout=wait_timeout)
+            except asyncio.TimeoutError:  # pragma: no cover - shutdown guard
+                self._outbox_worker_task.cancel()
+        if self._outbox is not None:
+            self._outbox.close()
+            self._outbox = None
+
+    def get_delivery_stats(self) -> dict[str, Any]:
+        """Expose lightweight delivery stats for operational visibility."""
+        outbox_size = self._outbox.size() if self._outbox is not None else 0
+        return {
+            "delivery_mode": self.delivery_mode,
+            "pending_background_tasks": len(self._pending_tasks),
+            "outbox_size": outbox_size,
+            **self._delivery_stats,
+        }
 
     async def handle(self, request: ProxyRequest) -> ProxyResult:
+        if self.delivery_mode == "durable_outbox":
+            self._ensure_outbox_worker()
+
         result = await self.service.handle(request)
 
         customer_id: str | None
@@ -744,21 +969,29 @@ class PaygenticProxyService:
         else:
             request_id = _header_value(request.headers, self.reporter.request_id_header)
 
-        if self.report_in_background:
-            task = asyncio.create_task(
-                self.reporter.report_proxy_result(
-                    result=result,
-                    customer_id=customer_id,
-                    request_id=request_id,
-                )
-            )
+        payload = self.reporter.build_usage_event(
+            result=result,
+            customer_id=customer_id,
+            request_id=request_id,
+        )
+        if not payload:
+            return result
+
+        if self.delivery_mode == "sync":
+            await self._send_payload(payload)
+            return result
+
+        if self.delivery_mode == "background":
+            task = asyncio.create_task(self._send_payload(payload))
             self._track_task(task)
+            return result
+
+        inserted = self._outbox.enqueue(payload) if self._outbox is not None else False
+        if inserted:
+            self._delivery_stats["outbox_enqueued"] += 1
+            self._ensure_outbox_worker()
         else:
-            await self.reporter.report_proxy_result(
-                result=result,
-                customer_id=customer_id,
-                request_id=request_id,
-            )
+            self._delivery_stats["outbox_deduplicated"] += 1
         return result
 
 
