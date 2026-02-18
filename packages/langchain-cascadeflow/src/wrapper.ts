@@ -514,7 +514,7 @@ export class CascadeFlow extends BaseChatModel {
    * @param options - Streaming options
    * @returns AsyncGenerator yielding chunks
    */
-  override async *_streamResponseChunks(
+  async *_streamResponseChunks(
     messages: BaseMessage[],
     options: this['ParsedCallOptions'],
     runManager?: CallbackManagerForLLMRun
@@ -712,7 +712,7 @@ export class CascadeFlow extends BaseChatModel {
    * Handle chainable methods - bind()
    * Creates a new CascadeFlow with bound parameters
    */
-  override bind(kwargs: any): CascadeFlow {
+  bind(kwargs: any): CascadeFlow {
     // Merge new kwargs with existing ones
     const mergedKwargs = { ...this.bindKwargs, ...kwargs };
 

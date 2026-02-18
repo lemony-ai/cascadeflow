@@ -32,7 +32,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { StateGraph, END } = await importLangGraph();
+  const { StateGraph, END, Annotation } = await importLangGraph();
 
   const drafter = new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0.2 });
   const verifier = new ChatOpenAI({ model: 'gpt-4o', temperature: 0.2 });
@@ -77,10 +77,18 @@ async function main() {
   // Binding tools enables tool-safe streaming + high-risk gating.
   const cascade = (baseCascade as any).bindTools(tools);
 
-  type GraphState = {
-    input: string;
-    result?: string;
-  };
+  const GraphStateAnnotation = Annotation.Root({
+    input: Annotation<string>({
+      reducer: (_x: string, y: string) => y,
+      default: () => '',
+    }),
+    result: Annotation<string | undefined>({
+      reducer: (_x: string | undefined, y: string | undefined) => y,
+      default: () => undefined,
+    }),
+  });
+
+  type GraphState = typeof GraphStateAnnotation.State;
 
   const planner = async (state: GraphState) => {
     const msg = await cascade.invoke(state.input, {
@@ -90,7 +98,7 @@ async function main() {
     return { ...state, result: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) };
   };
 
-  const graph = new StateGraph<GraphState>()
+  const graph = new StateGraph(GraphStateAnnotation)
     .addNode('planner', planner)
     .addEdge('planner', END)
     .setEntryPoint('planner');

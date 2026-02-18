@@ -53,8 +53,8 @@ class CascadeFlow(BaseChatModel):
         cascade_complexities: Complexity levels that should use cascade
     """
 
-    drafter: BaseChatModel
-    verifier: BaseChatModel
+    drafter: Any
+    verifier: Any
     quality_threshold: float = 0.7
     enable_cost_tracking: bool = True
     # Default to local pricing for best DX (works without LangSmith).
@@ -77,8 +77,8 @@ class CascadeFlow(BaseChatModel):
 
     def __init__(
         self,
-        drafter: BaseChatModel,
-        verifier: BaseChatModel,
+        drafter: Any,
+        verifier: Any,
         quality_threshold: float = 0.7,
         enable_cost_tracking: bool = True,
         cost_tracking_provider: str = "cascadeflow",
@@ -130,6 +130,47 @@ class CascadeFlow(BaseChatModel):
     def _llm_type(self) -> str:
         """Return LLM type identifier."""
         return "cascadeflow"
+
+    def _resolve_model_name(self, model: Any) -> str:
+        return (
+            getattr(model, "model_name", None)
+            or getattr(model, "model", None)
+            or getattr(model, "_llm_type", None)
+            or type(model).__name__
+        )
+
+    def _should_accept_drafter(
+        self,
+        drafter_quality: float,
+        force_verifier_for_tool_risk: bool,
+        has_tool_calls: bool,
+    ) -> bool:
+        if has_tool_calls:
+            return not force_verifier_for_tool_risk
+        return bool(drafter_quality >= self.quality_threshold)
+
+    def _split_runnable_config(
+        self, kwargs: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        config_keys = {
+            "tags",
+            "metadata",
+            "callbacks",
+            "run_name",
+            "run_id",
+            "max_concurrency",
+            "recursion_limit",
+            "configurable",
+        }
+        model_kwargs: dict[str, Any] = {}
+        config: dict[str, Any] = {}
+        for key, value in kwargs.items():
+            if key in config_keys:
+                if value is not None:
+                    config[key] = value
+            else:
+                model_kwargs[key] = value
+        return model_kwargs, config
 
     def _generate(
         self,
@@ -235,11 +276,7 @@ class CascadeFlow(BaseChatModel):
                 )
 
                 latency_ms = (time.time() - start_time) * 1000
-                verifier_model_name = (
-                    getattr(self.verifier, "model_name", None)
-                    or getattr(self.verifier, "model", None)
-                    or self.verifier._llm_type
-                )
+                verifier_model_name = self._resolve_model_name(self.verifier)
 
                 # Store cascade result (direct to verifier)
                 self._last_cascade_result = CascadeResult(
@@ -323,10 +360,9 @@ class CascadeFlow(BaseChatModel):
 
         # STEP 2: Check quality threshold.
         # Avoid `a and b`/`a or b` returning non-bools (e.g., lists) for mypy correctness.
-        if invoked_tool_names:
-            accepted = not force_verifier_for_tool_risk
-        else:
-            accepted = drafter_quality >= self.quality_threshold
+        accepted = self._should_accept_drafter(
+            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+        )
 
         if accepted:
             # Quality is sufficient - use drafter response
@@ -372,16 +408,8 @@ class CascadeFlow(BaseChatModel):
 
         # STEP 3: Calculate costs and metadata
         latency_ms = (time.time() - start_time) * 1000
-        drafter_model_name = (
-            getattr(self.drafter, "model_name", None)
-            or getattr(self.drafter, "model", None)
-            or self.drafter._llm_type
-        )
-        verifier_model_name = (
-            getattr(self.verifier, "model_name", None)
-            or getattr(self.verifier, "model", None)
-            or self.verifier._llm_type
-        )
+        drafter_model_name = self._resolve_model_name(self.drafter)
+        verifier_model_name = self._resolve_model_name(self.verifier)
 
         cost_metadata = create_cost_metadata(
             drafter_result,
@@ -534,11 +562,7 @@ class CascadeFlow(BaseChatModel):
                 )
 
                 latency_ms = (time.time() - start_time) * 1000
-                verifier_model_name = (
-                    getattr(self.verifier, "model_name", None)
-                    or getattr(self.verifier, "model", None)
-                    or self.verifier._llm_type
-                )
+                verifier_model_name = self._resolve_model_name(self.verifier)
 
                 # Store cascade result (direct to verifier)
                 self._last_cascade_result = CascadeResult(
@@ -621,10 +645,9 @@ class CascadeFlow(BaseChatModel):
         drafter_quality = quality_func(drafter_result)
 
         # STEP 2: Check quality threshold.
-        if invoked_tool_names:
-            accepted = not force_verifier_for_tool_risk
-        else:
-            accepted = drafter_quality >= self.quality_threshold
+        accepted = self._should_accept_drafter(
+            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+        )
 
         if accepted:
             # Quality is sufficient - use drafter response
@@ -670,16 +693,8 @@ class CascadeFlow(BaseChatModel):
 
         # STEP 3: Calculate costs and metadata
         latency_ms = (time.time() - start_time) * 1000
-        drafter_model_name = (
-            getattr(self.drafter, "model_name", None)
-            or getattr(self.drafter, "model", None)
-            or self.drafter._llm_type
-        )
-        verifier_model_name = (
-            getattr(self.verifier, "model_name", None)
-            or getattr(self.verifier, "model", None)
-            or self.verifier._llm_type
-        )
+        drafter_model_name = self._resolve_model_name(self.drafter)
+        verifier_model_name = self._resolve_model_name(self.verifier)
 
         cost_metadata = create_cost_metadata(
             drafter_result,
@@ -771,15 +786,14 @@ class CascadeFlow(BaseChatModel):
 
         # Merge bind kwargs with call kwargs
         merged_kwargs = {**self._bind_kwargs, **kwargs}
-        if stop:
-            merged_kwargs["stop"] = stop
-        base_tags = (merged_kwargs.get("tags") or []) + ["cascadeflow"]
+        stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
+        base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
         base_metadata = {
-            **(merged_kwargs.get("metadata") or {}),
+            **(base_config.get("metadata") or {}),
             "cascadeflow": {
                 **(
-                    merged_kwargs.get("metadata", {}).get("cascadeflow", {})
-                    if isinstance(merged_kwargs.get("metadata"), dict)
+                    base_config.get("metadata", {}).get("cascadeflow", {})
+                    if isinstance(base_config.get("metadata"), dict)
                     else {}
                 ),
                 "integration": "langchain",
@@ -811,8 +825,9 @@ class CascadeFlow(BaseChatModel):
             if routing_decision is not None and not use_cascade:
                 for chunk in self.verifier.stream(
                     messages,
-                    **{
-                        **merged_kwargs,
+                    stop=stop,
+                    config={
+                        **base_config,
                         "tags": base_tags
                         + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
                         "metadata": {
@@ -823,6 +838,9 @@ class CascadeFlow(BaseChatModel):
                                 "role": "verifier",
                             },
                         },
+                    },
+                    **{
+                        **stream_kwargs,
                     },
                 ):
                     yield ChatGenerationChunk(
@@ -836,8 +854,9 @@ class CascadeFlow(BaseChatModel):
 
         for chunk in self.drafter.stream(
             messages,
-            **{
-                **merged_kwargs,
+            stop=stop,
+            config={
+                **base_config,
                 "tags": base_tags + ["cascadeflow:drafter", "drafter"],
                 "metadata": {
                     **base_metadata,
@@ -847,6 +866,9 @@ class CascadeFlow(BaseChatModel):
                         "role": "drafter",
                     },
                 },
+            },
+            **{
+                **stream_kwargs,
             },
         ):
             chunk_text = chunk.content if isinstance(chunk.content, str) else ""
@@ -897,10 +919,9 @@ class CascadeFlow(BaseChatModel):
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
-        if invoked_tool_names:
-            accepted = not force_verifier_for_tool_risk
-        else:
-            accepted = drafter_quality >= self.quality_threshold
+        accepted = self._should_accept_drafter(
+            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+        )
 
         # STEP 3: If quality insufficient, cascade to verifier
         if not accepted:
@@ -928,8 +949,9 @@ class CascadeFlow(BaseChatModel):
 
             for chunk in self.verifier.stream(
                 messages,
-                **{
-                    **merged_kwargs,
+                stop=stop,
+                config={
+                    **base_config,
                     "tags": verifier_tags,
                     "metadata": {
                         **base_metadata,
@@ -942,6 +964,9 @@ class CascadeFlow(BaseChatModel):
                         },
                     },
                 },
+                **{
+                    **stream_kwargs,
+                },
             ):
                 chunk_text = chunk.content if isinstance(chunk.content, str) else ""
                 yield ChatGenerationChunk(message=chunk, text=chunk_text)
@@ -953,17 +978,8 @@ class CascadeFlow(BaseChatModel):
                 yield ChatGenerationChunk(message=chunk, text=chunk_text)
 
         # Calculate cost metadata (streaming mode has limited token usage data)
-        drafter_model_name = (
-            getattr(self.drafter, "model_name", None)
-            or getattr(self.drafter, "model", None)
-            or self.drafter._llm_type
-        )
-
-        verifier_model_name = (
-            getattr(self.verifier, "model_name", None)
-            or getattr(self.verifier, "model", None)
-            or self.verifier._llm_type
-        )
+        drafter_model_name = self._resolve_model_name(self.drafter)
+        verifier_model_name = self._resolve_model_name(self.verifier)
 
         # Create verifier result if escalated (synthetic, no usage data in streaming)
         verifier_result = None
@@ -1021,15 +1037,14 @@ class CascadeFlow(BaseChatModel):
 
         # Merge bind kwargs with call kwargs
         merged_kwargs = {**self._bind_kwargs, **kwargs}
-        if stop:
-            merged_kwargs["stop"] = stop
-        base_tags = (merged_kwargs.get("tags") or []) + ["cascadeflow"]
+        stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
+        base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
         base_metadata = {
-            **(merged_kwargs.get("metadata") or {}),
+            **(base_config.get("metadata") or {}),
             "cascadeflow": {
                 **(
-                    merged_kwargs.get("metadata", {}).get("cascadeflow", {})
-                    if isinstance(merged_kwargs.get("metadata"), dict)
+                    base_config.get("metadata", {}).get("cascadeflow", {})
+                    if isinstance(base_config.get("metadata"), dict)
                     else {}
                 ),
                 "integration": "langchain",
@@ -1058,8 +1073,9 @@ class CascadeFlow(BaseChatModel):
             if not use_cascade:
                 async for chunk in self.verifier.astream(
                     messages,
-                    **{
-                        **merged_kwargs,
+                    stop=stop,
+                    config={
+                        **base_config,
                         "tags": base_tags
                         + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
                         "metadata": {
@@ -1070,6 +1086,9 @@ class CascadeFlow(BaseChatModel):
                                 "role": "verifier",
                             },
                         },
+                    },
+                    **{
+                        **stream_kwargs,
                     },
                 ):
                     yield ChatGenerationChunk(
@@ -1083,8 +1102,9 @@ class CascadeFlow(BaseChatModel):
 
         async for chunk in self.drafter.astream(
             messages,
-            **{
-                **merged_kwargs,
+            stop=stop,
+            config={
+                **base_config,
                 "tags": base_tags + ["cascadeflow:drafter", "drafter"],
                 "metadata": {
                     **base_metadata,
@@ -1094,6 +1114,9 @@ class CascadeFlow(BaseChatModel):
                         "role": "drafter",
                     },
                 },
+            },
+            **{
+                **stream_kwargs,
             },
         ):
             chunk_text = chunk.content if isinstance(chunk.content, str) else ""
@@ -1144,10 +1167,9 @@ class CascadeFlow(BaseChatModel):
             force_verifier_for_tool_risk = bool(tool_risk.get("use_verifier"))
 
         drafter_quality = quality_func(drafter_result)
-        if invoked_tool_names:
-            accepted = not force_verifier_for_tool_risk
-        else:
-            accepted = drafter_quality >= self.quality_threshold
+        accepted = self._should_accept_drafter(
+            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+        )
 
         # STEP 3: If quality insufficient, cascade to verifier
         if not accepted:
@@ -1175,8 +1197,9 @@ class CascadeFlow(BaseChatModel):
 
             async for chunk in self.verifier.astream(
                 messages,
-                **{
-                    **merged_kwargs,
+                stop=stop,
+                config={
+                    **base_config,
                     "tags": verifier_tags,
                     "metadata": {
                         **base_metadata,
@@ -1189,6 +1212,9 @@ class CascadeFlow(BaseChatModel):
                         },
                     },
                 },
+                **{
+                    **stream_kwargs,
+                },
             ):
                 chunk_text = chunk.content if isinstance(chunk.content, str) else ""
                 yield ChatGenerationChunk(message=chunk, text=chunk_text)
@@ -1200,17 +1226,8 @@ class CascadeFlow(BaseChatModel):
                 yield ChatGenerationChunk(message=chunk, text=chunk_text)
 
         # Calculate cost metadata (streaming mode has limited token usage data)
-        drafter_model_name = (
-            getattr(self.drafter, "model_name", None)
-            or getattr(self.drafter, "model", None)
-            or self.drafter._llm_type
-        )
-
-        verifier_model_name = (
-            getattr(self.verifier, "model_name", None)
-            or getattr(self.verifier, "model", None)
-            or self.verifier._llm_type
-        )
+        drafter_model_name = self._resolve_model_name(self.drafter)
+        verifier_model_name = self._resolve_model_name(self.verifier)
 
         # Create verifier result if escalated (synthetic, no usage data in streaming)
         verifier_result = None
@@ -1522,7 +1539,7 @@ class CascadeFlow(BaseChatModel):
 
 # Helper function for convenience
 def with_cascade(
-    drafter: BaseChatModel, verifier: BaseChatModel, quality_threshold: float = 0.7, **kwargs: Any
+    drafter: Any, verifier: Any, quality_threshold: float = 0.7, **kwargs: Any
 ) -> CascadeFlow:
     """Create a CascadeFlow wrapper (convenience function).
 
