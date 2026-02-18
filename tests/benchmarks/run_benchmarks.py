@@ -454,9 +454,9 @@ Examples:
 
     args = parser.parse_args()
 
-    # Check API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY environment variable not set")
+    # Check API keys (benchmarks may use OpenAI and/or Anthropic depending on config)
+    if not os.getenv("OPENAI_API_KEY") and not os.getenv("ANTHROPIC_API_KEY"):
+        print("Error: No provider API key found (set OPENAI_API_KEY and/or ANTHROPIC_API_KEY)")
         sys.exit(1)
 
     # Run benchmarks

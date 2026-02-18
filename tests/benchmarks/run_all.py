@@ -10,7 +10,7 @@ Features:
 - Identifies best/worst performing configurations
 
 Usage:
-    python run_all.py [--output-dir results] [--format json,csv,md] [--full] [--verbose-routing]
+    python run_all.py [--output-dir results] [--format json,csv,md] [--profile smoke|standard|overnight|full] [--full] [--verbose-routing]
 """
 
 import argparse
@@ -24,11 +24,65 @@ from typing import Any
 from .reporter import BenchmarkReporter
 
 
+PROFILE_PRESETS: dict[str, dict[str, Any]] = {
+    # Fast signal, low spend.
+    "smoke": {
+        "humaneval": 10,
+        "gsm8k": 10,
+        "mtbench": 10,
+        "truthfulqa": 15,
+        "banking77": 200,
+        "customer_support": 20,
+        "bfcl_agentic_tasks": 10,
+        "multi_agent_tasks": 6,
+        "provider_comparison": False,
+    },
+    # Shareable numbers (still bounded).
+    "standard": {
+        "humaneval": 25,
+        "gsm8k": 25,
+        "mtbench": 20,
+        "truthfulqa": 50,
+        "banking77": 500,
+        "customer_support": 200,
+        "bfcl_agentic_tasks": 25,
+        "multi_agent_tasks": 12,
+        "provider_comparison": True,
+    },
+    # Longer run; intended for deeper validation.
+    "overnight": {
+        "humaneval": 80,
+        "gsm8k": 100,
+        "mtbench": 50,
+        "truthfulqa": 200,
+        "banking77": 1500,
+        "customer_support": 1000,
+        "bfcl_agentic_tasks": 60,
+        "multi_agent_tasks": 24,
+        "provider_comparison": True,
+    },
+    # Full official datasets (expensive).
+    "full": {
+        "humaneval": None,
+        "gsm8k": None,
+        "mtbench": None,
+        "truthfulqa": None,
+        "banking77": None,
+        "customer_support": None,
+        "bfcl_agentic_tasks": None,
+        "multi_agent_tasks": None,
+        "provider_comparison": True,
+    },
+}
+
+
 async def run_all_benchmarks(
     output_dir: Path,
     *,
     full: bool = False,
+    profile: str = "smoke",
     verbose_routing: bool = False,
+    skip_provider_comparison: bool = False,
 ) -> dict[str, Any]:
     """
     Run all available benchmarks and collect results.
@@ -59,12 +113,15 @@ async def run_all_benchmarks(
     if verbose_routing:
         os.environ["CASCADEFLOW_BENCH_LOG"] = "1"
 
+    effective_profile = "full" if full else profile
+    preset = PROFILE_PRESETS.get(effective_profile, PROFILE_PRESETS["smoke"])
+
     # Run HumanEval benchmark
     try:
         print("Running HumanEval Code Generation Benchmark...")
         from .humaneval import run_humaneval_benchmark
 
-        humaneval_summary = await run_humaneval_benchmark(max_samples=None if full else 10)
+        humaneval_summary = await run_humaneval_benchmark(max_samples=preset["humaneval"])
         results["humaneval"] = humaneval_summary
         print("✅ HumanEval benchmark completed\n")
     except Exception as e:
@@ -76,7 +133,7 @@ async def run_all_benchmarks(
         print("Running GSM8K Math Reasoning Benchmark...")
         from .gsm8k import run_gsm8k_benchmark
 
-        gsm8k_summary = await run_gsm8k_benchmark(max_samples=None if full else 10)
+        gsm8k_summary = await run_gsm8k_benchmark(max_samples=preset["gsm8k"])
         results["gsm8k"] = gsm8k_summary
         print("✅ GSM8K benchmark completed\n")
     except Exception as e:
@@ -88,7 +145,7 @@ async def run_all_benchmarks(
         print("Running MT-Bench Multi-Turn Conversation Benchmark...")
         from .mtbench import run_mtbench_benchmark
 
-        mtbench_summary = await run_mtbench_benchmark(max_samples=None if full else 10)
+        mtbench_summary = await run_mtbench_benchmark(max_samples=preset["mtbench"])
         results["mtbench"] = mtbench_summary
         print("✅ MT-Bench benchmark completed\n")
     except Exception as e:
@@ -100,7 +157,7 @@ async def run_all_benchmarks(
         print("Running TruthfulQA Factual Accuracy Benchmark...")
         from .truthfulqa import run_truthfulqa_benchmark
 
-        truthfulqa_summary = await run_truthfulqa_benchmark(max_samples=None if full else 15)
+        truthfulqa_summary = await run_truthfulqa_benchmark(max_samples=preset["truthfulqa"])
         results["truthfulqa"] = truthfulqa_summary
         print("✅ TruthfulQA benchmark completed\n")
     except Exception as e:
@@ -113,7 +170,7 @@ async def run_all_benchmarks(
         from .banking77_benchmark import run_banking77_benchmark
 
         banking_summary = await run_banking77_benchmark(
-            max_samples=None if full else 200, split="test"
+            max_samples=preset["banking77"], split="test"
         )
         results["banking77"] = banking_summary
         print("✅ Banking77 benchmark completed\n")
@@ -126,7 +183,9 @@ async def run_all_benchmarks(
         print("Running Customer Support Benchmark...")
         from .customer_support import run_customer_support_benchmark
 
-        customer_summary = await run_customer_support_benchmark(max_samples=None if full else 20)
+        customer_summary = await run_customer_support_benchmark(
+            max_samples=preset["customer_support"]
+        )
         results["customer_support"] = customer_summary
         print("✅ Customer support benchmark completed\n")
     except Exception as e:
@@ -142,12 +201,29 @@ async def run_all_benchmarks(
             drafter_model="claude-haiku-4-5-20251001",
             verifier_model="claude-opus-4-5-20251101",
         )
-        agentic_summary = await agentic_benchmark.run_benchmark()
+        agentic_summary = await agentic_benchmark.run_benchmark(
+            max_tasks=preset["bfcl_agentic_tasks"]
+        )
         results["agentic"] = agentic_summary
         print("✅ Agentic benchmark completed\n")
     except Exception as e:
         print(f"❌ Agentic benchmark failed: {e}\n")
         results["agentic"] = None
+
+    # Run Agentic Multi-Agent (router + tool calls)
+    try:
+        print("Running Agentic Multi-Agent Benchmark...")
+        from .agentic_multi_agent import run_agentic_multi_agent_benchmark
+
+        multi_agent_summary = await run_agentic_multi_agent_benchmark(
+            max_tasks=preset["multi_agent_tasks"] or 6,
+            verbose=False,
+        )
+        results["agentic_multi_agent"] = multi_agent_summary
+        print("✅ Agentic multi-agent benchmark completed\n")
+    except Exception as e:
+        print(f"❌ Agentic multi-agent benchmark failed: {e}\n")
+        results["agentic_multi_agent"] = None
 
     # Run Structured Tool-Calling Benchmark
     try:
@@ -173,16 +249,22 @@ async def run_all_benchmarks(
         print(f"❌ Agentic structured tool-calling benchmark failed: {e}\n")
         results["tool_calls_agentic"] = None
 
-    # Run Provider Comparison
-    try:
-        print("Running Provider Comparison Benchmark...")
-        from .provider_comparison import test_provider_comparison
+    # Run Provider Comparison (optional; expensive)
+    should_run_provider_comparison = (
+        bool(preset.get("provider_comparison", False)) and not skip_provider_comparison
+    )
+    if should_run_provider_comparison:
+        try:
+            print("Running Provider Comparison Benchmark...")
+            from .provider_comparison import test_provider_comparison
 
-        await test_provider_comparison()
-        print("✅ Provider comparison completed\n")
-        results["provider_comparison"] = "completed"
-    except Exception as e:
-        print(f"❌ Provider comparison failed: {e}\n")
+            await test_provider_comparison()
+            print("✅ Provider comparison completed\n")
+            results["provider_comparison"] = "completed"
+        except Exception as e:
+            print(f"❌ Provider comparison failed: {e}\n")
+            results["provider_comparison"] = None
+    else:
         results["provider_comparison"] = None
 
     return results
@@ -253,6 +335,23 @@ def generate_comparison_table(results: dict[str, Any]) -> str:
                     f"{explicit.get('draft_rate', 0) * 100:.1f}% draft acceptance\n"
                 )
 
+    multi_agent_summary = results.get("agentic_multi_agent")
+    if isinstance(multi_agent_summary, dict):
+        table += "\n## Agentic Multi-Agent Summary\n\n"
+        table += f"- **Total Tasks:** {multi_agent_summary.get('total_tasks', 0)}\n"
+        table += (
+            f"- **Accuracy (router+tool):** {multi_agent_summary.get('accuracy', 0) * 100:.1f}%\n"
+        )
+        table += (
+            f"- **Router Accuracy:** {multi_agent_summary.get('router_accuracy', 0) * 100:.1f}%\n"
+        )
+        table += f"- **Tool Accuracy:** {multi_agent_summary.get('tool_accuracy', 0) * 100:.1f}%\n"
+        table += (
+            f"- **Draft Acceptance:** {multi_agent_summary.get('draft_acceptance', 0) * 100:.1f}%\n"
+        )
+        table += f"- **Cost Reduction:** {multi_agent_summary.get('cost_reduction_pct', 0):.1f}%\n"
+        table += f"- **Total Cost:** ${multi_agent_summary.get('total_cost', 0):.6f}\n"
+
     table += "\n## Key Findings\n\n"
 
     # Calculate aggregate statistics
@@ -300,6 +399,13 @@ async def main():
 
     parser = argparse.ArgumentParser(description="Run all CascadeFlow benchmarks")
     parser.add_argument(
+        "--profile",
+        type=str,
+        choices=sorted(PROFILE_PRESETS.keys()),
+        default="smoke",
+        help="Benchmark intensity preset (controls sample sizes and optional benchmarks)",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default="benchmark_results",
@@ -321,6 +427,11 @@ async def main():
         action="store_true",
         help="Log routing decisions during benchmark runs",
     )
+    parser.add_argument(
+        "--skip-provider-comparison",
+        action="store_true",
+        help="Skip provider comparison benchmark (expensive; enabled by default in standard/overnight/full)",
+    )
 
     args = parser.parse_args()
 
@@ -332,7 +443,9 @@ async def main():
     results = await run_all_benchmarks(
         output_dir,
         full=args.full,
+        profile=args.profile,
         verbose_routing=args.verbose_routing,
+        skip_provider_comparison=args.skip_provider_comparison,
     )
 
     # Generate comparison table
