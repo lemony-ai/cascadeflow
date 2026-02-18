@@ -145,9 +145,7 @@ class QualityMetrics:
         direct_results = [r for r in results if r.direct_routed]
         direct_correct = sum(1 for r in direct_results if r.is_correct)
         direct_incorrect = len(direct_results) - direct_correct
-        direct_accuracy = (
-            (direct_correct / len(direct_results) * 100) if direct_results else 0.0
-        )
+        direct_accuracy = (direct_correct / len(direct_results) * 100) if direct_results else 0.0
 
         return QualityMetrics(
             overall_accuracy=overall_accuracy,

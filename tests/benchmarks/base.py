@@ -429,7 +429,9 @@ class Benchmark(ABC):
 
         # Cascade metrics
         direct_routed = sum(1 for r in valid_results if r.direct_routed)
-        drafter_accepted = sum(1 for r in valid_results if r.routing_strategy == "cascade" and r.accepted)
+        drafter_accepted = sum(
+            1 for r in valid_results if r.routing_strategy == "cascade" and r.accepted
+        )
         escalated = sum(1 for r in valid_results if r.verifier_rejected)
         cascade_total = drafter_accepted + escalated
 
@@ -447,14 +449,18 @@ class Benchmark(ABC):
         p95_latency = latencies[p95_idx]
         cascadeflow_latencies = [r.cascadeflow_latency_ms for r in valid_results]
         avg_cascadeflow_latency = (
-            sum(cascadeflow_latencies) / len(cascadeflow_latencies) if cascadeflow_latencies else 0.0
+            sum(cascadeflow_latencies) / len(cascadeflow_latencies)
+            if cascadeflow_latencies
+            else 0.0
         )
 
         # Quality metrics
         correct = sum(1 for r in valid_results if r.is_correct)
         accuracy = (correct / len(valid_results) * 100) if valid_results else 0.0
 
-        drafter_results = [r for r in valid_results if r.routing_strategy == "cascade" and r.accepted]
+        drafter_results = [
+            r for r in valid_results if r.routing_strategy == "cascade" and r.accepted
+        ]
         drafter_correct = sum(1 for r in drafter_results if r.is_correct)
         drafter_accuracy = (
             (drafter_correct / len(drafter_results) * 100) if drafter_results else 0.0
@@ -468,9 +474,7 @@ class Benchmark(ABC):
 
         direct_results = [r for r in valid_results if r.direct_routed]
         direct_correct = sum(1 for r in direct_results if r.is_correct)
-        direct_accuracy = (
-            (direct_correct / len(direct_results) * 100) if direct_results else 0.0
-        )
+        direct_accuracy = (direct_correct / len(direct_results) * 100) if direct_results else 0.0
 
         # Token usage
         total_input = sum(r.tokens_input for r in valid_results)
@@ -483,7 +487,9 @@ class Benchmark(ABC):
             failed_tests=failed,
             drafter_accepted=drafter_accepted,
             escalated_to_verifier=escalated,
-            acceptance_rate_pct=(drafter_accepted / cascade_total * 100) if cascade_total > 0 else 0.0,
+            acceptance_rate_pct=(
+                (drafter_accepted / cascade_total * 100) if cascade_total > 0 else 0.0
+            ),
             escalation_rate_pct=(escalated / cascade_total * 100) if cascade_total > 0 else 0.0,
             direct_routed=direct_routed,
             direct_routing_pct=(direct_routed / successful * 100) if successful > 0 else 0.0,
@@ -524,9 +530,7 @@ class Benchmark(ABC):
         print(
             f"  Escalated:           {summary.escalated_to_verifier} ({summary.escalation_rate_pct:.1f}%)"
         )
-        print(
-            f"  Direct Routed:       {summary.direct_routed} ({summary.direct_routing_pct:.1f}%)"
-        )
+        print(f"  Direct Routed:       {summary.direct_routed} ({summary.direct_routing_pct:.1f}%)")
 
         print("\nCOST ANALYSIS:")
         print(f"  Total Cost:          ${summary.total_cost:.6f}")

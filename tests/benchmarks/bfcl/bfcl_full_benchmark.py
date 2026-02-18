@@ -394,7 +394,9 @@ class BFCLBenchmark:
                 counts[func_key] = counts.get(func_key, 0) + 1
 
             for func, expected_count in counts.items():
-                func_mentions = response_lower.count(func) + response_lower.count(func.replace("_", " "))
+                func_mentions = response_lower.count(func) + response_lower.count(
+                    func.replace("_", " ")
+                )
                 if func_mentions < expected_count:
                     return False, True
             return True, True
@@ -404,9 +406,7 @@ class BFCLBenchmark:
         if expected_func is None:
             # No tool should be used
             func_correct = (
-                found_func is None
-                or "don't need" in response_lower
-                or "no tool" in response_lower
+                found_func is None or "don't need" in response_lower or "no tool" in response_lower
             )
             return func_correct, True
 

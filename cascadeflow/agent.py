@@ -1725,19 +1725,11 @@ class CascadeAgent:
             prompt_tokens = response.metadata.get("prompt_tokens")
             completion_tokens = response.metadata.get("completion_tokens")
             total_tokens = response.metadata.get("total_tokens")
-            if (
-                total_tokens is None
-                and prompt_tokens is not None
-                and completion_tokens is not None
-            ):
+            if total_tokens is None and prompt_tokens is not None and completion_tokens is not None:
                 total_tokens = prompt_tokens + completion_tokens
 
         cost = None
-        if (
-            LITELLM_AVAILABLE
-            and prompt_tokens is not None
-            and completion_tokens is not None
-        ):
+        if LITELLM_AVAILABLE and prompt_tokens is not None and completion_tokens is not None:
             try:
                 provider = LiteLLMCostProvider()
                 cost = provider.calculate_cost(
@@ -2222,7 +2214,11 @@ class CascadeAgent:
                 self.speedup = 1.0
 
                 token_total = total_tokens
-                if token_total is None and prompt_tokens is not None and completion_tokens is not None:
+                if (
+                    token_total is None
+                    and prompt_tokens is not None
+                    and completion_tokens is not None
+                ):
                     token_total = prompt_tokens + completion_tokens
                 if token_total is None:
                     token_total = int(len(content.split()) * 1.3)
