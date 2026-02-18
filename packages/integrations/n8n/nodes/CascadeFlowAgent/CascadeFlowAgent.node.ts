@@ -1,8 +1,8 @@
 import type {
+  IExecuteFunctions,
+  INodeExecutionData,
   INodeType,
   INodeTypeDescription,
-  ISupplyDataFunctions,
-  SupplyData,
 } from 'n8n-workflow';
 
 import { NodeOperationError } from 'n8n-workflow';
@@ -50,6 +50,14 @@ export interface ToolLike {
   invoke?: (args: any) => Promise<any>;
   call?: (args: any) => Promise<any>;
   run?: (args: any) => Promise<any>;
+}
+
+interface ChatMemoryLike {
+  chatHistory: {
+    getMessages(): Promise<BaseMessage[]>;
+    addUserMessage(message: string): Promise<void>;
+    addAIChatMessage(message: string): Promise<void>;
+  };
 }
 
 export class CascadeFlowAgentExecutor {
@@ -521,8 +529,10 @@ export class CascadeFlowAgent implements INodeType {
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: `={{ ((params) => {
       const inputs = [
+        { displayName: '', type: 'main' },
         { displayName: 'Verifier', type: 'ai_languageModel', maxConnections: 1, required: true },
         { displayName: 'Drafter', type: 'ai_languageModel', maxConnections: 1, required: true },
+        { displayName: 'Memory', type: 'ai_memory', maxConnections: 1, required: false },
         { displayName: 'Tools', type: 'ai_tool', maxConnections: 99, required: false },
       ];
 
@@ -558,10 +568,27 @@ export class CascadeFlowAgent implements INodeType {
 
       return inputs;
     })($parameter) }}`,
-    // eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
-    outputs: ['ai_agent' as any],
-    outputNames: ['Agent'],
+    outputs: ['main' as any],
+    outputNames: ['Output'],
     properties: [
+      {
+        displayName: 'System Message',
+        name: 'systemMessage',
+        type: 'string',
+        default: '',
+        typeOptions: {
+          rows: 4,
+        },
+        description: 'System prompt for the agent. Sets the overall behavior and context.',
+      },
+      {
+        displayName: 'Text',
+        name: 'text',
+        type: 'string',
+        default: '={{ $json.chatInput }}',
+        required: true,
+        description: 'The user message to send to the agent. Defaults to chatInput from Chat Trigger.',
+      },
       {
         displayName: 'Quality Threshold',
         name: 'qualityThreshold',
@@ -729,7 +756,12 @@ export class CascadeFlowAgent implements INodeType {
     ],
   };
 
-  async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
+  async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+    const items = this.getInputData();
+    const returnData: INodeExecutionData[] = [];
+
+    // --- Resolve parameters that are constant across items (index 0) ---
+
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.4) as number;
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
@@ -750,7 +782,7 @@ export class CascadeFlowAgent implements INodeType {
     const toolRoutingRaw = this.getNodeParameter('toolRoutingRules', 0, { rule: [] }) as any;
     const toolRoutingRules = (toolRoutingRaw?.rule ?? []) as ToolRoutingRule[];
 
-    // Get domain routing parameters
+    // Domain routing parameters
     const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
 
     const enabledDomains: DomainType[] = [];
@@ -762,7 +794,7 @@ export class CascadeFlowAgent implements INodeType {
       enabledDomains.push(...getEnabledDomains(toggleParams));
     }
 
-    // Get domain-specific settings
+    // Domain-specific settings
     const domainSettingsRaw = this.getNodeParameter('domainSettings', 0, { domainConfig: [] }) as any;
     interface DomainConfig {
       enabled: boolean;
@@ -781,11 +813,10 @@ export class CascadeFlowAgent implements INodeType {
       }
     }
 
-    // Resolve ALL connected language models in a single getInputConnectionData call.
-    // n8n resolves ALL sub-nodes of the given connectionType (the 2nd param is a
-    // data-item index, NOT a port selector). The returned array is in reversed slot
-    // order due to internal unshift, so we reverse it back. This matches the
-    // built-in AI Agent node pattern (getChatModel in ToolsAgent/common.ts).
+    // --- Resolve connected AI components (once, not per item) ---
+
+    // Language models — single call resolves all ai_languageModel sub-nodes.
+    // Reversed slot order due to internal unshift, so we reverse back.
     const allModelData = await this.getInputConnectionData('ai_languageModel' as any, 0);
     const allModels = Array.isArray(allModelData)
       ? ([...allModelData].reverse() as BaseChatModel[])
@@ -810,7 +841,11 @@ export class CascadeFlowAgent implements INodeType {
     }
     const drafterModelGetter = async () => resolvedDrafter;
 
-    // Tools use a separate connectionType so they have their own single call
+    // Memory (optional)
+    const memory = (await this.getInputConnectionData('ai_memory' as any, 0)
+      .catch(() => null)) as ChatMemoryLike | null;
+
+    // Tools
     const toolsData = await this.getInputConnectionData('ai_tool' as any, 0).catch(() => [] as any);
     const tools = (Array.isArray(toolsData) ? toolsData : toolsData ? [toolsData] : []) as ToolLike[];
 
@@ -860,8 +895,49 @@ export class CascadeFlowAgent implements INodeType {
       enableToolCascadeValidation,
     );
 
-    return {
-      response: agentExecutor,
-    };
+    // --- Process each input item ---
+
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+      const text = this.getNodeParameter('text', itemIndex) as string;
+      const systemMessage = this.getNodeParameter('systemMessage', itemIndex, '') as string;
+
+      // Build message array
+      const messages: BaseMessage[] = [];
+      if (systemMessage) {
+        messages.push(new SystemMessage(systemMessage));
+      }
+
+      // Load chat history from memory
+      if (memory) {
+        const memoryMessages = await memory.chatHistory.getMessages();
+        messages.push(...memoryMessages);
+      }
+
+      messages.push(new HumanMessage(text));
+
+      // Run the agent
+      const result = await agentExecutor.invoke(messages);
+
+      // Persist to memory
+      if (memory) {
+        await memory.chatHistory.addUserMessage(text);
+        await memory.chatHistory.addAIChatMessage(result.output);
+      }
+
+      // Extract cascadeflow metadata from response
+      const responseMetadata = result.message?.response_metadata ?? {};
+      const cascadeflowMeta = responseMetadata.cascadeflow ?? responseMetadata.cf ?? {};
+
+      returnData.push({
+        json: {
+          output: result.output,
+          ...cascadeflowMeta,
+          trace: result.trace,
+        },
+        pairedItem: { item: itemIndex },
+      });
+    }
+
+    return [returnData];
   }
 }
