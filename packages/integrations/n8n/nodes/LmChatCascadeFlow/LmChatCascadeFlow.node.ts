@@ -1387,14 +1387,14 @@ function generateDomainProperties(): any[] {
 
   return [
     {
-      displayName: 'Enable Domain Routing',
+      displayName: 'Enable Domain Cascading',
       name: 'enableDomainRouting',
       type: 'boolean',
       default: false,
-      description: 'Whether to enable intelligent routing based on detected query domain (math, code, legal, etc.)',
+      description: 'Whether to enable domain-specific cascading based on detected query domain (math, code, legal, etc.)',
     },
     {
-      displayName: 'Enable Domain Verifiers',
+      displayName: 'Enable Domain Verifiers (Default: Main Verifier)',
       name: 'enableDomainVerifiers',
       type: 'boolean',
       default: false,
@@ -1641,7 +1641,7 @@ export class LmChatCascadeFlow implements INodeType {
         description: 'Whether to validate drafter tool calls (JSON syntax, schema, safety) before accepting them. When validation fails, tool calls are escalated to the verifier.',
       },
       {
-        displayName: 'Domain Routing',
+        displayName: 'Domain Cascading',
         name: 'domainRoutingHeading',
         type: 'notice',
         default: '',
