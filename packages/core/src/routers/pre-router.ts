@@ -23,6 +23,7 @@
  */
 
 import { ComplexityDetector } from '../complexity';
+import type { RuleDecision } from '../rules';
 import type { QueryComplexity } from '../types';
 import {
   Router,
@@ -244,6 +245,7 @@ export class PreRouter extends Router {
     const detectedDomain = context.detectedDomain as string | undefined;
     const domainConfig = context.domainConfig as Record<string, any> | undefined;
     const domainConfidence = (context.domainConfidence as number) ?? 0.0;
+    const ruleDecision = context.ruleDecision as RuleDecision | undefined;
 
     // Check if domain config is user-provided and enabled
     const domainRoutingActive =
@@ -283,6 +285,15 @@ export class PreRouter extends Router {
       confidence = 1.0;
       routerType = 'cascade_disabled';
       this.stats.cascadeDisabled++;
+    } else if (ruleDecision?.routingStrategy) {
+      // Rule-engine override takes precedence over domain/complexity defaults.
+      strategy = ruleDecision.routingStrategy;
+      reason = ruleDecision.reason || 'Rule engine override';
+      confidence = ruleDecision.confidence ?? 0.8;
+      routerType = 'rule_engine';
+      if (ruleDecision.metadata) {
+        metadata.ruleMetadata = ruleDecision.metadata;
+      }
     } else if (domainRoutingActive) {
       // === DOMAIN-AWARE ROUTING (takes precedence) ===
       // User has configured this domain - use domain-specific logic
