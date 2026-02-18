@@ -31,7 +31,19 @@
  */
 
 export { CascadeFlow } from './wrapper.js';
-export type { CascadeConfig, CascadeResult, CostMetadata } from './types.js';
+export { CascadeAgent } from './agent.js';
+export type {
+  CascadeConfig,
+  CascadeResult,
+  CostMetadata,
+  DomainPolicy,
+} from './types.js';
+export type {
+  CascadeAgentConfig,
+  CascadeAgentRunResult,
+  CascadeAgentRunOptions,
+  AgentToolHandler,
+} from './agent.js';
 export * from './utils.js';
 export { analyzeCascadePair, suggestCascadePairs } from './helpers.js';
 export type { CascadeAnalysis } from './helpers.js';

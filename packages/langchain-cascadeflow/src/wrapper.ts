@@ -55,6 +55,12 @@ function resolveModelName(model: any, depth = 0): string {
   return 'unknown';
 }
 
+function normalizeDomainKey(value: any): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function normalizeToolDefs(tools: any[]): NormalizedToolDef[] {
   const out: NormalizedToolDef[] = [];
   for (const t of tools || []) {
@@ -146,6 +152,9 @@ export class CascadeFlow extends BaseChatModel {
       enablePreRouter: config.enablePreRouter ?? true,  // Match Python default
       preRouter: config.preRouter,
       cascadeComplexities: config.cascadeComplexities ?? ['trivial', 'simple', 'moderate'],
+      domainPolicies: Object.fromEntries(
+        Object.entries(config.domainPolicies || {}).map(([k, v]) => [k.toLowerCase(), v || {}])
+      ),
     };
 
     // Initialize PreRouter if enabled
@@ -233,15 +242,25 @@ export class CascadeFlow extends BaseChatModel {
 
     // Merge bind kwargs with options
     const mergedOptions = { ...this.bindKwargs, ...options };
-    const baseTags = mergeTags((mergedOptions as any).tags, ['cascadeflow']);
+    let baseTags = mergeTags((mergedOptions as any).tags, ['cascadeflow']);
+    let resolvedDomain = this.resolveDomain(messages, (mergedOptions as any).metadata);
+    let effectiveQualityThreshold = this.effectiveQualityThreshold(resolvedDomain);
+    let forceVerifierForDomain = this.domainForceVerifier(resolvedDomain);
+    let directToVerifierForDomain = this.domainDirectToVerifier(resolvedDomain);
     const baseMetadata = mergeMetadata((mergedOptions as any).metadata, {
       cascadeflow: {
         integration: 'langchain',
+        domain: resolvedDomain,
+        effective_quality_threshold: effectiveQualityThreshold,
       },
     });
+    if (resolvedDomain) {
+      baseTags = mergeTags(baseTags, [`cascadeflow:domain=${resolvedDomain}`]);
+    }
 
     // STEP 0: PreRouter - Check if we should bypass cascade
     let useCascade = true;
+    let routingDecision: any;
     if (this.preRouter) {
       // Extract query text from messages
       const queryText = messages
@@ -258,17 +277,36 @@ export class CascadeFlow extends BaseChatModel {
         .join('\n');
 
       // Route based on complexity
-      const routingDecision = await this.preRouter.route(queryText);
+      routingDecision = await this.preRouter.route(queryText);
       useCascade = routingDecision.strategy === RoutingStrategy.CASCADE;
+      if (!resolvedDomain) {
+        resolvedDomain = this.resolveDomain(messages, (mergedOptions as any).metadata, routingDecision);
+        effectiveQualityThreshold = this.effectiveQualityThreshold(resolvedDomain);
+        forceVerifierForDomain = this.domainForceVerifier(resolvedDomain);
+        directToVerifierForDomain = this.domainDirectToVerifier(resolvedDomain);
+        (baseMetadata as any).cascadeflow = {
+          ...(baseMetadata as any).cascadeflow,
+          domain: resolvedDomain,
+          effective_quality_threshold: effectiveQualityThreshold,
+        };
+        if (resolvedDomain) {
+          baseTags = mergeTags(baseTags, [`cascadeflow:domain=${resolvedDomain}`]);
+        }
+      }
 
       // If direct routing, skip drafter and go straight to verifier
-      if (!useCascade) {
+      if (!useCascade || directToVerifierForDomain) {
         const verifierMessage = await this.verifier.invoke(messages, {
           ...mergedOptions,
           runName: 'cascadeflow:verifier',
           tags: mergeTags(baseTags, ['cascadeflow:direct', 'cascadeflow:verifier', 'verifier']),
           metadata: mergeMetadata(baseMetadata, {
-            cascadeflow: { ...(baseMetadata as any).cascadeflow, decision: 'direct', role: 'verifier' },
+            cascadeflow: {
+              ...(baseMetadata as any).cascadeflow,
+              decision: 'direct',
+              role: 'verifier',
+              reason: directToVerifierForDomain ? 'domain_policy_direct' : 'pre_router_direct',
+            },
           }),
         });
         const verifierResult: ChatResult = {
@@ -310,8 +348,10 @@ export class CascadeFlow extends BaseChatModel {
             const metadata = {
               cascade_decision: 'direct',
               model_used: 'verifier',
-              routing_reason: routingDecision.reason,
-              complexity: routingDecision.metadata.complexity,
+              routing_reason: directToVerifierForDomain ? 'domain_policy_direct' : routingDecision.reason,
+              complexity: routingDecision?.metadata?.complexity,
+              domain: resolvedDomain,
+              effective_quality_threshold: effectiveQualityThreshold,
             };
 
             verifierResult.llmOutput = {
@@ -339,6 +379,52 @@ export class CascadeFlow extends BaseChatModel {
 
         return verifierResult;
       }
+    }
+
+    if (directToVerifierForDomain) {
+      const verifierMessage = await this.verifier.invoke(messages, {
+        ...mergedOptions,
+        runName: 'cascadeflow:verifier',
+        tags: mergeTags(baseTags, [
+          'cascadeflow:direct',
+          'cascadeflow:verifier',
+          'verifier',
+          'cascadeflow:reason=domain_policy_direct',
+        ]),
+        metadata: mergeMetadata(baseMetadata, {
+          cascadeflow: {
+            ...(baseMetadata as any).cascadeflow,
+            decision: 'direct',
+            role: 'verifier',
+            reason: 'domain_policy_direct',
+          },
+        }),
+      });
+      const verifierResult: ChatResult = {
+        generations: [
+          {
+            text: typeof verifierMessage.content === 'string'
+              ? verifierMessage.content
+              : JSON.stringify(verifierMessage.content),
+            message: verifierMessage,
+          },
+        ],
+        llmOutput: (verifierMessage as any).response_metadata || {},
+      };
+      if (this.config.enableCostTracking) {
+        verifierResult.llmOutput = {
+          ...verifierResult.llmOutput,
+          cascade: {
+            cascade_decision: 'direct',
+            model_used: 'verifier',
+            routing_reason: 'domain_policy_direct',
+            domain: resolvedDomain,
+            drafter_quality: 0,
+            effective_quality_threshold: effectiveQualityThreshold,
+          },
+        };
+      }
+      return verifierResult;
     }
 
     // STEP 1: Execute drafter (cheap, fast model)
@@ -375,9 +461,12 @@ export class CascadeFlow extends BaseChatModel {
       ? await this.config.qualityValidator(drafterResult)
       : calculateQuality(drafterResult);
 
-    // STEP 2: Check quality threshold
-    const accepted =
-      invokedToolNames.length > 0 ? !forceVerifierForToolRisk : drafterQuality >= this.config.qualityThreshold;
+    // STEP 2: Check quality threshold + domain policy
+    const accepted = forceVerifierForDomain
+      ? false
+      : (invokedToolNames.length > 0
+          ? !forceVerifierForToolRisk
+          : drafterQuality >= effectiveQualityThreshold);
 
     let finalResult: ChatResult;
     let verifierResult: ChatResult | null = null;
@@ -389,7 +478,7 @@ export class CascadeFlow extends BaseChatModel {
       // Quality insufficient - execute verifier (expensive, accurate model)
       // Use invoke() to ensure LangSmith captures the model trace
       const verifierDecision =
-        forceVerifierForToolRisk ? 'tool_risk' : 'quality';
+        forceVerifierForToolRisk ? 'tool_risk' : (forceVerifierForDomain ? 'domain_policy' : 'quality');
       const verifierMessage = await this.verifier.invoke(messages, {
         ...mergedOptions,
         runName: 'cascadeflow:verifier',
@@ -407,6 +496,7 @@ export class CascadeFlow extends BaseChatModel {
             role: 'verifier',
             reason: verifierDecision,
             tool_risk: toolRisk || undefined,
+            domain_policy: this.domainPolicy(resolvedDomain),
           },
         }),
       });
@@ -440,9 +530,9 @@ export class CascadeFlow extends BaseChatModel {
     );
 
     const cascadeDecision =
-      invokedToolNames.length > 0
+      invokedToolNames.length > 0 && !forceVerifierForDomain
         ? (accepted ? 'tool_call' : 'tool_risk')
-        : (accepted ? 'accepted' : 'quality');
+        : (accepted ? 'accepted' : (forceVerifierForDomain ? 'domain_policy' : 'quality'));
 
     // Store cascade result
     this.lastCascadeResult = {
@@ -469,6 +559,9 @@ export class CascadeFlow extends BaseChatModel {
             cascade_decision: cascadeDecision,
             invoked_tools: invokedToolNames.length > 0 ? invokedToolNames : undefined,
             tool_risk: toolRisk || undefined,
+            domain: resolvedDomain,
+            effective_quality_threshold: effectiveQualityThreshold,
+            domain_policy: this.domainPolicy(resolvedDomain),
           },
         };
 
@@ -502,6 +595,80 @@ export class CascadeFlow extends BaseChatModel {
     return this.lastCascadeResult;
   }
 
+  private resolveDomain(messages: BaseMessage[], metadata: any, routingDecision?: any): string | undefined {
+    const cascadeMeta = metadata?.cascadeflow;
+    const byCascadeMeta = normalizeDomainKey(cascadeMeta?.domain);
+    if (byCascadeMeta) return byCascadeMeta;
+
+    const byDirectMeta = normalizeDomainKey(metadata?.cascadeflow_domain || metadata?.domain);
+    if (byDirectMeta) return byDirectMeta;
+
+    const byRoutingMeta = normalizeDomainKey(routingDecision?.metadata?.domain);
+    if (byRoutingMeta) return byRoutingMeta;
+
+    const routingDomains = routingDecision?.metadata?.domains;
+    if (Array.isArray(routingDomains)) {
+      for (const d of routingDomains) {
+        const normalized = normalizeDomainKey(d);
+        if (normalized) return normalized;
+      }
+    }
+
+    const detector = (this.preRouter as any)?.detector;
+    if (detector && typeof detector.detect === 'function') {
+      try {
+        const queryText = messages
+          .map((msg) => {
+            if (typeof msg.content === 'string') return msg.content;
+            if (Array.isArray(msg.content)) {
+              return msg.content.map((part: any) => (typeof part === 'string' ? part : part.text || '')).join(' ');
+            }
+            return '';
+          })
+          .join('\\n');
+        const detected = detector.detect(queryText);
+        const detectedDomains = detected?.metadata?.domains;
+        if (detectedDomains instanceof Set) {
+          for (const d of Array.from(detectedDomains).sort()) {
+            const normalized = normalizeDomainKey(d);
+            if (normalized) return normalized;
+          }
+        }
+        if (Array.isArray(detectedDomains)) {
+          for (const d of detectedDomains) {
+            const normalized = normalizeDomainKey(d);
+            if (normalized) return normalized;
+          }
+        }
+      } catch {
+        return undefined;
+      }
+    }
+
+    return undefined;
+  }
+
+  private domainPolicy(domain: string | undefined): Record<string, any> {
+    if (!domain) return {};
+    return (this.config.domainPolicies as Record<string, any>)[domain] || {};
+  }
+
+  private effectiveQualityThreshold(domain: string | undefined): number {
+    const raw = this.domainPolicy(domain).qualityThreshold;
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return Math.max(0, Math.min(1, raw));
+    }
+    return this.config.qualityThreshold;
+  }
+
+  private domainForceVerifier(domain: string | undefined): boolean {
+    return Boolean(this.domainPolicy(domain).forceVerifier);
+  }
+
+  private domainDirectToVerifier(domain: string | undefined): boolean {
+    return Boolean(this.domainPolicy(domain).directToVerifier);
+  }
+
   /**
    * Stream responses with optimistic drafter execution
    *
@@ -523,16 +690,26 @@ export class CascadeFlow extends BaseChatModel {
 
     // Merge bind kwargs with options
     const mergedOptions = { ...this.bindKwargs, ...options };
-    const baseTags = mergeTags((mergedOptions as any).tags, ['cascadeflow']);
+    let baseTags = mergeTags((mergedOptions as any).tags, ['cascadeflow']);
+    let resolvedDomain = this.resolveDomain(messages, (mergedOptions as any).metadata);
+    let effectiveQualityThreshold = this.effectiveQualityThreshold(resolvedDomain);
+    let forceVerifierForDomain = this.domainForceVerifier(resolvedDomain);
+    let directToVerifierForDomain = this.domainDirectToVerifier(resolvedDomain);
     const baseMetadata = mergeMetadata((mergedOptions as any).metadata, {
       cascadeflow: {
         integration: 'langchain',
         streaming: true,
+        domain: resolvedDomain,
+        effective_quality_threshold: effectiveQualityThreshold,
       },
     });
+    if (resolvedDomain) {
+      baseTags = mergeTags(baseTags, [`cascadeflow:domain=${resolvedDomain}`]);
+    }
 
     // STEP 0: PreRouter - Check if we should bypass cascade
     let useCascade = true;
+    let routingDecision: any;
     if (this.preRouter) {
       const queryText = messages
         .map((msg) => {
@@ -547,11 +724,25 @@ export class CascadeFlow extends BaseChatModel {
         })
         .join('\n');
 
-      const routingDecision = await this.preRouter.route(queryText);
+      routingDecision = await this.preRouter.route(queryText);
       useCascade = routingDecision.strategy === RoutingStrategy.CASCADE;
+      if (!resolvedDomain) {
+        resolvedDomain = this.resolveDomain(messages, (mergedOptions as any).metadata, routingDecision);
+        effectiveQualityThreshold = this.effectiveQualityThreshold(resolvedDomain);
+        forceVerifierForDomain = this.domainForceVerifier(resolvedDomain);
+        directToVerifierForDomain = this.domainDirectToVerifier(resolvedDomain);
+        (baseMetadata as any).cascadeflow = {
+          ...(baseMetadata as any).cascadeflow,
+          domain: resolvedDomain,
+          effective_quality_threshold: effectiveQualityThreshold,
+        };
+        if (resolvedDomain) {
+          baseTags = mergeTags(baseTags, [`cascadeflow:domain=${resolvedDomain}`]);
+        }
+      }
 
       // If direct routing, stream verifier only
-      if (!useCascade) {
+      if (!useCascade || directToVerifierForDomain) {
         for await (const chunk of this.verifier._streamResponseChunks(
           messages,
           {
@@ -559,7 +750,12 @@ export class CascadeFlow extends BaseChatModel {
             runName: 'cascadeflow:verifier',
             tags: mergeTags(baseTags, ['cascadeflow:direct', 'cascadeflow:verifier', 'verifier']),
             metadata: mergeMetadata(baseMetadata, {
-              cascadeflow: { ...(baseMetadata as any).cascadeflow, decision: 'direct', role: 'verifier' },
+              cascadeflow: {
+                ...(baseMetadata as any).cascadeflow,
+                decision: 'direct',
+                role: 'verifier',
+                reason: directToVerifierForDomain ? 'domain_policy_direct' : 'pre_router_direct',
+              },
             }),
           },
           runManager
@@ -568,6 +764,34 @@ export class CascadeFlow extends BaseChatModel {
         }
         return;
       }
+    }
+
+    if (directToVerifierForDomain) {
+      for await (const chunk of this.verifier._streamResponseChunks(
+        messages,
+        {
+          ...mergedOptions,
+          runName: 'cascadeflow:verifier',
+          tags: mergeTags(baseTags, [
+            'cascadeflow:direct',
+            'cascadeflow:verifier',
+            'verifier',
+            'cascadeflow:reason=domain_policy_direct',
+          ]),
+          metadata: mergeMetadata(baseMetadata, {
+            cascadeflow: {
+              ...(baseMetadata as any).cascadeflow,
+              decision: 'direct',
+              role: 'verifier',
+              reason: 'domain_policy_direct',
+            },
+          }),
+        },
+        runManager
+      )) {
+        yield chunk;
+      }
+      return;
     }
 
     const toolsBound = (this.boundToolDefs?.length || 0) > 0;
@@ -632,8 +856,11 @@ export class CascadeFlow extends BaseChatModel {
     const toolRisk = invokedToolDefs.length > 0 ? getToolRiskRouting(invokedToolDefs) : null;
     const forceVerifierForToolRisk = toolRisk?.useVerifier ?? false;
 
-    const accepted =
-      invokedToolNames.length > 0 ? !forceVerifierForToolRisk : drafterQuality >= this.config.qualityThreshold;
+    const accepted = forceVerifierForDomain
+      ? false
+      : (invokedToolNames.length > 0
+          ? !forceVerifierForToolRisk
+          : drafterQuality >= effectiveQualityThreshold);
 
     // STEP 3: If quality insufficient, cascade to verifier
     if (!accepted) {
@@ -641,7 +868,7 @@ export class CascadeFlow extends BaseChatModel {
         const { ChatGenerationChunk } = await import('@langchain/core/outputs');
         const { AIMessageChunk } = await import('@langchain/core/messages');
         const verifierModelName = resolveModelName(this.verifier);
-        const switchMessage = `\n\n[CascadeFlow] Escalating to ${verifierModelName} (quality: ${drafterQuality.toFixed(2)} < ${this.config.qualityThreshold})\n\n`;
+        const switchMessage = `\n\n[CascadeFlow] Escalating to ${verifierModelName} (quality: ${drafterQuality.toFixed(2)} < ${effectiveQualityThreshold})\n\n`;
         yield new ChatGenerationChunk({
           text: switchMessage,
           message: new AIMessageChunk({ content: switchMessage }),
@@ -658,6 +885,7 @@ export class CascadeFlow extends BaseChatModel {
             'cascadeflow:verifier',
             'verifier',
             'cascadeflow:escalated',
+            `cascadeflow:reason=${forceVerifierForToolRisk ? 'tool_risk' : (forceVerifierForDomain ? 'domain_policy' : 'quality')}`,
             ...(toolRisk?.maxRiskName ? [`cascadeflow:toolrisk=${toolRisk.maxRiskName}`] : []),
           ]),
           metadata: mergeMetadata(baseMetadata, {
@@ -665,8 +893,9 @@ export class CascadeFlow extends BaseChatModel {
               ...(baseMetadata as any).cascadeflow,
               decision: 'verify',
               role: 'verifier',
-              reason: invokedToolNames.length > 0 ? 'tool_risk' : 'quality',
+              reason: forceVerifierForToolRisk ? 'tool_risk' : (forceVerifierForDomain ? 'domain_policy' : 'quality'),
               tool_risk: toolRisk || undefined,
+              domain_policy: this.domainPolicy(resolvedDomain),
             },
           }),
         },
@@ -727,6 +956,7 @@ export class CascadeFlow extends BaseChatModel {
         enablePreRouter: this.config.enablePreRouter,
         preRouter: this.config.preRouter,
         cascadeComplexities: this.config.cascadeComplexities,
+        domainPolicies: this.config.domainPolicies,
       },
       mergedKwargs,
       { boundTools: this.boundToolDefs }
@@ -755,6 +985,7 @@ export class CascadeFlow extends BaseChatModel {
       enablePreRouter: this.config.enablePreRouter,
       preRouter: this.config.preRouter,
       cascadeComplexities: this.config.cascadeComplexities,
+      domainPolicies: this.config.domainPolicies,
     }, {}, { boundTools: tools });
   }
 
@@ -780,6 +1011,7 @@ export class CascadeFlow extends BaseChatModel {
       enablePreRouter: this.config.enablePreRouter,
       preRouter: this.config.preRouter,
       cascadeComplexities: this.config.cascadeComplexities,
+      domainPolicies: this.config.domainPolicies,
     }, {}, { boundTools: this.boundToolDefs });
   }
 }

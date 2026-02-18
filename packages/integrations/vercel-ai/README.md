@@ -130,6 +130,36 @@ export const POST = createChatHandler(agent, {
 - `forceDirect`: skip cascade and run direct path
 - `userTier`: reserved for tier-aware routing flows
 
+## Request Payload Compatibility
+
+`createChatHandler(...)` accepts the same multi-turn `messages` list shape developers send from `useChat`:
+
+Classic content messages:
+
+```json
+{
+  "messages": [
+    { "role": "user", "content": "Summarize the latest release notes." },
+    { "role": "assistant", "content": "Sure, share the notes." }
+  ]
+}
+```
+
+AI SDK `parts` messages:
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "parts": [
+        { "type": "text", "text": "Plan a deployment checklist." }
+      ]
+    }
+  ]
+}
+```
+
 Note: when tool execution loop is enabled, streaming responses are currently buffered through `agent.run(...)` to preserve deterministic loop semantics.
 
 See `examples/vercel-ai-nextjs/` for a complete runnable example.

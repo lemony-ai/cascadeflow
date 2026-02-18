@@ -66,6 +66,8 @@ cascadeflow wraps any LangChain chat model and provides intelligent routing:
 - ⚡ **Speed**: Faster responses (drafter is quicker)
 - 🔧 **Zero Config**: Works out of the box with sensible defaults
 - 📊 **LangSmith Integration**: Automatic cost tracking metadata
+- 🧭 **Domain-Aware Routing**: Per-domain overrides for threshold and verifier policy
+- 🔁 **Agent Loops**: Built-in `CascadeAgent` for closed tool/model loops with max-step safety
 
 ---
 
@@ -170,6 +172,14 @@ interface CascadeConfig {
 
   // Complexity levels that should use cascade first
   cascadeComplexities?: QueryComplexity[];
+
+  // Optional per-domain overrides (domain key is case-insensitive)
+  domainPolicies?: Record<string, {
+    qualityThreshold?: number;
+    forceVerifier?: boolean;
+    directToVerifier?: boolean;
+    metadata?: Record<string, any>;
+  }>;
 }
 ```
 
@@ -278,14 +288,87 @@ console.log(result.tool_calls ?? result.additional_kwargs?.tool_calls);
 
 Tool risk is classified from tool `name` and `description` (examples: `delete_user`, `send_email`, `payment`, `deploy_production`).
 
-### 3.5 Multi-Agent + LangGraph (Optional)
+### 3. Domain Policies
+
+Apply routing policy by domain without changing chain logic:
+
+```typescript
+const cascade = withCascade({
+  drafter,
+  verifier,
+  qualityThreshold: 0.7,
+  domainPolicies: {
+    finance: { qualityThreshold: 0.5 },
+    medical: { forceVerifier: true },
+    legal: { directToVerifier: true },
+  },
+});
+
+const legalCascade = cascade.bind({
+  metadata: { cascadeflow_domain: 'legal' },
+});
+
+const result = await legalCascade.invoke('Review this contract clause');
+```
+
+Policy semantics:
+- `qualityThreshold`: overrides global threshold for that domain
+- `forceVerifier`: drafter still runs, but verifier is always called
+- `directToVerifier`: skip drafter and route straight to verifier
+
+### 4. Agent Loop with `CascadeAgent`
+
+`CascadeAgent` runs model/tool/model loops with explicit stop conditions.
+
+TypeScript:
+
+```typescript
+import { CascadeAgent, withCascade } from '@cascadeflow/langchain';
+
+const cascade = withCascade({ drafter, verifier }).bindTools(tools);
+
+const agent = new CascadeAgent({
+  model: cascade,
+  maxSteps: 6,
+  toolHandlers: {
+    calculator: async ({ expression }) => eval(expression).toString(),
+  },
+});
+
+const run = await agent.run(
+  [{ role: 'user', content: 'What is (25*4)+10?' }],
+  { systemPrompt: 'You are a reliable calculator.' }
+);
+```
+
+Python:
+
+```python
+from cascadeflow.integrations.langchain import CascadeAgent, CascadeFlow
+
+cascade = CascadeFlow(drafter=drafter, verifier=verifier)
+agent = CascadeAgent(
+    model=cascade.bind_tools(tools),
+    max_steps=6,
+    tool_handlers={"calculator": lambda args: str(eval(args["expression"]))},
+)
+
+result = await agent.arun(
+    [{"role": "user", "content": "What is (25*4)+10?"}],
+    system_prompt="You are a reliable calculator.",
+)
+```
+
+Input supports strings, LangChain message objects, and role/content message lists for multi-turn conversations.
+
+### 5. Multi-Agent + LangGraph (Optional)
 
 If you already use LangGraph for multi-agent systems, CascadeFlow can be used as the shared chat model inside nodes/sub-agents.
 
 - TypeScript example: `packages/langchain-cascadeflow/examples/langgraph-multi-agent.ts`
 - Python example: `examples/langchain_langgraph_multi_agent.py`
 
-### 3. Structured Output
+### 6. Structured Output
 
 Extract structured data with schemas:
 
@@ -309,7 +392,7 @@ const result = await structuredCascade.invoke(
 // { name: 'John Smith', age: 28, email: 'john@example.com' }
 ```
 
-### 4. Batch Processing
+### 7. Batch Processing
 
 Process multiple inputs efficiently:
 
@@ -328,7 +411,7 @@ results.forEach((result, i) => {
 });
 ```
 
-### 5. LCEL Composition Patterns
+### 8. LCEL Composition Patterns
 
 See runnable examples:
 - TypeScript: `packages/langchain-cascadeflow/examples/lcel-pipeline.ts`
@@ -379,7 +462,7 @@ const analysisChain = RunnableSequence.from([
 ]);
 ```
 
-### 6. LangSmith Integration
+### 9. LangSmith Integration
 
 CascadeFlow adds LangSmith-friendly `tags` and `metadata` to nested drafter/verifier runs so traces are searchable by:
 - `cascadeflow:drafter`, `cascadeflow:verifier`

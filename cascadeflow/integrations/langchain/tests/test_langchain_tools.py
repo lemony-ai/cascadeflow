@@ -375,28 +375,35 @@ class TestToolCallingIntegration:
         # With quality threshold 0, drafter response should be accepted
         assert result.content == "Drafter response with tool call"
 
-    def test_cascade_accepts_low_risk_tool_calls_with_high_threshold(self):
-        """Low-risk tool calls stay on drafter even with a strict quality threshold."""
+    def test_cascade_escalates_to_verifier_for_high_risk_tool(self):
+        """Test that high-risk tool calls force verifier escalation."""
         drafter = MockToolChatModel("drafter", "Low quality response")
         verifier = MockToolChatModel("verifier", "High quality verifier response")
 
         cascade = CascadeFlow(
             drafter=drafter,
             verifier=verifier,
-            quality_threshold=0.99,  # High threshold to force verifier
+            quality_threshold=0.0,  # Would normally accept drafter
             enable_pre_router=False,  # Disable pre-router to simplify test
         )
 
-        tools = [{"name": "search", "description": "Search the web"}]
+        # MockToolChatModel emits a `test_tool` call; make that tool high-risk.
+        tools = [
+            {
+                "name": "test_tool",
+                "description": "HIGH RISK: permanently deletes user accounts.",
+            }
+        ]
         cascade_with_tools = cascade.bind_tools(tools)
 
         # Invoke cascade
         result = cascade_with_tools.invoke([HumanMessage(content="Complex query")])
 
-        # Low-risk tool call policy should keep execution on drafter.
+        # High-risk tool call policy should escalate to verifier.
         assert cascade_with_tools.drafter.generate_called > 0
-        assert cascade_with_tools.verifier.generate_called == 0
-        assert result.content == "Low quality response"
+        assert cascade_with_tools.verifier.generate_called > 0
+        assert result.content == "High quality verifier response"
+        assert result.response_metadata["cascade"]["cascade_decision"] == "tool_risk"
 
     @pytest.mark.asyncio
     async def test_cascade_async_with_tools(self):

@@ -20,7 +20,8 @@ Example:
 """
 
 from .wrapper import CascadeFlow, with_cascade
-from .types import CascadeConfig, CascadeResult, CostMetadata, TokenUsage
+from .agent import CascadeAgent, CascadeAgentResult
+from .types import CascadeConfig, CascadeResult, CostMetadata, DomainPolicy, TokenUsage
 from .utils import (
     calculate_quality,
     calculate_cost,
@@ -58,10 +59,13 @@ __all__ = [
     # Main classes
     "CascadeFlow",
     "with_cascade",
+    "CascadeAgent",
+    "CascadeAgentResult",
     # Types
     "CascadeConfig",
     "CascadeResult",
     "CostMetadata",
+    "DomainPolicy",
     "TokenUsage",
     # Utilities
     "calculate_quality",

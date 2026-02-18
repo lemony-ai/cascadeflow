@@ -584,6 +584,93 @@ describe('CascadeFlow', () => {
     });
   });
 
+  describe('Domain Policies', () => {
+    it('should apply domain quality threshold override', async () => {
+      const drafterResponse = createChatResult('Draft answer', 14, 3);
+      const verifierResponse = createChatResult('Verifier answer', 14, 8);
+
+      const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
+      const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
+
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        qualityThreshold: 0.9,
+        qualityValidator: () => 0.6,
+        enablePreRouter: false,
+        domainPolicies: {
+          finance: { qualityThreshold: 0.5 },
+        },
+      });
+
+      const result = await (cascade as any)._generate(
+        [new HumanMessage('Summarize earnings')],
+        { metadata: { cascadeflow_domain: 'finance' } }
+      );
+
+      expect(result.generations[0].text).toBe('Draft answer');
+      expect(drafter.callCount).toBe(1);
+      expect(verifier.callCount).toBe(0);
+      expect(result.llmOutput?.cascade?.effective_quality_threshold).toBe(0.5);
+    });
+
+    it('should force verifier for configured domain', async () => {
+      const drafterResponse = createChatResult('Draft answer', 14, 3);
+      const verifierResponse = createChatResult('Verifier answer', 14, 8);
+
+      const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
+      const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
+
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        qualityThreshold: 0.1,
+        qualityValidator: () => 0.99,
+        enablePreRouter: false,
+        domainPolicies: {
+          medical: { forceVerifier: true },
+        },
+      });
+
+      const result = await (cascade as any)._generate(
+        [new HumanMessage('Provide medical guidance')],
+        { metadata: { cascadeflow: { domain: 'medical' } } }
+      );
+
+      expect(result.generations[0].text).toBe('Verifier answer');
+      expect(drafter.callCount).toBe(1);
+      expect(verifier.callCount).toBe(1);
+      expect(result.llmOutput?.cascade?.cascade_decision).toBe('domain_policy');
+    });
+
+    it('should route directly to verifier for configured domain', async () => {
+      const drafterResponse = createChatResult('Draft answer', 14, 3);
+      const verifierResponse = createChatResult('Verifier answer', 14, 8);
+
+      const drafter = new MockChatModel('gpt-4o-mini', [drafterResponse]);
+      const verifier = new MockChatModel('gpt-4o', [verifierResponse]);
+
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        enablePreRouter: false,
+        domainPolicies: {
+          legal: { directToVerifier: true },
+        },
+      });
+
+      const result = await (cascade as any)._generate(
+        [new HumanMessage('Review this contract')],
+        { metadata: { domain: 'legal' } }
+      );
+
+      expect(result.generations[0].text).toBe('Verifier answer');
+      expect(drafter.callCount).toBe(0);
+      expect(verifier.callCount).toBe(1);
+      expect(result.llmOutput?.cascade?.routing_reason).toBe('domain_policy_direct');
+    });
+  });
+
   describe('getLastCascadeResult', () => {
     it('should return undefined before first call', () => {
       const drafter = new MockChatModel('gpt-4o-mini');
