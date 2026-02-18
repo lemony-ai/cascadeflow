@@ -357,25 +357,34 @@ Use cascadeflow in n8n workflows for no-code AI automation with automatic cost o
 3. Search for: `@cascadeflow/n8n-nodes-cascadeflow`
 4. Click **Install**
 
-### Quick Start
+### Two Nodes
 
-cascadeflow is a **Language Model sub-node** that connects two AI Chat Model nodes (drafter + verifier) and intelligently cascades between them:
+| Node | Type | Use case |
+|------|------|----------|
+| **CascadeFlow (Model)** | Language Model sub-node | Drop-in for any Chain/LLM node |
+| **CascadeFlow Agent** | Standalone agent (`main` in/out) | Tool calling, memory, multi-step reasoning |
 
-**Setup:**
-1. Add two **AI Chat Model nodes** (cheap drafter + powerful verifier)
-2. Add **cascadeflow node** and connect both models
-3. Connect cascadeflow to **Basic LLM Chain** or **Chain** nodes
-4. Check **Logs tab** to see cascade decisions in real-time!
+**Quick Start (Model):**
+1. Add two **AI Chat Model** nodes (cheap drafter + powerful verifier)
+2. Add **CascadeFlow (Model)** and connect both models
+3. Connect to **Basic LLM Chain** or **Chain** node
+4. Check **Logs tab** on the Chain node to see cascade decisions
+
+**Quick Start (Agent):**
+1. Add a **Chat Trigger** node
+2. Add **CascadeFlow Agent** and connect it to the trigger
+3. Connect **Drafter**, **Verifier**, optional **Memory** and **Tools**
+4. Check the Agent **Output tab** for cascade metadata and trace
 
 **Result:** 40-85% cost savings in your n8n workflows!
 
 **Features:**
 
-- ✅ Works with any AI Chat Model node (OpenAI, Anthropic, Ollama, Azure, etc.)
-- ✅ Mix providers (e.g., Ollama drafter + GPT-4o verifier)
-- ✅ Includes a cascadeflow Agent node for tool-based agent workflows (drafter/verifier + tools + trace)
-- ✅ Real-time flow visualization in Logs tab
-- ✅ Detailed metrics: confidence scores, latency, cost savings
+- Works with any AI Chat Model node (OpenAI, Anthropic, Ollama, Azure, etc.)
+- Mix providers (e.g., Ollama drafter + GPT-4o verifier)
+- Agent node: tool calling, memory, per-tool routing, tool call validation
+- 16-domain cascading for specialized model routing
+- Real-time flow visualization in Logs/Output tabs
 
 
 

@@ -1,8 +1,8 @@
 import type {
+  IExecuteFunctions,
+  INodeExecutionData,
   INodeType,
   INodeTypeDescription,
-  ISupplyDataFunctions,
-  SupplyData,
 } from 'n8n-workflow';
 
 import { NodeOperationError } from 'n8n-workflow';
@@ -50,6 +50,14 @@ export interface ToolLike {
   invoke?: (args: any) => Promise<any>;
   call?: (args: any) => Promise<any>;
   run?: (args: any) => Promise<any>;
+}
+
+interface ChatMemoryLike {
+  chatHistory: {
+    getMessages(): Promise<BaseMessage[]>;
+    addUserMessage(message: string): Promise<void>;
+    addAIChatMessage(message: string): Promise<void>;
+  };
 }
 
 export class CascadeFlowAgentExecutor {
@@ -399,7 +407,7 @@ function generateDomainProperties(): any[] {
   }));
 
   const domainToggleProperties: any[] = [];
-  for (const { domain, toggleName, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+  for (const { domain, toggleName } of DOMAIN_UI_CONFIGS) {
     const displayName = DOMAIN_DISPLAY_NAMES[domain];
     domainToggleProperties.push({
       displayName: `Enable ${displayName} Domain`,
@@ -409,23 +417,30 @@ function generateDomainProperties(): any[] {
       displayOptions: { show: { enableDomainRouting: [true] } },
       description: `Whether to enable ${DOMAIN_DESCRIPTIONS[domain]}. When enabled, adds a "${displayName}" input port.`,
     });
-    domainToggleProperties.push({
-      displayName: `Use ${displayName} Verifier`,
-      name: verifierToggleName,
-      type: 'boolean',
-      default: false,
-      displayOptions: { show: { enableDomainRouting: [true], [toggleName]: [true] } },
-      description: `Whether to use a domain-specific verifier instead of the default verifier for ${displayName} queries`,
-    });
   }
 
   return [
     {
-      displayName: 'Enable Domain Routing',
+      displayName: 'Enable Domain Cascading',
       name: 'enableDomainRouting',
       type: 'boolean',
       default: false,
-      description: 'Whether to enable intelligent routing based on detected query domain (math, code, legal, etc.)',
+      description: 'Whether to enable domain-specific cascading based on detected query domain (math, code, legal, etc.)',
+    },
+    {
+      displayName: 'Enable Domain Verifiers (Default: Main Verifier)',
+      name: 'enableDomainVerifiers',
+      type: 'boolean',
+      default: false,
+      displayOptions: { show: { enableDomainRouting: [true] } },
+      description: 'Whether to add a domain-specific verifier port for each enabled domain. Connect a model to override the global verifier for that domain.',
+    },
+    {
+      displayName: 'Enable the domains you want to route to. Each enabled domain adds a model input port on the node.',
+      name: 'domainsNotice',
+      type: 'notice',
+      default: '',
+      displayOptions: { show: { enableDomainRouting: [true] } },
     },
     ...domainToggleProperties,
     {
@@ -514,35 +529,38 @@ export class CascadeFlowAgent implements INodeType {
     // eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
     inputs: `={{ ((params) => {
       const inputs = [
+        { displayName: '', type: 'main' },
         { displayName: 'Verifier', type: 'ai_languageModel', maxConnections: 1, required: true },
         { displayName: 'Drafter', type: 'ai_languageModel', maxConnections: 1, required: true },
+        { displayName: 'Memory', type: 'ai_memory', maxConnections: 1, required: false },
         { displayName: 'Tools', type: 'ai_tool', maxConnections: 99, required: false },
       ];
 
       if (params?.enableDomainRouting) {
+        const dv = !!params?.enableDomainVerifiers;
         const domains = [
-          { toggle: 'enableCodeDomain', label: 'Code', verifier: 'useCodeDomainVerifier' },
-          { toggle: 'enableDataDomain', label: 'Data Analysis', verifier: 'useDataDomainVerifier' },
-          { toggle: 'enableStructuredDomain', label: 'Structured Output', verifier: 'useStructuredDomainVerifier' },
-          { toggle: 'enableRagDomain', label: 'RAG (Retrieval)', verifier: 'useRagDomainVerifier' },
-          { toggle: 'enableConversationDomain', label: 'Conversation', verifier: 'useConversationDomainVerifier' },
-          { toggle: 'enableToolDomain', label: 'Tool Calling', verifier: 'useToolDomainVerifier' },
-          { toggle: 'enableCreativeDomain', label: 'Creative', verifier: 'useCreativeDomainVerifier' },
-          { toggle: 'enableSummaryDomain', label: 'Summary', verifier: 'useSummaryDomainVerifier' },
-          { toggle: 'enableTranslationDomain', label: 'Translation', verifier: 'useTranslationDomainVerifier' },
-          { toggle: 'enableMathDomain', label: 'Math', verifier: 'useMathDomainVerifier' },
-          { toggle: 'enableScienceDomain', label: 'Science', verifier: 'useScienceDomainVerifier' },
-          { toggle: 'enableMedicalDomain', label: 'Medical', verifier: 'useMedicalDomainVerifier' },
-          { toggle: 'enableLegalDomain', label: 'Legal', verifier: 'useLegalDomainVerifier' },
-          { toggle: 'enableFinancialDomain', label: 'Financial', verifier: 'useFinancialDomainVerifier' },
-          { toggle: 'enableMultimodalDomain', label: 'Multimodal', verifier: 'useMultimodalDomainVerifier' },
-          { toggle: 'enableGeneralDomain', label: 'General', verifier: 'useGeneralDomainVerifier' },
+          { t: 'enableCodeDomain', l: 'Code' },
+          { t: 'enableDataDomain', l: 'Data' },
+          { t: 'enableStructuredDomain', l: 'Struct.' },
+          { t: 'enableRagDomain', l: 'RAG' },
+          { t: 'enableConversationDomain', l: 'Conv.' },
+          { t: 'enableToolDomain', l: 'Tool' },
+          { t: 'enableCreativeDomain', l: 'Creative' },
+          { t: 'enableSummaryDomain', l: 'Summary' },
+          { t: 'enableTranslationDomain', l: 'Transl.' },
+          { t: 'enableMathDomain', l: 'Math' },
+          { t: 'enableScienceDomain', l: 'Science' },
+          { t: 'enableMedicalDomain', l: 'Medical' },
+          { t: 'enableLegalDomain', l: 'Legal' },
+          { t: 'enableFinancialDomain', l: 'Finance' },
+          { t: 'enableMultimodalDomain', l: 'Multi.' },
+          { t: 'enableGeneralDomain', l: 'General' },
         ];
         for (const d of domains) {
-          if (params?.[d.toggle]) {
-            inputs.push({ displayName: d.label, type: 'ai_languageModel', maxConnections: 1, required: false });
-            if (params?.[d.verifier]) {
-              inputs.push({ displayName: d.label + ' Verifier', type: 'ai_languageModel', maxConnections: 1, required: false });
+          if (params?.[d.t]) {
+            inputs.push({ displayName: d.l, type: 'ai_languageModel', maxConnections: 1, required: false });
+            if (dv) {
+              inputs.push({ displayName: d.l + ' V.', type: 'ai_languageModel', maxConnections: 1, required: false });
             }
           }
         }
@@ -550,10 +568,27 @@ export class CascadeFlowAgent implements INodeType {
 
       return inputs;
     })($parameter) }}`,
-    // eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
-    outputs: ['ai_agent' as any],
-    outputNames: ['Agent'],
+    outputs: ['main'],
+    outputNames: ['Output'],
     properties: [
+      {
+        displayName: 'System Message',
+        name: 'systemMessage',
+        type: 'string',
+        default: '',
+        typeOptions: {
+          rows: 4,
+        },
+        description: 'System prompt for the agent. Sets the overall behavior and context.',
+      },
+      {
+        displayName: 'Text',
+        name: 'text',
+        type: 'string',
+        default: '={{ $json.chatInput }}',
+        required: true,
+        description: 'The user message to send to the agent. Defaults to chatInput from Chat Trigger.',
+      },
       {
         displayName: 'Quality Threshold',
         name: 'qualityThreshold',
@@ -657,7 +692,7 @@ export class CascadeFlowAgent implements INodeType {
         displayName: 'Enable Tool Call Validation',
         name: 'enableToolCascadeValidation',
         type: 'boolean',
-        default: false,
+        default: true,
         description: 'Whether to validate drafter tool calls (JSON syntax, schema, safety) before executing them. When validation fails, tool calls are re-generated by the verifier.',
       },
       {
@@ -711,12 +746,22 @@ export class CascadeFlowAgent implements INodeType {
         ],
         description: 'Override routing for specific tools (e.g., force verifier after tool call)',
       },
-      // Domain routing settings
+      {
+        displayName: 'Domain Cascading',
+        name: 'domainRoutingHeading',
+        type: 'notice',
+        default: '',
+      },
       ...generateDomainProperties(),
     ],
   };
 
-  async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
+  async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+    const items = this.getInputData();
+    const returnData: INodeExecutionData[] = [];
+
+    // --- Resolve parameters that are constant across items (index 0) ---
+
     const qualityThreshold = this.getNodeParameter('qualityThreshold', 0, 0.4) as number;
     const useAlignmentScoring = this.getNodeParameter('useAlignmentScoring', 0, true) as boolean;
     const useComplexityRouting = this.getNodeParameter('useComplexityRouting', 0, true) as boolean;
@@ -737,7 +782,7 @@ export class CascadeFlowAgent implements INodeType {
     const toolRoutingRaw = this.getNodeParameter('toolRoutingRules', 0, { rule: [] }) as any;
     const toolRoutingRules = (toolRoutingRaw?.rule ?? []) as ToolRoutingRule[];
 
-    // Get domain routing parameters
+    // Domain routing parameters
     const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
 
     const enabledDomains: DomainType[] = [];
@@ -749,7 +794,7 @@ export class CascadeFlowAgent implements INodeType {
       enabledDomains.push(...getEnabledDomains(toggleParams));
     }
 
-    // Get domain-specific settings
+    // Domain-specific settings
     const domainSettingsRaw = this.getNodeParameter('domainSettings', 0, { domainConfig: [] }) as any;
     interface DomainConfig {
       enabled: boolean;
@@ -768,20 +813,17 @@ export class CascadeFlowAgent implements INodeType {
       }
     }
 
-    // Eagerly resolve drafter model (index 1) — triggers n8n visual highlighting
-    const drafterData = await this.getInputConnectionData('ai_languageModel' as any, 1);
-    const resolvedDrafter = (Array.isArray(drafterData) ? drafterData[0] : drafterData) as BaseChatModel;
-    if (!resolvedDrafter) {
-      throw new NodeOperationError(
-        this.getNode(),
-        'Drafter model is required. Please connect your DRAFTER model to the Drafter port.'
-      );
-    }
-    const drafterModelGetter = async () => resolvedDrafter;
+    // --- Resolve connected AI components (once, not per item) ---
 
-    // Eagerly resolve verifier model (index 0) — triggers n8n visual highlighting
-    const verifierData = await this.getInputConnectionData('ai_languageModel' as any, 0);
-    const resolvedVerifier = (Array.isArray(verifierData) ? verifierData[0] : verifierData) as BaseChatModel;
+    // Language models — single call resolves all ai_languageModel sub-nodes.
+    // Reversed slot order due to internal unshift, so we reverse back.
+    const allModelData = await this.getInputConnectionData('ai_languageModel' as any, 0);
+    const allModels = Array.isArray(allModelData)
+      ? ([...allModelData].reverse() as BaseChatModel[])
+      : [allModelData as BaseChatModel];
+
+    // Port order after reverse: 0=Verifier, 1=Drafter, 2+=domain models/verifiers
+    const resolvedVerifier = allModels[0];
     if (!resolvedVerifier) {
       throw new NodeOperationError(
         this.getNode(),
@@ -790,39 +832,38 @@ export class CascadeFlowAgent implements INodeType {
     }
     const verifierModelGetter = async () => resolvedVerifier;
 
-    // Tools port is always at index 2 (after Verifier and Drafter)
-    const toolsData = await this.getInputConnectionData('ai_tool' as any, 2).catch(() => [] as any);
+    const resolvedDrafter = allModels[1];
+    if (!resolvedDrafter) {
+      throw new NodeOperationError(
+        this.getNode(),
+        'Drafter model is required. Please connect your DRAFTER model to the Drafter port.'
+      );
+    }
+    const drafterModelGetter = async () => resolvedDrafter;
+
+    // Memory (optional)
+    const memory = (await this.getInputConnectionData('ai_memory' as any, 0)
+      .catch(() => null)) as ChatMemoryLike | null;
+
+    // Tools
+    const toolsData = await this.getInputConnectionData('ai_tool' as any, 0).catch(() => [] as any);
     const tools = (Array.isArray(toolsData) ? toolsData : toolsData ? [toolsData] : []) as ToolLike[];
 
-    // Eagerly resolve domain models — triggers n8n visual highlighting for each
+    // Domain models and domain verifiers occupy indices 2+ in slot definition order
     const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
     const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
 
-    let nextPortIndex = 3; // After Verifier (0), Drafter (1), Tools (2)
-    for (const { domain, verifierToggleName } of DOMAIN_UI_CONFIGS) {
+    const enableDomainVerifiers = this.getNodeParameter('enableDomainVerifiers', 0, false) as boolean;
+    let nextModelIndex = 2; // After Verifier (0) and Drafter (1)
+    for (const { domain } of DOMAIN_UI_CONFIGS) {
       if (!enabledDomains.includes(domain)) continue;
 
-      const drafterIndex = nextPortIndex++;
-      try {
-        const data = await this.getInputConnectionData('ai_languageModel' as any, drafterIndex);
-        const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-        const resolvedModel = model || undefined;
-        domainModelGetters.set(domain, async () => resolvedModel);
-      } catch {
-        domainModelGetters.set(domain, async () => undefined);
-      }
+      const model = allModels[nextModelIndex++] as BaseChatModel | undefined;
+      domainModelGetters.set(domain, async () => model || undefined);
 
-      const useDomainVerifier = this.getNodeParameter(verifierToggleName, 0, false) as boolean;
-      if (useDomainVerifier) {
-        const verifierIndex = nextPortIndex++;
-        try {
-          const data = await this.getInputConnectionData('ai_languageModel' as any, verifierIndex);
-          const model = (Array.isArray(data) ? data[0] : data) as BaseChatModel;
-          const resolvedModel = model || undefined;
-          domainVerifierGetters.set(domain, async () => resolvedModel);
-        } catch {
-          domainVerifierGetters.set(domain, async () => undefined);
-        }
+      if (enableDomainVerifiers) {
+        const verifierModel = allModels[nextModelIndex++] as BaseChatModel | undefined;
+        domainVerifierGetters.set(domain, async () => verifierModel || undefined);
       }
     }
 
@@ -854,8 +895,49 @@ export class CascadeFlowAgent implements INodeType {
       enableToolCascadeValidation,
     );
 
-    return {
-      response: agentExecutor,
-    };
+    // --- Process each input item ---
+
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+      const text = this.getNodeParameter('text', itemIndex) as string;
+      const systemMessage = this.getNodeParameter('systemMessage', itemIndex, '') as string;
+
+      // Build message array
+      const messages: BaseMessage[] = [];
+      if (systemMessage) {
+        messages.push(new SystemMessage(systemMessage));
+      }
+
+      // Load chat history from memory
+      if (memory) {
+        const memoryMessages = await memory.chatHistory.getMessages();
+        messages.push(...memoryMessages);
+      }
+
+      messages.push(new HumanMessage(text));
+
+      // Run the agent
+      const result = await agentExecutor.invoke(messages);
+
+      // Persist to memory
+      if (memory) {
+        await memory.chatHistory.addUserMessage(text);
+        await memory.chatHistory.addAIChatMessage(result.output);
+      }
+
+      // Extract cascadeflow metadata from response
+      const responseMetadata = result.message?.response_metadata ?? {};
+      const cascadeflowMeta = responseMetadata.cascadeflow ?? responseMetadata.cf ?? {};
+
+      returnData.push({
+        json: {
+          output: result.output,
+          ...cascadeflowMeta,
+          trace: result.trace,
+        },
+        pairedItem: { item: itemIndex },
+      });
+    }
+
+    return [returnData];
   }
 }

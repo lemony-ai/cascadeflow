@@ -20,48 +20,16 @@
 
 ![cascadeflow Domain Routing](../../../.github/assets/n8n-CF-domains.jpg)
 
-This is an n8n community node that brings cascadeflow's intelligent AI model cascading to n8n workflows.
+This package provides **two nodes** for n8n workflows:
 
-**cascadeflow** reduces LLM API costs by 40-85% by trying a cheap model first, validating quality, and only escalating to expensive models when needed.
+| Node | Type | Use case |
+|------|------|----------|
+| **CascadeFlow (Model)** | Language Model sub-node | Drop-in replacement for any AI Chat Model. Wire into Basic LLM Chain, Chain, or any node that accepts a Language Model. |
+| **CascadeFlow Agent** | Standalone agent node | Full agent with tool calling, memory, and multi-step reasoning. Wire directly into workflows like Chat Trigger → Agent → response. |
+
+Both nodes share the same cascade engine: try a cheap drafter first, validate quality, escalate to a verifier only when needed. **40-85% cost savings.**
 
 [n8n](https://n8n.io/) is a fair-code licensed workflow automation platform.
-
-## How It Works
-
-The cascadeflow node is a **Language Model sub-node** that sits between your AI models and downstream n8n nodes (like Basic LLM Chain, Chain, or any node that accepts Language Model inputs):
-
-![cascadeflow n8n Workflow](../../../.github/assets/n8n-CF.png)
-
-**Architecture:**
-
-```
-┌─────────────┐
-│  Drafter    │ (e.g., Claude Haiku, GPT-4o-mini)
-│  AI Model   │
-└──────┬──────┘
-       │
-       ├──────► ┌──────────────┐
-       │        │  cascadeflow │
-       │        │     Node     │ ────► ┌──────────────┐
-       │        └──────────────┘       │ Basic Chain  │
-       ├──────► Quality checks         │ Chain        │
-       │        Cascades if needed     │ & more       │
-       │                                └──────────────┘
-┌──────┴──────┐
-│  Verifier   │ (e.g., Claude Sonnet, GPT-4o)
-│  AI Model   │
-└─────────────┘
-```
-
-**Flow:**
-1. Query goes to cheap drafter model first
-2. cascadeflow validates the response quality
-3. If quality passes → return drafter response (fast + cheap ✅)
-4. If quality fails → escalate to verifier model (slower but accurate ⚠️)
-
-**Result:** 70-80% of queries accept the drafter, saving 40-85% on costs.
-
-> **ℹ️ Note:** Use **CascadeFlow (Model)** with n8n Chain/LLM nodes, and **CascadeFlow Agent** for agent workflows (tool calling + multi-step). The Agent node adds trace metadata and supports tool routing.
 
 ## Installation
 
@@ -76,8 +44,6 @@ Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes
 
 ### Manual installation
 
-To get started install the package in your n8n root directory:
-
 ```bash
 npm install @cascadeflow/n8n-nodes-cascadeflow
 ```
@@ -88,25 +54,62 @@ For Docker-based deployments add the following line before the font installation
 RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cascadeflow
 ```
 
-## Quick Start
+---
 
-### Basic Setup
+## Node 1: CascadeFlow (Model)
 
-1. **Add two AI Chat Model nodes** (e.g., OpenAI Chat Model, Anthropic Chat Model, Ollama Chat Model)
-   - Configure one as your **drafter** (cheap model like `gpt-4o-mini` or `claude-3-5-haiku-20241022`)
-   - Configure one as your **verifier** (powerful model like `gpt-4o` or `claude-3-5-sonnet-20241022`)
+A **Language Model sub-node** (`ai_languageModel` output) that acts as a drop-in cascading wrapper around two models.
 
-2. **Add the cascadeflow node**
-   - Connect the drafter model to the **Drafter** input
-   - Connect the verifier model to the **Verifier** input
-   - Optionally adjust the **Quality Threshold** (default: 0.4, and per-complexity thresholds are enabled by default)
+### When to use
 
-3. **Connect to a Chain node**
-   - The cascadeflow node outputs a Language Model connection
-   - Connect it to nodes that accept AI models (Basic LLM Chain, Chain, etc.)
-   - For agent workflows, use the **CascadeFlow Agent** node (connect tools to its `Tools` input).
+- You want to plug cascadeflow into an existing chain or LLM node
+- No tool calling or memory needed
+- Works with: Basic LLM Chain, Chain, Question and Answer Chain, Summarization Chain, and any node that accepts a Language Model input
 
-### Example Workflow
+### Architecture
+
+```
+┌─────────────┐
+│  Drafter    │ (e.g., Claude Haiku, GPT-4o-mini)
+└──────┬──────┘
+       │
+       ├──────► ┌──────────────┐
+       │        │  CascadeFlow │
+       │        │  (Model)     │ ────► ┌──────────────┐
+       │        └──────────────┘       │ Basic Chain  │
+       │        Quality checks         │ Chain        │
+       │        Cascades if needed     │ & more       │
+       │                                └──────────────┘
+┌──────┴──────┐
+│  Verifier   │ (e.g., Claude Sonnet, GPT-4o)
+└─────────────┘
+```
+
+### Inputs
+
+| Port | Type | Required | Description |
+|------|------|----------|-------------|
+| Verifier | `ai_languageModel` | Yes | Powerful model used when drafter quality is too low |
+| Drafter | `ai_languageModel` | Yes | Cheap/fast model tried first |
+| Domain models | `ai_languageModel` | No | Appear when domain cascading is enabled |
+
+### Output
+
+| Port | Type | Description |
+|------|------|-------------|
+| Model | `ai_languageModel` | Language Model connection for downstream chain/LLM nodes |
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| Quality Threshold | 0.4 | Minimum quality score (0-1) to accept drafter response |
+| Use Complexity Thresholds | true | Per-complexity confidence thresholds (trivial→expert) |
+| Enable Alignment Scoring | true | Score query-response alignment for better validation |
+| Enable Complexity Routing | true | Route complex queries directly to verifier |
+| Enable Domain Cascading | false | Detect query domain and route to specialized models |
+
+### Quick Start
 
 ```
 ┌──────────────────┐
@@ -117,8 +120,8 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
          v
 ┌──────────────────┐       ┌──────────────────┐
 │  OpenAI Model    │──────►│                  │
-│  gpt-4o-mini     │       │  cascadeflow     │       ┌──────────────────┐
-└──────────────────┘       │  Node            │──────►│ Basic LLM Chain  │
+│  gpt-4o-mini     │       │  CascadeFlow     │       ┌──────────────────┐
+└──────────────────┘       │  (Model)         │──────►│ Basic LLM Chain  │
                            │                  │       │                  │
 ┌──────────────────┐       │  Threshold: 0.4  │       └──────────────────┘
 │  OpenAI Model    │──────►│                  │
@@ -126,41 +129,157 @@ RUN cd /usr/local/lib/node_modules/n8n && npm install @cascadeflow/n8n-nodes-cas
 └──────────────────┘
 ```
 
-## Configuration
+---
 
-### Node Parameters
+## Node 2: CascadeFlow Agent
 
-#### Quality Threshold (0-1)
+A **standalone agent node** (`main` in/out) with its own agent loop, tool calling, memory, and per-tool cascade/verifier routing.
 
-Controls how aggressively to accept drafter responses when **Use Complexity Thresholds** is disabled.
+### When to use
 
-Defaults to **0.4** to match the `simple` tier in CascadeFlow's default per-complexity thresholds.
+- You need tool calling with cascade-aware routing
+- You want memory (conversation history) built in
+- You want to wire directly into a workflow (Chat Trigger → Agent → response)
+- You need per-tool routing rules (force verifier after specific tools)
+- You need tool call validation (drafter tool calls verified before execution)
 
-If you enable **Use Complexity Thresholds** (default), acceptance is driven by:
-- trivial: 0.25
-- simple: 0.4
-- moderate: 0.55
-- hard: 0.7
-- expert: 0.8
+### Architecture
 
-Lower threshold = more cost savings, higher threshold = better quality assurance.
+```
+┌──────────────────┐
+│ Chat Trigger     │
+│ or any node      │
+└────────┬─────────┘
+         │ (main)
+         v
+┌──────────────────────────────────────────┐
+│            CascadeFlow Agent             │
+│                                          │
+│  ┌─────────┐  ┌─────────┐  ┌──────────┐│
+│  │ Verifier│  │ Drafter │  │ Memory   ││
+│  └────┬────┘  └────┬────┘  └────┬─────┘│
+│       │            │            │       │
+│  ┌────┴────────────┴────┐       │       │
+│  │  Cascade Engine      │◄──────┘       │
+│  │  + Agent Loop        │               │
+│  └──────────┬───────────┘               │
+│             │                           │
+│  ┌──────────┴───────────┐               │
+│  │  Tools               │               │
+│  └──────────────────────┘               │
+└──────────────────┬───────────────────────┘
+                   │ (main)
+                   v
+┌──────────────────┐
+│ Next node        │
+│ (response, etc.) │
+└──────────────────┘
+```
 
-## Multi-Domain Cascading (Optional)
+### Inputs
 
-cascadeflow supports **intelligent domain-specific cascading** - automatically detecting the type of query and routing it to a specialized model for that domain.
+| Port | Type | Required | Description |
+|------|------|----------|-------------|
+| (main) | `main` | Yes | Workflow items from upstream node (e.g., Chat Trigger) |
+| Verifier | `ai_languageModel` | Yes | Powerful model for verification and escalation |
+| Drafter | `ai_languageModel` | Yes | Cheap/fast model tried first |
+| Memory | `ai_memory` | No | Chat memory (e.g., Window Buffer Memory) for conversation history |
+| Tools | `ai_tool` | No | Up to 99 tools for the agent to call |
+| Domain models | `ai_languageModel` | No | Appear when domain cascading is enabled |
 
-### How It Works
+### Output
 
-1. **Enable Domain Cascading** in the node settings
-2. **Toggle individual domains** you want to support
-3. **Connect domain-specific models** to the new input ports that appear
+| Port | Type | Description |
+|------|------|-------------|
+| Output | `main` | Workflow items with `output`, cascade metadata, and `trace` |
 
-When a query comes in, cascadeflow:
-1. Detects the domain (e.g., "Write a Python function" → Code domain)
-2. Routes to the specialized model for that domain (if connected)
-3. Falls back to drafter → verifier cascade if no domain model is available
+The output JSON for each item contains:
 
-### Supported Domains
+```json
+{
+  "output": "The agent's final response text",
+  "model_used": "gpt-4o-mini",
+  "domain": "code",
+  "confidence": 0.85,
+  "trace": [
+    { "model_used": "gpt-4o-mini", "tool_calls": ["search"] },
+    { "model_used": "gpt-4o", "tool_calls": [] }
+  ]
+}
+```
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| System Message | (empty) | System prompt for the agent |
+| Text | `{{ $json.chatInput }}` | User input message. Auto-wires with Chat Trigger. |
+| Quality Threshold | 0.4 | Minimum quality score to accept drafter response |
+| Use Complexity Thresholds | true | Per-complexity confidence thresholds |
+| Enable Tool Call Validation | true | Validate drafter tool calls before execution; re-generate with verifier on failure |
+| Max Tool Iterations | 3 | Maximum tool-call loop iterations |
+| Tool Routing Rules | (none) | Per-tool routing overrides (cascade or force verifier) |
+| Enable Domain Cascading | false | Domain-specific model routing |
+
+### Quick Start
+
+```
+┌──────────────────┐
+│ Chat Trigger     │
+└────────┬─────────┘
+         │
+         v
+┌──────────────────────────────────────────┐
+│            CascadeFlow Agent             │
+│                                          │
+│  Claude Haiku ──► Drafter                │
+│  Claude Sonnet ─► Verifier               │       ┌──────────────────┐
+│  Window Buffer ─► Memory                 │──────►│  Respond to      │
+│  HTTP Request ──► Tool                   │       │  Webhook         │
+│  Calculator ────► Tool                   │       └──────────────────┘
+└──────────────────────────────────────────┘
+```
+
+### Tool Routing Rules
+
+Override cascade behavior for specific tools:
+
+| Routing | Behavior |
+|---------|----------|
+| **Cascade** (default) | Drafter generates tool calls, cascade validates |
+| **Verifier** | After this tool executes, the verifier generates the final response |
+
+Use verifier routing for high-stakes tools (e.g., database writes, payment APIs) where you want the powerful model to interpret results.
+
+### Tool Call Validation
+
+When enabled (default), the agent validates drafter-generated tool calls before executing them:
+- JSON syntax check
+- Schema validation
+- Safety checks
+
+If validation fails, tool calls are re-generated by the verifier model, preventing malformed or unsafe tool invocations.
+
+---
+
+## Shared Features
+
+Both nodes share these capabilities:
+
+### Cascade Flow
+
+1. Query goes to cheap drafter model first
+2. cascadeflow validates the response quality
+3. If quality passes → return drafter response (fast + cheap)
+4. If quality fails → escalate to verifier model (slower but accurate)
+
+**Result:** 70-80% of queries accept the drafter, saving 40-85% on costs.
+
+### Multi-Domain Cascading (Optional)
+
+Both nodes support domain-specific cascading. Enable it in the node settings to automatically detect query domains and route to specialized models.
+
+**Supported domains:**
 
 | Domain | Description | Example Queries |
 |--------|-------------|-----------------|
@@ -172,31 +291,34 @@ When a query comes in, cascadeflow:
 | **Medical** | Healthcare, medical knowledge, clinical | "What are the symptoms of...", "Explain this diagnosis..." |
 | **Financial** | Finance, accounting, investment analysis | "Analyze this stock...", "Calculate ROI..." |
 | **Science** | Scientific knowledge, research, experiments | "Explain quantum...", "How does photosynthesis..." |
+| **Structured** | JSON, XML, structured output | "Generate a JSON schema..." |
+| **RAG** | Retrieval-augmented generation | "Based on the document..." |
+| **Conversation** | General chat, small talk | "How are you?", "Tell me about..." |
+| **Tool** | Tool-oriented queries | "Search for...", "Calculate..." |
+| **Summary** | Summarization tasks | "Summarize this article..." |
+| **Translation** | Language translation | "Translate to French..." |
+| **Multimodal** | Image/audio/video queries | "Describe this image..." |
+| **General** | Catch-all domain | Everything else |
 
-### Setup Example
+**Setup:**
+1. Enable Domain Cascading in node settings
+2. Toggle individual domains
+3. Connect domain-specific models to the new input ports
+4. Optionally enable domain verifiers to override the global verifier per domain
 
-```
-┌──────────────────┐
-│  Claude Haiku    │──► Drafter (default cheap model)
-└──────────────────┘
-┌──────────────────┐
-│  GPT-4o          │──► Verifier (default powerful model)
-└──────────────────┘
-┌──────────────────┐         ┌──────────────────┐
-│  DeepSeek Coder  │──► Code │                  │
-└──────────────────┘         │                  │
-┌──────────────────┐         │   cascadeflow    │──► Chain
-│  Qwen Math       │──► Math │      Node        │
-└──────────────────┘         │                  │
-┌──────────────────┐         │                  │
-│  Claude Sonnet   │──► Legal│                  │
-└──────────────────┘         └──────────────────┘
-```
+### Complexity Thresholds
 
-### When to Use Domain Cascading
+When enabled (default), acceptance is driven by query complexity:
 
-- **Use it when**: You have domain-specific models that excel in certain areas (e.g., DeepSeek for code, specialized medical models)
-- **Skip it when**: Your drafter/verifier combination handles all domains well enough
+| Complexity | Default Threshold |
+|------------|-------------------|
+| Trivial | 0.25 |
+| Simple | 0.40 |
+| Moderate | 0.55 |
+| Hard | 0.70 |
+| Expert | 0.80 |
+
+---
 
 ## Flow Visualization
 
@@ -204,69 +326,34 @@ When a query comes in, cascadeflow:
 
 cascadeflow provides detailed logging of every cascade decision in n8n's UI:
 
-1. **Execute your workflow** with the cascadeflow node
-2. **Click on the downstream Chain node** after execution (the node that receives cascadeflow output)
-3. **Navigate to the "Logs" tab**
+1. **Execute your workflow**
+2. **For CascadeFlow (Model):** Click the downstream Chain node → "Logs" tab
+3. **For CascadeFlow Agent:** Click the Agent node → "Output" tab (trace is in the output JSON)
 
-You'll see detailed flow information like:
+Example log output:
 
 ```
-🎯 cascadeflow: Trying drafter model...
-   📊 Quality validation: confidence=0.85, method=heuristic
-   🎯 Alignment: 0.82
+CascadeFlow: Trying drafter model...
+   Quality validation: confidence=0.85, method=heuristic
+   Alignment: 0.82
 
-┌─────────────────────────────────────────┐
-│  ✅ FLOW: DRAFTER ACCEPTED (FAST PATH) │
-└─────────────────────────────────────────┘
-   Query → Drafter → Quality Check ✅ → Response
-   ⚡ Fast & Cheap: Used drafter model only
+   FLOW: DRAFTER ACCEPTED (FAST PATH)
+   Query -> Drafter -> Quality Check -> Response
    Confidence: 0.85 (threshold: 0.70)
-   Quality score: 0.85
-   Latency: 420ms
-   💰 Cost savings: ~93.8% (used cheap model)
-   📊 Stats: 7 drafter, 2 verifier
+   Cost savings: ~93.8% (used cheap model)
 ```
 
-Or when escalating:
-
-```
-🎯 cascadeflow: Trying drafter model...
-   📊 Quality validation: confidence=0.62, method=heuristic
-
-┌────────────────────────────────────────────────┐
-│  ⚠️  FLOW: ESCALATED TO VERIFIER (SLOW PATH)  │
-└────────────────────────────────────────────────┘
-   Query → Drafter → Quality Check ❌ → Verifier → Response
-   🔄 Escalating: Drafter quality too low, using verifier
-   Confidence: 0.62 < 0.70 (threshold)
-   Reason: Simple check failed (confidence: 0.62 < 0.70)
-   Drafter latency: 380ms
-   🔄 Loading verifier model...
-   ✅ Verifier completed successfully
-   Verifier latency: 890ms
-   Total latency: 1270ms (drafter: 380ms + verifier: 890ms)
-   💰 Cost: Full verifier cost (0% savings this request)
-   📊 Stats: 7 drafter (77.8%), 2 verifier
-```
-
-### What the Logs Show
-
-- **Flow path taken**: Drafter accepted, escalated to verifier, or error fallback
-- **Quality scores**: Confidence level and alignment scores
-- **Latency breakdown**: Time spent on each model
-- **Cost analysis**: Savings percentage for each request
-- **Running statistics**: Acceptance rate across all requests
+---
 
 ## Recommended Model Configurations
 
-### ⭐ Best Overall: Claude Haiku + GPT-4o (Recommended)
+### Claude Haiku + GPT-4o (Recommended)
 
 ```
 Drafter: claude-3-5-haiku-20241022
 Verifier: gpt-4o
 Savings: ~73% average
-Why: Haiku's fast, high-quality drafts + GPT-4o's reasoning
-Use for: General purpose, coding, reasoning, complex queries
+Best for: General purpose, coding, reasoning
 ```
 
 ### Anthropic Only (High Quality)
@@ -275,7 +362,6 @@ Use for: General purpose, coding, reasoning, complex queries
 Drafter: claude-3-5-haiku-20241022
 Verifier: claude-3-5-sonnet-20241022
 Savings: ~70% average
-Why: Consistent Anthropic experience, excellent quality
 ```
 
 ### OpenAI Only (Good Balance)
@@ -284,7 +370,6 @@ Why: Consistent Anthropic experience, excellent quality
 Drafter: gpt-4o-mini
 Verifier: gpt-4o
 Savings: ~85% average
-Why: Both models from same provider, great cost efficiency
 ```
 
 ### Ultra Fast with Ollama (Local)
@@ -293,119 +378,38 @@ Why: Both models from same provider, great cost efficiency
 Drafter: ollama/qwen2.5:3b (local)
 Verifier: gpt-4o (cloud)
 Savings: ~99% on drafter calls (no API cost)
-Why: Local model for drafts, cloud for verification
 Note: Requires Ollama installed locally
 ```
 
-## Cost Savings Examples
+---
 
-**Example: Claude Haiku + GPT-4o**
+## Troubleshooting
 
-| Scenario | Traditional (GPT-4o only) | cascadeflow (Haiku + GPT-4o) | Savings |
-|----------|---------------------------|------------------------------|---------|
-| Simple Q&A (75% acceptance) | $0.0025 | $0.0008 | 68% |
-| Complex query (25% escalation) | $0.0025 | $0.0025 | 0% (correctly escalated) |
-| **Average** | **$0.0025** | **$0.00115** | **54%** |
+### "Drafter model is required"
 
-**Monthly savings (10,000 queries):**
-- Traditional (GPT-4o only): $25.00
-- cascadeflow (Haiku + GPT-4o): $11.50
-- **You save: $13.50/month** (54% savings)
+Make sure you've connected an AI Chat Model to the **Drafter** input port.
 
-**Monthly savings (100,000 queries):**
-- Traditional (GPT-4o only): $250.00
-- cascadeflow (Haiku + GPT-4o): $115.00
-- **You save: $135.00/month** (54% savings)
+### "Verifier model is required"
 
-## Example Workflows
+Make sure you've connected an AI Chat Model to the **Verifier** input port.
 
-### Customer Support Bot
+### Not seeing cascade logs
 
-```
-┌──────────────────┐
-│ Webhook          │ ← Customer question
-│ (POST /support)  │
-└────────┬─────────┘
-         │
-         v
-┌─────────────────────────────────────┐
-│  Claude Haiku ────┐                 │
-│                   │  cascadeflow    │       ┌──────────────────┐
-│  Claude Sonnet ───┴─► Node          │──────►│  Basic Chain     │
-└─────────────────────────────────────┘       │  (responds)      │
-                                               └──────┬───────────┘
-                                                      │
-                                                      v
-                                               ┌──────────────────┐
-                                               │  Send Response   │
-                                               └──────────────────┘
-```
+- **CascadeFlow (Model):** Logs appear in the downstream Chain node's "Logs" tab, not the cascadeflow node itself.
+- **CascadeFlow Agent:** Cascade metadata and trace are in the output JSON of the Agent node.
 
-### Content Generation
+### Always escalating to verifier
 
-```
-┌──────────────────┐
-│ Schedule Trigger │ ← Daily at 9am
-│ (Daily)          │
-└────────┬─────────┘
-         │
-         v
-┌────────────────────────────────────────┐
-│  GPT-4o-mini ─────┐                    │
-│                   │  cascadeflow       │       ┌──────────────────┐
-│  GPT-4o ──────────┴─► Node             │──────►│  Basic Chain     │
-└────────────────────────────────────────┘       │  (generates)     │
-                                                  └──────┬───────────┘
-                                                         │
-                                                         v
-                                                  ┌──────────────────┐
-                                                  │  Save to Notion  │
-                                                  └──────────────────┘
-```
+1. Try lowering the Quality Threshold (0.3-0.4)
+2. Verify your drafter model is actually a cheaper/faster model
+3. Check logs for the confidence scores being reported
 
-### Code Review Assistant
+### "This node cannot be connected"
 
-```
-┌──────────────────┐
-│ GitHub Trigger   │ ← New PR
-│ (PR opened)      │
-└────────┬─────────┘
-         │
-         v
-┌─────────────────────────────────────┐
-│  Ollama qwen2.5 ──┐                 │
-│                   │  cascadeflow    │       ┌──────────────────┐
-│  GPT-4o ──────────┴─► Node          │──────►│  Basic Chain     │
-└─────────────────────────────────────┘       │  (reviews code)  │
-                                               └──────┬───────────┘
-                                                      │
-                                                      v
-                                               ┌──────────────────┐
-                                               │  Post Comment    │
-                                               └──────────────────┘
-```
+- Use **CascadeFlow (Model)** with Chain/LLM nodes that accept Language Model inputs
+- Use **CascadeFlow Agent** for standalone agent workflows with tool calling and memory
 
-## UI Visualization Note
-
-⚠️ **Important:** Due to n8n's rendering conventions, the node visualization always highlights the **Drafter** connection as active (green), regardless of which model was actually used at runtime. This is because n8n highlights the first input in a sub-node's definition.
-
-**This does not affect functionality** - the cascade logic works correctly. The drafter is always tried first, and the verifier is only loaded when needed.
-
-**To see the actual cascade flow and which model was used:**
-
-1. Execute your workflow
-2. Click on the downstream Chain node after execution (the node that receives cascadeflow output)
-3. Navigate to the **"Logs"** tab
-4. You'll see detailed flow information showing:
-   - Whether the drafter was accepted or escalated to verifier
-   - Quality confidence scores and validation methods
-   - Latency breakdown for each model
-   - Cost savings percentage
-   - Running statistics across all executions
-
-The logs provide complete visibility into the cascade decision-making process, showing exactly which path was taken for each request.
-
-> **ℹ️ Important:** If you need agent-style tool orchestration, use the **CascadeFlow Agent** node. It is designed for n8n agent flows and records a step-by-step trace in `response_metadata.cf.trace`.
+---
 
 ## Compatibility
 
@@ -418,45 +422,11 @@ The logs provide complete visibility into the cascade decision-making process, s
   - Google PaLM Chat Model
   - And more...
 
-## Troubleshooting
-
-### Issue: "Drafter model is required"
-
-**Solution:** Make sure you've connected an AI Chat Model to the **Drafter** input (second input, bottom position).
-
-### Issue: "Verifier model is required"
-
-**Solution:** Make sure you've connected an AI Chat Model to the **Verifier** input (first input, top position).
-
-### Issue: Not seeing cascade logs
-
-**Solution:**
-1. Make sure your workflow has executed successfully
-2. Click on the **Chain node that receives the cascadeflow output** (Basic LLM Chain, Chain, etc.)
-3. Navigate to the **"Logs"** tab (not the "Output" tab)
-4. The logs appear in the downstream node, not the cascadeflow node itself
-
-### Issue: "This node cannot be connected" when connecting to AI Agent
-
-**Solution:** Use the **CascadeFlow Agent** node for agent workflows. Use the **CascadeFlow (Model)** node for Chain/LLM workflows.
-- ✅ Basic LLM Chain
-- ✅ Chain
-- ✅ Other nodes that accept Language Model connections
-- ✅ CascadeFlow Agent (agent workflows)
-
-### Issue: Always escalating to verifier
-
-**Solution:**
-1. Check your Quality Threshold setting (try lowering to 0.6-0.65)
-2. Verify your drafter model is actually a cheaper/faster model
-3. Check the logs to see the confidence scores being reported
-
 ## Resources
 
 - [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
 - [cascadeflow GitHub](https://github.com/lemony-ai/cascadeflow)
 - [cascadeflow Documentation](https://github.com/lemony-ai/cascadeflow/blob/main/README.md)
-- [Full n8n Integration Guide](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/n8n_integration.md)
 
 ## License
 
@@ -464,29 +434,29 @@ The logs provide complete visibility into the cascade decision-making process, s
 
 ## Version History
 
-### v0.6.7 (Latest)
+### v0.7.9 (Latest)
 
-- **Multi-domain cascading docs**: Added documentation for 8-domain intelligent cascading
-- **Removed semantic validation**: Disabled ML-based semantic validation to prevent out-of-memory crashes
-- **Shorter domain labels**: Domain input labels simplified (Code, Math, Data, etc.)
+- **CascadeFlow Agent → standalone node**: Converted from `supplyData()` sub-node to `execute()` node with main in/out
+- **Memory support**: Added `ai_memory` input for conversation history (Window Buffer Memory, etc.)
+- **System message & text params**: Agent node now has its own system prompt and text input (defaults to `{{ $json.chatInput }}`)
+- **Direct workflow wiring**: Chat Trigger → CascadeFlow Agent → response, no intermediate Chain node needed
 
-### v0.6.4
+### v0.7.x
 
-- **Individual domain toggles**: Replaced multi-select with individual boolean toggles for each domain
-- **Dynamic input ports**: Domain model inputs appear dynamically as each domain is enabled
+- **Domain cascading labels**: Shortened domain input labels, section dividers, tool call validation on by default
+- **Single getInputConnectionData call**: Correct model resolution and n8n highlighting
 
-### v0.6.3
+### v0.6.x
 
-- **16-domain routing**: Support for intelligent routing across 16 specialized domains (code, math, data, creative, legal, medical, financial, science, and more)
+- **Multi-domain cascading**: 16-domain intelligent routing with individual toggles and dynamic input ports
+- **Removed semantic validation**: Disabled ML-based semantic validation to prevent OOM crashes
 - **Circuit breaker**: Added circuit breaker pattern for improved reliability
-- **Domain-specific models**: Connect specialized models for different query types
 
 ### v0.5.0
 
-- **Flow visualization in n8n Logs tab**: Detailed cascade flow logging with visual boxes
-- **Real-time quality metrics**: Confidence scores, alignment scores, latency breakdown, and cost savings
+- **Flow visualization**: Detailed cascade flow logging in n8n Logs tab
 - **Quality validator integration**: Integrated QualityValidator from @cascadeflow/core
-- **Better cascade decisions**: Complexity-aware validation replacing naive length-based checks
+- **Complexity-aware validation**: Replacing naive length-based checks
 
 ### v0.4.x and earlier
 
