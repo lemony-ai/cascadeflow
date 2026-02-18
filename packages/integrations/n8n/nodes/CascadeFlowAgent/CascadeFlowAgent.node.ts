@@ -568,7 +568,7 @@ export class CascadeFlowAgent implements INodeType {
 
       return inputs;
     })($parameter) }}`,
-    outputs: ['main' as any],
+    outputs: ['main'],
     outputNames: ['Output'],
     properties: [
       {
