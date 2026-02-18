@@ -997,6 +997,12 @@ class CascadeFlow(BaseChatModel):
         stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
         base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
         existing_metadata = base_config.get("metadata", {}) or {}
+        callbacks = base_config.get("callbacks", [])
+        safe_kwargs = {
+            k: v
+            for k, v in stream_kwargs.items()
+            if k not in ("callbacks", "run_manager", "run_id", "tags", "metadata")
+        }
         resolved_domain = self._resolve_domain(messages, existing_metadata)
         effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
         force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
@@ -1018,6 +1024,12 @@ class CascadeFlow(BaseChatModel):
         if resolved_domain:
             base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
         emit_switch_message = bool(base_metadata.get("cascadeflow_emit_switch_message"))
+
+        def stream_config(tags: list[str], metadata: dict[str, Any]) -> dict[str, Any]:
+            config: dict[str, Any] = {"tags": tags, "metadata": metadata}
+            if callbacks:
+                config["callbacks"] = callbacks
+            return config
 
         # STEP 0: PreRouter - Check if we should bypass cascade
         use_cascade = True
@@ -1311,6 +1323,12 @@ class CascadeFlow(BaseChatModel):
         stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
         base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
         existing_metadata = base_config.get("metadata", {}) or {}
+        callbacks = base_config.get("callbacks", [])
+        safe_kwargs = {
+            k: v
+            for k, v in stream_kwargs.items()
+            if k not in ("callbacks", "run_manager", "run_id", "tags", "metadata")
+        }
         resolved_domain = self._resolve_domain(messages, existing_metadata)
         effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
         force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
@@ -1332,6 +1350,12 @@ class CascadeFlow(BaseChatModel):
         if resolved_domain:
             base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
         emit_switch_message = bool(base_metadata.get("cascadeflow_emit_switch_message"))
+
+        def stream_config(tags: list[str], metadata: dict[str, Any]) -> dict[str, Any]:
+            config: dict[str, Any] = {"tags": tags, "metadata": metadata}
+            if callbacks:
+                config["callbacks"] = callbacks
+            return config
 
         # STEP 0: PreRouter - Check if we should bypass cascade
         use_cascade = True
@@ -1364,12 +1388,9 @@ class CascadeFlow(BaseChatModel):
             if not use_cascade or domain_direct_to_verifier:
                 async for chunk in self.verifier.astream(
                     messages,
-                    stop=stop,
-                    config={
-                        **base_config,
-                        "tags": base_tags
-                        + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
-                        "metadata": {
+                    config=stream_config(
+                        base_tags + ["cascadeflow:direct", "cascadeflow:verifier", "verifier"],
+                        {
                             **base_metadata,
                             "cascadeflow": {
                                 **base_metadata["cascadeflow"],
@@ -1382,10 +1403,8 @@ class CascadeFlow(BaseChatModel):
                                 ),
                             },
                         },
-                    },
-                    **{
-                        **stream_kwargs,
-                    },
+                    ),
+                    **safe_kwargs,
                 ):
                     yield ChatGenerationChunk(
                         message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
@@ -1395,16 +1414,15 @@ class CascadeFlow(BaseChatModel):
         if domain_direct_to_verifier:
             async for chunk in self.verifier.astream(
                 messages,
-                **{
-                    **merged_kwargs,
-                    "tags": base_tags
+                config=stream_config(
+                    base_tags
                     + [
                         "cascadeflow:direct",
                         "cascadeflow:verifier",
                         "verifier",
                         "cascadeflow:reason=domain_policy_direct",
                     ],
-                    "metadata": {
+                    {
                         **base_metadata,
                         "cascadeflow": {
                             **base_metadata["cascadeflow"],
@@ -1413,7 +1431,8 @@ class CascadeFlow(BaseChatModel):
                             "reason": "domain_policy_direct",
                         },
                     },
-                },
+                ),
+                **safe_kwargs,
             ):
                 yield ChatGenerationChunk(
                     message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
@@ -1426,11 +1445,9 @@ class CascadeFlow(BaseChatModel):
 
         async for chunk in self.drafter.astream(
             messages,
-            stop=stop,
-            config={
-                **base_config,
-                "tags": base_tags + ["cascadeflow:drafter", "drafter"],
-                "metadata": {
+            config=stream_config(
+                base_tags + ["cascadeflow:drafter", "drafter"],
+                {
                     **base_metadata,
                     "cascadeflow": {
                         **base_metadata["cascadeflow"],
@@ -1438,10 +1455,8 @@ class CascadeFlow(BaseChatModel):
                         "role": "drafter",
                     },
                 },
-            },
-            **{
-                **stream_kwargs,
-            },
+            ),
+            **safe_kwargs,
         ):
             chunk_text = chunk.content if isinstance(chunk.content, str) else ""
             drafter_content += chunk_text
@@ -1530,11 +1545,9 @@ class CascadeFlow(BaseChatModel):
 
             async for chunk in self.verifier.astream(
                 messages,
-                stop=stop,
-                config={
-                    **base_config,
-                    "tags": verifier_tags,
-                    "metadata": {
+                config=stream_config(
+                    verifier_tags,
+                    {
                         **base_metadata,
                         "cascadeflow": {
                             **base_metadata["cascadeflow"],
@@ -1545,10 +1558,8 @@ class CascadeFlow(BaseChatModel):
                             "domain_policy": self._domain_policy(resolved_domain) or None,
                         },
                     },
-                },
-                **{
-                    **stream_kwargs,
-                },
+                ),
+                **safe_kwargs,
             ):
                 chunk_text = chunk.content if isinstance(chunk.content, str) else ""
                 yield ChatGenerationChunk(message=chunk, text=chunk_text)
@@ -1675,11 +1686,13 @@ class CascadeFlow(BaseChatModel):
         # Bind tools to both drafter and verifier
         bound_drafter = self.drafter.bind_tools(tools, tool_choice=tool_choice, **kwargs)
         bound_verifier = self.verifier.bind_tools(tools, tool_choice=tool_choice, **kwargs)
+        drafter_model, drafter_bind_kwargs = self._unwrap_bound_runnable(bound_drafter)
+        verifier_model, verifier_bind_kwargs = self._unwrap_bound_runnable(bound_verifier)
 
         # Create new CascadeFlow with bound models
         new_instance = CascadeFlow(
-            drafter=bound_drafter,
-            verifier=bound_verifier,
+            drafter=drafter_model,
+            verifier=verifier_model,
             quality_threshold=self.quality_threshold,
             enable_cost_tracking=self.enable_cost_tracking,
             cost_tracking_provider=self.cost_tracking_provider,
@@ -1690,7 +1703,11 @@ class CascadeFlow(BaseChatModel):
             domain_policies=self.domain_policies,
         )
         # Preserve any bound kwargs
-        new_instance._bind_kwargs = self._bind_kwargs.copy()
+        new_instance._bind_kwargs = {
+            **self._bind_kwargs.copy(),
+            **drafter_bind_kwargs,
+            **verifier_bind_kwargs,
+        }
         new_instance._bound_tool_defs = self._normalize_tool_defs(tools)
 
         return new_instance
@@ -1897,6 +1914,14 @@ class CascadeFlow(BaseChatModel):
             if name:
                 out.append({"name": name, "description": description or ""})
         return out
+
+    def _unwrap_bound_runnable(self, value: Any) -> tuple[Any, dict[str, Any]]:
+        """Unwrap RunnableBinding-like objects into (model, kwargs)."""
+        bound = getattr(value, "bound", None)
+        kwargs = getattr(value, "kwargs", None)
+        if bound is not None and isinstance(kwargs, dict):
+            return bound, dict(kwargs)
+        return value, {}
 
     def _get_tool_def_for_name(self, name: str) -> dict[str, Any]:
         # If we have bound tool defs, prefer their description.

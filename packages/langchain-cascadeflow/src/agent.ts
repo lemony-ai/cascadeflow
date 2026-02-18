@@ -109,8 +109,8 @@ export class CascadeAgent {
       return messages;
     }
 
-    if (input instanceof BaseMessage) {
-      messages.push(input);
+    if (this.isMessageLike(input)) {
+      messages.push(this.coerceMessage(input));
       return messages;
     }
 
@@ -120,15 +120,18 @@ export class CascadeAgent {
 
   private coerceMessage(input: any): BaseMessage {
     if (input instanceof BaseMessage) return input;
-
-    const role = String(input?.role || 'user');
+    const role = this.messageRole(input) || 'user';
     const content = input?.content ?? '';
 
     if (role === 'system') {
       return new SystemMessage(String(content));
     }
     if (role === 'assistant') {
-      return new AIMessage({ content: String(content), tool_calls: input?.tool_calls || [] } as any);
+      return new AIMessage({
+        content: String(content),
+        tool_calls:
+          input?.tool_calls || input?.toolCalls || input?.additional_kwargs?.tool_calls || [],
+      } as any);
     }
     if (role === 'tool') {
       return new ToolMessage({
@@ -144,15 +147,26 @@ export class CascadeAgent {
   private coerceAiMessage(response: any): AIMessage {
     if (response instanceof AIMessage) return response;
 
-    if (response instanceof BaseMessage) {
+    if (response && typeof response === 'object') {
+      const additionalKwargs =
+        response.additional_kwargs && typeof response.additional_kwargs === 'object'
+          ? response.additional_kwargs
+          : {};
+      const toolCalls = Array.isArray(response.tool_calls)
+        ? response.tool_calls
+        : Array.isArray(additionalKwargs.tool_calls)
+          ? additionalKwargs.tool_calls
+          : [];
+      const responseMetadata =
+        response.response_metadata && typeof response.response_metadata === 'object'
+          ? response.response_metadata
+          : {};
+      const rawContent = response.content ?? response.text ?? '';
       return new AIMessage({
-        content:
-          typeof response.content === 'string'
-            ? response.content
-            : JSON.stringify(response.content),
-        additional_kwargs: (response as any).additional_kwargs || {},
-        tool_calls: (response as any).tool_calls || [],
-        response_metadata: (response as any).response_metadata || {},
+        content: typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent),
+        additional_kwargs: additionalKwargs,
+        tool_calls: toolCalls,
+        response_metadata: responseMetadata,
       } as any);
     }
 
@@ -263,7 +277,28 @@ export class CascadeAgent {
       if (messages[i] instanceof AIMessage) {
         return messages[i] as AIMessage;
       }
+      if (this.messageRole(messages[i]) === 'assistant') {
+        return this.coerceAiMessage(messages[i]);
+      }
     }
     return new AIMessage('');
+  }
+
+  private isMessageLike(value: any): value is BaseMessage {
+    if (!value || typeof value !== 'object') return false;
+    if ('content' in value) return true;
+    if (typeof value._getType === 'function') return true;
+    return false;
+  }
+
+  private messageRole(value: any): string | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const type = String(
+      value.role || value.type || (typeof value._getType === 'function' ? value._getType() : '')
+    ).toLowerCase();
+    if (!type) return undefined;
+    if (type === 'human') return 'user';
+    if (type === 'ai') return 'assistant';
+    return type;
   }
 }

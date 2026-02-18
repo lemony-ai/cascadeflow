@@ -94,15 +94,10 @@ async def test_langgraph_fixture_with_domain_policy() -> None:
         quality_validator=lambda _: 0.6,
         domain_policies={"finance": {"quality_threshold": 0.5}},
     )
+    finance_bound = cascade.bind(metadata={"cascadeflow_domain": "finance"})
 
     def planner(state: dict[str, Any]) -> dict[str, Any]:
-        msg = cascade.invoke(
-            [HumanMessage(content=state["input"])],
-            config={
-                "tags": ["langgraph", "fixture"],
-                "metadata": {"cascadeflow_domain": "finance", "example": "langgraph-fixture"},
-            },
-        )
+        msg = finance_bound.invoke([HumanMessage(content=state["input"])])
         return {**state, "result": msg.content}
 
     graph = StateGraph(dict)

@@ -10,6 +10,8 @@ LangChain integration for CascadeFlow - Add intelligent cost optimization to you
 - 📊 **Full Visibility** - Track costs, quality scores, and cascade decisions
 - 🔗 **Chainable** - All LangChain methods (`bind()`, `bindTools()`, etc.) work seamlessly
 - 📈 **LangSmith Ready** - Automatic cost metadata injection for observability
+- 🧭 **Domain Policies** - Per-domain threshold/routing overrides (`qualityThreshold`, `forceVerifier`, `directToVerifier`)
+- 🔁 **CascadeAgent** - Built-in closed-loop tool agent for multi-turn execution with max-step protection
 
 ## Installation
 
@@ -117,6 +119,29 @@ const cascadeModel = withCascade({
 });
 ```
 
+### Domain Policies
+
+Use domain-specific routing rules without changing your chain code:
+
+```typescript
+const cascadeModel = withCascade({
+  drafter,
+  verifier,
+  qualityThreshold: 0.7,
+  domainPolicies: {
+    finance: { qualityThreshold: 0.5 }, // Easier acceptance for finance queries
+    medical: { forceVerifier: true }, // Always verify after drafting
+    legal: { directToVerifier: true }, // Skip drafter entirely
+  },
+});
+
+const legalCascade = cascadeModel.bind({
+  metadata: { cascadeflow_domain: "legal" },
+});
+
+const result = await legalCascade.invoke("Review this contract clause");
+```
+
 ## Advanced Usage
 
 ### Streaming Responses
@@ -196,6 +221,40 @@ const structuredModel = cascadeModel.withStructuredOutput(schema);
 const result = await structuredModel.invoke("Extract: John is 30 years old");
 // Result is typed according to schema
 ```
+
+### Agentic Tool Loops (`CascadeAgent`)
+
+`CascadeAgent` adds a closed agent/tool loop with explicit max-step safety:
+
+```typescript
+import { CascadeAgent, withCascade } from '@cascadeflow/langchain';
+
+const cascadeModel = withCascade({
+  drafter,
+  verifier,
+  domainPolicies: {
+    legal: { directToVerifier: true },
+    medical: { forceVerifier: true },
+  },
+});
+
+const agent = new CascadeAgent({
+  model: cascadeModel.bindTools(tools),
+  maxSteps: 6,
+  toolHandlers: {
+    calculator: async ({ expression }) => eval(expression).toString(),
+  },
+});
+
+const run = await agent.run(
+  [{ role: 'user', content: 'What is (25 * 4) + 10?' }],
+  { systemPrompt: 'You are a precise calculator assistant.' }
+);
+
+console.log(run.status, run.steps, run.message.content);
+```
+
+Input can be a string, LangChain `BaseMessage[]`, or role/content message list for multi-turn conversations.
 
 ### Accessing Cascade Statistics
 
@@ -372,8 +431,31 @@ Creates a cascade-wrapped LangChain model.
 - `config.qualityThreshold?` - Minimum quality to accept drafter (default: 0.7)
 - `config.qualityValidator?` - Custom function to calculate quality
 - `config.enableCostTracking?` - Enable LangSmith metadata injection (default: true)
+- `config.costTrackingProvider?` - `'cascadeflow'` (default, local pricing) or `'langsmith'` (server-side)
+- `config.domainPolicies?` - Per-domain overrides: `qualityThreshold`, `forceVerifier`, `directToVerifier`
 
 **Returns:** `CascadeFlow` - A LangChain-compatible model with cascade logic
+
+### `new CascadeAgent(config: CascadeAgentConfig)`
+
+Creates a closed-loop agent around a LangChain model (or directly from cascade config).
+
+**Parameters:**
+- `config.model?` - Any LangChain chat model (often `withCascade(...).bindTools(...)`)
+- `config.cascade?` - Optional `CascadeConfig` used to create an internal `CascadeFlow`
+- `config.maxSteps?` - Loop safety cap (default: `8`)
+- `config.toolHandlers?` - Tool name to handler map
+
+### `CascadeAgent.run(input, options?): Promise<CascadeAgentRunResult>`
+
+Runs model/tool/model loops until completion or `maxSteps` is reached.
+
+**Returns:** `CascadeAgentRunResult` with:
+- `message` - Final `AIMessage`
+- `messages` - Full message history (including tool messages)
+- `steps` - Executed model turns
+- `status` - `'completed' | 'max_steps_reached'`
+- `toolCalls` - Collected tool calls across steps
 
 ### `CascadeFlow.getLastCascadeResult(): CascadeResult | undefined`
 
