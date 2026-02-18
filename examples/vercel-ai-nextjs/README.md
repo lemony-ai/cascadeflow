@@ -22,6 +22,22 @@ export OPENAI_API_KEY=...
 export ANTHROPIC_API_KEY=...
 ```
 
+## Feature Coverage
+
+- Multi-turn chat (`messages` list) with `useChat`.
+- Streaming responses (`data` protocol, plus automatic UI message stream support on newer AI SDKs).
+- UI message `parts` payloads are accepted by the backend handler.
+- Works with cascadeflow tool loops by passing server-defined `tools`/`extra` options in `createChatHandler(...)`.
+
+## Deploy As A Separate Vercel Project
+
+```bash
+vercel link --yes --project cascadeflow-vercel-ai-nextjs-sandbox
+vercel env add OPENAI_API_KEY production
+vercel env add OPENAI_API_KEY preview
+vercel deploy
+```
+
 ## How It Works
 
 - `app/api/chat/route.ts` uses `@cascadeflow/vercel-ai` `createChatHandler(...)` with `protocol: 'data'`.

@@ -4,6 +4,13 @@ Integration helpers for using **cascadeflow** with the **Vercel AI SDK**.
 
 This package is intentionally thin: it re-exports the Vercel AI SDK integration surface from `@cascadeflow/core` so you can treat it as an explicit integration dependency.
 
+## What It Supports
+
+- AI SDK v4 `data` stream protocol and AI SDK v5/v6 UI message streams.
+- `useChat` multi-turn message lists.
+- Incoming UI messages with `parts` (AI SDK v6 format) and classic `content` strings.
+- Tool call stream events (`tool_call_delta`, `tool-input-*`) for better debugging and UI rendering.
+
 ## Install
 
 ```bash
@@ -34,4 +41,3 @@ export async function POST(req: Request) {
 ```
 
 See `examples/vercel-ai-nextjs/` for a complete runnable example.
-

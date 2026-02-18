@@ -4,6 +4,113 @@ import { createChatHandler } from '../vercel-ai/ui';
 import { StreamEventType, type StreamEvent } from '../streaming';
 
 describe('VercelAI.createChatHandler', () => {
+  it('converts AI SDK UI messages with `parts` into core messages', async () => {
+    let receivedMessages: any[] = [];
+    const agent = {
+      async *stream(messages: any[]) {
+        receivedMessages = messages;
+        yield { type: StreamEventType.CHUNK, content: 'OK', data: {} } satisfies StreamEvent;
+        yield {
+          type: StreamEventType.COMPLETE,
+          content: '',
+          data: { result: { content: 'OK' } },
+        } satisfies StreamEvent;
+      },
+      async run() {
+        return { content: 'OK' };
+      },
+    } as any;
+
+    const handler = createChatHandler(agent, { protocol: 'data' });
+    const req = new Request('http://local/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'user',
+            parts: [{ type: 'text', text: 'Hello from parts' }],
+          },
+        ],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await handler(req);
+    expect(res.ok).toBe(true);
+    expect(receivedMessages).toHaveLength(1);
+    expect(receivedMessages[0]).toEqual({
+      role: 'user',
+      content: 'Hello from parts',
+    });
+  });
+
+  it('preserves tool metadata fields from incoming messages', async () => {
+    let receivedMessages: any[] = [];
+    const agent = {
+      async *stream(messages: any[]) {
+        receivedMessages = messages;
+        yield { type: StreamEventType.CHUNK, content: 'OK', data: {} } satisfies StreamEvent;
+        yield {
+          type: StreamEventType.COMPLETE,
+          content: '',
+          data: { result: { content: 'OK' } },
+        } satisfies StreamEvent;
+      },
+      async run() {
+        return { content: 'OK' };
+      },
+    } as any;
+
+    const handler = createChatHandler(agent, { protocol: 'data' });
+    const req = new Request('http://local/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'lookup',
+                  arguments: { q: 'abc' },
+                },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            tool_call_id: 'call_1',
+            name: 'lookup',
+            content: 'tool-result',
+          },
+        ],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await handler(req);
+    expect(res.ok).toBe(true);
+    expect(receivedMessages).toHaveLength(2);
+    expect(receivedMessages[0]).toMatchObject({
+      role: 'assistant',
+      content: '',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'lookup', arguments: JSON.stringify({ q: 'abc' }) },
+        },
+      ],
+    });
+    expect(receivedMessages[1]).toMatchObject({
+      role: 'tool',
+      tool_call_id: 'call_1',
+      name: 'lookup',
+      content: 'tool-result',
+    });
+  });
+
   it('streams data protocol compatible with @ai-sdk/react useChat default', async () => {
     // Minimal agent stub: yields CHUNK events and then COMPLETE.
     const agent = {

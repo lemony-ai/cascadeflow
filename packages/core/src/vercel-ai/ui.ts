@@ -214,17 +214,104 @@ function toCoreMessages(input: any): Message[] {
   if (!Array.isArray(input)) {
     return [];
   }
+
+  const isMessageRole = (role: unknown): role is Message['role'] =>
+    role === 'system' || role === 'user' || role === 'assistant' || role === 'tool';
+
+  const coerceToolCalls = (toolCalls: unknown): Message['tool_calls'] | undefined => {
+    if (!Array.isArray(toolCalls)) {
+      return undefined;
+    }
+    const normalized = toolCalls
+      .map((tc) => {
+        const id = typeof (tc as any)?.id === 'string' ? (tc as any).id : '';
+        const type = (tc as any)?.type === 'function' ? 'function' : null;
+        const name = typeof (tc as any)?.function?.name === 'string' ? (tc as any).function.name : '';
+        const args = (tc as any)?.function?.arguments;
+        const argumentsText =
+          typeof args === 'string'
+            ? args
+            : args && typeof args === 'object'
+              ? JSON.stringify(args)
+              : '';
+        if (!id || !type || !name) {
+          return null;
+        }
+        return {
+          id,
+          type,
+          function: {
+            name,
+            arguments: argumentsText,
+          },
+        };
+      })
+      .filter(Boolean) as NonNullable<Message['tool_calls']>;
+    return normalized.length > 0 ? normalized : undefined;
+  };
+
+  const textFromContent = (content: unknown): string => {
+    if (typeof content === 'string') {
+      return content;
+    }
+    if (!Array.isArray(content)) {
+      return '';
+    }
+    const chunks: string[] = [];
+    for (const part of content) {
+      if (typeof part === 'string') {
+        chunks.push(part);
+        continue;
+      }
+      if (part && typeof part === 'object') {
+        const type = (part as any).type;
+        const text = (part as any).text;
+        if (type === 'text' && typeof text === 'string') {
+          chunks.push(text);
+        }
+      }
+    }
+    return chunks.join('');
+  };
+
+  const textFromParts = (parts: unknown): string => {
+    if (!Array.isArray(parts)) {
+      return '';
+    }
+    const chunks: string[] = [];
+    for (const part of parts) {
+      if (!part || typeof part !== 'object') {
+        continue;
+      }
+      const type = (part as any).type;
+      if ((type === 'text' || type === 'reasoning') && typeof (part as any).text === 'string') {
+        chunks.push((part as any).text);
+      }
+    }
+    return chunks.join('');
+  };
+
   return input
     .map((m) => {
       const role = m?.role;
-      const content = m?.content;
-      if (typeof role !== 'string' || typeof content !== 'string') {
+      if (!isMessageRole(role)) {
         return null;
       }
-      if (role !== 'system' && role !== 'user' && role !== 'assistant' && role !== 'tool') {
-        return null;
+
+      const content = textFromContent(m?.content) || textFromParts(m?.parts);
+      const msg: Message = { role, content };
+
+      if (typeof m?.name === 'string') {
+        msg.name = m.name;
       }
-      return { role, content } as Message;
+      if (typeof m?.tool_call_id === 'string') {
+        msg.tool_call_id = m.tool_call_id;
+      }
+      const toolCalls = coerceToolCalls(m?.tool_calls);
+      if (toolCalls) {
+        msg.tool_calls = toolCalls;
+      }
+      return msg;
     })
     .filter(Boolean) as Message[];
 }
