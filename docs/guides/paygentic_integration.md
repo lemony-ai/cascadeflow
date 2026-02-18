@@ -146,8 +146,14 @@ model execution rather than billing I/O.
 ### Delivery Modes
 
 - `background` (default): fire-and-forget async reporting for best request latency
-- `sync`: await Paygentic write in request path
+- `sync`: await Paygentic write in request path (latency-sensitive; use with care)
 - `durable_outbox`: enqueue to local SQLite outbox and retry with backoff
+
+Recommended production posture:
+
+- Default: `delivery_mode="background"`
+- Strict durability: `delivery_mode="durable_outbox"`
+- Avoid `sync` for high-throughput paths unless you explicitly need blocking confirmation
 
 Example durable mode:
 
@@ -163,11 +169,32 @@ billing_proxy = PaygenticProxyService(
 )
 ```
 
+`sync` mode safety controls (integration-only, optional):
+
+```python
+billing_proxy = PaygenticProxyService(
+    service=proxy_service,
+    reporter=reporter,
+    delivery_mode="sync",
+    sync_timeout_seconds=0.2,
+    sync_timeout_fallback_mode="durable_outbox",  # durable_outbox | background | drop
+    outbox_path=".cascadeflow/paygentic-outbox.db",  # required for durable fallback
+)
+```
+
+Durability and resilience controls:
+
+- Non-retryable API errors (for example `401`, `403`, `400`) are dead-lettered instead of retry-storming
+- Built-in circuit breaker temporarily stops direct sends after repeated failures
+- Background delivery has bounded in-flight tasks to prevent unbounded task growth
+
 Operational helpers:
 
 - `await billing_proxy.flush(timeout=...)` drains in-flight/background reporting
 - `await billing_proxy.close(timeout=...)` flushes + closes outbox resources
-- `billing_proxy.get_delivery_stats()` exposes sent/failed/outbox counters
+- `billing_proxy.get_delivery_stats()` exposes:
+  `sent_success`, `sent_failed`, outbox/dead-letter sizes,
+  retry/drop counters, circuit-breaker state, and send latency (`avg`, `p95`)
 
 ## Notes
 

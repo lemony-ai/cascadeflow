@@ -13,7 +13,11 @@ from __future__ import annotations
 
 import asyncio
 
-from cascadeflow.integrations.paygentic import PaygenticClient, PaygenticConfig, PaygenticUsageReporter
+from cascadeflow.integrations.paygentic import (
+    PaygenticClient,
+    PaygenticConfig,
+    PaygenticUsageReporter,
+)
 from cascadeflow.proxy.models import ProxyResult, ProxyUsage
 
 
