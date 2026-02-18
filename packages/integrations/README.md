@@ -22,7 +22,7 @@ Install: Search "cascadeflow" in n8n Community Nodes | **[Documentation](./n8n/R
 Use cascadeflow as a drop-in backend for Vercel AI SDK UI hooks like `useChat` (Next.js App Router), and access the Vercel AI SDK provider ecosystem.
 
 - **Install:** `pnpm add @cascadeflow/core @cascadeflow/vercel-ai ai @ai-sdk/react`
-- **Features:** `createChatHandler(...)` (data stream + UI message stream), tool-call streaming
+- **Features:** `createChatHandler(...)` (data stream + UI message stream), tool-call streaming, server-side tool loops (`toolExecutor` / `toolHandlers`)
 - **Use Cases:** Quickly add cascadeflow routing to existing `useChat` apps
 - **[Documentation](./vercel-ai/README.md)**
 

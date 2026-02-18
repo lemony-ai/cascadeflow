@@ -1,6 +1,7 @@
 import type { CascadeAgent } from '../agent';
 import { StreamEventType } from '../streaming';
 import type { Message, Tool } from '../types';
+import { ToolConfig, ToolExecutor } from '../tools';
 
 export type VercelAIStreamProtocol = 'data' | 'text';
 
@@ -36,6 +37,110 @@ export interface VercelAIChatHandlerOptions {
    * Note: This is advanced and should be server-defined (do not trust client input).
    */
   extra?: Record<string, any>;
+
+  /**
+   * Optional tool executor for automatic server-side tool loops.
+   *
+   * When provided (with `tools`), the handler can execute tool calls and continue
+   * the conversation up to `maxSteps`.
+   */
+  toolExecutor?: ToolExecutor;
+
+  /**
+   * Convenience map for server-side tool execution without manually constructing
+   * a ToolExecutor. Keys must match `tools[].function.name`.
+   */
+  toolHandlers?: Record<string, (args: Record<string, any>) => unknown | Promise<unknown>>;
+
+  /**
+   * Maximum model turns when tool execution loop is enabled.
+   * Default comes from the agent (`5` in current implementation).
+   */
+  maxSteps?: number;
+
+  /**
+   * Force direct execution (skip cascade) in the underlying agent.
+   */
+  forceDirect?: boolean;
+
+  /**
+   * Optional user tier for future tier-aware routing.
+   */
+  userTier?: string;
+}
+
+type AgentRunLikeOptions = {
+  systemPrompt?: string;
+  maxTokens?: number;
+  temperature?: number;
+  tools?: Tool[];
+  extra?: Record<string, any>;
+  toolExecutor?: ToolExecutor;
+  maxSteps?: number;
+  forceDirect?: boolean;
+  userTier?: string;
+};
+
+function resolveToolExecutor(options: VercelAIChatHandlerOptions): ToolExecutor | undefined {
+  if (options.toolExecutor) {
+    return options.toolExecutor;
+  }
+
+  if (!options.toolHandlers) {
+    return undefined;
+  }
+
+  if (!options.tools || options.tools.length === 0) {
+    throw new Error('`toolHandlers` requires `tools` to be configured.');
+  }
+
+  const configs = options.tools.map((tool) => {
+    const name = tool?.function?.name;
+    if (!name) {
+      throw new Error('Each tool must define `function.name` when using `toolHandlers`.');
+    }
+
+    const handler = options.toolHandlers?.[name];
+    if (typeof handler !== 'function') {
+      throw new Error(`Missing tool handler for '${name}'. Add it to \`toolHandlers\`.`);
+    }
+
+    const description = tool?.function?.description ?? `Execute ${name}`;
+    const parameters =
+      tool?.function?.parameters && typeof tool.function.parameters === 'object'
+        ? (tool.function.parameters as any)
+        : { type: 'object', properties: {} };
+
+    return new ToolConfig({
+      name,
+      description,
+      parameters,
+      function: handler,
+    });
+  });
+
+  return new ToolExecutor(configs);
+}
+
+function buildAgentRunOptions(
+  options: VercelAIChatHandlerOptions,
+  resolvedToolExecutor?: ToolExecutor
+): AgentRunLikeOptions {
+  return {
+    systemPrompt: options.systemPrompt,
+    maxTokens: options.maxTokens,
+    temperature: options.temperature,
+    tools: options.tools,
+    extra: options.extra,
+    toolExecutor: resolvedToolExecutor,
+    maxSteps: options.maxSteps,
+    forceDirect: options.forceDirect,
+    userTier: options.userTier,
+  };
+}
+
+function shouldUseBufferedToolLoop(options: VercelAIChatHandlerOptions, resolvedToolExecutor?: ToolExecutor): boolean {
+  return Boolean(resolvedToolExecutor && options.tools && options.tools.length > 0);
 }
 
 type DataStreamFormatter = <T extends string>(type: T, value: any) => string;
@@ -327,23 +432,35 @@ async function runTextStream(
   agent: CascadeAgent,
   input: string | Message[],
   options: VercelAIChatHandlerOptions,
+  resolvedToolExecutor: ToolExecutor | undefined,
   signal?: AbortSignal
 ) {
+  const runOptions = buildAgentRunOptions(options, resolvedToolExecutor);
+  const bufferedToolLoop = shouldUseBufferedToolLoop(options, resolvedToolExecutor);
+
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const event of agent.stream(input, {
-          systemPrompt: options.systemPrompt,
-          maxTokens: options.maxTokens,
-          temperature: options.temperature,
-          tools: options.tools,
-          extra: options.extra,
-        })) {
-          if (signal?.aborted) {
-            break;
+        if (bufferedToolLoop) {
+          const result = await agent.run(input, runOptions as any);
+          if (!signal?.aborted && result?.content) {
+            controller.enqueue(encodeUtf8(result.content));
           }
-          if (event.type === StreamEventType.CHUNK) {
-            controller.enqueue(encodeUtf8(event.content));
+        } else {
+          for await (const event of agent.stream(input, {
+            systemPrompt: options.systemPrompt,
+            maxTokens: options.maxTokens,
+            temperature: options.temperature,
+            tools: options.tools,
+            extra: options.extra,
+            forceDirect: options.forceDirect,
+          })) {
+            if (signal?.aborted) {
+              break;
+            }
+            if (event.type === StreamEventType.CHUNK) {
+              controller.enqueue(encodeUtf8(event.content));
+            }
           }
         }
       } catch (err: any) {
@@ -359,8 +476,12 @@ async function runDataStream(
   agent: CascadeAgent,
   messages: Message[],
   options: VercelAIChatHandlerOptions,
+  resolvedToolExecutor: ToolExecutor | undefined,
   signal?: AbortSignal
 ) {
+  const runOptions = buildAgentRunOptions(options, resolvedToolExecutor);
+  const bufferedToolLoop = shouldUseBufferedToolLoop(options, resolvedToolExecutor);
+
   // AI SDK v5+ prefers UI Message Streams (SSE + start/delta/end chunks).
   const uiFactories = await tryGetUiStreamFactories();
   if (uiFactories) {
@@ -372,29 +493,41 @@ async function runDataStream(
       async execute({ writer }) {
         writer.write({ type: 'text-start', id: textId });
         try {
-          for await (const event of agent.stream(messages, {
-            systemPrompt: options.systemPrompt,
-            maxTokens: options.maxTokens,
-            temperature: options.temperature,
-            tools: options.tools,
-            extra: options.extra,
-          })) {
-            if (signal?.aborted) {
-              break;
+          if (bufferedToolLoop) {
+            const result = await agent.run(messages, runOptions as any);
+            const resultToolCalls = normalizeToolCalls((result as any)?.toolCalls);
+            if (resultToolCalls.length > 0) {
+              emitToolCallsFinalUi(writer, toolState, resultToolCalls);
             }
-            if (event.type === StreamEventType.CHUNK) {
-              const toolCalls = normalizeToolCalls((event as any)?.data?.tool_calls);
-              if (toolCalls.length > 0) {
-                emitToolCallDeltasUi(writer, toolState, toolCalls);
+            if (!signal?.aborted && result?.content) {
+              writer.write({ type: 'text-delta', id: textId, delta: result.content });
+            }
+          } else {
+            for await (const event of agent.stream(messages, {
+              systemPrompt: options.systemPrompt,
+              maxTokens: options.maxTokens,
+              temperature: options.temperature,
+              tools: options.tools,
+              extra: options.extra,
+              forceDirect: options.forceDirect,
+            })) {
+              if (signal?.aborted) {
+                break;
               }
-              if (event.content) {
-                writer.write({ type: 'text-delta', id: textId, delta: event.content });
-              }
-            } else if (event.type === StreamEventType.COMPLETE) {
-              // Emit final tool-call inputs when the agent completes.
-              const resultToolCalls = normalizeToolCalls((event as any)?.data?.result?.toolCalls);
-              if (resultToolCalls.length > 0) {
-                emitToolCallsFinalUi(writer, toolState, resultToolCalls);
+              if (event.type === StreamEventType.CHUNK) {
+                const toolCalls = normalizeToolCalls((event as any)?.data?.tool_calls);
+                if (toolCalls.length > 0) {
+                  emitToolCallDeltasUi(writer, toolState, toolCalls);
+                }
+                if (event.content) {
+                  writer.write({ type: 'text-delta', id: textId, delta: event.content });
+                }
+              } else if (event.type === StreamEventType.COMPLETE) {
+                // Emit final tool-call inputs when the agent completes.
+                const resultToolCalls = normalizeToolCalls((event as any)?.data?.result?.toolCalls);
+                if (resultToolCalls.length > 0) {
+                  emitToolCallsFinalUi(writer, toolState, resultToolCalls);
+                }
               }
             }
           }
@@ -415,35 +548,45 @@ async function runDataStream(
         controller.enqueue(encodeUtf8(formatDataStreamPart('start_step', { messageId })));
 
         const toolState: ToolCallStreamState = new Map();
-
-        for await (const event of agent.stream(messages, {
-          systemPrompt: options.systemPrompt,
-          maxTokens: options.maxTokens,
-          temperature: options.temperature,
-          tools: options.tools,
-          extra: options.extra,
-        })) {
-          if (signal?.aborted) {
-            break;
+        if (bufferedToolLoop) {
+          const result = await agent.run(messages, runOptions as any);
+          const resultToolCalls = normalizeToolCalls((result as any)?.toolCalls);
+          if (resultToolCalls.length > 0) {
+            emitToolCallsFinalData(controller, formatDataStreamPart, toolState, resultToolCalls);
           }
-
-          if (event.type === StreamEventType.CHUNK) {
-            const toolCalls = normalizeToolCalls((event as any)?.data?.tool_calls);
-            if (toolCalls.length > 0) {
-              emitToolCallDeltasData(controller, formatDataStreamPart, toolState, toolCalls);
+          if (!signal?.aborted && result?.content) {
+            controller.enqueue(encodeUtf8(formatDataStreamPart('text', result.content)));
+          }
+        } else {
+          for await (const event of agent.stream(messages, {
+            systemPrompt: options.systemPrompt,
+            maxTokens: options.maxTokens,
+            temperature: options.temperature,
+            tools: options.tools,
+            extra: options.extra,
+            forceDirect: options.forceDirect,
+          })) {
+            if (signal?.aborted) {
+              break;
             }
-            if (event.content) {
-              controller.enqueue(encodeUtf8(formatDataStreamPart('text', event.content)));
+            if (event.type === StreamEventType.CHUNK) {
+              const toolCalls = normalizeToolCalls((event as any)?.data?.tool_calls);
+              if (toolCalls.length > 0) {
+                emitToolCallDeltasData(controller, formatDataStreamPart, toolState, toolCalls);
+              }
+              if (event.content) {
+                controller.enqueue(encodeUtf8(formatDataStreamPart('text', event.content)));
+              }
+            } else if (event.type === StreamEventType.COMPLETE) {
+              const resultToolCalls = normalizeToolCalls((event as any)?.data?.result?.toolCalls);
+              if (resultToolCalls.length > 0) {
+                emitToolCallsFinalData(controller, formatDataStreamPart, toolState, resultToolCalls);
+              }
+            } else if (event.type === StreamEventType.ERROR) {
+              controller.enqueue(
+                encodeUtf8(formatDataStreamPart('error', event.data?.error ?? 'Unknown error'))
+              );
             }
-          } else if (event.type === StreamEventType.COMPLETE) {
-            const resultToolCalls = normalizeToolCalls((event as any)?.data?.result?.toolCalls);
-            if (resultToolCalls.length > 0) {
-              emitToolCallsFinalData(controller, formatDataStreamPart, toolState, resultToolCalls);
-            }
-          } else if (event.type === StreamEventType.ERROR) {
-            controller.enqueue(
-              encodeUtf8(formatDataStreamPart('error', event.data?.error ?? 'Unknown error'))
-            );
           }
         }
 
@@ -465,30 +608,27 @@ export function createChatHandler(
   agent: CascadeAgent,
   options: VercelAIChatHandlerOptions = {}
 ): (request: Request) => Promise<Response> {
+  const resolvedToolExecutor = resolveToolExecutor(options);
+
   return async (request: Request) => {
     const body = (await request.json().catch(() => ({}))) as any;
     const messages = toCoreMessages(body?.messages);
+    const runOptions = buildAgentRunOptions(options, resolvedToolExecutor);
 
     if (options.stream === false) {
-      const result = await agent.run(messages, {
-        systemPrompt: options.systemPrompt,
-        maxTokens: options.maxTokens,
-        temperature: options.temperature,
-        tools: options.tools,
-        extra: options.extra,
-      });
+      const result = await agent.run(messages, runOptions as any);
       return Response.json(result);
     }
 
     const protocol = options.protocol ?? 'data';
     if (protocol === 'text') {
-      const stream = await runTextStream(agent, messages, options, request.signal);
+      const stream = await runTextStream(agent, messages, options, resolvedToolExecutor, request.signal);
       return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
 
     // Prefer UI message stream response when available (AI SDK v5+).
     const uiFactories = await tryGetUiStreamFactories();
-    const stream = await runDataStream(agent, messages, options, request.signal);
+    const stream = await runDataStream(agent, messages, options, resolvedToolExecutor, request.signal);
     if (uiFactories) {
       return uiFactories.createUIMessageStreamResponse({ stream });
     }
@@ -500,31 +640,28 @@ export function createCompletionHandler(
   agent: CascadeAgent,
   options: VercelAIChatHandlerOptions = {}
 ): (request: Request) => Promise<Response> {
+  const resolvedToolExecutor = resolveToolExecutor(options);
+
   return async (request: Request) => {
     const body = (await request.json().catch(() => ({}))) as any;
     const prompt = toTextPrompt(body);
+    const runOptions = buildAgentRunOptions(options, resolvedToolExecutor);
 
     if (options.stream === false) {
-      const result = await agent.run(prompt, {
-        systemPrompt: options.systemPrompt,
-        maxTokens: options.maxTokens,
-        temperature: options.temperature,
-        tools: options.tools,
-        extra: options.extra,
-      });
+      const result = await agent.run(prompt, runOptions as any);
       return Response.json(result);
     }
 
     const protocol = options.protocol ?? 'data';
     if (protocol === 'text') {
-      const stream = await runTextStream(agent, prompt, options, request.signal);
+      const stream = await runTextStream(agent, prompt, options, resolvedToolExecutor, request.signal);
       return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
 
     // Completion endpoint maps to a single user message.
     const messages: Message[] = [{ role: 'user', content: prompt }];
     const uiFactories = await tryGetUiStreamFactories();
-    const stream = await runDataStream(agent, messages, options, request.signal);
+    const stream = await runDataStream(agent, messages, options, resolvedToolExecutor, request.signal);
     if (uiFactories) {
       return uiFactories.createUIMessageStreamResponse({ stream });
     }

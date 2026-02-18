@@ -27,7 +27,14 @@ export ANTHROPIC_API_KEY=...
 - Multi-turn chat (`messages` list) with `useChat`.
 - Streaming responses (`data` protocol, plus automatic UI message stream support on newer AI SDKs).
 - UI message `parts` payloads are accepted by the backend handler.
-- Works with cascadeflow tool loops by passing server-defined `tools`/`extra` options in `createChatHandler(...)`.
+- Works with cascadeflow tool loops via `toolExecutor` or `toolHandlers` in `createChatHandler(...)`.
+
+### Integration Progression (Trivial -> Advanced)
+
+1. Trivial text chat: pass plain `messages`.
+2. Single tool-call planning: provide `tools` and optional `extra.tool_choice`.
+3. Tool-loop execution: add `toolExecutor` or `toolHandlers` plus `maxSteps`.
+4. Multi-tool continuation: send assistant/tool message-list turns for closed-loop workflows.
 
 ## Deploy As A Separate Vercel Project
 
