@@ -34,7 +34,9 @@ class MockSequenceChatModel(BaseChatModel):
         self.calls += 1
         self.last_kwargs = kwargs
         message = AIMessage(content=self.text)
-        return ChatResult(generations=[ChatGeneration(text=self.text, message=message)], llm_output={})
+        return ChatResult(
+            generations=[ChatGeneration(text=self.text, message=message)], llm_output={}
+        )
 
     async def _agenerate(
         self,

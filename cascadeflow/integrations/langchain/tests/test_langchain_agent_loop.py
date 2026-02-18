@@ -59,7 +59,9 @@ class MockLoopChatModel(BaseChatModel):
 
 def test_cascade_agent_run_completes_tool_loop() -> None:
     model = MockLoopChatModel()
-    agent = CascadeAgent(model=model, tool_handlers={"get_weather": lambda args: "sunny"}, max_steps=4)
+    agent = CascadeAgent(
+        model=model, tool_handlers={"get_weather": lambda args: "sunny"}, max_steps=4
+    )
 
     result = agent.run("What is the weather?")
 
@@ -86,7 +88,9 @@ async def test_cascade_agent_arun_supports_async_tool_handler() -> None:
 
 def test_cascade_agent_run_stops_at_max_steps() -> None:
     model = MockLoopChatModel(loop_forever=True)
-    agent = CascadeAgent(model=model, tool_handlers={"get_weather": lambda args: "sunny"}, max_steps=2)
+    agent = CascadeAgent(
+        model=model, tool_handlers={"get_weather": lambda args: "sunny"}, max_steps=2
+    )
 
     result = agent.run([HumanMessage(content="loop")])
 

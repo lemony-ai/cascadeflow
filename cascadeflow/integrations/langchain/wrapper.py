@@ -247,7 +247,9 @@ class CascadeFlow(BaseChatModel):
             from .routers.base import RoutingStrategy
 
             if not resolved_domain:
-                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                resolved_domain = self._resolve_domain(
+                    messages, existing_metadata, routing_decision
+                )
                 effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
                 force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
                 domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
@@ -643,7 +645,9 @@ class CascadeFlow(BaseChatModel):
 
             use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
             if not resolved_domain:
-                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                resolved_domain = self._resolve_domain(
+                    messages, existing_metadata, routing_decision
+                )
                 effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
                 force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
                 domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
@@ -1050,7 +1054,9 @@ class CascadeFlow(BaseChatModel):
                 or routing_decision.get("strategy") == RoutingStrategy.CASCADE
             )
             if not resolved_domain:
-                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                resolved_domain = self._resolve_domain(
+                    messages, existing_metadata, routing_decision
+                )
                 effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
                 force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
                 domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
@@ -1373,7 +1379,9 @@ class CascadeFlow(BaseChatModel):
 
             use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
             if not resolved_domain:
-                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                resolved_domain = self._resolve_domain(
+                    messages, existing_metadata, routing_decision
+                )
                 effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
                 force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
                 domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
@@ -1814,7 +1822,9 @@ class CascadeFlow(BaseChatModel):
                 return direct
 
         for key in ("cascadeflow_domain", "domain"):
-            direct = self._normalize_domain(metadata.get(key) if isinstance(metadata, dict) else None)
+            direct = self._normalize_domain(
+                metadata.get(key) if isinstance(metadata, dict) else None
+            )
             if direct:
                 return direct
 
@@ -1830,7 +1840,9 @@ class CascadeFlow(BaseChatModel):
                     if direct:
                         return direct
 
-        query_text = "\n".join([msg.content if isinstance(msg.content, str) else "" for msg in messages])
+        query_text = "\n".join(
+            [msg.content if isinstance(msg.content, str) else "" for msg in messages]
+        )
         if query_text and self.pre_router and hasattr(self.pre_router, "detector"):
             try:
                 detected = self.pre_router.detector.detect(query_text)

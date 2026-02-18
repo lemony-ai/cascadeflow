@@ -128,7 +128,9 @@ class CascadeAgent:
 
             all_tool_calls.extend(tool_calls)
             for i, call in enumerate(tool_calls):
-                tool_message = await self._execute_tool_call_async(call, handlers, messages, step, i)
+                tool_message = await self._execute_tool_call_async(
+                    call, handlers, messages, step, i
+                )
                 messages.append(tool_message)
 
         return CascadeAgentResult(
@@ -193,7 +195,9 @@ class CascadeAgent:
             return response
         if isinstance(response, BaseMessage):
             return AIMessage(
-                content=response.content if isinstance(response.content, str) else str(response.content),
+                content=(
+                    response.content if isinstance(response.content, str) else str(response.content)
+                ),
                 additional_kwargs=getattr(response, "additional_kwargs", {}),
                 tool_calls=getattr(response, "tool_calls", None),
                 response_metadata=getattr(response, "response_metadata", {}),
