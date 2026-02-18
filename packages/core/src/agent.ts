@@ -476,8 +476,8 @@ export class CascadeAgent {
     // Add Anthropic models if available
     if (supportedAvailable.includes('anthropic')) {
       models.push(
-        { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
-        { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 }
+        { name: 'claude-haiku-4-5-20251001', provider: 'anthropic', cost: 0.001 },
+        { name: 'claude-sonnet-4-5-20250929', provider: 'anthropic', cost: 0.003 }
       );
     }
 
@@ -514,7 +514,7 @@ export class CascadeAgent {
    * import { createUserProfile, CascadeAgent } from '@cascadeflow/core';
    *
    * const profile = createUserProfile('PRO', 'user-123', {
-   *   preferredModels: ['gpt-4o', 'claude-3-5-sonnet-20241022']
+   *   preferredModels: ['gpt-4o', 'claude-sonnet-4-5-20250929']
    * });
    *
    * const agent = CascadeAgent.fromProfile(profile);
@@ -562,8 +562,8 @@ export class CascadeAgent {
     // Add Anthropic models if available
     if (supportedAvailable.includes('anthropic')) {
       const anthropicModels: ModelConfig[] = [
-        { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
-        { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003 },
+        { name: 'claude-haiku-4-5-20251001', provider: 'anthropic', cost: 0.001 },
+        { name: 'claude-sonnet-4-5-20250929', provider: 'anthropic', cost: 0.003 },
       ];
 
       for (const model of anthropicModels) {

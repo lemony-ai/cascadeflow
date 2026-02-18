@@ -61,7 +61,7 @@ import { CascadeAgent } from '@cascadeflow/core';
 const agent = new CascadeAgent({
   models: [
     { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: process.env.OPENAI_API_KEY },
-    { name: 'claude-3-5-sonnet-20241022', provider: 'anthropic', cost: 0.003, apiKey: process.env.ANTHROPIC_API_KEY },
+    { name: 'claude-sonnet-4-5-20250929', provider: 'anthropic', cost: 0.003, apiKey: process.env.ANTHROPIC_API_KEY },
   ],
 });
 

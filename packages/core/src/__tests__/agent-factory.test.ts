@@ -98,8 +98,8 @@ describe('CascadeAgent Factory Methods', () => {
       const anthropicModels = agent['models'].filter(m => m.provider === 'anthropic');
 
       expect(anthropicModels.map(m => m.name)).toEqual([
-        'claude-3-5-haiku-20241022',
-        'claude-3-5-sonnet-20241022'
+        'claude-haiku-4-5-20251001',
+        'claude-sonnet-4-5-20250929'
       ]);
     });
 
@@ -159,16 +159,16 @@ describe('CascadeAgent Factory Methods', () => {
       process.env.ANTHROPIC_API_KEY = 'test-key';
 
       const profile = createUserProfile('PRO', 'user-789', {
-        preferredModels: ['gpt-4o', 'claude-3-5-sonnet-20241022']
+        preferredModels: ['gpt-4o', 'claude-sonnet-4-5-20250929']
       });
 
       const agent = CascadeAgent.fromProfile(profile);
       const modelNames = agent['models'].map(m => m.name);
 
       expect(modelNames).toContain('gpt-4o');
-      expect(modelNames).toContain('claude-3-5-sonnet-20241022');
+      expect(modelNames).toContain('claude-sonnet-4-5-20250929');
       expect(modelNames).not.toContain('gpt-4o-mini');
-      expect(modelNames).not.toContain('claude-3-5-haiku-20241022');
+      expect(modelNames).not.toContain('claude-haiku-4-5-20251001');
     });
 
     it('should include all available models when no preferred models specified', () => {
