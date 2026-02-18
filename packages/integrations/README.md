@@ -7,12 +7,12 @@ This directory contains official integrations for cascadeflow with popular platf
 ### 🔌 Workflow Automation
 
 #### [n8n](./n8n/) - `@cascadeflow/n8n-nodes-cascadeflow`
-No-code workflow automation with cascadeflow's intelligent model cascading.
+No-code workflow automation with cascadeflow's intelligent model cascading. Two nodes:
 
-- **Install:** Search "cascadeflow" in n8n Community Nodes
-- **Features:** Cost-optimized workflows, multi-provider support, tool calling
-- **Use Cases:** Customer support, data enrichment, content generation
-- **[Documentation](./n8n/README.md)**
+- **CascadeFlow (Model)** — Language Model sub-node for Chain/LLM nodes
+- **CascadeFlow Agent** — Standalone agent with tool calling, memory, and multi-step reasoning
+
+Install: Search "cascadeflow" in n8n Community Nodes | **[Documentation](./n8n/README.md)**
 
 ---
 
