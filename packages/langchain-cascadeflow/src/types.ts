@@ -51,9 +51,9 @@ export interface CascadeConfig {
 
   /**
    * Cost tracking provider
-   * - 'langsmith': Use LangSmith's server-side cost calculation (default, requires LANGSMITH_API_KEY)
-   * - 'cascadeflow': Use CascadeFlow's built-in pricing table (no external dependencies)
-   * @default 'langsmith'
+   * - 'langsmith': Use LangSmith's server-side cost calculation (requires LANGSMITH_API_KEY)
+   * - 'cascadeflow': Use CascadeFlow's built-in pricing table (default, no external dependencies)
+   * @default 'cascadeflow'
    */
   costTrackingProvider?: 'langsmith' | 'cascadeflow';
 

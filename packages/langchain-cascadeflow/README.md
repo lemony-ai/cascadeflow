@@ -163,9 +163,10 @@ for await (const chunk of stream) {
 ```
 
 **How Streaming Works:**
-1. **Optimistic Streaming** - Drafter response streams immediately (user sees output in real-time)
+1. **Optimistic Streaming (text-only)** - Drafter response streams immediately (user sees output in real-time)
 2. **Quality Check** - After drafter completes, quality is validated
-3. **Optional Cascade** - If quality insufficient, shows "⤴ Cascading to [model]" message and streams verifier
+3. **Optional Cascade** - If quality is insufficient, verifier output is streamed; switch notices are off by default and can be enabled via metadata (`cascadeflow_emit_switch_message`)
+4. **Tool-safe Streaming** - When tools are bound with `bindTools(...)`, output is buffered until final routing so tool-call deltas stay consistent
 
 This provides the best user experience with no perceived latency for queries the drafter can handle.
 
