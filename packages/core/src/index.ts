@@ -409,6 +409,8 @@ export type {
   DomainDetectionResult,
   DomainRouterStats,
 } from './routers/domain-router';
+export { RuleEngine } from './rules';
+export type { RuleContext, RuleDecision, RuleDecisionLike, RuleEngineConfig } from './rules';
 
 // Cascade Pipeline (v0.7.0+)
 export {

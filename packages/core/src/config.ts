@@ -2,9 +2,11 @@
  * Configuration types for cascadeflow
  */
 
-import type { Provider, RoutingStrategy, HttpConfig } from './types';
+import type { Provider, RoutingStrategy, HttpConfig, WorkflowProfile } from './types';
 import type { QualityConfig as QualityValidatorConfig } from './quality';
 import type { DomainConfigMap } from './config/domain-config';
+import type { TierRouterConfig } from './routers/tier-router';
+import type { RuleEngine, RuleEngineConfig } from './rules';
 
 /**
  * Configuration for a single model in the cascade
@@ -338,6 +340,46 @@ export interface AgentConfig {
    * @default true
    */
   enableDomainDetection?: boolean;
+
+  /**
+   * Optional tier definitions used by the rule engine and tier router.
+   */
+  tiers?: Record<string, TierRouterConfig>;
+
+  /**
+   * Optional workflow profiles consumed by the rule engine.
+   */
+  workflows?: Record<string, WorkflowProfile>;
+
+  /**
+   * Optional per-tenant routing overrides consumed by the rule engine.
+   */
+  tenantRules?: Record<string, Record<string, unknown>>;
+
+  /**
+   * Optional channel->allowed-model mapping consumed by the rule engine.
+   */
+  channelModels?: Record<string, string[]>;
+
+  /**
+   * Optional channel failover map consumed by the rule engine.
+   */
+  channelFailover?: Record<string, string>;
+
+  /**
+   * Optional channel routing strategy map consumed by the rule engine.
+   */
+  channelStrategies?: Record<string, string>;
+
+  /**
+   * Optional rule engine configuration overrides.
+   */
+  ruleEngineConfig?: RuleEngineConfig;
+
+  /**
+   * Optional custom rule engine instance.
+   */
+  ruleEngine?: RuleEngine;
 }
 
 /**

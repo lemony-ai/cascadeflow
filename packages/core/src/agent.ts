@@ -39,6 +39,8 @@ import { ToolCascadeRouter } from './tool-cascade/router';
 import { ToolCascadeValidator } from './tool-cascade/validator';
 import { CallbackEvent } from './telemetry/callbacks';
 import type { DomainConfig, DomainConfigMap } from './config/domain-config';
+import { RuleEngine } from './rules';
+import type { RuleContext, RuleDecision } from './rules';
 
 // Register providers
 providerRegistry.register('openai', OpenAIProvider);
@@ -119,6 +121,18 @@ export interface RunOptions {
 
   /** User tier name for tier-based model filtering (optional) */
   userTier?: string;
+
+  /** Optional workflow profile name for rule-based routing overrides */
+  workflow?: string;
+
+  /** Optional KPI flags for rule-based routing overrides */
+  kpiFlags?: Record<string, any>;
+
+  /** Optional tenant id for rule-based routing overrides */
+  tenantId?: string;
+
+  /** Optional channel name for rule-based routing overrides/failover */
+  channel?: string;
 }
 
 /**
@@ -153,6 +167,7 @@ export class CascadeAgent {
   private domainRouter: DomainRouter;
   private domainConfigs: DomainConfigMap;
   private enableDomainDetection: boolean;
+  private ruleEngine: RuleEngine;
   private toolExecutor?: ToolExecutor;
 
   /**
@@ -264,10 +279,28 @@ export class CascadeAgent {
     this.domainConfigs = config.domainConfigs ?? {};
     this.enableDomainDetection = config.enableDomainDetection ?? true;
 
-    // TierRouter: Optional tier-based filtering (initialized if tiers provided)
-    // Note: We don't initialize TierRouter here by default since tiers are optional
-    // It will be created on-demand if userTier is passed to run()
-    this.tierRouter = undefined;
+    // TierRouter: Optional tier-based filtering
+    this.tierRouter = config.tiers
+      ? new TierRouter({
+          tiers: config.tiers,
+          models: this.models,
+          verbose,
+        })
+      : undefined;
+
+    // RuleEngine: Optional routing/model constraints (tier/workflow/tenant/channel/KPI)
+    this.ruleEngine =
+      config.ruleEngine ??
+      new RuleEngine({
+        enableDomainRouting: config.ruleEngineConfig?.enableDomainRouting ?? true,
+        tiers: config.ruleEngineConfig?.tiers ?? config.tiers,
+        workflows: config.ruleEngineConfig?.workflows ?? config.workflows,
+        tenantRules: config.ruleEngineConfig?.tenantRules ?? config.tenantRules,
+        channelModels: config.ruleEngineConfig?.channelModels ?? config.channelModels,
+        channelFailover: config.ruleEngineConfig?.channelFailover ?? config.channelFailover,
+        channelStrategies: config.ruleEngineConfig?.channelStrategies ?? config.channelStrategies,
+        verbose: config.ruleEngineConfig?.verbose ?? verbose,
+      });
 
     // CallbackManager: Optional lifecycle event monitoring
     this.callbackManager = config.callbacks;
@@ -303,6 +336,92 @@ export class CascadeAgent {
     const parsedCalls = rawToolCalls.map((tc) => ParsedToolCall.fromProvider(providerName, tc));
     const toolResults = await executor.executeParallel(parsedCalls);
     return { toolResults, parsedCalls };
+  }
+
+  private applyRuleModelConstraints(
+    availableModels: ModelConfig[],
+    ruleDecision?: RuleDecision
+  ): ModelConfig[] {
+    if (!ruleDecision || availableModels.length === 0) {
+      return availableModels;
+    }
+
+    let filtered = [...availableModels];
+    const forced = ruleDecision.forcedModels ?? [];
+    const allowed = ruleDecision.allowedModels ?? [];
+    const excluded = ruleDecision.excludedModels ?? [];
+
+    if (forced.length > 0) {
+      filtered = filtered.filter((model) => forced.includes(model.name));
+    } else if (allowed.length > 0 && !allowed.includes('*')) {
+      filtered = filtered.filter((model) => allowed.includes(model.name));
+    }
+
+    if (excluded.length > 0) {
+      filtered = filtered.filter((model) => !excluded.includes(model.name));
+    }
+
+    if (filtered.length === 0) {
+      const fallback = [...availableModels].sort((a, b) => a.cost - b.cost)[0];
+      return fallback ? [fallback] : [];
+    }
+
+    return filtered;
+  }
+
+  private buildRuleContext(params: {
+    queryText: string;
+    complexity: string;
+    complexityConfidence: number;
+    detectedDomain?: Domain;
+    domainConfidence: number;
+    domainConfig?: DomainConfig;
+    tools?: Tool[];
+    messages: Message[];
+    options: RunOptions;
+    tierConfig?: ReturnType<TierRouter['getTier']>;
+  }): RuleContext {
+    const {
+      queryText,
+      complexity,
+      complexityConfidence,
+      detectedDomain,
+      domainConfidence,
+      domainConfig,
+      tools,
+      messages,
+      options,
+      tierConfig,
+    } = params;
+
+    const loweredQuery = queryText.toLowerCase();
+    const hasToolPrompt =
+      (loweredQuery.includes('tool:') || loweredQuery.includes('parameters:')) &&
+      (loweredQuery.includes('tools') || loweredQuery.includes('function'));
+
+    return {
+      query: queryText,
+      complexity,
+      complexityConfidence,
+      detectedDomain,
+      domainConfidence,
+      domainConfig,
+      hasTools: Boolean(tools && tools.length > 0),
+      hasMultiTurn: messages.length > 1,
+      hasCode:
+        loweredQuery.includes('```') ||
+        loweredQuery.includes('function ') ||
+        loweredQuery.includes('class ') ||
+        loweredQuery.includes('def '),
+      hasToolPrompt,
+      userTier: options.userTier,
+      tierConfig,
+      workflowName: options.workflow,
+      workflowProfile: undefined,
+      kpiFlags: options.kpiFlags,
+      tenantId: options.tenantId,
+      channel: options.channel,
+    };
   }
 
   // ==================== FACTORY METHODS ====================
@@ -646,10 +765,15 @@ export class CascadeAgent {
     }
 
     // Step 1b: Filter by user tier if specified
-    if (options.userTier) {
-      // For tier filtering, we would need tier configuration
-      // For now, we'll skip tier filtering unless tiers are configured
-      // This matches the Python implementation where tier filtering is optional
+    let tierConfig: ReturnType<TierRouter['getTier']> | undefined;
+    if (options.userTier && this.tierRouter) {
+      tierConfig = this.tierRouter.getTier(options.userTier);
+      if (tierConfig) {
+        availableModels = this.tierRouter.filterModels({
+          tierName: options.userTier,
+          availableModels,
+        });
+      }
     }
 
     // === STEP 1c: DOMAIN DETECTION (for smart routing) ===
@@ -683,6 +807,26 @@ export class CascadeAgent {
       );
     }
 
+    const complexityResult = this.complexityDetector.detect(queryText);
+    const complexity = complexityResult.complexity;
+    const complexityConfidence = complexityResult.confidence;
+
+    // Rule-engine decision (domain/tiers/workflow/KPI/tenant/channel)
+    const ruleContext = this.buildRuleContext({
+      queryText,
+      complexity,
+      complexityConfidence,
+      detectedDomain,
+      domainConfidence,
+      domainConfig,
+      tools: options.tools,
+      messages,
+      options,
+      tierConfig,
+    });
+    const ruleDecision = this.ruleEngine.decide(ruleContext);
+    availableModels = this.applyRuleModelConstraints(availableModels, ruleDecision);
+
     // === STEP 2: ROUTING DECISION (PreRouter) ===
     const routingContext: Record<string, any> = {
       tools: options.tools,
@@ -693,10 +837,14 @@ export class CascadeAgent {
       detectedDomain: detectedDomain,
       domainConfig: domainConfig,
       domainConfidence: domainConfidence,
+      ruleDecision,
+      workflow: options.workflow,
+      kpiFlags: options.kpiFlags,
+      tenantId: options.tenantId,
+      channel: options.channel,
     };
 
     const routingDecision = await this.preRouter.route(queryText, routingContext);
-    const { complexity } = this.complexityDetector.detect(queryText);
 
     // Determine if we should cascade based on routing decision
     let shouldCascade =
@@ -730,7 +878,7 @@ export class CascadeAgent {
       const bestModelConfig = availableModels[availableModels.length - 1];
       const directReason = toolRoutingDecision?.strategy === 'direct'
         ? `Direct route (tool routing: ${toolRoutingDecision.complexity.complexityLevel})`
-        : `Direct route (${complexity} complexity detected)`;
+        : routingDecision.reason || `Direct route (${complexity} complexity detected)`;
 
       try {
         const provider = providerRegistry.get(bestModelConfig.provider, bestModelConfig);
@@ -915,7 +1063,8 @@ export class CascadeAgent {
 
       // Quality validation using logprobs and heuristics
       // Domain threshold takes precedence over per-model threshold
-      const qualityThreshold = domainConfig?.threshold ?? draftModelConfig.qualityThreshold;
+      const qualityThreshold =
+        ruleDecision?.qualityThreshold ?? domainConfig?.threshold ?? draftModelConfig.qualityThreshold;
       const expectsToolCalls = Boolean(
         options.tools &&
         options.tools.length > 0 &&
@@ -1195,8 +1344,17 @@ export class CascadeAgent {
       availableModels = toolFilterResult.models;
     }
 
-    // Step 1b: Filter by user tier if specified (future enhancement)
-    // if (options.userTier) { ... }
+    // Step 1b: Filter by user tier if specified
+    let tierConfig: ReturnType<TierRouter['getTier']> | undefined;
+    if (options.userTier && this.tierRouter) {
+      tierConfig = this.tierRouter.getTier(options.userTier);
+      if (tierConfig) {
+        availableModels = this.tierRouter.filterModels({
+          tierName: options.userTier,
+          availableModels,
+        });
+      }
+    }
 
     // === STEP 1c: DOMAIN DETECTION (for smart routing) ===
     let detectedDomain: Domain | undefined;
@@ -1227,18 +1385,43 @@ export class CascadeAgent {
       );
     }
 
+    const complexityResult = this.complexityDetector.detect(queryText);
+    const complexity = complexityResult.complexity;
+    const complexityConfidence = complexityResult.confidence;
+
+    // Rule-engine decision (domain/tiers/workflow/KPI/tenant/channel)
+    const ruleContext = this.buildRuleContext({
+      queryText,
+      complexity,
+      complexityConfidence,
+      detectedDomain,
+      domainConfidence,
+      domainConfig,
+      tools: options.tools,
+      messages,
+      options,
+      tierConfig,
+    });
+    const ruleDecision = this.ruleEngine.decide(ruleContext);
+    availableModels = this.applyRuleModelConstraints(availableModels, ruleDecision);
+
     // === STEP 2: ROUTING DECISION ===
     const routingContext: Record<string, any> = {
       tools: options.tools,
+      userTier: options.userTier,
       forceDirect: options.forceDirect,
       availableModels: availableModels.length,
       detectedDomain: detectedDomain,
       domainConfig: domainConfig,
       domainConfidence: domainConfidence,
+      ruleDecision,
+      workflow: options.workflow,
+      kpiFlags: options.kpiFlags,
+      tenantId: options.tenantId,
+      channel: options.channel,
     };
 
     const routingDecision = await this.preRouter.route(queryText, routingContext);
-    const { complexity } = this.complexityDetector.detect(queryText);
 
     let shouldCascade =
       !options.forceDirect &&
@@ -1282,7 +1465,7 @@ export class CascadeAgent {
         const bestModelConfig = availableModels[availableModels.length - 1];
         const directReason = toolRoutingDecision?.strategy === 'direct'
           ? `Direct route (tool routing: ${toolRoutingDecision.complexity.complexityLevel})`
-          : `Direct route (${complexity} complexity detected)`;
+          : routingDecision.reason || `Direct route (${complexity} complexity detected)`;
         const directProvider = providerRegistry.get(
           bestModelConfig.provider,
           bestModelConfig
@@ -1290,14 +1473,19 @@ export class CascadeAgent {
 
         if (!directProvider.stream) {
           // Fallback to non-streaming path
-          const result = await this.run(input, {
-            maxTokens: maxTokens,
-            temperature: options.temperature,
-            systemPrompt: normalized.systemPrompt,
-            tools: options.tools,
-            extra: options.extra,
-            forceDirect: true,
-          });
+        const result = await this.run(input, {
+          maxTokens: maxTokens,
+          temperature: options.temperature,
+          systemPrompt: normalized.systemPrompt,
+          tools: options.tools,
+          extra: options.extra,
+          forceDirect: true,
+          userTier: options.userTier,
+          workflow: options.workflow,
+          kpiFlags: options.kpiFlags,
+          tenantId: options.tenantId,
+          channel: options.channel,
+        });
           yield createStreamEvent(StreamEventType.CHUNK, result.content, {
             model: result.modelUsed,
             phase: 'direct',
@@ -1439,6 +1627,8 @@ export class CascadeAgent {
         options.tools.length > 0 &&
         toolRoutingDecision?.strategy !== 'skip'
       );
+      const qualityThresholdOverride =
+        ruleDecision?.qualityThreshold ?? domainConfig?.threshold ?? draftModelConfig.qualityThreshold;
       let qualityResult: {
         passed: boolean;
         score: number;
@@ -1477,7 +1667,7 @@ export class CascadeAgent {
           query,
           draftLogprobs.length > 0 ? draftLogprobs : undefined,
           complexity,
-          draftModelConfig.qualityThreshold // Per-model threshold override
+          qualityThresholdOverride // Rule/domain/per-model threshold override
         );
         qualityResult = {
           passed: result.passed,
@@ -1500,7 +1690,7 @@ export class CascadeAgent {
         verifier_model: availableModels.length > 1 ? availableModels[1].name : undefined,
         reason: draftAccepted ? 'quality_passed' : 'quality_failed',
         checks_passed: qualityPassed,
-        quality_threshold: this.qualityValidator.getConfig().minConfidence,
+        quality_threshold: qualityThresholdOverride ?? this.qualityValidator.getConfig().minConfidence,
       });
 
       if (!draftAccepted && availableModels.length > 1) {
@@ -1518,7 +1708,7 @@ export class CascadeAgent {
             to_model: verifierModel,
             reason: qualityResult.reason,
             draft_confidence: qualityResult.confidence,
-            quality_threshold: this.qualityValidator.getConfig().minConfidence,
+            quality_threshold: qualityThresholdOverride ?? this.qualityValidator.getConfig().minConfidence,
           }
         );
 

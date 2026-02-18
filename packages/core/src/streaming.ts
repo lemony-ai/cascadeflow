@@ -160,6 +160,21 @@ export interface StreamOptions {
   /** Force direct execution (skip cascade) */
   forceDirect?: boolean;
 
+  /** Optional user tier name for tier/rule-based model constraints */
+  userTier?: string;
+
+  /** Optional workflow profile name for rule-based routing overrides */
+  workflow?: string;
+
+  /** Optional KPI flags for rule-based routing overrides */
+  kpiFlags?: Record<string, any>;
+
+  /** Optional tenant id for rule-based routing overrides */
+  tenantId?: string;
+
+  /** Optional channel for rule-based channel routing/failover */
+  channel?: string;
+
   /** Enable quality validation */
   enableQualityCheck?: boolean;
 

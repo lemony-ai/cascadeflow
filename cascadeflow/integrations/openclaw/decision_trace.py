@@ -1,10 +1,10 @@
 """
 Decision Trace Logger — JSONL decision trace for every OpenClaw request.
 
-Writes one JSON line per request to a decisions.jsonl file so users can
-hand the file to Claude for analysis and threshold tuning.
+Writes one JSON line per request to a JSONL file when enabled.
 
 Features:
+- Disabled by default (no file output unless CASCADEFLOW_DECISION_LOG is set)
 - Thread-safe (uses a lock)
 - Auto-rotates at 50 MB (renames to .1, keeps max 3 files)
 - Configurable via CASCADEFLOW_DECISION_LOG env var
@@ -21,7 +21,6 @@ from typing import Any
 
 logger = logging.getLogger("cascadeflow.openclaw.decision_trace")
 
-_DEFAULT_PATH = "decisions.jsonl"
 _MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 _MAX_BACKUPS = 3
 
@@ -30,11 +29,12 @@ _log_path: Path | None = None
 _file_handle = None
 
 
-def _get_log_path() -> Path:
-    """Resolve the log file path from env or default."""
+def _get_log_path() -> Path | None:
+    """Resolve the log file path from env; return None when logging is disabled."""
     global _log_path
     if _log_path is None:
-        _log_path = Path(os.environ.get("CASCADEFLOW_DECISION_LOG", _DEFAULT_PATH))
+        configured_path = os.environ.get("CASCADEFLOW_DECISION_LOG")
+        _log_path = Path(configured_path) if configured_path else None
     return _log_path
 
 
@@ -110,6 +110,8 @@ def log_decision(trace: dict[str, Any]) -> None:
     """
     with _lock:
         path = _get_log_path()
+        if path is None:
+            return
         try:
             _rotate_if_needed(path)
             fh = _get_file_handle(path)
