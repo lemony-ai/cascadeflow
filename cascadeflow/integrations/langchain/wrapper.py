@@ -64,6 +64,7 @@ class CascadeFlow(BaseChatModel):
     enable_pre_router: bool = True
     pre_router: Optional[Any] = None
     cascade_complexities: list[str] = ["trivial", "simple", "moderate"]
+    domain_policies: dict[str, dict[str, Any]] = {}
 
     # Private state
     _last_cascade_result: Optional[CascadeResult] = None
@@ -86,6 +87,7 @@ class CascadeFlow(BaseChatModel):
         enable_pre_router: bool = True,
         pre_router: Optional[Any] = None,
         cascade_complexities: Optional[list[str]] = None,
+        domain_policies: Optional[dict[str, dict[str, Any]]] = None,
         **kwargs: Any,
     ):
         """Initialize CascadeFlow wrapper.
@@ -100,6 +102,7 @@ class CascadeFlow(BaseChatModel):
             enable_pre_router: Enable pre-routing based on query complexity
             pre_router: Custom PreRouter instance
             cascade_complexities: Complexity levels that should use cascade
+            domain_policies: Optional per-domain routing/threshold overrides
             **kwargs: Additional arguments passed to BaseChatModel
         """
         # Initialize parent class
@@ -113,12 +116,16 @@ class CascadeFlow(BaseChatModel):
             enable_pre_router=enable_pre_router,
             pre_router=pre_router,
             cascade_complexities=cascade_complexities or ["trivial", "simple", "moderate"],
+            domain_policies=domain_policies or {},
             **kwargs,
         )
 
         self._last_cascade_result = None
         self._bind_kwargs = {}
         self._bound_tool_defs = None
+        self.domain_policies = {
+            str(k).strip().lower(): dict(v or {}) for k, v in (domain_policies or {}).items()
+        }
 
         # Initialize PreRouter if enabled
         if self.enable_pre_router and not self.pre_router:
@@ -138,16 +145,6 @@ class CascadeFlow(BaseChatModel):
             or getattr(model, "_llm_type", None)
             or type(model).__name__
         )
-
-    def _should_accept_drafter(
-        self,
-        drafter_quality: float,
-        force_verifier_for_tool_risk: bool,
-        has_tool_calls: bool,
-    ) -> bool:
-        if has_tool_calls:
-            return not force_verifier_for_tool_risk
-        return bool(drafter_quality >= self.quality_threshold)
 
     def _split_runnable_config(
         self, kwargs: dict[str, Any]
@@ -210,10 +207,21 @@ class CascadeFlow(BaseChatModel):
         existing_tags = merged_kwargs.get("tags", []) or []
         base_tags = existing_tags + ["cascadeflow"] if existing_tags else ["cascadeflow"]
         existing_metadata = merged_kwargs.get("metadata", {}) or {}
+        resolved_domain = self._resolve_domain(messages, existing_metadata)
+        effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+        force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+        domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
         base_metadata = {
             **existing_metadata,
-            "cascadeflow": {**existing_metadata.get("cascadeflow", {}), "integration": "langchain"},
+            "cascadeflow": {
+                **existing_metadata.get("cascadeflow", {}),
+                "integration": "langchain",
+                "domain": resolved_domain,
+                "effective_quality_threshold": effective_quality_threshold,
+            },
         }
+        if resolved_domain:
+            base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
 
         # Filter out callback-related keys that LangChain propagates automatically
         # Passing these explicitly to nested models would create duplicate parameter errors
@@ -237,6 +245,18 @@ class CascadeFlow(BaseChatModel):
             # Route based on complexity
             routing_decision = self._route_query_sync(query_text)
             from .routers.base import RoutingStrategy
+
+            if not resolved_domain:
+                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+                force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+                domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
+                base_metadata["cascadeflow"]["domain"] = resolved_domain
+                base_metadata["cascadeflow"][
+                    "effective_quality_threshold"
+                ] = effective_quality_threshold
+                if resolved_domain:
+                    base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
 
             use_cascade = (
                 routing_decision is None
@@ -299,7 +319,9 @@ class CascadeFlow(BaseChatModel):
                             "model_used": "verifier",
                             "routing_reason": routing_decision["reason"],
                             "complexity": routing_decision.get("metadata", {}).get("complexity"),
+                            "domain": resolved_domain,
                             "drafter_quality": 0.0,  # No drafter used (pre-router bypass)
+                            "effective_quality_threshold": effective_quality_threshold,
                         }
 
                         if not verifier_result.llm_output:
@@ -317,6 +339,71 @@ class CascadeFlow(BaseChatModel):
                         print(f"Warning: Failed to inject cascade metadata: {e}")
 
                 return verifier_result
+
+        if domain_direct_to_verifier:
+            verifier_tags = base_tags + [
+                "cascadeflow:direct",
+                "cascadeflow:verifier",
+                "verifier",
+                "cascadeflow:reason=domain_policy_direct",
+            ]
+            verifier_llm_result = self.verifier.generate(
+                [messages],
+                stop=stop,
+                callbacks=callbacks,
+                **{
+                    **safe_kwargs,
+                    "tags": verifier_tags,
+                    "metadata": {
+                        **base_metadata,
+                        "cascadeflow": {
+                            **base_metadata["cascadeflow"],
+                            "decision": "direct",
+                            "role": "verifier",
+                            "reason": "domain_policy_direct",
+                        },
+                    },
+                },
+            )
+            verifier_result = ChatResult(
+                generations=verifier_llm_result.generations[0],
+                llm_output=verifier_llm_result.llm_output,
+            )
+
+            latency_ms = (time.time() - start_time) * 1000
+            self._last_cascade_result = CascadeResult(
+                content=verifier_result.generations[0].text,
+                model_used="verifier",
+                accepted=False,
+                drafter_quality=0.0,
+                drafter_cost=0.0,
+                verifier_cost=0.0,
+                total_cost=0.0,
+                savings_percentage=0.0,
+                latency_ms=latency_ms,
+            )
+            if self.enable_cost_tracking:
+                try:
+                    metadata = {
+                        "cascade_decision": "direct",
+                        "model_used": "verifier",
+                        "routing_reason": "domain_policy_direct",
+                        "domain": resolved_domain,
+                        "drafter_quality": 0.0,
+                        "effective_quality_threshold": effective_quality_threshold,
+                    }
+                    if not verifier_result.llm_output:
+                        verifier_result.llm_output = {}
+                    verifier_result.llm_output["cascade"] = metadata
+                    if verifier_result.generations:
+                        gen = verifier_result.generations[0]
+                        if hasattr(gen, "message") and gen.message:
+                            if not hasattr(gen.message, "response_metadata"):
+                                gen.message.response_metadata = {}
+                            gen.message.response_metadata["cascade"] = metadata
+                except Exception as e:
+                    print(f"Warning: Failed to inject cascade metadata: {e}")
+            return verifier_result
 
         # STEP 1: Execute drafter (cheap, fast model)
         # Merge existing tags from config with drafter tag for reliable LangSmith tracking
@@ -358,10 +445,13 @@ class CascadeFlow(BaseChatModel):
 
         drafter_quality = quality_func(drafter_result)
 
-        # STEP 2: Check quality threshold.
-        # Avoid `a and b`/`a or b` returning non-bools (e.g., lists) for mypy correctness.
+        # STEP 2: Check quality threshold and domain policy.
         accepted = self._should_accept_drafter(
-            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+            drafter_quality=drafter_quality,
+            invoked_tool_names=invoked_tool_names,
+            force_verifier_for_tool_risk=force_verifier_for_tool_risk,
+            force_verifier_for_domain=force_verifier_for_domain,
+            quality_threshold=effective_quality_threshold,
         )
 
         if accepted:
@@ -371,7 +461,12 @@ class CascadeFlow(BaseChatModel):
         else:
             # Quality insufficient - execute verifier (expensive, accurate model)
             # Pass only safe kwargs with explicit stop and merged tags for reliable LangSmith tracking
-            reason = "tool_risk" if force_verifier_for_tool_risk else "quality"
+            if force_verifier_for_tool_risk:
+                reason = "tool_risk"
+            elif force_verifier_for_domain:
+                reason = "domain_policy"
+            else:
+                reason = "quality"
             verifier_tags = base_tags + [
                 "cascadeflow:verifier",
                 "verifier",
@@ -395,6 +490,7 @@ class CascadeFlow(BaseChatModel):
                             "role": "verifier",
                             "reason": reason,
                             "tool_risk": tool_risk,
+                            "domain_policy": self._domain_policy(resolved_domain) or None,
                         },
                     },
                 },
@@ -423,8 +519,12 @@ class CascadeFlow(BaseChatModel):
 
         cascade_decision = (
             ("tool_call" if accepted else "tool_risk")
-            if invoked_tool_names
-            else ("accepted" if accepted else "quality")
+            if invoked_tool_names and not force_verifier_for_domain
+            else (
+                "accepted"
+                if accepted
+                else ("domain_policy" if force_verifier_for_domain else "quality")
+            )
         )
 
         # Store cascade result
@@ -452,6 +552,9 @@ class CascadeFlow(BaseChatModel):
                     "cascade_decision": cascade_decision,
                     "invoked_tools": invoked_tool_names or None,
                     "tool_risk": tool_risk,
+                    "domain": resolved_domain,
+                    "effective_quality_threshold": effective_quality_threshold,
+                    "domain_policy": self._domain_policy(resolved_domain) or None,
                 }
 
                 # Also inject into message's response_metadata
@@ -499,10 +602,21 @@ class CascadeFlow(BaseChatModel):
         existing_tags = merged_kwargs.get("tags", []) or []
         base_tags = existing_tags + ["cascadeflow"] if existing_tags else ["cascadeflow"]
         existing_metadata = merged_kwargs.get("metadata", {}) or {}
+        resolved_domain = self._resolve_domain(messages, existing_metadata)
+        effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+        force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+        domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
         base_metadata = {
             **existing_metadata,
-            "cascadeflow": {**existing_metadata.get("cascadeflow", {}), "integration": "langchain"},
+            "cascadeflow": {
+                **existing_metadata.get("cascadeflow", {}),
+                "integration": "langchain",
+                "domain": resolved_domain,
+                "effective_quality_threshold": effective_quality_threshold,
+            },
         }
+        if resolved_domain:
+            base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
 
         # Filter out callback-related keys that LangChain propagates automatically
         # Passing these explicitly to nested models would create duplicate parameter errors
@@ -528,6 +642,17 @@ class CascadeFlow(BaseChatModel):
             from .routers.base import RoutingStrategy
 
             use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
+            if not resolved_domain:
+                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+                force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+                domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
+                base_metadata["cascadeflow"]["domain"] = resolved_domain
+                base_metadata["cascadeflow"][
+                    "effective_quality_threshold"
+                ] = effective_quality_threshold
+                if resolved_domain:
+                    base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
 
             # If direct routing, skip drafter and go straight to verifier
             if not use_cascade:
@@ -585,7 +710,9 @@ class CascadeFlow(BaseChatModel):
                             "model_used": "verifier",
                             "routing_reason": routing_decision["reason"],
                             "complexity": routing_decision.get("metadata", {}).get("complexity"),
+                            "domain": resolved_domain,
                             "drafter_quality": 0.0,  # No drafter used (pre-router bypass)
+                            "effective_quality_threshold": effective_quality_threshold,
                         }
 
                         if not verifier_result.llm_output:
@@ -603,6 +730,70 @@ class CascadeFlow(BaseChatModel):
                         print(f"Warning: Failed to inject cascade metadata: {e}")
 
                 return verifier_result
+
+        if domain_direct_to_verifier:
+            verifier_tags = base_tags + [
+                "cascadeflow:direct",
+                "cascadeflow:verifier",
+                "verifier",
+                "cascadeflow:reason=domain_policy_direct",
+            ]
+            verifier_llm_result = await self.verifier.agenerate(
+                [messages],
+                stop=stop,
+                callbacks=callbacks,
+                **{
+                    **safe_kwargs,
+                    "tags": verifier_tags,
+                    "metadata": {
+                        **base_metadata,
+                        "cascadeflow": {
+                            **base_metadata["cascadeflow"],
+                            "decision": "direct",
+                            "role": "verifier",
+                            "reason": "domain_policy_direct",
+                        },
+                    },
+                },
+            )
+            verifier_result = ChatResult(
+                generations=verifier_llm_result.generations[0],
+                llm_output=verifier_llm_result.llm_output,
+            )
+            latency_ms = (time.time() - start_time) * 1000
+            self._last_cascade_result = CascadeResult(
+                content=verifier_result.generations[0].text,
+                model_used="verifier",
+                accepted=False,
+                drafter_quality=0.0,
+                drafter_cost=0.0,
+                verifier_cost=0.0,
+                total_cost=0.0,
+                savings_percentage=0.0,
+                latency_ms=latency_ms,
+            )
+            if self.enable_cost_tracking:
+                try:
+                    metadata = {
+                        "cascade_decision": "direct",
+                        "model_used": "verifier",
+                        "routing_reason": "domain_policy_direct",
+                        "domain": resolved_domain,
+                        "drafter_quality": 0.0,
+                        "effective_quality_threshold": effective_quality_threshold,
+                    }
+                    if not verifier_result.llm_output:
+                        verifier_result.llm_output = {}
+                    verifier_result.llm_output["cascade"] = metadata
+                    if verifier_result.generations:
+                        gen = verifier_result.generations[0]
+                        if hasattr(gen, "message") and gen.message:
+                            if not hasattr(gen.message, "response_metadata"):
+                                gen.message.response_metadata = {}
+                            gen.message.response_metadata["cascade"] = metadata
+                except Exception as e:
+                    print(f"Warning: Failed to inject cascade metadata: {e}")
+            return verifier_result
 
         # STEP 1: Execute drafter (cheap, fast model)
         # Merge existing tags from config with drafter tag for reliable LangSmith tracking
@@ -644,9 +835,13 @@ class CascadeFlow(BaseChatModel):
 
         drafter_quality = quality_func(drafter_result)
 
-        # STEP 2: Check quality threshold.
+        # STEP 2: Check quality threshold and domain policy.
         accepted = self._should_accept_drafter(
-            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+            drafter_quality=drafter_quality,
+            invoked_tool_names=invoked_tool_names,
+            force_verifier_for_tool_risk=force_verifier_for_tool_risk,
+            force_verifier_for_domain=force_verifier_for_domain,
+            quality_threshold=effective_quality_threshold,
         )
 
         if accepted:
@@ -656,7 +851,12 @@ class CascadeFlow(BaseChatModel):
         else:
             # Quality insufficient - execute verifier (expensive, accurate model)
             # Pass only safe kwargs with explicit stop and merged tags for reliable LangSmith tracking
-            reason = "tool_risk" if force_verifier_for_tool_risk else "quality"
+            if force_verifier_for_tool_risk:
+                reason = "tool_risk"
+            elif force_verifier_for_domain:
+                reason = "domain_policy"
+            else:
+                reason = "quality"
             verifier_tags = base_tags + [
                 "cascadeflow:verifier",
                 "verifier",
@@ -680,6 +880,7 @@ class CascadeFlow(BaseChatModel):
                             "role": "verifier",
                             "reason": reason,
                             "tool_risk": tool_risk,
+                            "domain_policy": self._domain_policy(resolved_domain) or None,
                         },
                     },
                 },
@@ -708,8 +909,12 @@ class CascadeFlow(BaseChatModel):
 
         cascade_decision = (
             ("tool_call" if accepted else "tool_risk")
-            if invoked_tool_names
-            else ("accepted" if accepted else "quality")
+            if invoked_tool_names and not force_verifier_for_domain
+            else (
+                "accepted"
+                if accepted
+                else ("domain_policy" if force_verifier_for_domain else "quality")
+            )
         )
 
         # Store cascade result
@@ -735,6 +940,9 @@ class CascadeFlow(BaseChatModel):
                     "cascade_decision": cascade_decision,
                     "invoked_tools": invoked_tool_names or None,
                     "tool_risk": tool_risk,
+                    "domain": resolved_domain,
+                    "effective_quality_threshold": effective_quality_threshold,
+                    "domain_policy": self._domain_policy(resolved_domain) or None,
                 }
 
                 # Also inject into message's response_metadata
@@ -788,8 +996,13 @@ class CascadeFlow(BaseChatModel):
         merged_kwargs = {**self._bind_kwargs, **kwargs}
         stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
         base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
+        existing_metadata = base_config.get("metadata", {}) or {}
+        resolved_domain = self._resolve_domain(messages, existing_metadata)
+        effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+        force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+        domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
         base_metadata = {
-            **(base_config.get("metadata") or {}),
+            **existing_metadata,
             "cascadeflow": {
                 **(
                     base_config.get("metadata", {}).get("cascadeflow", {})
@@ -798,8 +1011,12 @@ class CascadeFlow(BaseChatModel):
                 ),
                 "integration": "langchain",
                 "streaming": True,
+                "domain": resolved_domain,
+                "effective_quality_threshold": effective_quality_threshold,
             },
         }
+        if resolved_domain:
+            base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
         emit_switch_message = bool(base_metadata.get("cascadeflow_emit_switch_message"))
 
         # STEP 0: PreRouter - Check if we should bypass cascade
@@ -820,9 +1037,20 @@ class CascadeFlow(BaseChatModel):
                 routing_decision is None
                 or routing_decision.get("strategy") == RoutingStrategy.CASCADE
             )
+            if not resolved_domain:
+                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+                force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+                domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
+                base_metadata["cascadeflow"]["domain"] = resolved_domain
+                base_metadata["cascadeflow"][
+                    "effective_quality_threshold"
+                ] = effective_quality_threshold
+                if resolved_domain:
+                    base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
 
             # If direct routing, stream verifier only
-            if routing_decision is not None and not use_cascade:
+            if (routing_decision is not None and not use_cascade) or domain_direct_to_verifier:
                 for chunk in self.verifier.stream(
                     messages,
                     stop=stop,
@@ -836,6 +1064,11 @@ class CascadeFlow(BaseChatModel):
                                 **base_metadata["cascadeflow"],
                                 "decision": "direct",
                                 "role": "verifier",
+                                "reason": (
+                                    "domain_policy_direct"
+                                    if domain_direct_to_verifier
+                                    else "pre_router_direct"
+                                ),
                             },
                         },
                     },
@@ -847,6 +1080,34 @@ class CascadeFlow(BaseChatModel):
                         message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
                     )
                 return
+
+        if domain_direct_to_verifier:
+            for chunk in self.verifier.stream(
+                messages,
+                **{
+                    **merged_kwargs,
+                    "tags": base_tags
+                    + [
+                        "cascadeflow:direct",
+                        "cascadeflow:verifier",
+                        "verifier",
+                        "cascadeflow:reason=domain_policy_direct",
+                    ],
+                    "metadata": {
+                        **base_metadata,
+                        "cascadeflow": {
+                            **base_metadata["cascadeflow"],
+                            "decision": "direct",
+                            "role": "verifier",
+                            "reason": "domain_policy_direct",
+                        },
+                    },
+                },
+            ):
+                yield ChatGenerationChunk(
+                    message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
+                )
+            return
 
         tools_bound = bool(self._bound_tool_defs)
         drafter_chunks: list[AIMessageChunk] = []
@@ -920,7 +1181,11 @@ class CascadeFlow(BaseChatModel):
 
         drafter_quality = quality_func(drafter_result)
         accepted = self._should_accept_drafter(
-            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+            drafter_quality=drafter_quality,
+            invoked_tool_names=invoked_tool_names,
+            force_verifier_for_tool_risk=force_verifier_for_tool_risk,
+            force_verifier_for_domain=force_verifier_for_domain,
+            quality_threshold=effective_quality_threshold,
         )
 
         # STEP 3: If quality insufficient, cascade to verifier
@@ -931,13 +1196,18 @@ class CascadeFlow(BaseChatModel):
                     or getattr(self.verifier, "model", None)
                     or "verifier"
                 )
-                switch_message = f"\n\n[CascadeFlow] Escalating to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
+                switch_message = f"\n\n[CascadeFlow] Escalating to {verifier_model_name} (quality: {drafter_quality:.2f} < {effective_quality_threshold})\n\n"
                 yield ChatGenerationChunk(
                     message=AIMessageChunk(content=switch_message), text=switch_message
                 )
 
             # Stream from verifier
-            reason = "tool_risk" if force_verifier_for_tool_risk else "quality"
+            if force_verifier_for_tool_risk:
+                reason = "tool_risk"
+            elif force_verifier_for_domain:
+                reason = "domain_policy"
+            else:
+                reason = "quality"
             verifier_tags = base_tags + [
                 "cascadeflow:verifier",
                 "verifier",
@@ -961,6 +1231,7 @@ class CascadeFlow(BaseChatModel):
                             "role": "verifier",
                             "reason": reason,
                             "tool_risk": tool_risk,
+                            "domain_policy": self._domain_policy(resolved_domain) or None,
                         },
                     },
                 },
@@ -1039,8 +1310,13 @@ class CascadeFlow(BaseChatModel):
         merged_kwargs = {**self._bind_kwargs, **kwargs}
         stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
         base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
+        existing_metadata = base_config.get("metadata", {}) or {}
+        resolved_domain = self._resolve_domain(messages, existing_metadata)
+        effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+        force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+        domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
         base_metadata = {
-            **(base_config.get("metadata") or {}),
+            **existing_metadata,
             "cascadeflow": {
                 **(
                     base_config.get("metadata", {}).get("cascadeflow", {})
@@ -1049,8 +1325,12 @@ class CascadeFlow(BaseChatModel):
                 ),
                 "integration": "langchain",
                 "streaming": True,
+                "domain": resolved_domain,
+                "effective_quality_threshold": effective_quality_threshold,
             },
         }
+        if resolved_domain:
+            base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
         emit_switch_message = bool(base_metadata.get("cascadeflow_emit_switch_message"))
 
         # STEP 0: PreRouter - Check if we should bypass cascade
@@ -1068,9 +1348,20 @@ class CascadeFlow(BaseChatModel):
             from .routers.base import RoutingStrategy
 
             use_cascade = routing_decision["strategy"] == RoutingStrategy.CASCADE
+            if not resolved_domain:
+                resolved_domain = self._resolve_domain(messages, existing_metadata, routing_decision)
+                effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
+                force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
+                domain_direct_to_verifier = self._domain_requires_direct_verifier(resolved_domain)
+                base_metadata["cascadeflow"]["domain"] = resolved_domain
+                base_metadata["cascadeflow"][
+                    "effective_quality_threshold"
+                ] = effective_quality_threshold
+                if resolved_domain:
+                    base_tags = base_tags + [f"cascadeflow:domain={resolved_domain}"]
 
             # If direct routing, stream verifier only
-            if not use_cascade:
+            if not use_cascade or domain_direct_to_verifier:
                 async for chunk in self.verifier.astream(
                     messages,
                     stop=stop,
@@ -1084,6 +1375,11 @@ class CascadeFlow(BaseChatModel):
                                 **base_metadata["cascadeflow"],
                                 "decision": "direct",
                                 "role": "verifier",
+                                "reason": (
+                                    "domain_policy_direct"
+                                    if domain_direct_to_verifier
+                                    else "pre_router_direct"
+                                ),
                             },
                         },
                     },
@@ -1095,6 +1391,34 @@ class CascadeFlow(BaseChatModel):
                         message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
                     )
                 return
+
+        if domain_direct_to_verifier:
+            async for chunk in self.verifier.astream(
+                messages,
+                **{
+                    **merged_kwargs,
+                    "tags": base_tags
+                    + [
+                        "cascadeflow:direct",
+                        "cascadeflow:verifier",
+                        "verifier",
+                        "cascadeflow:reason=domain_policy_direct",
+                    ],
+                    "metadata": {
+                        **base_metadata,
+                        "cascadeflow": {
+                            **base_metadata["cascadeflow"],
+                            "decision": "direct",
+                            "role": "verifier",
+                            "reason": "domain_policy_direct",
+                        },
+                    },
+                },
+            ):
+                yield ChatGenerationChunk(
+                    message=chunk, text=chunk.content if isinstance(chunk.content, str) else ""
+                )
+            return
 
         tools_bound = bool(self._bound_tool_defs)
         drafter_chunks: list[AIMessageChunk] = []
@@ -1168,7 +1492,11 @@ class CascadeFlow(BaseChatModel):
 
         drafter_quality = quality_func(drafter_result)
         accepted = self._should_accept_drafter(
-            drafter_quality, force_verifier_for_tool_risk, bool(invoked_tool_names)
+            drafter_quality=drafter_quality,
+            invoked_tool_names=invoked_tool_names,
+            force_verifier_for_tool_risk=force_verifier_for_tool_risk,
+            force_verifier_for_domain=force_verifier_for_domain,
+            quality_threshold=effective_quality_threshold,
         )
 
         # STEP 3: If quality insufficient, cascade to verifier
@@ -1179,13 +1507,18 @@ class CascadeFlow(BaseChatModel):
                     or getattr(self.verifier, "model", None)
                     or "verifier"
                 )
-                switch_message = f"\n\n[CascadeFlow] Escalating to {verifier_model_name} (quality: {drafter_quality:.2f} < {self.quality_threshold})\n\n"
+                switch_message = f"\n\n[CascadeFlow] Escalating to {verifier_model_name} (quality: {drafter_quality:.2f} < {effective_quality_threshold})\n\n"
                 yield ChatGenerationChunk(
                     message=AIMessageChunk(content=switch_message), text=switch_message
                 )
 
             # Stream from verifier
-            reason = "tool_risk" if force_verifier_for_tool_risk else "quality"
+            if force_verifier_for_tool_risk:
+                reason = "tool_risk"
+            elif force_verifier_for_domain:
+                reason = "domain_policy"
+            else:
+                reason = "quality"
             verifier_tags = base_tags + [
                 "cascadeflow:verifier",
                 "verifier",
@@ -1209,6 +1542,7 @@ class CascadeFlow(BaseChatModel):
                             "role": "verifier",
                             "reason": reason,
                             "tool_risk": tool_risk,
+                            "domain_policy": self._domain_policy(resolved_domain) or None,
                         },
                     },
                 },
@@ -1284,6 +1618,7 @@ class CascadeFlow(BaseChatModel):
             enable_pre_router=self.enable_pre_router,
             pre_router=self.pre_router,
             cascade_complexities=self.cascade_complexities,
+            domain_policies=self.domain_policies,
         )
         new_instance._bind_kwargs = merged_kwargs
         new_instance._bound_tool_defs = self._bound_tool_defs[:] if self._bound_tool_defs else None
@@ -1352,6 +1687,7 @@ class CascadeFlow(BaseChatModel):
             enable_pre_router=self.enable_pre_router,
             pre_router=self.pre_router,
             cascade_complexities=self.cascade_complexities,
+            domain_policies=self.domain_policies,
         )
         # Preserve any bound kwargs
         new_instance._bind_kwargs = self._bind_kwargs.copy()
@@ -1433,12 +1769,104 @@ class CascadeFlow(BaseChatModel):
             enable_pre_router=self.enable_pre_router,
             pre_router=self.pre_router,
             cascade_complexities=self.cascade_complexities,
+            domain_policies=self.domain_policies,
         )
         # Preserve any bound kwargs
         new_instance._bind_kwargs = self._bind_kwargs.copy()
         new_instance._bound_tool_defs = self._bound_tool_defs[:] if self._bound_tool_defs else None
 
         return new_instance
+
+    def _normalize_domain(self, value: Any) -> Optional[str]:
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip().lower()
+        return normalized or None
+
+    def _resolve_domain(
+        self,
+        messages: list[BaseMessage],
+        metadata: Optional[dict[str, Any]],
+        routing_decision: Optional[dict[str, Any]] = None,
+    ) -> Optional[str]:
+        metadata = metadata or {}
+        cascade_metadata = metadata.get("cascadeflow", {}) if isinstance(metadata, dict) else {}
+        if isinstance(cascade_metadata, dict):
+            direct = self._normalize_domain(cascade_metadata.get("domain"))
+            if direct:
+                return direct
+
+        for key in ("cascadeflow_domain", "domain"):
+            direct = self._normalize_domain(metadata.get(key) if isinstance(metadata, dict) else None)
+            if direct:
+                return direct
+
+        routing_metadata = (routing_decision or {}).get("metadata", {})
+        if isinstance(routing_metadata, dict):
+            direct = self._normalize_domain(routing_metadata.get("domain"))
+            if direct:
+                return direct
+            domains = routing_metadata.get("domains")
+            if isinstance(domains, (list, tuple, set)):
+                for d in domains:
+                    direct = self._normalize_domain(d)
+                    if direct:
+                        return direct
+
+        query_text = "\n".join([msg.content if isinstance(msg.content, str) else "" for msg in messages])
+        if query_text and self.pre_router and hasattr(self.pre_router, "detector"):
+            try:
+                detected = self.pre_router.detector.detect(query_text)
+                domains = detected.get("metadata", {}).get("domains")
+                if isinstance(domains, set):
+                    for d in sorted(domains):
+                        direct = self._normalize_domain(d)
+                        if direct:
+                            return direct
+                if isinstance(domains, (list, tuple)):
+                    for d in domains:
+                        direct = self._normalize_domain(d)
+                        if direct:
+                            return direct
+            except Exception:
+                return None
+        return None
+
+    def _domain_policy(self, domain: Optional[str]) -> dict[str, Any]:
+        if not domain:
+            return {}
+        return dict(self.domain_policies.get(domain, {}))
+
+    def _effective_quality_threshold(self, domain: Optional[str]) -> float:
+        policy = self._domain_policy(domain)
+        override = policy.get("quality_threshold")
+        if isinstance(override, (int, float)):
+            try:
+                clamped = max(0.0, min(1.0, float(override)))
+                return clamped
+            except Exception:
+                return self.quality_threshold
+        return self.quality_threshold
+
+    def _domain_requires_direct_verifier(self, domain: Optional[str]) -> bool:
+        return bool(self._domain_policy(domain).get("direct_to_verifier"))
+
+    def _domain_forces_verifier(self, domain: Optional[str]) -> bool:
+        return bool(self._domain_policy(domain).get("force_verifier"))
+
+    def _should_accept_drafter(
+        self,
+        drafter_quality: float,
+        invoked_tool_names: list[str],
+        force_verifier_for_tool_risk: bool,
+        force_verifier_for_domain: bool,
+        quality_threshold: float,
+    ) -> bool:
+        if force_verifier_for_domain:
+            return False
+        if invoked_tool_names:
+            return not force_verifier_for_tool_risk
+        return drafter_quality >= quality_threshold
 
     def _normalize_tool_defs(self, tools: Any) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []

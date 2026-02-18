@@ -1,6 +1,6 @@
 """Type definitions for CascadeFlow LangChain integration."""
 
-from typing import Optional, TypedDict
+from typing import Any, Optional, TypedDict
 
 
 class TokenUsage(TypedDict):
@@ -78,3 +78,20 @@ class CascadeConfig(TypedDict, total=False):
     cost_tracking_provider: str
     enable_pre_router: bool
     cascade_complexities: list[str]
+    domain_policies: dict[str, "DomainPolicy"]
+
+
+class DomainPolicy(TypedDict, total=False):
+    """Per-domain policy overrides for the LangChain wrapper.
+
+    Attributes:
+        quality_threshold: Optional quality threshold override for this domain
+        force_verifier: Always escalate to verifier after drafting
+        direct_to_verifier: Skip drafter and route directly to verifier
+        metadata: Arbitrary metadata attached to cascade output
+    """
+
+    quality_threshold: float
+    force_verifier: bool
+    direct_to_verifier: bool
+    metadata: dict[str, Any]

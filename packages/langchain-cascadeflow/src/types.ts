@@ -1,6 +1,28 @@
 import type { PreRouter } from './routers/pre-router.js';
 import type { QueryComplexity } from './complexity.js';
 
+export interface DomainPolicy {
+  /**
+   * Optional quality threshold override for this domain
+   */
+  qualityThreshold?: number;
+
+  /**
+   * Always escalate to verifier after drafting
+   */
+  forceVerifier?: boolean;
+
+  /**
+   * Skip drafter and route directly to verifier
+   */
+  directToVerifier?: boolean;
+
+  /**
+   * Optional policy metadata for observability
+   */
+  metadata?: Record<string, any>;
+}
+
 /**
  * Configuration for the CascadeFlow wrapper
  */
@@ -60,6 +82,12 @@ export interface CascadeConfig {
    * @default ['trivial', 'simple', 'moderate']
    */
   cascadeComplexities?: QueryComplexity[];
+
+  /**
+   * Per-domain policy overrides (threshold/routing)
+   * Domain keys are case-insensitive
+   */
+  domainPolicies?: Record<string, DomainPolicy>;
 }
 
 /**
