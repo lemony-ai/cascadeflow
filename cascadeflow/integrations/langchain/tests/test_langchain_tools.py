@@ -375,8 +375,8 @@ class TestToolCallingIntegration:
         # With quality threshold 0, drafter response should be accepted
         assert result.content == "Drafter response with tool call"
 
-    def test_cascade_escalates_to_verifier_with_tools(self):
-        """Test that cascade escalates to verifier when quality is insufficient."""
+    def test_cascade_accepts_low_risk_tool_calls_with_high_threshold(self):
+        """Low-risk tool calls stay on drafter even with a strict quality threshold."""
         drafter = MockToolChatModel("drafter", "Low quality response")
         verifier = MockToolChatModel("verifier", "High quality verifier response")
 
@@ -393,10 +393,10 @@ class TestToolCallingIntegration:
         # Invoke cascade
         result = cascade_with_tools.invoke([HumanMessage(content="Complex query")])
 
-        # Both drafter and verifier should have been called
+        # Low-risk tool call policy should keep execution on drafter.
         assert cascade_with_tools.drafter.generate_called > 0
-        assert cascade_with_tools.verifier.generate_called > 0
-        assert result.content == "High quality verifier response"
+        assert cascade_with_tools.verifier.generate_called == 0
+        assert result.content == "Low quality response"
 
     @pytest.mark.asyncio
     async def test_cascade_async_with_tools(self):

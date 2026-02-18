@@ -58,11 +58,16 @@ async function testModelPair(
     const preview = result.content.toString().substring(0, 80);
     console.log(`  Response: ${preview}...`);
 
+    const qualityLabel = typeof stats?.drafterQuality === 'number'
+      ? stats.drafterQuality.toFixed(2)
+      : 'n/a';
+    const latencyLabel = typeof stats?.latencyMs === 'number' ? `${stats.latencyMs}ms` : 'n/a';
+
     if (stats?.modelUsed === 'drafter') {
-      console.log(`  ${COLORS.green}✓ CASCADED${COLORS.reset} (quality: ${stats.drafterQuality.toFixed(2)}, ${stats.latencyMs}ms)`);
+      console.log(`  ${COLORS.green}✓ CASCADED${COLORS.reset} (quality: ${qualityLabel}, ${latencyLabel})`);
       cascaded++;
     } else {
-      console.log(`  ${COLORS.yellow}⚠ ESCALATED${COLORS.reset} (quality: ${stats?.drafterQuality.toFixed(2)}, ${stats?.latencyMs}ms)`);
+      console.log(`  ${COLORS.yellow}⚠ ESCALATED${COLORS.reset} (quality: ${qualityLabel}, ${latencyLabel})`);
       escalated++;
     }
   }
