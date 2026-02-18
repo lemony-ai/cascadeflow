@@ -71,7 +71,7 @@ python examples/basic_usage.py
 - [🌟 Core Examples](#-core-examples-6-examples---start-here) - Basic usage, streaming, tools
 - [💰 Cost Management](#-cost-management--budgets-4-examples) - Budgets and tracking
 - [🏭 Production](#-production--integration-5-examples) - Deployment patterns
-- [🔌 Integrations](#-integrations-5-examples) - LiteLLM, OpenTelemetry, local providers
+- [🔌 Integrations](#-integrations-6-examples) - LiteLLM, Paygentic, OpenTelemetry, local providers
 - [🛡️ Enforcement](#%EF%B8%8F-enforcement-2-examples) - Budget enforcement and Stripe
 - [⚡ Advanced](#-advanced-patterns-6-examples) - Custom routing and validation
 - [🌐 Edge](#-edge--local-deployment-3-examples) - Edge device deployment and multi-instance configurations
@@ -310,7 +310,7 @@ Safety and content filtering.
 </details>
 
 <details>
-<summary><h3>🔌 Integrations (5 examples)</h3></summary>
+<summary><h3>🔌 Integrations (6 examples)</h3></summary>
 
 Access 10+ providers with accurate cost tracking, production monitoring, and local inference.
 
@@ -358,14 +358,22 @@ Cost tracking with LiteLLM integration and provider validation.
 
 ---
 
-#### 3. Local Providers Setup
+#### 3. Paygentic Billing Integration
+**File:** [`integrations/paygentic_usage.py`](integrations/paygentic_usage.py)
+**Time:** 10 minutes
+Opt-in usage metering with Paygentic for production billing workflows.
+Python proxy flows support `delivery_mode="background"` by default, with optional `sync` or `durable_outbox`.
+
+---
+
+#### 4. Local Providers Setup
 **File:** [`integrations/local_providers_setup.py`](integrations/local_providers_setup.py)
 **Time:** 15 minutes
 Complete guide for Ollama and vLLM setup (local, network, remote scenarios).
 
 ---
 
-#### 4. OpenTelemetry & Grafana
+#### 5. OpenTelemetry & Grafana
 **File:** [`integrations/opentelemetry_grafana.py`](integrations/opentelemetry_grafana.py)
 **Time:** 20 minutes
 Production observability with OpenTelemetry, Prometheus, and Grafana.
@@ -378,7 +386,7 @@ Production observability with OpenTelemetry, Prometheus, and Grafana.
 
 ---
 
-#### 5. Provider Testing
+#### 6. Provider Testing
 **File:** [`integrations/test_all_providers.py`](integrations/test_all_providers.py)
 Validate API keys and test all 10 providers.
 
@@ -844,7 +852,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ## 📊 Summary
 
-### ✅ Available Examples (29 total)
+### ✅ Available Examples (30 total)
 
 **Core (6):** Basic usage, streaming text, tool execution, multi-provider, reasoning models, cost tracking
 
@@ -852,7 +860,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 **Production (5):** Production patterns, FastAPI, batch processing, rate limiting, guardrails
 
-**Integrations (5):** LiteLLM providers, cost tracking, local setup, OpenTelemetry, provider testing
+**Integrations (6):** LiteLLM providers, cost tracking, Paygentic billing, local setup, OpenTelemetry, provider testing
 
 **Enforcement (2):** Basic enforcement, Stripe integration
 
@@ -862,7 +870,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ### 📚 Documentation Coverage
 
-- ✅ **29 examples** (~6,000+ lines of code)
+- ✅ **30 examples** (~6,000+ lines of code)
 - ✅ **3 specialized READMEs** (integrations, enforcement, main)
 - ✅ **10+ comprehensive guides** (~10,000 lines of docs)
 - ✅ **~16,000+ lines total** of professional documentation

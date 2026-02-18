@@ -38,6 +38,7 @@ Welcome to cascadeflow documentation! 🌊
 
 ### Integrations
 - [n8n Integration](guides/n8n_integration.md) - Use cascadeflow in n8n workflows
+- [Paygentic Integration](guides/paygentic_integration.md) - Usage metering and billing lifecycle helpers (opt-in)
 
 ## 📚 Examples
 
