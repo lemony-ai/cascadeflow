@@ -1002,11 +1002,6 @@ class CascadeFlow(BaseChatModel):
         base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
         existing_metadata = base_config.get("metadata", {}) or {}
         callbacks = base_config.get("callbacks", [])
-        safe_kwargs = {
-            k: v
-            for k, v in stream_kwargs.items()
-            if k not in ("callbacks", "run_manager", "run_id", "tags", "metadata")
-        }
         resolved_domain = self._resolve_domain(messages, existing_metadata)
         effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
         force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)

@@ -100,8 +100,8 @@ async def test_langgraph_fixture_with_domain_policy() -> None:
         msg = finance_bound.invoke([HumanMessage(content=state["input"])])
         return {**state, "result": msg.content}
 
-    graph = StateGraph(dict)
-    graph.add_node("planner", planner)
+    graph = StateGraph(dict)  # type: ignore[type-var]
+    graph.add_node("planner", planner)  # type: ignore[type-var]
     graph.set_entry_point("planner")
     graph.add_edge("planner", END)
 
