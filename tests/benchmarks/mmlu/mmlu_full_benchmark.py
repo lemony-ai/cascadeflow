@@ -681,9 +681,7 @@ async def run_cascade_benchmark(
             )
             return index, benchmark_result, output
         except Exception as e:
-            output = (
-                f"[{index+1}/{len(problems)}] {problem['subject'][:20]:20s}: ⚠️ ERROR: {e}"
-            )
+            output = f"[{index+1}/{len(problems)}] {problem['subject'][:20]:20s}: ⚠️ ERROR: {e}"
             benchmark_result = BenchmarkResult(
                 query=problem["question"][:50] + "...",
                 subject=problem["subject"],
@@ -707,10 +705,7 @@ async def run_cascade_benchmark(
         for start in range(0, len(problems), concurrency):
             batch = problems[start : start + concurrency]
             batch_results = await asyncio.gather(
-                *(
-                    process_problem(start + offset, problem)
-                    for offset, problem in enumerate(batch)
-                )
+                *(process_problem(start + offset, problem) for offset, problem in enumerate(batch))
             )
             for index, benchmark_result, output in batch_results:
                 results[index] = benchmark_result
