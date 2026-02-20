@@ -16,22 +16,22 @@ export const anthropicAdapter = createProviderAdapter({
   },
   models: [
     {
-      id: 'claude-3-5-haiku-20241022',
-      label: 'Claude 3.5 Haiku',
+      id: 'claude-haiku-4-5-20251001',
+      label: 'Claude Haiku 4.5',
       cost: { input: 0.0008, output: 0.004 },
       contextWindow: 200000,
       supportsTools: true,
     },
     {
-      id: 'claude-3-5-sonnet-20241022',
-      label: 'Claude 3.5 Sonnet',
+      id: 'claude-sonnet-4-6',
+      label: 'Claude Sonnet 4.6',
       cost: { input: 0.003, output: 0.015 },
       contextWindow: 200000,
       supportsTools: true,
     },
     {
-      id: 'claude-3-opus-20240229',
-      label: 'Claude 3 Opus',
+      id: 'claude-opus-4-6',
+      label: 'Claude Opus 4.6',
       cost: { input: 0.015, output: 0.075 },
       contextWindow: 200000,
       supportsTools: true,
