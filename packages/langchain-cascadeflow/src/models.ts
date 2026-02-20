@@ -28,14 +28,18 @@ export const MODEL_PRICING_REFERENCE = {
   'gpt-5.1': { input: 1.25, output: 10.00, tier: 'powerful' },
 
   // Anthropic Models
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00, tier: 'fast' },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00, tier: 'powerful' },
+  'claude-opus-4-6': { input: 15.00, output: 75.00, tier: 'powerful' },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25, tier: 'fast' },
   'claude-3-5-haiku-20241022': { input: 0.80, output: 4.00, tier: 'balanced' },
   'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00, tier: 'powerful' },
   'claude-3-sonnet-20240229': { input: 3.00, output: 15.00, tier: 'balanced' },
   'claude-3-opus-20240229': { input: 15.00, output: 75.00, tier: 'powerful' },
 
-  // Claude 4 Models (estimated pricing - subject to change)
+  // Claude 4 aliases (estimated pricing - subject to change)
   'claude-sonnet-4': { input: 3.00, output: 15.00, tier: 'powerful' },
+  'claude-haiku-4-5': { input: 1.00, output: 5.00, tier: 'fast' },
   'claude-haiku-4.5': { input: 1.00, output: 5.00, tier: 'balanced' },
 
   // Google Models
@@ -71,7 +75,7 @@ function getModelName(model: BaseChatModel): string {
  * const myModels = [
  *   new ChatOpenAI({ model: 'gpt-4o-mini' }),
  *   new ChatOpenAI({ model: 'gpt-4o' }),
- *   new ChatAnthropic({ model: 'claude-3-haiku' }),
+ *   new ChatAnthropic({ model: 'claude-haiku-4-5-20251001' }),
  * ];
  *
  * // Find best cascade pairs
@@ -208,7 +212,7 @@ export function analyzeModel(model: BaseChatModel): {
  * const myModels = [
  *   new ChatOpenAI({ model: 'gpt-4o-mini' }),
  *   new ChatOpenAI({ model: 'gpt-4o' }),
- *   new ChatAnthropic({ model: 'claude-3-5-sonnet' }),
+ *   new ChatAnthropic({ model: 'claude-opus-4-6' }),
  * ];
  *
  * const comparison = compareModels(myModels);

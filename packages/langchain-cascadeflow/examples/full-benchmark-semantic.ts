@@ -293,16 +293,16 @@ async function main() {
   // Cross-Provider (Anthropic → OpenAI)
   if (process.env.ANTHROPIC_API_KEY) {
     modelPairs.push({
-      name: 'Claude 3 Haiku → GPT-5',
-      drafter: new ChatAnthropic({ model: 'claude-3-haiku-20240307' }),
+      name: 'Claude Haiku 4.5 → GPT-5',
+      drafter: new ChatAnthropic({ model: 'claude-haiku-4-5-20251001' }),
       verifier: new ChatOpenAI({ model: 'gpt-5', temperature: 1.0 }),
       provider: 'Cross-Provider (Anthropic→OpenAI)',
       expectedSavings: '80%',
     });
 
     modelPairs.push({
-      name: 'Claude 3 Haiku → GPT-5 Mini',
-      drafter: new ChatAnthropic({ model: 'claude-3-haiku-20240307' }),
+      name: 'Claude Haiku 4.5 → GPT-5 Mini',
+      drafter: new ChatAnthropic({ model: 'claude-haiku-4-5-20251001' }),
       verifier: new ChatOpenAI({ model: 'gpt-5-mini', temperature: 1.0 }),
       provider: 'Cross-Provider (Anthropic→OpenAI)',
       expectedSavings: '60%',

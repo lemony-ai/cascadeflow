@@ -5,10 +5,14 @@ This example shows how to use **cascadeflow** as the backend for the Vercel AI S
 ## Run
 
 ```bash
+pnpm -C ../../packages/core build
+pnpm -C ../../packages/integrations/vercel-ai build
 cd examples/vercel-ai-nextjs
 pnpm install
 pnpm dev
 ```
+
+`predev`/`prebuild` automatically build local workspace packages (`@cascadeflow/core` and `@cascadeflow/vercel-ai`) before running Next.js.
 
 ## Requirements
 
@@ -44,6 +48,25 @@ vercel env add OPENAI_API_KEY production
 vercel env add OPENAI_API_KEY preview
 vercel deploy
 ```
+
+### Deployment Protection (SSO) Note
+
+On some Vercel team plans, newly created projects can default to deployment protection (`ssoProtection`).
+If enabled, direct API probes to `/api/chat` can return `401` even when the route is healthy.
+For sandbox E2E validation, disable protection on the sandbox project (or allow unauthenticated access for its domain).
+
+### Real Deployed `/api/chat` Smoke Test
+
+After deploy, validate the real network path (not only local tests):
+
+```bash
+DEPLOY_URL="https://<your-deployment>.vercel.app"
+curl -sS -X POST "$DEPLOY_URL/api/chat" \
+  -H "content-type: application/json" \
+  --data '{"messages":[{"role":"user","content":"Reply with: cascadeflow-ok"}]}'
+```
+
+Expected result: a streaming response payload containing assistant text (for example `cascadeflow-ok`).
 
 ## How It Works
 

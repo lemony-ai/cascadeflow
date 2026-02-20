@@ -1,0 +1,190 @@
+name: Vercel Deploy E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 6 * * *'
+
+jobs:
+  deployed-api-chat:
+    name: Deployed /api/chat E2E
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Check required secrets
+        id: secrets_check
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${VERCEL_TOKEN:-}" || -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+            echo "Required secrets (VERCEL_TOKEN, OPENAI_API_KEY) are missing; skipping deploy E2E."
+          else
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy temporary app and test /api/chat
+        if: steps.secrets_check.outputs.missing == 'false'
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_SCOPE: ${{ secrets.VERCEL_SCOPE }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          set -euo pipefail
+
+          WORKDIR="$(mktemp -d)"
+          cd "$WORKDIR"
+          mkdir -p app/api/chat
+
+          cat > package.json <<'JSON'
+          {
+            "name": "cascadeflow-vercel-e2e",
+            "private": true,
+            "version": "0.0.1",
+            "type": "module",
+            "scripts": {
+              "build": "next build"
+            },
+            "dependencies": {
+              "@cascadeflow/core": "latest",
+              "@cascadeflow/vercel-ai": "latest",
+              "@ai-sdk/react": "^3.0.0",
+              "ai": "^6.0.0",
+              "next": "^16.1.6",
+              "react": "^19.0.0",
+              "react-dom": "^19.0.0"
+            },
+            "devDependencies": {
+              "typescript": "^5.9.3",
+              "@types/react": "^19.2.4",
+              "@types/node": "^22.13.10"
+            }
+          }
+          JSON
+
+          cat > tsconfig.json <<'JSON'
+          {
+            "compilerOptions": {
+              "target": "ES2022",
+              "lib": ["dom", "dom.iterable", "esnext"],
+              "allowJs": true,
+              "skipLibCheck": true,
+              "strict": false,
+              "noEmit": true,
+              "esModuleInterop": true,
+              "module": "esnext",
+              "moduleResolution": "bundler",
+              "resolveJsonModule": true,
+              "isolatedModules": true,
+              "jsx": "preserve",
+              "incremental": true,
+              "plugins": [{ "name": "next" }]
+            },
+            "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+            "exclude": ["node_modules"]
+          }
+          JSON
+
+          cat > next-env.d.ts <<'TS'
+          /// <reference types="next" />
+          /// <reference types="next/image-types/global" />
+          TS
+
+          cat > app/page.tsx <<'TSX'
+          export default function Page() {
+            return <main>cascadeflow vercel e2e</main>;
+          }
+          TSX
+
+          cat > app/api/chat/route.ts <<'TS'
+          import { CascadeAgent } from '@cascadeflow/core';
+          import { createChatHandler } from '@cascadeflow/vercel-ai';
+
+          export const runtime = 'edge';
+
+          const agent = new CascadeAgent({
+            models: [
+              { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: process.env.OPENAI_API_KEY },
+              { name: 'gpt-4o', provider: 'openai', cost: 0.00625, apiKey: process.env.OPENAI_API_KEY }
+            ]
+          });
+
+          const handler = createChatHandler(agent, { protocol: 'data' });
+
+          export async function POST(req: Request) {
+            return handler(req);
+          }
+          TS
+
+          PROJECT_NAME="cf-vercel-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          TEAM_QS=""
+          if [[ -n "${VERCEL_TEAM_ID:-}" ]]; then
+            TEAM_QS="?teamId=${VERCEL_TEAM_ID}"
+          fi
+
+          CREATE_RESP=$(curl -sS -X POST "https://api.vercel.com/v10/projects${TEAM_QS}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "{\"name\":\"${PROJECT_NAME}\",\"framework\":\"nextjs\"}")
+          PROJECT_ID=$(node -e "const r=JSON.parse(process.argv[1]); if(!r.id){console.error(JSON.stringify(r)); process.exit(1)}; process.stdout.write(r.id);" "$CREATE_RESP")
+
+          cleanup() {
+            curl -sS -X DELETE "https://api.vercel.com/v9/projects/${PROJECT_ID}${TEAM_QS}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" >/dev/null || true
+          }
+          trap cleanup EXIT
+
+          # Disable deployment protection on the sandbox project so direct /api/chat checks work.
+          curl -sS -X PATCH "https://api.vercel.com/v10/projects/${PROJECT_ID}${TEAM_QS}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"ssoProtection":null}' >/dev/null
+
+          ENV_PAYLOAD=$(node -e "const key=process.argv[1]; console.log(JSON.stringify([{type:'encrypted',key:'OPENAI_API_KEY',value:key,target:['preview','production']}]));" "$OPENAI_API_KEY")
+          curl -sS -X POST "https://api.vercel.com/v10/projects/${PROJECT_ID}/env${TEAM_QS}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$ENV_PAYLOAD" >/dev/null
+
+          pnpm install --silent
+
+          SCOPE_ARGS=()
+          if [[ -n "${VERCEL_SCOPE:-}" ]]; then
+            SCOPE_ARGS=(--scope "${VERCEL_SCOPE}")
+          fi
+
+          pnpm dlx vercel@latest link --yes --project "${PROJECT_NAME}" --token "${VERCEL_TOKEN}" "${SCOPE_ARGS[@]}" >/dev/null
+          DEPLOY_URL=$(pnpm dlx vercel@latest deploy --yes --token "${VERCEL_TOKEN}" "${SCOPE_ARGS[@]}" | tail -n 1 | tr -d '\r')
+          if [[ "$DEPLOY_URL" != http* ]]; then
+            DEPLOY_URL="https://${DEPLOY_URL}"
+          fi
+
+          RESP=$(curl -sS -X POST "${DEPLOY_URL}/api/chat" \
+            -H "content-type: application/json" \
+            --data '{"messages":[{"role":"user","content":"Reply with exactly: cascadeflow-ok"}]}')
+
+          TEXT=$(printf '%s' "$RESP" | awk -F'"' '/^0:/{printf "%s", $2}')
+          if [[ "$TEXT" != *"cascadeflow-ok"* ]]; then
+            echo "Unexpected response payload:"
+            echo "$RESP"
+            exit 1
+          fi
+
+          echo "Deployment URL: ${DEPLOY_URL}"
+          echo "Verified /api/chat streamed text: ${TEXT}"

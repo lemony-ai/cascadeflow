@@ -31,7 +31,7 @@ const myModels = [
   new ChatOpenAI({ modelName: 'gpt-4o-mini' }),    // Your fast model
   new ChatOpenAI({ modelName: 'gpt-4o' }),         // Your powerful model
   // Add more of YOUR models here:
-  // new ChatAnthropic({ model: 'claude-3-haiku' }),
+  // new ChatAnthropic({ model: 'claude-haiku-4-5' }),
   // new ChatOllama({ model: 'llama2' }),
   // etc.
 ];

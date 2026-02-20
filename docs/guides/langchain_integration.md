@@ -204,14 +204,14 @@ const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 ```typescript
 import { ChatAnthropic } from '@langchain/anthropic';
 
-const drafter = new ChatAnthropic({ modelName: 'claude-3-haiku-20240307' });
-const verifier = new ChatAnthropic({ modelName: 'claude-sonnet-4-6' });
+const drafter = new ChatAnthropic({ modelName: 'claude-haiku-4-5-20251001' });
+const verifier = new ChatAnthropic({ modelName: 'claude-opus-4-6' });
 ```
 
 **Mix and Match:**
 ```typescript
 // Cheap drafter (Haiku), powerful verifier (GPT-4o)
-const drafter = new ChatAnthropic({ modelName: 'claude-3-haiku-20240307' });
+const drafter = new ChatAnthropic({ modelName: 'claude-haiku-4-5-20251001' });
 const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 ```
 

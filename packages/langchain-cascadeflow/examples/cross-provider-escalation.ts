@@ -96,7 +96,7 @@ async function main() {
 
   // Drafter: Claude 3 Haiku (Anthropic) - Fast, cheap
   const haiku = new ChatAnthropic({
-    model: 'claude-3-haiku-20240307',
+    model: 'claude-haiku-4-5-20251001',
     temperature: 1.0,
   });
 
@@ -191,11 +191,11 @@ async function main() {
   console.log(`${COLORS.bold}What You'll See:${COLORS.reset}\n`);
 
   console.log(`${COLORS.green}1. For Cascaded Queries (Haiku only):${COLORS.reset}`);
-  console.log(`   • Single trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-3-haiku-20240307)`);
+  console.log(`   • Single trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-haiku-4-5-20251001)`);
   console.log(`   • Cascade metadata shows: ${COLORS.green}model_used: "drafter"${COLORS.reset}\n`);
 
   console.log(`${COLORS.yellow}2. For Escalated Queries (Haiku → GPT-5):${COLORS.reset}`);
-  console.log(`   • First trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-3-haiku-20240307) - tried first`);
+  console.log(`   • First trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-haiku-4-5-20251001) - tried first`);
   console.log(`   • Second trace: ${COLORS.cyan}ChatOpenAI${COLORS.reset} (gpt-5) - used for response`);
   console.log(`   • Cascade metadata shows: ${COLORS.yellow}model_used: "verifier"${COLORS.reset}\n`);
 
