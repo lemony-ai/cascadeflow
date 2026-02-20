@@ -44,6 +44,10 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? openAIAdapter.models[0].id;
 const GROQ_MODEL = process.env.GROQ_MODEL ?? groqAdapter.models[1].id;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? anthropicAdapter.models[0].id;
+const ANTHROPIC_DRAFTER_MODEL =
+  process.env.ANTHROPIC_DRAFTER_MODEL ?? 'claude-haiku-4-5-20251001';
+const ANTHROPIC_VERIFIER_MODEL =
+  process.env.ANTHROPIC_VERIFIER_MODEL ?? 'claude-opus-4-6';
 
 type RawUsage = {
   prompt_tokens?: number;
@@ -307,6 +311,33 @@ describeIf(Boolean(OPENAI_KEY) && Boolean(GROQ_KEY))(
 );
 
 describeIf(Boolean(ANTHROPIC_KEY))('Vercel AI provider E2E - Anthropic', () => {
+  it(
+    'supports a draft/verifier cascade with Haiku 4.5 drafter and Opus 4.6 verifier',
+    async () => {
+      const cascade = createDraftVerifierCascade(
+        { providerId: anthropicAdapter.id, model: ANTHROPIC_DRAFTER_MODEL },
+        { providerId: anthropicAdapter.id, model: ANTHROPIC_VERIFIER_MODEL }
+      );
+
+      expect(cascade.roles).toEqual(['drafter', 'verifier']);
+
+      const draft = await generateText({
+        model: { provider: 'anthropic', model: ANTHROPIC_DRAFTER_MODEL },
+        prompt: 'Draft a 1-sentence summary about TypeScript.',
+      });
+
+      const verify = await generateText({
+        model: { provider: 'anthropic', model: ANTHROPIC_VERIFIER_MODEL },
+        prompt: `Verify and refine this summary: ${draft.text}`,
+      });
+
+      expect(draft.text).toBeTruthy();
+      expect(verify.text).toBeTruthy();
+      expect(verify.finishReason).toBeTruthy();
+    },
+    60000
+  );
+
   it(
     'generates text and reports usage',
     async () => {

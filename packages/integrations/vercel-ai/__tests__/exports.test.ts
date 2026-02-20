@@ -1,4 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@cascadeflow/core', () => ({
+  VercelAI: {
+    createChatHandler: vi.fn(),
+    createCompletionHandler: vi.fn(),
+  },
+}));
 
 import { createChatHandler, createCompletionHandler, VercelAI } from '../src';
 
@@ -13,4 +20,3 @@ describe('@cascadeflow/vercel-ai exports', () => {
     expect(typeof (VercelAI as any).createChatHandler).toBe('function');
   });
 });
-
