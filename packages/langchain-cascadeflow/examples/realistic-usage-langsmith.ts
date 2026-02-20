@@ -146,7 +146,7 @@ async function main() {
     console.log(`${COLORS.bold}🔀 Bonus: Cross-Provider Cascade (Anthropic → OpenAI)${COLORS.reset}\n`);
 
     const claudeDrafter = new ChatAnthropic({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-3-haiku-20240307',
     });
 
     const crossProviderCascade = new CascadeFlow({
@@ -158,7 +158,7 @@ async function main() {
     });
 
     console.log(`${COLORS.green}✓ Created cross-provider cascade${COLORS.reset}`);
-    console.log(`  Drafter: Claude 3.5 Haiku (Anthropic)`);
+    console.log(`  Drafter: Claude 3 Haiku (Anthropic)`);
     console.log(`  Verifier: GPT-5 (OpenAI)\n`);
 
     const crossQuery = 'Explain the benefits of TypeScript';
@@ -172,7 +172,7 @@ async function main() {
 
     if (stats) {
       const decision = stats.modelUsed === 'drafter' ? 'CASCADED' : 'ESCALATED';
-      const model = stats.modelUsed === 'drafter' ? 'Claude 3.5 Haiku' : 'GPT-5';
+      const model = stats.modelUsed === 'drafter' ? 'Claude 3 Haiku' : 'GPT-5';
 
       console.log(`  ${decision} (quality: ${stats.drafterQuality?.toFixed(2)})`);
       console.log(`  Model: ${model}\n`);

@@ -94,9 +94,9 @@ async function main() {
 
   console.log(`${COLORS.bold}🤖 Creating Cross-Provider Cascade${COLORS.reset}\n`);
 
-  // Drafter: Claude 3.5 Haiku (Anthropic) - Fast, cheap
+  // Drafter: Claude 3 Haiku (Anthropic) - Fast, cheap
   const haiku = new ChatAnthropic({
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-3-haiku-20240307',
     temperature: 1.0,
   });
 
@@ -116,7 +116,7 @@ async function main() {
   });
 
   console.log(`${COLORS.green}✓ Cascade configured${COLORS.reset}`);
-  console.log(`  Drafter: ${COLORS.cyan}Claude 3.5 Haiku${COLORS.reset} (Anthropic)`);
+  console.log(`  Drafter: ${COLORS.cyan}Claude 3 Haiku${COLORS.reset} (Anthropic)`);
   console.log(`  Verifier: ${COLORS.cyan}GPT-5${COLORS.reset} (OpenAI)`);
   console.log(`  Quality Threshold: 0.7`);
   console.log(`  PreRouter: ${COLORS.green}Enabled${COLORS.reset} (hard/expert queries → direct to GPT-5)\n`);
@@ -191,11 +191,11 @@ async function main() {
   console.log(`${COLORS.bold}What You'll See:${COLORS.reset}\n`);
 
   console.log(`${COLORS.green}1. For Cascaded Queries (Haiku only):${COLORS.reset}`);
-  console.log(`   • Single trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-3-5-haiku)`);
+  console.log(`   • Single trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-3-haiku-20240307)`);
   console.log(`   • Cascade metadata shows: ${COLORS.green}model_used: "drafter"${COLORS.reset}\n`);
 
   console.log(`${COLORS.yellow}2. For Escalated Queries (Haiku → GPT-5):${COLORS.reset}`);
-  console.log(`   • First trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-3-5-haiku) - tried first`);
+  console.log(`   • First trace: ${COLORS.cyan}ChatAnthropic${COLORS.reset} (claude-3-haiku-20240307) - tried first`);
   console.log(`   • Second trace: ${COLORS.cyan}ChatOpenAI${COLORS.reset} (gpt-5) - used for response`);
   console.log(`   • Cascade metadata shows: ${COLORS.yellow}model_used: "verifier"${COLORS.reset}\n`);
 

@@ -351,15 +351,15 @@ const verifier = new ChatOpenAI({ model: 'gpt-5' });
 ```typescript
 import { ChatAnthropic } from '@langchain/anthropic';
 
-const drafter = new ChatAnthropic({ model: 'claude-3-5-haiku-20241022' });
-const verifier = new ChatAnthropic({ model: 'claude-sonnet-4-5' });
+const drafter = new ChatAnthropic({ model: 'claude-3-haiku-20240307' });
+const verifier = new ChatAnthropic({ model: 'claude-sonnet-4-6' });
 ```
 
 ### Mix and Match (Recommended)
 ```typescript
 // Use different providers for optimal cost/quality balance!
 const drafter = new ChatOpenAI({ model: 'gpt-5-mini' });
-const verifier = new ChatAnthropic({ model: 'claude-sonnet-4-5' });
+const verifier = new ChatAnthropic({ model: 'claude-sonnet-4-6' });
 ```
 
 ## Cost Optimization Tips
@@ -367,7 +367,7 @@ const verifier = new ChatAnthropic({ model: 'claude-sonnet-4-5' });
 1. **Choose Your Drafter Wisely** - Use the cheapest model that can handle most queries
    - GPT-5-mini: $0.25/$2.00 per 1M tokens (input/output)
    - GPT-4o-mini: $0.15/$0.60 per 1M tokens (input/output)
-   - Claude 3.5 Haiku: $0.80/$4.00 per 1M tokens
+   - Claude 3 Haiku: $0.25/$1.25 per 1M tokens
 
 2. **Tune Quality Threshold** - Higher threshold = more cascades = higher cost but better quality
    - `0.6` - Aggressive cost savings, may sacrifice some quality

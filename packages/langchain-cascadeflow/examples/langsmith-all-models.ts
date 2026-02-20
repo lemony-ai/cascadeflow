@@ -135,16 +135,16 @@ async function main() {
   } else {
     // Test 4: Claude Haiku → GPT-5
     await testModelPair(
-      'Claude 3.5 Haiku → GPT-5 (80% savings)',
-      new ChatAnthropic({ model: 'claude-3-5-haiku-20241022' }),
+      'Claude 3 Haiku → GPT-5 (80% savings)',
+      new ChatAnthropic({ model: 'claude-3-haiku-20240307' }),
       new ChatOpenAI({ modelName: 'gpt-5', temperature: 1.0 }),
       'Cross-Provider'
     );
 
     // Test 5: Claude Haiku → GPT-5 Mini
     await testModelPair(
-      'Claude 3.5 Haiku → GPT-5 Mini (60% savings)',
-      new ChatAnthropic({ model: 'claude-3-5-haiku-20241022' }),
+      'Claude 3 Haiku → GPT-5 Mini (60% savings)',
+      new ChatAnthropic({ model: 'claude-3-haiku-20240307' }),
       new ChatOpenAI({ modelName: 'gpt-5-mini', temperature: 1.0 }),
       'Cross-Provider'
     );

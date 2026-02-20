@@ -205,7 +205,7 @@ const verifier = new ChatOpenAI({ model: 'gpt-4o' });
 import { ChatAnthropic } from '@langchain/anthropic';
 
 const drafter = new ChatAnthropic({ modelName: 'claude-3-haiku-20240307' });
-const verifier = new ChatAnthropic({ modelName: 'claude-3-5-sonnet-20241022' });
+const verifier = new ChatAnthropic({ modelName: 'claude-sonnet-4-6' });
 ```
 
 **Mix and Match:**
