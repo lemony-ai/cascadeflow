@@ -43,6 +43,145 @@ describe('VercelAI.createChatHandler', () => {
     });
   });
 
+  it('normalizes tool parts into assistant tool_calls plus tool result messages', async () => {
+    let receivedMessages: any[] = [];
+    const agent = {
+      async *stream(messages: any[]) {
+        receivedMessages = messages;
+        yield { type: StreamEventType.CHUNK, content: 'OK', data: {} } satisfies StreamEvent;
+        yield {
+          type: StreamEventType.COMPLETE,
+          content: '',
+          data: { result: { content: 'OK' } },
+        } satisfies StreamEvent;
+      },
+      async run() {
+        return { content: 'OK' };
+      },
+    } as any;
+
+    const handler = createChatHandler(agent, { protocol: 'data' });
+    const req = new Request('http://local/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'user',
+            parts: [{ type: 'text', text: 'Call the weather tool' }],
+          },
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-get_weather',
+                state: 'output-available',
+                toolCallId: 'call_weather_1',
+                input: { location: 'Paris' },
+                output: { tempC: 21 },
+              },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [{ type: 'text', text: 'Thanks' }],
+          },
+        ],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const res = await handler(req);
+    expect(res.ok).toBe(true);
+    expect(receivedMessages).toEqual([
+      { role: 'user', content: 'Call the weather tool' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call_weather_1',
+            type: 'function',
+            function: { name: 'get_weather', arguments: JSON.stringify({ location: 'Paris' }) },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        tool_call_id: 'call_weather_1',
+        name: 'get_weather',
+        content: JSON.stringify({ tempC: 21 }),
+      },
+      { role: 'user', content: 'Thanks' },
+    ]);
+  });
+
+  it('normalizes legacy tool-invocation parts into tool loop messages', async () => {
+    let receivedMessages: any[] = [];
+    const agent = {
+      async *stream(messages: any[]) {
+        receivedMessages = messages;
+        yield { type: StreamEventType.CHUNK, content: 'OK', data: {} } satisfies StreamEvent;
+        yield {
+          type: StreamEventType.COMPLETE,
+          content: '',
+          data: { result: { content: 'OK' } },
+        } satisfies StreamEvent;
+      },
+      async run() {
+        return { content: 'OK' };
+      },
+    } as any;
+
+    const handler = createChatHandler(agent, { protocol: 'data' });
+    const req = new Request('http://local/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: [
+          { role: 'user', parts: [{ type: 'text', text: 'Search for abc' }] },
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-invocation',
+                toolInvocation: {
+                  state: 'output-available',
+                  toolCallId: 'call_lookup_1',
+                  toolName: 'lookup',
+                  args: { query: 'abc' },
+                  result: { found: true },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const res = await handler(req);
+    expect(res.ok).toBe(true);
+    expect(receivedMessages).toEqual([
+      { role: 'user', content: 'Search for abc' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call_lookup_1',
+            type: 'function',
+            function: { name: 'lookup', arguments: JSON.stringify({ query: 'abc' }) },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        tool_call_id: 'call_lookup_1',
+        name: 'lookup',
+        content: JSON.stringify({ found: true }),
+      },
+    ]);
+  });
+
   it('preserves tool metadata fields from incoming messages', async () => {
     let receivedMessages: any[] = [];
     const agent = {
