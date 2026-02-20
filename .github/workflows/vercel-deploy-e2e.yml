@@ -9,7 +9,6 @@ jobs:
   deployed-api-chat:
     name: Deployed /api/chat E2E
     runs-on: ubuntu-latest
-    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.OPENAI_API_KEY != '' }}
 
     steps:
       - name: Setup Node.js
@@ -22,7 +21,23 @@ jobs:
         with:
           version: 8
 
+      - name: Check required secrets
+        id: secrets_check
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${VERCEL_TOKEN:-}" || -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+            echo "Required secrets (VERCEL_TOKEN, OPENAI_API_KEY) are missing; skipping deploy E2E."
+          else
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy temporary app and test /api/chat
+        if: steps.secrets_check.outputs.missing == 'false'
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
