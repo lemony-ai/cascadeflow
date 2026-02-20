@@ -73,6 +73,8 @@ export async function POST(req: Request) {
 }
 ```
 
+Deployment note: if the target Vercel project has deployment protection (`ssoProtection`) enabled, direct `/api/chat` probes can return `401`. Disable protection (or allow unauthenticated access) for sandbox E2E checks.
+
 ## Tool Loop Example (Single Tool -> Multi Tool Progression)
 
 ```ts
@@ -161,5 +163,14 @@ AI SDK `parts` messages:
 ```
 
 Note: when tool execution loop is enabled, streaming responses are currently buffered through `agent.run(...)` to preserve deterministic loop semantics.
+
+Real deployed smoke check:
+
+```bash
+DEPLOY_URL="https://<your-deployment>.vercel.app"
+curl -sS -X POST "$DEPLOY_URL/api/chat" \
+  -H "content-type: application/json" \
+  --data '{"messages":[{"role":"user","content":"Reply with: cascadeflow-ok"}]}'
+```
 
 See `examples/vercel-ai-nextjs/` for a complete runnable example.

@@ -35,6 +35,10 @@ Why it’s fast:
 - No provider rewrite.
 - Compatible with `useChat` default `streamProtocol: 'data'` (AI SDK v4). On newer AI SDK versions, the handler automatically uses the UI message stream when available.
 
+Deployment protection note:
+- On some Vercel team projects, `ssoProtection` is enabled by default.
+- If you validate `/api/chat` with direct `curl`, disable protection (or allow unauthenticated access) for your sandbox deployment first.
+
 See: `examples/vercel-ai-nextjs/`.
 
 ## Option 2: “Keep Your SDK” via Proxy (Minimal Code Changes)
@@ -61,7 +65,7 @@ import { CascadeAgent } from '@cascadeflow/core';
 const agent = new CascadeAgent({
   models: [
     { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: process.env.OPENAI_API_KEY },
-    { name: 'claude-sonnet-4-5-20250929', provider: 'anthropic', cost: 0.003, apiKey: process.env.ANTHROPIC_API_KEY },
+    { name: 'claude-opus-4-6', provider: 'anthropic', cost: 0.015, apiKey: process.env.ANTHROPIC_API_KEY },
   ],
 });
 

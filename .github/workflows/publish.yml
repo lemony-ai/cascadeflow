@@ -131,10 +131,10 @@ jobs:
           path: dist/
 
       - name: Publish to PyPI
-        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
 
   publish-to-npm:
     name: Publish to npm
@@ -195,45 +195,75 @@ jobs:
 
       # pnpm pack resolves workspace: protocol refs, then npm publish uses OIDC
       - name: Publish @cascadeflow/ml
-        continue-on-error: true
         run: |
+          set -euo pipefail
           cd packages/ml
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
+            exit 0
+          fi
           TARBALL=$(pnpm pack --pack-destination .)
           npm publish "$TARBALL" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/core
-        continue-on-error: true
         run: |
+          set -euo pipefail
           cd packages/core
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
+            exit 0
+          fi
           TARBALL=$(pnpm pack --pack-destination .)
           npm publish "$TARBALL" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/n8n-nodes-cascadeflow
-        continue-on-error: true
         run: |
+          set -euo pipefail
           cd packages/integrations/n8n
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
+            exit 0
+          fi
           TARBALL=$(pnpm pack --pack-destination .)
           npm publish "$TARBALL" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/langchain
-        continue-on-error: true
         run: |
+          set -euo pipefail
           cd packages/langchain-cascadeflow
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
+            exit 0
+          fi
           TARBALL=$(pnpm pack --pack-destination .)
           npm publish "$TARBALL" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @cascadeflow/vercel-ai
-        continue-on-error: true
         run: |
+          set -euo pipefail
           cd packages/integrations/vercel-ai
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
+            exit 0
+          fi
           TARBALL=$(pnpm pack --pack-destination .)
           npm publish "$TARBALL" --access public --provenance
         env:
@@ -258,8 +288,8 @@ jobs:
           path: dist/
 
       - name: Publish to TestPyPI
-        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          skip-existing: true

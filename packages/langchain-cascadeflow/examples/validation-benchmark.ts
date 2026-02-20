@@ -129,7 +129,7 @@ async function main() {
   console.log('🔬 CascadeFlow Validation Benchmark\n');
   console.log('Configuration:');
   console.log('  Drafter: gpt-5-mini (OpenAI)');
-  console.log('  Verifier: claude-sonnet-4-5 (Anthropic)');
+  console.log('  Verifier: claude-opus-4-6 (Anthropic)');
   console.log('  Quality Threshold: 0.7');
   console.log('  PreRouter: Enabled\n');
 
@@ -140,7 +140,7 @@ async function main() {
   });
 
   const verifier = new ChatAnthropic({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-opus-4-6',
     temperature: 0.7,
   });
 

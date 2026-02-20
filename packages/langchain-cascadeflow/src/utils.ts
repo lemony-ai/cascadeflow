@@ -34,6 +34,9 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-3.5-turbo': { input: 0.50, output: 1.50 },
 
   // Anthropic (4.x)
+  'claude-opus-4-6': { input: 15.00, output: 75.00 },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
   'claude-opus-4-5': { input: 5.00, output: 25.00 },
   'claude-sonnet-4': { input: 3.00, output: 15.00 },
   'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },

@@ -165,8 +165,9 @@ When using `costTrackingProvider: 'cascadeflow'`, the following models have buil
 - `gpt-3.5-turbo`
 
 ### Anthropic
+- `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`
 - `claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`
-- `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
+- `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-haiku-4-5-20251001`
 - `claude-sonnet-4`, `claude-haiku-4.5`
 
 ### Google

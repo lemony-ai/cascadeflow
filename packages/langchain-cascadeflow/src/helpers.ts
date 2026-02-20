@@ -211,7 +211,7 @@ export function analyzeCascadePair(
  * const models = [
  *   new ChatOpenAI({ model: 'gpt-4o-mini' }),
  *   new ChatOpenAI({ model: 'gpt-4o' }),
- *   new ChatAnthropic({ model: 'claude-3-5-haiku' }),
+ *   new ChatAnthropic({ model: 'claude-haiku-4-5-20251001' }),
  * ];
  *
  * const suggestions = suggestCascadePairs(models);
