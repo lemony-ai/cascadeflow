@@ -17,7 +17,8 @@
     "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "verify:npm:pack": "node scripts/verify-npm-packages.mjs"
   },
   "devDependencies": {
     "turbo": "^1.11.0"

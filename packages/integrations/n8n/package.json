@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/n8n-nodes-cascadeflow",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "n8n node for cascadeflow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
@@ -28,7 +28,8 @@
     "format": "prettier nodes credentials --write",
     "lint": "eslint \"nodes/**/*.ts\" \"credentials/**/*.ts\" package.json",
     "lintfix": "eslint \"nodes/**/*.ts\" \"credentials/**/*.ts\" package.json --fix",
-    "prepublishOnly": "npm run build && npm run lint"
+    "prepublishOnly": "npm run build && npm run lint",
+    "prepack": "pnpm -w --filter @cascadeflow/core build && npm run build"
   },
   "files": [
     "dist"
@@ -62,6 +63,6 @@
   },
   "dependencies": {
     "@langchain/core": "^1.1.0",
-    "@cascadeflow/core": "^1.0.0"
+    "@cascadeflow/core": "^1.0.1"
   }
 }
