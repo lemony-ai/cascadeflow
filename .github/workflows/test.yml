@@ -243,8 +243,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install pip-audit bandit
 
-      - name: Run pip-audit
-        run: pip-audit --requirement requirements.txt --requirement requirements-dev.txt || true
+      - name: Run pip-audit (core runtime dependencies)
+        run: pip-audit --requirement requirements.txt
 
       - name: Run Bandit security scan
-        run: bandit -r cascadeflow/ -ll || true
+        run: bandit -r cascadeflow/ -ll

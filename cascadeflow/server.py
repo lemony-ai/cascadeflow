@@ -27,6 +27,11 @@ def _has_any_provider_key() -> bool:
     )
 
 
+def _is_local_bind_host(host: str) -> bool:
+    normalized = (host or "").strip().lower()
+    return normalized in {"127.0.0.1", "localhost", "::1"}
+
+
 def _load_env_file(path: str, *, override: bool = False) -> None:
     """
     Minimal .env loader to keep the gateway CLI dependency-light.
@@ -196,6 +201,17 @@ def main() -> None:
         if not alias or not target:
             raise SystemExit(f"Invalid --virtual-model '{mapping}' (expected ALIAS=TARGET)")
         virtual_models[alias] = target
+
+    if (
+        not args.disable_cors
+        and str(args.cors_allow_origin).strip() == "*"
+        and not _is_local_bind_host(str(args.host))
+    ):
+        print(
+            "WARNING: wildcard CORS ('*') is enabled on a non-local bind host. "
+            "For production, set --cors-allow-origin to a specific origin.",
+            flush=True,
+        )
 
     server = RoutingProxy(
         agent=agent,

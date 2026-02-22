@@ -45,8 +45,8 @@ cascadeflow provides **real-time streaming** for both text responses and tool ca
 # Basic streaming (text only)
 pip install cascadeflow
 
-# Tool streaming (includes JSON parser)
-pip install cascadeflow[tools]
+# Tool streaming (includes JSON parser in the core package)
+pip install cascadeflow
 
 # All features
 pip install cascadeflow[all]

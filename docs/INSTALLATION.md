@@ -79,6 +79,7 @@ pip install cascadeflow  # Core only, no extras needed!
 # Run vLLM server, connect via HTTP
 
 # Option 2: Python package
+# Requires Python 3.10+
 pip install cascadeflow[vllm]
 ```
 

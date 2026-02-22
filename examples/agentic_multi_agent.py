@@ -20,10 +20,10 @@ Documentation:
     📖 Tool Guide: docs/guides/tools.md
 """
 
+import ast
 import asyncio
 import math
 import os
-import re
 from typing import Any
 
 from cascadeflow import CascadeAgent, ModelConfig
@@ -36,20 +36,74 @@ def safe_calculate(expression: str) -> dict[str, Any]:
 
     Supports: numbers, whitespace, + - * / ( ) and sqrt()/pow()/abs().
     """
-    # Very conservative allowlist for demo purposes.
-    if not re.fullmatch(r"[\d\s+\-*/().,_a-zA-Z]+", expression):
-        return {"expression": expression, "error": "Invalid expression"}
-
     try:
-        # NOTE: This is intentionally a demo. Do not use eval for untrusted input in production.
-        result = eval(
-            expression,
-            {"__builtins__": {}},
-            {"sqrt": math.sqrt, "pow": math.pow, "abs": abs},
-        )
+        result = _evaluate_math_expression(expression)
         return {"expression": expression, "result": result}
     except Exception as exc:
         return {"expression": expression, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def _evaluate_math_expression(expression: str) -> float:
+    """Evaluate a math expression with a strict AST allowlist."""
+    allowed_binary = {
+        ast.Add: lambda a, b: a + b,
+        ast.Sub: lambda a, b: a - b,
+        ast.Mult: lambda a, b: a * b,
+        ast.Div: lambda a, b: a / b,
+    }
+    allowed_unary = {
+        ast.UAdd: lambda a: +a,
+        ast.USub: lambda a: -a,
+    }
+    allowed_funcs = {
+        "sqrt": math.sqrt,
+        "pow": math.pow,
+        "abs": abs,
+    }
+
+    def _eval(node: ast.AST) -> float:
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float)):
+                return float(node.value)
+            raise ValueError("Only numeric constants are allowed")
+
+        if isinstance(node, ast.BinOp):
+            op = type(node.op)
+            if op not in allowed_binary:
+                raise ValueError(f"Unsupported operator: {op.__name__}")
+            left = _eval(node.left)
+            right = _eval(node.right)
+            if op is ast.Div and right == 0:
+                raise ValueError("Division by zero")
+            return allowed_binary[op](left, right)
+
+        if isinstance(node, ast.UnaryOp):
+            op = type(node.op)
+            if op not in allowed_unary:
+                raise ValueError(f"Unsupported unary operator: {op.__name__}")
+            return allowed_unary[op](_eval(node.operand))
+
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            func_name = node.func.id
+            if func_name not in allowed_funcs:
+                raise ValueError(f"Unsupported function: {func_name}")
+            args = [_eval(arg) for arg in node.args]
+            if func_name in {"sqrt", "abs"} and len(args) != 1:
+                raise ValueError(f"{func_name} expects exactly 1 argument")
+            if func_name == "pow" and len(args) != 2:
+                raise ValueError("pow expects exactly 2 arguments")
+            return float(allowed_funcs[func_name](*args))
+
+        raise ValueError(f"Unsupported expression element: {type(node).__name__}")
+
+    if not expression or len(expression) > 200:
+        raise ValueError("Expression must be between 1 and 200 characters")
+
+    parsed = ast.parse(expression, mode="eval")
+    return _eval(parsed)
 
 
 async def main() -> None:

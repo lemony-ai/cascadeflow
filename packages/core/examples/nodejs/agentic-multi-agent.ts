@@ -19,21 +19,11 @@ import {
   type Message,
   type Tool,
 } from '@cascadeflow/core';
+import { safeCalculateExpression } from './safe-math';
 
 function safeCalculate(expression: string): { expression: string; result?: number; error?: string } {
   try {
-    const expr = expression
-      .replace(/sqrt\(([^)]+)\)/g, 'Math.sqrt($1)')
-      .replace(/pow\(([^,]+),([^)]+)\)/g, 'Math.pow($1,$2)')
-      .replace(/abs\(([^)]+)\)/g, 'Math.abs($1)');
-
-    // Minimal validation to avoid code injection in an example.
-    if (!/^[\d\s+\-*/().,Math]+$/.test(expr)) {
-      return { expression, error: 'Invalid expression' };
-    }
-
-    // eslint-disable-next-line no-eval
-    const result = eval(expr);
+    const result = safeCalculateExpression(expression);
     return { expression, result };
   } catch (e) {
     return { expression, error: e instanceof Error ? e.message : String(e) };
@@ -208,4 +198,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-
