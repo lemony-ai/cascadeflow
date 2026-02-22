@@ -351,7 +351,15 @@ def _build_openai_response(model: str, result: Any) -> dict[str, Any]:
     prompt_tokens_raw = meta.get("prompt_tokens")
     completion_tokens_raw = meta.get("completion_tokens")
     total_tokens_raw = meta.get("total_tokens")
-    tool_calls = meta.get("tool_calls")
+    raw_tool_calls = meta.get("tool_calls")
+    openai_tool_calls: list[dict[str, Any]] = []
+    if isinstance(raw_tool_calls, list) and raw_tool_calls:
+        first = raw_tool_calls[0]
+        # If the upstream already returned OpenAI-compatible tool calls, keep them.
+        if isinstance(first, dict) and isinstance(first.get("function"), dict):
+            openai_tool_calls = raw_tool_calls
+        else:
+            openai_tool_calls = _to_openai_tool_calls(raw_tool_calls)
 
     prompt_tokens = int(prompt_tokens_raw or 0)
     completion_tokens = int(completion_tokens_raw or 0)
@@ -362,10 +370,10 @@ def _build_openai_response(model: str, result: Any) -> dict[str, Any]:
         completion_tokens = total_tokens
 
     message: dict[str, Any] = {"role": "assistant", "content": getattr(result, "content", "")}
-    if tool_calls:
-        message["tool_calls"] = tool_calls
+    if openai_tool_calls:
+        message["tool_calls"] = openai_tool_calls
 
-    finish_reason = "tool_calls" if tool_calls else "stop"
+    finish_reason = "tool_calls" if openai_tool_calls else "stop"
 
     return {
         "id": "chatcmpl-cascadeflow",

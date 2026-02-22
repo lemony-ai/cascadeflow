@@ -1,9 +1,11 @@
 import asyncio
+import json
 
 import httpx
 import pytest
 
 from cascadeflow.proxy import ProxyConfig, RoutingProxy
+from cascadeflow.proxy.server import _build_openai_response
 from cascadeflow.telemetry.cost_tracker import CostTracker
 
 
@@ -215,6 +217,38 @@ def test_openai_base_url_without_v1(proxy_server):
 
     response = httpx.post(url, json=payload, timeout=5.0, trust_env=False)
     assert response.status_code == 200
+
+
+def test_openai_response_normalizes_universal_tool_calls_to_openai_shape():
+    class _Result:
+        content = ""
+        metadata = {
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "name": "get_weather",
+                    "arguments": {"city": "Berlin", "unit": "celsius"},
+                }
+            ]
+        }
+        draft_accepted = False
+        quality_score = None
+        complexity = "moderate"
+        cascade_overhead_ms = 0
+
+    response = _build_openai_response("cascadeflow", _Result())
+    choice = response["choices"][0]
+
+    assert choice["finish_reason"] == "tool_calls"
+    tool_calls = choice["message"]["tool_calls"]
+    assert isinstance(tool_calls, list) and len(tool_calls) == 1
+    first = tool_calls[0]
+    assert first["id"] == "call_1"
+    assert first["type"] == "function"
+    assert first["function"]["name"] == "get_weather"
+    parsed_args = json.loads(first["function"]["arguments"])
+    assert parsed_args == {"city": "Berlin", "unit": "celsius"}
 
 
 @pytest.mark.asyncio
