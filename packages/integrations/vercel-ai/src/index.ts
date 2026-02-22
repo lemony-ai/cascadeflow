@@ -18,6 +18,13 @@ export interface VercelAIChatHandlerOptions {
   maxSteps?: number;
   forceDirect?: boolean;
   userTier?: string;
+  emitCascadeEvents?: boolean;
+  requestOverrides?: {
+    enabled?: boolean;
+    secret?: string;
+    headerName?: string;
+    allowedFields?: Array<'forceDirect' | 'maxSteps' | 'userTier'>;
+  };
 }
 
 export const createChatHandler = (

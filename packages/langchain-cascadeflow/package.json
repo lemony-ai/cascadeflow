@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/langchain",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "LangChain integration for cascadeflow - Add intelligent cost optimization to your LangChain models",
   "author": {
     "name": "Lemony Inc.",

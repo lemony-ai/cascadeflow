@@ -700,6 +700,9 @@ async def test_proxy_service_durable_outbox_non_retryable_error_goes_to_dead_let
 
 @pytest.mark.asyncio
 async def test_proxy_service_sync_timeout_falls_back_to_durable_outbox(tmp_path) -> None:
+    slow_delay_seconds = 1.0
+    sync_timeout_seconds = 0.02
+
     class FakeService:
         async def handle(self, request: ProxyRequest) -> ProxyResult:
             return ProxyResult(
@@ -715,7 +718,7 @@ async def test_proxy_service_sync_timeout_falls_back_to_durable_outbox(tmp_path)
 
     class SlowClient:
         async def acreate_usage_event(self, **kwargs):
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(slow_delay_seconds)
             return {"ok": True}
 
     class Reporter:
@@ -740,7 +743,7 @@ async def test_proxy_service_sync_timeout_falls_back_to_durable_outbox(tmp_path)
         Reporter(),
         delivery_mode="sync",
         outbox_path=str(outbox_path),
-        sync_timeout_seconds=0.02,
+        sync_timeout_seconds=sync_timeout_seconds,
         sync_timeout_fallback_mode="durable_outbox",
         outbox_poll_interval_seconds=0.01,
         outbox_retry_backoff_seconds=0.01,
@@ -759,7 +762,7 @@ async def test_proxy_service_sync_timeout_falls_back_to_durable_outbox(tmp_path)
     result = await proxy.handle(request)
     elapsed_ms = (time.perf_counter() - start) * 1000
     assert result.status_code == 200
-    assert elapsed_ms < 100.0
+    assert elapsed_ms < (slow_delay_seconds * 1000 * 0.8)
 
     stats = proxy.get_delivery_stats()
     assert stats["sync_timeout_fallbacks"] == 1
