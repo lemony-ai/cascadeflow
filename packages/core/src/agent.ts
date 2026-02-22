@@ -738,6 +738,12 @@ export class CascadeAgent {
     const normalized = normalizeSystemPromptFromMessages(rawMessages, options.systemPrompt);
     const messages = normalized.messages;
     const executor = options.toolExecutor ?? this.toolExecutor;
+    if (executor && typeof (executor as any).executeParallel !== 'function') {
+      throw new Error(
+        'Invalid toolExecutor: expected ToolExecutor with executeParallel(). ' +
+        'Use new ToolExecutor([...]) with ToolConfig entries.'
+      );
+    }
 
     // Extract query text for complexity detection (exclude system messages)
     const queryText = typeof input === 'string' ? input : messages.map((m) => m.content).join('\n');
@@ -852,11 +858,13 @@ export class CascadeAgent {
       routingDecision.strategy === RoutingStrategy.CASCADE &&
       availableModels.length > 1;
 
-    // Tool routing overrides for tool calls
-    if (toolRoutingDecision?.strategy === 'direct') {
-      shouldCascade = false;
-    } else if (toolRoutingDecision?.strategy === 'cascade') {
-      shouldCascade = true;
+    // Tool routing overrides for tool calls (unless forceDirect is explicitly requested)
+    if (!options.forceDirect) {
+      if (toolRoutingDecision?.strategy === 'direct') {
+        shouldCascade = false;
+      } else if (toolRoutingDecision?.strategy === 'cascade') {
+        shouldCascade = true;
+      }
     }
 
     let draftCost = 0;

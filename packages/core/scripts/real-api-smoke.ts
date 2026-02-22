@@ -10,7 +10,7 @@
  *   pnpm -C packages/core run real-api:smoke
  */
 
-import { CascadeAgent } from '../src/index.ts';
+import { CascadeAgent, ToolConfig, ToolExecutor } from '../src/index.ts';
 import type { Tool } from '../src/types.ts';
 
 type Env = Record<string, string | undefined>;
@@ -44,6 +44,24 @@ async function main(): Promise<void> {
   const anthropicKey = env.ANTHROPIC_API_KEY;
 
   if (openaiKey) {
+    const toolExecutor = new ToolExecutor([
+      new ToolConfig({
+        name: 'get_weather',
+        description: 'Get the weather for a location.',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: { type: 'string' },
+          },
+          required: ['location'],
+        },
+        function: async ({ location }: { location?: string }) => ({
+          location: location || 'unknown',
+          forecast: 'sunny',
+        }),
+      }),
+    ]);
+
     const agent = new CascadeAgent({
       models: [
         { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, apiKey: openaiKey },
@@ -61,11 +79,7 @@ async function main(): Promise<void> {
       tools: [getWeatherTool],
       forceDirect: true,
       maxSteps: 3,
-      toolExecutor: async (call) => {
-        const name = call.function?.name ?? call.name;
-        if (name !== 'get_weather') return { ok: false, error: 'unknown_tool' };
-        return { location: 'Paris', forecast: 'sunny' };
-      },
+      toolExecutor,
     });
     if (!r2.content || !/sunny/i.test(r2.content)) {
       throw new Error(`OpenAI tool-loop smoke failed: content=${JSON.stringify(r2.content)}`);
