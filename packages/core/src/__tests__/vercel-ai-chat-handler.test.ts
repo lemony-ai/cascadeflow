@@ -418,15 +418,21 @@ describe('VercelAI.createChatHandler', () => {
       },
       async run() {
         runCalled += 1;
+        if (runCalled === 1) {
+          return {
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'get_weather', arguments: '{"location":"Berlin"}' },
+              },
+            ],
+          };
+        }
         return {
           content: 'BUFFERED_OK',
-          toolCalls: [
-            {
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'get_weather', arguments: '{"location":"Berlin"}' },
-            },
-          ],
+          toolCalls: [],
         };
       },
     } as any;
@@ -443,7 +449,11 @@ describe('VercelAI.createChatHandler', () => {
           },
         },
       ],
-      toolExecutor: {} as any,
+      toolHandlers: {
+        async get_weather() {
+          return { location: 'Berlin', weather: 'sunny' };
+        },
+      },
       maxSteps: 3,
       forceDirect: true,
     });
@@ -469,7 +479,7 @@ describe('VercelAI.createChatHandler', () => {
       },
     });
 
-    expect(runCalled).toBe(1);
+    expect(runCalled).toBe(2);
     expect(streamCalled).toBe(0);
     expect(text).toContain('BUFFERED_OK');
     expect(calls).toEqual([
@@ -478,15 +488,27 @@ describe('VercelAI.createChatHandler', () => {
   });
 
   it('builds a ToolExecutor from toolHandlers for integration-level loops', async () => {
-    let receivedRunOptions: any = null;
+    const receivedMessages: any[] = [];
 
     const agent = {
       async *stream() {
         yield { type: StreamEventType.CHUNK, content: 'unused', data: {} } satisfies StreamEvent;
       },
-      async run(_messages: any, options: any) {
-        receivedRunOptions = options;
-        return { content: 'OK' };
+      async run(messages: any[]) {
+        receivedMessages.push(messages);
+        if (receivedMessages.length === 1) {
+          return {
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'get_weather', arguments: '{"location":"Berlin"}' },
+              },
+            ],
+          };
+        }
+        return { content: 'OK', toolCalls: [] };
       },
     } as any;
 
@@ -516,7 +538,8 @@ describe('VercelAI.createChatHandler', () => {
     });
     const res = await handler(req);
     expect(res.ok).toBe(true);
-    expect(receivedRunOptions?.toolExecutor).toBeTruthy();
-    expect(typeof receivedRunOptions?.toolExecutor?.execute).toBe('function');
+    expect(receivedMessages.length).toBe(2);
+    const secondMessages = receivedMessages[1];
+    expect(secondMessages.some((m: any) => m.role === 'tool')).toBe(true);
   });
 });
