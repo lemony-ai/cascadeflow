@@ -22,10 +22,10 @@ importers:
         specifier: ^3.0.0
         version: 3.0.80(react@19.2.4)(zod@4.3.6)
       '@cascadeflow/core':
-        specifier: workspace:*
+        specifier: ^0.7.2
         version: link:../../packages/core
       '@cascadeflow/vercel-ai':
-        specifier: workspace:*
+        specifier: ^0.7.6
         version: link:../../packages/integrations/vercel-ai
       ai:
         specifier: ^6.0.0

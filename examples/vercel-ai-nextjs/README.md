@@ -12,7 +12,8 @@ pnpm install
 pnpm dev
 ```
 
-`predev`/`prebuild` automatically build local workspace packages (`@cascadeflow/core` and `@cascadeflow/vercel-ai`) before running Next.js.
+`pnpm dev` and `pnpm build` auto-build local workspace packages when they exist (monorepo usage), and skip that step in standalone deployments (for example Vercel project-root deploys).
+`next.config.js` also auto-switches module resolution: local monorepo builds when present, published npm packages when deployed standalone.
 
 ## Requirements
 

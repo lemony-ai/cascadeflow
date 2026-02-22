@@ -1,23 +1,27 @@
 /** @type {import('next').NextConfig} */
 import { fileURLToPath } from 'url';
 import path from 'path';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const localCoreDist = path.join(__dirname, '../../packages/core/dist/index.mjs');
+const localVercelDist = path.join(__dirname, '../../packages/integrations/vercel-ai/dist/index.mjs');
+const useLocalWorkspaceBuilds = fs.existsSync(localCoreDist) && fs.existsSync(localVercelDist);
+
 const nextConfig = {
   reactStrictMode: true,
-  // Silence the multi-lockfile warning for this monorepo example and ensure
-  // Next.js traces files correctly from the workspace root.
-  outputFileTracingRoot: path.join(__dirname, '../..'),
+  ...(useLocalWorkspaceBuilds ? { outputFileTracingRoot: path.join(__dirname, '../..') } : {}),
   webpack: (config) => {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = config.resolve.alias ?? {};
-    // Pin monorepo imports to local builds so example bundling does not
-    // accidentally resolve an older published package from the pnpm store.
-    config.resolve.alias['@cascadeflow/core'] = path.join(__dirname, '../../packages/core/dist/index.mjs');
-    config.resolve.alias['@cascadeflow/vercel-ai'] = path.join(__dirname, '../../packages/integrations/vercel-ai/dist/index.mjs');
-
+    if (useLocalWorkspaceBuilds) {
+      // In monorepo dev, pin imports to local builds so example bundling
+      // does not accidentally resolve older published packages.
+      config.resolve.alias['@cascadeflow/core'] = localCoreDist;
+      config.resolve.alias['@cascadeflow/vercel-ai'] = localVercelDist;
+    }
     // cascadeflow uses dynamic optional imports for integrations/providers.
     // Next's webpack build warns about "dependency is an expression"; it's safe.
     config.ignoreWarnings = config.ignoreWarnings ?? [];

@@ -1108,8 +1108,8 @@ from cascadeflow.telemetry import CostTracker, MetricsCollector
 tracker = CostTracker(budget_limit=1.0, warn_threshold=0.8, verbose=True)
 metrics = MetricsCollector()
 agent = CascadeAgent(models=[
-    ModelConfig("gpt-4o-mini", "openai", cost=0.00275),
-    ModelConfig("gpt-4o", "openai", cost=0.00625),
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00275),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
 ])
 
 # Execute and track
