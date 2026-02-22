@@ -1,0 +1,4 @@
+interface:
+  display_name: "CascadeFlow: Cost + Latency Reduction"
+  short_description: "Lower cost/latency via cascading, with streaming and agent loops"
+  default_prompt: "Use $cascadeflow to set up provider config, presets, and /model cflow with secure defaults."
