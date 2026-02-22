@@ -242,7 +242,8 @@ def test_openai_response_normalizes_universal_tool_calls_to_openai_shape():
 
     assert choice["finish_reason"] == "tool_calls"
     tool_calls = choice["message"]["tool_calls"]
-    assert isinstance(tool_calls, list) and len(tool_calls) == 1
+    assert isinstance(tool_calls, list)
+    assert len(tool_calls) == 1
     first = tool_calls[0]
     assert first["id"] == "call_1"
     assert first["type"] == "function"
