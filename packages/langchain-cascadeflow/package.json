@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/langchain",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "LangChain integration for cascadeflow - Add intelligent cost optimization to your LangChain models",
   "author": {
     "name": "Lemony Inc.",
@@ -34,7 +34,8 @@
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "pnpm -w --filter @cascadeflow/ml build && pnpm -w --filter @cascadeflow/core build && npm run build"
   },
   "keywords": [
     "langchain",

@@ -50,7 +50,7 @@ importers:
   packages/core:
     dependencies:
       '@cascadeflow/ml':
-        specifier: ^1.0.0
+        specifier: ^1.0.1
         version: link:../ml
       '@xenova/transformers':
         specifier: ^2.17.2
@@ -130,7 +130,7 @@ importers:
   packages/integrations/n8n:
     dependencies:
       '@cascadeflow/core':
-        specifier: ^1.0.0
+        specifier: ^1.0.1
         version: link:../../core
       '@langchain/core':
         specifier: ^1.1.0

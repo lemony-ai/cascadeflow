@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/vercel-ai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "cascadeflow integration for the Vercel AI SDK (useChat handlers + provider ecosystem)",
   "author": {
     "name": "Lemony Inc.",
@@ -32,7 +32,8 @@
     "test": "vitest run",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "pnpm -w --filter @cascadeflow/core build && npm run build"
   },
   "keywords": [
     "cascadeflow",

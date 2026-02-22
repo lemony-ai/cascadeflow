@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "cascadeflow TypeScript library - Smart AI model cascading for cost optimization",
   "author": {
     "name": "Lemony Inc.",
@@ -17,9 +17,9 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     }
   },
   "files": [
@@ -37,7 +37,8 @@
     "real-api:smoke": "tsx scripts/real-api-smoke.ts",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "pnpm -w --filter @cascadeflow/ml build && npm run build"
   },
   "keywords": [
     "ai",
@@ -57,7 +58,7 @@
     "edge-functions"
   ],
   "dependencies": {
-    "@cascadeflow/ml": "^1.0.0"
+    "@cascadeflow/ml": "^1.0.1"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
