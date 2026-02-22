@@ -83,6 +83,11 @@ jobs:
           cd packages/integrations/vercel-ai
           pnpm build
 
+      - name: Build @cascadeflow/paygentic
+        run: |
+          cd packages/integrations/paygentic
+          pnpm build
+
       - name: Store @cascadeflow/core package
         uses: actions/upload-artifact@v4
         with:
@@ -112,6 +117,12 @@ jobs:
         with:
           name: npm-cascadeflow-vercel-ai
           path: packages/integrations/vercel-ai/
+
+      - name: Store @cascadeflow/paygentic package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-cascadeflow-paygentic
+          path: packages/integrations/paygentic/
 
   publish-to-pypi:
     name: Publish to PyPI
@@ -177,6 +188,12 @@ jobs:
         with:
           name: npm-cascadeflow-vercel-ai
           path: packages/integrations/vercel-ai/
+
+      - name: Download @cascadeflow/paygentic
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-cascadeflow-paygentic
+          path: packages/integrations/paygentic/
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -258,6 +275,21 @@ jobs:
         run: |
           set -euo pipefail
           cd packages/integrations/vercel-ai
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
+            exit 0
+          fi
+          TARBALL=$(pnpm pack --pack-destination .)
+          npm publish "$TARBALL" --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @cascadeflow/paygentic
+        run: |
+          set -euo pipefail
+          cd packages/integrations/paygentic
           PACKAGE_NAME=$(node -p "require('./package.json').name")
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then

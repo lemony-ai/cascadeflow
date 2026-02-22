@@ -434,7 +434,7 @@ Make sure you've connected an AI Chat Model to the **Verifier** input port.
 
 ## Version History
 
-### v0.7.9 (Latest)
+### v1.0.0 (Latest)
 
 - **CascadeFlow Agent → standalone node**: Converted from `supplyData()` sub-node to `execute()` node with main in/out
 - **Memory support**: Added `ai_memory` input for conversation history (Window Buffer Memory, etc.)

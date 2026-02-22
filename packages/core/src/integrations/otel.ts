@@ -278,7 +278,7 @@ export class OpenTelemetryExporter {
       metrics.setGlobalMeterProvider(provider);
 
       // Get meter for this library
-      this.meter = metrics.getMeter('cascadeflow', '0.7.0');
+      this.meter = metrics.getMeter('cascadeflow', '1.0.0');
 
       // Create metrics
       this.metrics = {

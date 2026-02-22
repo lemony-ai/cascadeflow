@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/paygentic",
-  "version": "0.7.2",
+  "version": "1.0.0",
   "description": "Optional Paygentic billing integration for cascadeflow (usage events, customer/subscription helpers)",
   "author": {
     "name": "Lemony Inc.",
