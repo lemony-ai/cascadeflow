@@ -283,7 +283,9 @@ def normalize_tool_call(raw_call, call_index):
     if not isinstance(raw_call, dict):
         return None
 
-    function_payload = raw_call.get("function", {}) if isinstance(raw_call.get("function"), dict) else {}
+    function_payload = (
+        raw_call.get("function", {}) if isinstance(raw_call.get("function"), dict) else {}
+    )
     name = raw_call.get("name") or function_payload.get("name")
     if not name:
         return None
@@ -379,7 +381,9 @@ async def run_tool_conversation(agent, executor, query, tools, max_turns=7):
 
             tool_results = await execute_tool_calls(normalized_tool_calls, executor)
             for tool_call, tool_result in zip(normalized_tool_calls, tool_results):
-                payload = tool_result.result if tool_result.success else {"error": tool_result.error}
+                payload = (
+                    tool_result.result if tool_result.success else {"error": tool_result.error}
+                )
                 messages.append(
                     {
                         "role": "tool",
