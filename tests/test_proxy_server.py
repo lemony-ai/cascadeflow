@@ -156,6 +156,29 @@ def test_models_list(proxy_server):
     assert "cascadeflow-auto" in ids
 
 
+@pytest.mark.parametrize("path", ["/stats", "/v1/stats"])
+def test_stats_endpoint_returns_json_not_found_in_mock_mode(proxy_server, path):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}{path}"
+    response = httpx.get(url, timeout=5.0, trust_env=False)
+    assert response.status_code == 404
+
+    data = response.json()
+    assert data["error"]["type"] == "not_found_error"
+    assert "mock mode" in data["error"]["message"].lower()
+
+
+def test_unknown_endpoint_returns_json_not_found(proxy_server):
+    proxy, _ = proxy_server
+    url = f"http://{proxy.host}:{proxy.port}/v1/unknown-endpoint"
+    response = httpx.get(url, timeout=5.0, trust_env=False)
+    assert response.status_code == 404
+
+    data = response.json()
+    assert data["error"]["type"] == "not_found_error"
+    assert "unknown endpoint" in data["error"]["message"].lower()
+
+
 def test_openai_legacy_completions(proxy_server):
     proxy, _ = proxy_server
     url = f"http://{proxy.host}:{proxy.port}/v1/completions"
