@@ -1,4 +1,4 @@
 interface:
   display_name: "CascadeFlow: Cost + Latency Reduction"
-  short_description: "Lower cost/latency via cascading, with streaming and agent loops"
-  default_prompt: "Use $cascadeflow to set up provider config, presets, and /model cflow with secure defaults."
+  short_description: "Cascading savings with OpenClaw-native routing"
+  default_prompt: "Use $cascadeflow to configure a secure localhost provider, required keys/tokens, and /model cflow."

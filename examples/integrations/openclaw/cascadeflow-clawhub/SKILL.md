@@ -14,6 +14,14 @@ Use CascadeFlow as an OpenClaw provider to lower cost and latency via cascading.
 - Support cascading with streaming and multi-step agent loops.
 - Handle OpenClaw-native event/domain signals for smarter model selection.
 
+## Security Defaults
+
+- Install from PyPI and verify package metadata before first run.
+- Keep the server bound to localhost by default.
+- Use explicit auth tokens for chat and stats endpoints.
+- Expose remote access only behind TLS/reverse proxy with strong tokens.
+- Use least-privilege provider keys (separate test keys from production keys).
+
 ## How It Works
 
 1. OpenClaw sends requests to CascadeFlow through OpenAI-compatible `/v1/chat/completions`.
@@ -34,29 +42,31 @@ Use CascadeFlow as an OpenClaw provider to lower cost and latency via cascading.
 
 Or ask your OpenClaw agent to set it up for you as an OpenClaw custom provider with OpenClaw-native events and domain understanding.
 
-1. Install:
+1. Install and verify package source:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install "cascadeflow[openclaw]"
+python -m pip install --upgrade "cascadeflow[openclaw]>=0.7,<0.8"
+python -m pip show cascadeflow
 ```
 
 Optional variants:
 ```bash
-pip install "cascadeflow[openclaw,anthropic]"   # Anthropic-only preset
-pip install "cascadeflow[openclaw,openai]"      # OpenAI-only preset
-pip install "cascadeflow[openclaw,providers]"   # Mixed preset
+python -m pip install --upgrade "cascadeflow[openclaw,anthropic]>=0.7,<0.8"   # Anthropic-only preset
+python -m pip install --upgrade "cascadeflow[openclaw,openai]>=0.7,<0.8"      # OpenAI-only preset
+python -m pip install --upgrade "cascadeflow[openclaw,providers]>=0.7,<0.8"   # Mixed preset
 ```
 
-2. Pick preset + keys:
+2. Pick preset + required credentials:
 - Presets: `examples/configs/anthropic-only.yaml`, `examples/configs/openai-only.yaml`, `examples/configs/mixed-anthropic-openai.yaml`
-- `.env`: `ANTHROPIC_API_KEY=...` and/or `OPENAI_API_KEY=...`
+- Provider key(s): `ANTHROPIC_API_KEY=...` and/or `OPENAI_API_KEY=...`
+- Service tokens: `--auth-token ...` and `--stats-auth-token ...` (use long random values; examples below are placeholders)
 
-3. Start server:
+3. Start server (safe local default):
 ```bash
 set -a; source .env; set +a
 python3 -m cascadeflow.integrations.openclaw.openai_server \
-  --host <bind-host> --port 8084 \
+  --host 127.0.0.1 --port 8084 \
   --config examples/configs/anthropic-only.yaml \
   --auth-token local-openclaw-token \
   --stats-auth-token local-stats-token
@@ -67,6 +77,7 @@ python3 -m cascadeflow.integrations.openclaw.openai_server \
 - If remote: `http://<server-ip>:8084/v1` or `https://<domain>/v1` (TLS/reverse proxy)
 - `api`: `openai-completions`
 - `model`: `cascadeflow`
+- `apiKey`: same value as your `--auth-token`
 
 ## Commands
 
@@ -80,3 +91,4 @@ python3 -m cascadeflow.integrations.openclaw.openai_server \
 - Full setup + configs: `references/clawhub_publish_pack.md`
 - Listing strategy: `references/market_positioning.md`
 - Official docs: `https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/openclaw_provider.md`
+- GitHub repository: `https://github.com/lemony-ai/cascadeflow`
