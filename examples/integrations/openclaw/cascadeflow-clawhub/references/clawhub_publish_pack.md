@@ -39,12 +39,12 @@ Result:
 - `source_url`: `https://github.com/lemony-ai/cascadeflow`
 - `homepage_url`: `https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/openclaw_provider.md`
 
-## Required Credentials (declare in listing)
+## Credentials To Declare In Listing
 
-- `OPENAI_API_KEY` (when using OpenAI models/preset)
-- `ANTHROPIC_API_KEY` (when using Anthropic models/preset)
-- `CASCADEFLOW_AUTH_TOKEN` (maps to server `--auth-token`)
-- `CASCADEFLOW_STATS_AUTH_TOKEN` (maps to server `--stats-auth-token`)
+- `OPENAI_API_KEY` (required when using OpenAI models/preset)
+- `ANTHROPIC_API_KEY` (required when using Anthropic models/preset)
+- `CASCADEFLOW_AUTH_TOKEN` (recommended in production; maps to server `--auth-token`)
+- `CASCADEFLOW_STATS_AUTH_TOKEN` (optional separate stats token; maps to server `--stats-auth-token`)
 
 Do not leave credential requirements empty in listing metadata.
 Use strong random token values in production (examples in this file are placeholders).
@@ -71,6 +71,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade "cascadeflow[openclaw]>=0.7,<0.8"
 python -m pip show cascadeflow
+python -m pip download --no-deps "cascadeflow[openclaw]>=0.7,<0.8" -d /tmp/cascadeflow_pkg
+python -m pip hash /tmp/cascadeflow_pkg/cascadeflow-*.whl
 ```
 
 Quick provider variants:

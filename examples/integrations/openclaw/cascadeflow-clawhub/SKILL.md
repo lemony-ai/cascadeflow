@@ -16,9 +16,9 @@ Use CascadeFlow as an OpenClaw provider to lower cost and latency via cascading.
 
 ## Security Defaults
 
-- Install from PyPI and verify package metadata before first run.
+- Install from PyPI and verify package artifact before first run.
 - Keep the server bound to localhost by default.
-- Use explicit auth tokens for chat and stats endpoints.
+- Use explicit auth tokens for chat and stats endpoints (recommended for production).
 - Expose remote access only behind TLS/reverse proxy with strong tokens.
 - Use least-privilege provider keys (separate test keys from production keys).
 
@@ -48,6 +48,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade "cascadeflow[openclaw]>=0.7,<0.8"
 python -m pip show cascadeflow
+python -m pip download --no-deps "cascadeflow[openclaw]>=0.7,<0.8" -d /tmp/cascadeflow_pkg
+python -m pip hash /tmp/cascadeflow_pkg/cascadeflow-*.whl
 ```
 
 Optional variants:
@@ -57,10 +59,10 @@ python -m pip install --upgrade "cascadeflow[openclaw,openai]>=0.7,<0.8"      # 
 python -m pip install --upgrade "cascadeflow[openclaw,providers]>=0.7,<0.8"   # Mixed preset
 ```
 
-2. Pick preset + required credentials:
+2. Pick preset + credentials:
 - Presets: `examples/configs/anthropic-only.yaml`, `examples/configs/openai-only.yaml`, `examples/configs/mixed-anthropic-openai.yaml`
-- Provider key(s): `ANTHROPIC_API_KEY=...` and/or `OPENAI_API_KEY=...`
-- Service tokens: `--auth-token ...` and `--stats-auth-token ...` (use long random values; examples below are placeholders)
+- Provider key(s): `ANTHROPIC_API_KEY=...` and/or `OPENAI_API_KEY=...` (required based on selected preset)
+- Service tokens: `--auth-token ...` and `--stats-auth-token ...` (recommended for production; use long random values)
 
 3. Start server (safe local default):
 ```bash
