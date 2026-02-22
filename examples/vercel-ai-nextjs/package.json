@@ -4,16 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "predev": "pnpm -C ../../packages/core build && pnpm -C ../../packages/integrations/vercel-ai build",
-    "dev": "next dev --webpack",
-    "prebuild": "pnpm -C ../../packages/core build && pnpm -C ../../packages/integrations/vercel-ai build",
-    "build": "next build --webpack",
+    "dev": "if [ -f ../../packages/core/package.json ]; then pnpm -C ../../packages/core build && pnpm -C ../../packages/integrations/vercel-ai build; fi; next dev --webpack",
+    "build": "if [ -f ../../packages/core/package.json ]; then pnpm -C ../../packages/core build && pnpm -C ../../packages/integrations/vercel-ai build; fi; next build --webpack",
     "start": "next start"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.0",
-    "@cascadeflow/core": "workspace:*",
-    "@cascadeflow/vercel-ai": "workspace:*",
+    "@cascadeflow/core": "^0.7.2",
+    "@cascadeflow/vercel-ai": "^0.7.6",
     "ai": "^6.0.0",
     "next": "^16.1.6",
     "react": "^19.0.0",

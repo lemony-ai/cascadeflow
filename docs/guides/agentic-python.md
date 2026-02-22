@@ -92,8 +92,8 @@ executor = ToolExecutor([
 
 agent = CascadeAgent(
     models=[
-        ModelConfig("gpt-4o-mini", "openai", cost=0.00015, supports_tools=True),
-        ModelConfig("gpt-4o", "openai", cost=0.00625, supports_tools=True),
+        ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015, supports_tools=True),
+        ModelConfig(name="gpt-4o", provider="openai", cost=0.00625, supports_tools=True),
     ],
     tool_executor=executor,
 )

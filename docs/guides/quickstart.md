@@ -544,8 +544,8 @@ python examples/basic_usage.py --verbose
 from cascadeflow import CascadeAgent, ModelConfig
 
 agent = CascadeAgent(models=[
-    ModelConfig("gpt-4o-mini", "openai", cost=0.000375),
-    ModelConfig("gpt-4o", "openai", cost=0.00625),
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
 ])
 
 result = await agent.run("Your query here")

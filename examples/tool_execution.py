@@ -40,6 +40,7 @@ Documentation:
 """
 
 import asyncio
+import json
 import os
 from datetime import datetime
 
@@ -277,6 +278,36 @@ async def execute_tool_calls(tool_calls, executor):
     return results
 
 
+def normalize_tool_call(raw_call, call_index):
+    """Normalize tool call shapes across providers into a common format."""
+    if not isinstance(raw_call, dict):
+        return None
+
+    function_payload = (
+        raw_call.get("function", {}) if isinstance(raw_call.get("function"), dict) else {}
+    )
+    name = raw_call.get("name") or function_payload.get("name")
+    if not name:
+        return None
+
+    raw_arguments = raw_call.get("arguments", function_payload.get("arguments", {}))
+    if isinstance(raw_arguments, str):
+        try:
+            arguments = json.loads(raw_arguments)
+        except json.JSONDecodeError:
+            arguments = {"value": raw_arguments}
+    elif isinstance(raw_arguments, dict):
+        arguments = raw_arguments
+    else:
+        arguments = {}
+
+    return {
+        "id": raw_call.get("id", f"call_{call_index}"),
+        "name": name,
+        "arguments": arguments,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # STEP 5: Multi-Turn Conversation Loop
 # ═══════════════════════════════════════════════════════════════════════════
@@ -302,24 +333,93 @@ async def run_tool_conversation(agent, executor, query, tools, max_turns=7):
 
     print("\n--- Tool Loop Execution ---")
 
-    # Let CascadeAgent handle closed tool loops using the registered executor.
-    # This is the recommended production pattern for tool-enabled cascades.
-    result = await agent.run(
-        query=query,
-        tools=tools,
-        max_tokens=500,
-        temperature=0.7,
-        max_steps=max_turns,
-    )
+    messages = [{"role": "user", "content": query}]
+    total_cost = 0.0
+    model_used = None
+    tool_calls_executed = 0
+    final_answer = ""
+
+    for _ in range(max_turns):
+        result = await agent.run(
+            query=query,
+            messages=messages,
+            tools=tools,
+            max_tokens=500,
+            temperature=0.7,
+            max_steps=max_turns,
+        )
+        total_cost += result.total_cost or 0.0
+        model_used = result.model_used or model_used
+
+        content = (result.content or "").strip()
+        raw_tool_calls = result.tool_calls or []
+        normalized_tool_calls = []
+        for i, raw_tool_call in enumerate(raw_tool_calls):
+            normalized = normalize_tool_call(raw_tool_call, tool_calls_executed + i)
+            if normalized:
+                normalized_tool_calls.append(normalized)
+
+        if normalized_tool_calls:
+            tool_calls_executed += len(normalized_tool_calls)
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": content or "",
+                    "tool_calls": [
+                        {
+                            "id": tool_call["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tool_call["name"],
+                                "arguments": json.dumps(tool_call["arguments"]),
+                            },
+                        }
+                        for tool_call in normalized_tool_calls
+                    ],
+                }
+            )
+
+            tool_results = await execute_tool_calls(normalized_tool_calls, executor)
+            for tool_call, tool_result in zip(normalized_tool_calls, tool_results):
+                payload = (
+                    tool_result.result if tool_result.success else {"error": tool_result.error}
+                )
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "name": tool_call["name"],
+                        "content": json.dumps(payload),
+                    }
+                )
+            continue
+
+        if content:
+            final_answer = content
+            break
+
+    if not final_answer:
+        fallback = await agent.run(
+            query=query,
+            messages=messages,
+            tools=tools,
+            max_tokens=300,
+            temperature=0.2,
+            max_steps=1,
+        )
+        total_cost += fallback.total_cost or 0.0
+        model_used = fallback.model_used or model_used
+        final_answer = (fallback.content or "").strip()
 
     print("\n✅ Final Answer:")
-    print(f"   {result.content}\n")
+    print(f"   {final_answer}\n")
 
     return {
-        "answer": result.content,
-        "turns": max_turns,
-        "total_cost": result.total_cost,
-        "model_used": result.model_used,
+        "answer": final_answer,
+        "turns": len(messages),
+        "tool_calls": tool_calls_executed,
+        "total_cost": total_cost,
+        "model_used": model_used,
     }
 
 
@@ -404,6 +504,7 @@ async def main():
 
     print("\n📊 Example 1 Stats:")
     print(f"   Turns: {result1['turns']}")
+    print(f"   Tool calls: {result1['tool_calls']}")
     print(f"   Model: {result1['model_used']}")
     print(f"   Cost: ${result1['total_cost']:.6f}")
 
@@ -424,6 +525,7 @@ async def main():
 
     print("\n📊 Example 2 Stats:")
     print(f"   Turns: {result2['turns']}")
+    print(f"   Tool calls: {result2['tool_calls']}")
     print(f"   Model: {result2['model_used']}")
     print(f"   Cost: ${result2['total_cost']:.6f}")
 
@@ -444,6 +546,7 @@ async def main():
 
     print("\n📊 Example 3 Stats:")
     print(f"   Turns: {result3['turns']}")
+    print(f"   Tool calls: {result3['tool_calls']}")
     print(f"   Model: {result3['model_used']}")
     print(f"   Cost: ${result3['total_cost']:.6f}")
 

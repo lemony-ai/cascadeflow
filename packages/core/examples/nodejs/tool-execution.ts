@@ -11,7 +11,7 @@
  * Usage: npx tsx examples/nodejs/tool-execution.ts
  */
 
-import { CascadeAgent } from '@cascadeflow/core';
+import { CascadeAgent, type Message, type Tool } from '@cascadeflow/core';
 import { safeCalculateExpression } from './safe-math';
 
 // ============================================================================
@@ -237,12 +237,127 @@ function executeToolCall(toolName: string, args: any): string {
 // Example Scenarios
 // ============================================================================
 
+type NormalizedToolCall = {
+  id: string;
+  name: string;
+  arguments: Record<string, any>;
+};
+
+type ExecutedToolCall = {
+  call: NormalizedToolCall;
+  result: string;
+};
+
+function parseArgs(raw: string): Record<string, any> {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeToolCall(raw: any, index: number): NormalizedToolCall | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const fn = raw.function && typeof raw.function === 'object' ? raw.function : {};
+  const name = fn.name || raw.name;
+  if (!name) return null;
+  const args = typeof fn.arguments === 'string' ? parseArgs(fn.arguments) : {};
+  return {
+    id: raw.id || `call_${index}`,
+    name,
+    arguments: args,
+  };
+}
+
+async function runToolConversation(params: {
+  agent: CascadeAgent;
+  query: string;
+  tools: Tool[];
+  maxTurns?: number;
+}) {
+  const { agent, query, tools, maxTurns = 7 } = params;
+  const messages: Message[] = [{ role: 'user', content: query }];
+  const executed: ExecutedToolCall[] = [];
+  let totalCost = 0;
+  let modelUsed = '';
+  let finalResponse = '';
+
+  for (let turn = 0; turn < maxTurns; turn += 1) {
+    const result = await agent.run(messages, {
+      tools,
+      maxTokens: 250,
+      temperature: 0.4,
+      maxSteps: maxTurns,
+    });
+
+    totalCost += result.totalCost || 0;
+    modelUsed = result.modelUsed || modelUsed;
+    const content = (result.content || '').trim();
+    const rawToolCalls = Array.isArray(result.toolCalls) ? result.toolCalls : [];
+    const normalized = rawToolCalls
+      .map((raw, i) => normalizeToolCall(raw, executed.length + i))
+      .filter((v): v is NormalizedToolCall => Boolean(v));
+
+    if (normalized.length > 0) {
+      messages.push({
+        role: 'assistant',
+        content: content || '',
+        tool_calls: normalized.map(call => ({
+          id: call.id,
+          type: 'function' as const,
+          function: {
+            name: call.name,
+            arguments: JSON.stringify(call.arguments),
+          },
+        })),
+      });
+
+      for (const toolCall of normalized) {
+        const toolResult = executeToolCall(toolCall.name, toolCall.arguments);
+        executed.push({ call: toolCall, result: toolResult });
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.name,
+          content: toolResult,
+        });
+      }
+      continue;
+    }
+
+    if (content) {
+      finalResponse = content;
+      break;
+    }
+  }
+
+  if (!finalResponse) {
+    const fallback = await agent.run(messages, {
+      tools,
+      maxTokens: 200,
+      temperature: 0.2,
+      maxSteps: 1,
+    });
+    totalCost += fallback.totalCost || 0;
+    modelUsed = fallback.modelUsed || modelUsed;
+    finalResponse = (fallback.content || '').trim();
+  }
+
+  return {
+    modelUsed,
+    totalCost,
+    finalResponse,
+    turns: messages.length,
+    executed,
+  };
+}
+
 async function main() {
   console.log('\n╔═══════════════════════════════════════════════════════════════╗');
   console.log('║         cascadeflow - Tool Execution Examples                ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝\n');
 
-  // Check for API key
   if (!process.env.OPENAI_API_KEY) {
     console.log('⚠️  OPENAI_API_KEY not found in environment');
     console.log('   Set it in .env file or export OPENAI_API_KEY=your_key');
@@ -250,21 +365,10 @@ async function main() {
     return;
   }
 
-  // Initialize agent with tool support
   const agent = new CascadeAgent({
     models: [
-      {
-        name: 'gpt-4o-mini',
-        provider: 'openai',
-        cost: 0.00015,
-        supportsTools: true,
-      },
-      {
-        name: 'gpt-4o',
-        provider: 'openai',
-        cost: 0.00625,
-        supportsTools: true,
-      },
+      { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, supportsTools: true },
+      { name: 'gpt-4o', provider: 'openai', cost: 0.00625, supportsTools: true },
     ],
     quality: {
       threshold: 0.7,
@@ -278,235 +382,73 @@ async function main() {
   console.log('   • Email sending (simulated)');
   console.log('');
 
-  // ======================================================================
-  // Example 1: Single Tool Call (Weather)
-  // ======================================================================
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Example 1: Single Tool Call (Weather)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  const scenarios: Array<{ title: string; query: string; tools: Tool[] }> = [
+    {
+      title: 'Example 1: Single Tool Call (Weather)',
+      query: "What's the weather like in San Francisco?",
+      tools: [weatherTool],
+    },
+    {
+      title: 'Example 2: Mathematical Calculations',
+      query: 'Calculate the square root of 144 and then multiply it by 5',
+      tools: [calculatorTool],
+    },
+    {
+      title: 'Example 3: Database Search',
+      query: 'Search for electronics products',
+      tools: [searchTool],
+    },
+    {
+      title: 'Example 4: Multi-Tool Workflow',
+      query: 'Check the weather in New York and send me an email about it',
+      tools: [weatherTool, emailTool],
+    },
+    {
+      title: 'Example 5: Error Handling',
+      query: 'Calculate the result of dividing by zero: 10 / 0',
+      tools: [calculatorTool],
+    },
+  ];
 
-  try {
-    const result1 = await agent.run(
-      "What's the weather like in San Francisco?",
-      {
-        maxTokens: 150,
-        tools: [weatherTool],
+  let aggregateCost = 0;
+  let aggregateCalls = 0;
+  let nonEmptyResponses = 0;
+
+  for (const scenario of scenarios) {
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(scenario.title);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    try {
+      const result = await runToolConversation({
+        agent,
+        query: scenario.query,
+        tools: scenario.tools,
+      });
+
+      aggregateCost += result.totalCost;
+      aggregateCalls += result.executed.length;
+      if (result.finalResponse) nonEmptyResponses += 1;
+
+      console.log(`Query: ${scenario.query}`);
+      console.log(`Model: ${result.modelUsed}`);
+      console.log(`Turns: ${result.turns}`);
+      console.log(`🔧 Tool Calls Made: ${result.executed.length}`);
+
+      for (const [index, executed] of result.executed.entries()) {
+        console.log(`\n   Call ${index + 1}:`);
+        console.log(`   Tool: ${executed.call.name}`);
+        console.log(`   Arguments: ${JSON.stringify(executed.call.arguments)}`);
+        console.log(`   Result: ${executed.result}`);
       }
-    );
 
-    console.log('Query: What\'s the weather like in San Francisco?');
-    console.log(`Model: ${result1.modelUsed}`);
-
-    if (result1.toolCalls && result1.toolCalls.length > 0) {
-      console.log(`\n🔧 Tool Calls Made: ${result1.toolCalls.length}`);
-
-      for (const toolCall of result1.toolCalls) {
-        console.log(`\n   Tool: ${toolCall.function.name}`);
-        console.log(`   Arguments: ${toolCall.function.arguments}`);
-
-        // Execute the tool
-        const toolResult = executeToolCall(
-          toolCall.function.name,
-          JSON.parse(toolCall.function.arguments)
-        );
-        console.log(`   Result: ${toolResult}`);
-      }
+      console.log(`\n💬 Response: ${result.finalResponse}`);
+      console.log(`💰 Cost: $${result.totalCost.toFixed(6)}`);
+    } catch (error) {
+      console.error('Error:', error instanceof Error ? error.message : error);
     }
-
-    console.log(`\n💬 Response: ${result1.content}`);
-    console.log(`💰 Cost: $${result1.totalCost.toFixed(6)}`);
-  } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : error);
   }
 
-  // ======================================================================
-  // Example 2: Multiple Tool Calls (Calculator)
-  // ======================================================================
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Example 2: Mathematical Calculations');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-  try {
-    const result2 = await agent.run(
-      "Calculate the square root of 144 and then multiply it by 5",
-      {
-        maxTokens: 200,
-        tools: [calculatorTool],
-      }
-    );
-
-    console.log('Query: Calculate sqrt(144) * 5');
-    console.log(`Model: ${result2.modelUsed}`);
-
-    if (result2.toolCalls && result2.toolCalls.length > 0) {
-      console.log(`\n🔧 Tool Calls Made: ${result2.toolCalls.length}`);
-
-      for (let i = 0; i < result2.toolCalls.length; i++) {
-        const toolCall = result2.toolCalls[i];
-        console.log(`\n   Call ${i + 1}:`);
-        console.log(`   Tool: ${toolCall.function.name}`);
-        console.log(`   Expression: ${JSON.parse(toolCall.function.arguments).expression}`);
-
-        const toolResult = executeToolCall(
-          toolCall.function.name,
-          JSON.parse(toolCall.function.arguments)
-        );
-        const parsed = JSON.parse(toolResult);
-        console.log(`   Result: ${parsed.result}`);
-      }
-    }
-
-    console.log(`\n💬 Response: ${result2.content}`);
-    console.log(`💰 Cost: $${result2.totalCost.toFixed(6)}`);
-  } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : error);
-  }
-
-  // ======================================================================
-  // Example 3: Database Search
-  // ======================================================================
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Example 3: Database Search');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-  try {
-    const result3 = await agent.run(
-      "Search for electronics products",
-      {
-        maxTokens: 200,
-        tools: [searchTool],
-      }
-    );
-
-    console.log('Query: Search for electronics products');
-    console.log(`Model: ${result3.modelUsed}`);
-
-    if (result3.toolCalls && result3.toolCalls.length > 0) {
-      for (const toolCall of result3.toolCalls) {
-        console.log(`\n🔧 Tool: ${toolCall.function.name}`);
-
-        const toolResult = executeToolCall(
-          toolCall.function.name,
-          JSON.parse(toolCall.function.arguments)
-        );
-        const parsed = JSON.parse(toolResult);
-
-        console.log(`   Query: "${parsed.query}"`);
-        console.log(`   Category: ${parsed.category}`);
-        console.log(`   Results: ${parsed.total_results} found`);
-
-        if (parsed.results && parsed.results.length > 0) {
-          console.log('\n   Products:');
-          parsed.results.forEach((product: any, idx: number) => {
-            console.log(`   ${idx + 1}. ${product.name} - $${product.price}`);
-          });
-        }
-      }
-    }
-
-    console.log(`\n💬 Response: ${result3.content}`);
-    console.log(`💰 Cost: $${result3.totalCost.toFixed(6)}`);
-  } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : error);
-  }
-
-  // ======================================================================
-  // Example 4: Multi-Tool Workflow
-  // ======================================================================
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Example 4: Multi-Tool Workflow');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-  try {
-    const result4 = await agent.run(
-      "Check the weather in New York and send me an email about it",
-      {
-        maxTokens: 250,
-        tools: [weatherTool, emailTool],
-      }
-    );
-
-    console.log('Query: Check weather and send email');
-    console.log(`Model: ${result4.modelUsed}`);
-
-    if (result4.toolCalls && result4.toolCalls.length > 0) {
-      console.log(`\n🔧 Multi-Step Workflow: ${result4.toolCalls.length} tools used\n`);
-
-      for (let i = 0; i < result4.toolCalls.length; i++) {
-        const toolCall = result4.toolCalls[i];
-        console.log(`   Step ${i + 1}: ${toolCall.function.name}`);
-
-        const toolResult = executeToolCall(
-          toolCall.function.name,
-          JSON.parse(toolCall.function.arguments)
-        );
-        const parsed = JSON.parse(toolResult);
-
-        if (toolCall.function.name === 'get_weather') {
-          console.log(`   └─ Location: ${parsed.location}`);
-          console.log(`   └─ Temperature: ${parsed.temperature}°${parsed.units === 'celsius' ? 'C' : 'F'}`);
-          console.log(`   └─ Condition: ${parsed.condition}`);
-        } else if (toolCall.function.name === 'send_email') {
-          console.log(`   └─ To: ${parsed.to}`);
-          console.log(`   └─ Subject: ${parsed.subject}`);
-          console.log(`   └─ Status: ${parsed.status}`);
-        }
-        console.log('');
-      }
-    }
-
-    console.log(`💬 Response: ${result4.content}`);
-    console.log(`💰 Cost: $${result4.totalCost.toFixed(6)}`);
-  } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : error);
-  }
-
-  // ======================================================================
-  // Example 5: Tool Error Handling
-  // ======================================================================
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Example 5: Error Handling');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-  try {
-    const result5 = await agent.run(
-      "Calculate the result of dividing by zero: 10 / 0",
-      {
-        maxTokens: 150,
-        tools: [calculatorTool],
-      }
-    );
-
-    console.log('Query: Calculate 10 / 0 (error case)');
-    console.log(`Model: ${result5.modelUsed}`);
-
-    if (result5.toolCalls && result5.toolCalls.length > 0) {
-      for (const toolCall of result5.toolCalls) {
-        const toolResult = executeToolCall(
-          toolCall.function.name,
-          JSON.parse(toolCall.function.arguments)
-        );
-        const parsed = JSON.parse(toolResult);
-
-        console.log('\n🔧 Tool Call Result:');
-        if (parsed.error) {
-          console.log(`   ⚠️  Error: ${parsed.error}`);
-          console.log(`   Message: ${parsed.message}`);
-        } else {
-          console.log(`   Result: ${parsed.result}`);
-        }
-      }
-    }
-
-    console.log(`\n💬 Response: ${result5.content}`);
-    console.log(`💰 Cost: $${result5.totalCost.toFixed(6)}`);
-  } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : error);
-  }
-
-  // ======================================================================
-  // Summary
-  // ======================================================================
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('📊 Tool Calling Summary');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -516,14 +458,12 @@ async function main() {
   console.log('   • Multiple sequential tool calls');
   console.log('   • Multi-tool workflows');
   console.log('   • Error handling');
-  console.log('   • Tool result parsing');
+  console.log('   • Closed tool loop continuation');
   console.log('');
-  console.log('🎯 Key Takeaways:');
-  console.log('   • Tools are passed via the tools parameter');
-  console.log('   • cascadeflow works with any tool-compatible provider');
-  console.log('   • Tool results are returned in result.toolCalls');
-  console.log('   • You execute tools and feed results back as needed');
-  console.log('   • Cost optimization applies to tool-using queries too');
+  console.log('🎯 Validation Outcomes:');
+  console.log(`   • Total tool calls executed: ${aggregateCalls}`);
+  console.log(`   • Non-empty final responses: ${nonEmptyResponses}/${scenarios.length}`);
+  console.log(`   • Total demo cost: $${aggregateCost.toFixed(6)}`);
   console.log('');
   console.log('📚 Learn More:');
   console.log('   • See streaming-tools.ts for streaming with tools');

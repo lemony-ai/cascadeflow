@@ -155,9 +155,9 @@ Query 6/8: Explain quantum entanglement...
 **Example setup:**
 ```python
 agent = CascadeAgent(models=[
-    ModelConfig("llama-3.1-8b", "groq", cost=0.00005),         # Fast & cheap
-    ModelConfig("gpt-4o", "openai", cost=0.00625),             # Quality
-    ModelConfig("claude-3-5-sonnet", "anthropic", cost=0.003), # Reasoning
+    ModelConfig(name="llama-3.1-8b", provider="groq", cost=0.00005),         # Fast & cheap
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),             # Quality
+    ModelConfig(name="claude-3-5-sonnet", provider="anthropic", cost=0.003), # Reasoning
 ])
 ```
 

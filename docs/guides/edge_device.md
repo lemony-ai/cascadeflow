@@ -219,20 +219,20 @@ agent = CascadeAgent(models=models, quality_config=quality_config)
 ```python
 # Jetson Nano (4GB)
 models = [
-    ModelConfig("meta-llama/Llama-3.2-1B-Instruct", "vllm", cost=0),
-    ModelConfig("gpt-4o-mini", "openai", cost=0.00015),
+    ModelConfig(name="meta-llama/Llama-3.2-1B-Instruct", provider="vllm", cost=0),
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
 ]
 
 # Jetson Orin Nano (8GB) - Recommended
 models = [
-    ModelConfig("meta-llama/Llama-3.2-3B-Instruct", "vllm", cost=0),
-    ModelConfig("claude-3-5-sonnet", "anthropic", cost=0.003),
+    ModelConfig(name="meta-llama/Llama-3.2-3B-Instruct", provider="vllm", cost=0),
+    ModelConfig(name="claude-3-5-sonnet", provider="anthropic", cost=0.003),
 ]
 
 # Jetson Orin NX (16GB)
 models = [
-    ModelConfig("meta-llama/Llama-3.1-8B-Instruct", "vllm", cost=0),
-    ModelConfig("gpt-4o", "openai", cost=0.00625),
+    ModelConfig(name="meta-llama/Llama-3.1-8B-Instruct", provider="vllm", cost=0),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
 ]
 ```
 
@@ -260,7 +260,7 @@ for model_name in available_models:
     ))
 
 # Add cloud fallback
-models.append(ModelConfig("gpt-4o", "openai", cost=0.00625))
+models.append(ModelConfig(name="gpt-4o", provider="openai", cost=0.00625))
 
 agent = CascadeAgent(models=models)
 ```
@@ -282,8 +282,8 @@ agent = CascadeAgent(models=models)
 ```python
 # Edge processing for real-time decisions
 agent = CascadeAgent(models=[
-    ModelConfig("llama-3.2-3b", "vllm", cost=0),  # Local Jetson
-    ModelConfig("gpt-4o", "openai", cost=0.00625),  # Cloud expertise
+    ModelConfig(name="llama-3.2-3b", provider="vllm", cost=0),  # Local Jetson
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),  # Cloud expertise
 ])
 
 # Simple QC checks stay local (<50ms)
@@ -308,8 +308,8 @@ result = await agent.run(
 ```python
 # Medical device: Privacy-first with cloud fallback
 agent = CascadeAgent(models=[
-    ModelConfig("llama-3.1-8b-medical-finetune", "vllm", cost=0),
-    ModelConfig("claude-3-5-sonnet", "anthropic", cost=0.003),
+    ModelConfig(name="llama-3.1-8b-medical-finetune", provider="vllm", cost=0),
+    ModelConfig(name="claude-3-5-sonnet", provider="anthropic", cost=0.003),
 ])
 
 # Routine queries stay on device (HIPAA compliant)
