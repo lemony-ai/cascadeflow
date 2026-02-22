@@ -256,6 +256,7 @@ console.log(run.status, run.steps, run.message.content);
 ```
 
 Input can be a string, LangChain `BaseMessage[]`, or role/content message list for multi-turn conversations.
+`CascadeAgent` also supports multi-tool calls in a single step and keeps system prompts at the front of looped executions.
 
 ### Accessing Cascade Statistics
 

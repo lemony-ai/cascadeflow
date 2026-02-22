@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
+import { BaseMessage, HumanMessage, AIMessage, AIMessageChunk } from '@langchain/core/messages';
+import { ChatResult, ChatGenerationChunk } from '@langchain/core/outputs';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { CascadeFlow } from './wrapper.js';
 
@@ -55,6 +55,35 @@ class MockChatModel extends BaseChatModel {
   }
 }
 
+class MockStreamingChatModel extends MockChatModel {
+  streamResponses: ChatGenerationChunk[][];
+  streamCallCount = 0;
+
+  constructor(modelName: string, responses: ChatResult[] = [], streamResponses: ChatGenerationChunk[][] = []) {
+    super(modelName, responses);
+    this.streamResponses = streamResponses;
+  }
+
+  async *_streamResponseChunks(
+    _messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+    _runManager?: CallbackManagerForLLMRun
+  ): AsyncGenerator<ChatGenerationChunk> {
+    this.lastOptions = options;
+    const index = Math.min(this.streamCallCount, this.streamResponses.length - 1);
+    const response = this.streamResponses[index];
+    this.streamCallCount++;
+
+    if (!response) {
+      throw new Error('No mock stream response configured');
+    }
+
+    for (const chunk of response) {
+      yield chunk;
+    }
+  }
+}
+
 /**
  * Helper to create a ChatResult
  */
@@ -93,6 +122,33 @@ function createToolCallResult(toolName: string): ChatResult {
     ],
     llmOutput: {},
   };
+}
+
+function createStreamChunks(
+  parts: string[],
+  promptTokens: number,
+  completionTokens: number
+): ChatGenerationChunk[] {
+  return parts.map((part, index) => {
+    const isFinal = index === parts.length - 1;
+    const response_metadata = isFinal
+      ? {
+        tokenUsage: {
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+        },
+      }
+      : {};
+
+    return new ChatGenerationChunk({
+      text: part,
+      message: new AIMessageChunk({
+        content: part,
+        response_metadata,
+      } as any),
+    });
+  });
 }
 
 describe('CascadeFlow', () => {
@@ -742,6 +798,109 @@ describe('CascadeFlow', () => {
       await cascade._generate(messages, {});
       const stats2 = cascade.getLastCascadeResult();
       expect(stats2!.content).toBe('The second answer given here is even better with more detail and thorough explanation of the concepts. This response provides excellent clarity and demonstrates a deep understanding of the subject matter with well-structured reasoning that makes the content accessible to readers.');
+    });
+  });
+
+  describe('Streaming stats', () => {
+    it('should store accurate stats for accepted drafter streaming', async () => {
+      const draftChunks = createStreamChunks(
+        [
+          'This streaming draft is high quality and well-structured, with clear reasoning, concrete details, and complete coverage of the requested answer. ',
+          'It explains the rationale, includes examples, and closes with a concise summary so the response is comprehensive and confidently above the quality threshold for acceptance.',
+        ],
+        14,
+        10
+      );
+      const drafter = new MockStreamingChatModel('gpt-4o-mini', [], [draftChunks]);
+      const verifier = new MockStreamingChatModel('gpt-4o', [], []);
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        qualityThreshold: 0.7,
+        costTrackingProvider: 'cascadeflow',
+      });
+
+      const streamed: string[] = [];
+      for await (const chunk of (cascade as any)._streamResponseChunks([new HumanMessage('test')], {})) {
+        streamed.push(chunk.text);
+      }
+
+      expect(streamed.join('')).toContain('high quality');
+      const stats = cascade.getLastCascadeResult();
+      expect(stats).toBeDefined();
+      expect(stats!.modelUsed).toBe('drafter');
+      expect(stats!.accepted).toBe(true);
+      expect(stats!.drafterCost).toBeGreaterThan(0);
+      expect(stats!.verifierCost).toBe(0);
+      expect(stats!.savingsPercentage).toBeGreaterThan(0);
+      expect(verifier.streamCallCount).toBe(0);
+    });
+
+    it('should store accurate stats for escalated streaming', async () => {
+      const drafter = new MockStreamingChatModel(
+        'gpt-4o-mini',
+        [],
+        [createStreamChunks(['no'], 14, 1)]
+      );
+      const verifier = new MockStreamingChatModel(
+        'gpt-4o',
+        [],
+        [createStreamChunks(['The verified answer is 4.'], 14, 12)]
+      );
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        qualityThreshold: 0.7,
+        costTrackingProvider: 'cascadeflow',
+      });
+
+      for await (const chunk of (cascade as any)._streamResponseChunks([new HumanMessage('What is 2+2?')], {})) {
+        void chunk;
+        // consume stream
+      }
+
+      const stats = cascade.getLastCascadeResult();
+      expect(stats).toBeDefined();
+      expect(stats!.modelUsed).toBe('verifier');
+      expect(stats!.accepted).toBe(false);
+      expect(stats!.drafterCost).toBeGreaterThan(0);
+      expect(stats!.verifierCost).toBeGreaterThan(0);
+      expect(stats!.totalCost).toBe(stats!.drafterCost + stats!.verifierCost);
+    });
+
+    it('should store stats for direct-to-verifier streaming by domain policy', async () => {
+      const drafter = new MockStreamingChatModel('gpt-4o-mini', [], []);
+      const verifier = new MockStreamingChatModel(
+        'gpt-4o',
+        [],
+        [createStreamChunks(['Direct verifier path answer.'], 20, 9)]
+      );
+      const cascade = new CascadeFlow({
+        drafter,
+        verifier,
+        enablePreRouter: false,
+        costTrackingProvider: 'cascadeflow',
+        domainPolicies: {
+          legal: { directToVerifier: true },
+        },
+      });
+
+      for await (const chunk of (cascade as any)._streamResponseChunks(
+        [new HumanMessage('Review this contract')],
+        { metadata: { domain: 'legal' } }
+      )) {
+        void chunk;
+        // consume stream
+      }
+
+      const stats = cascade.getLastCascadeResult();
+      expect(stats).toBeDefined();
+      expect(stats!.modelUsed).toBe('verifier');
+      expect(stats!.accepted).toBe(false);
+      expect(stats!.drafterCost).toBe(0);
+      expect(stats!.verifierCost).toBeGreaterThan(0);
+      expect(drafter.streamCallCount).toBe(0);
+      expect(verifier.streamCallCount).toBe(1);
     });
   });
 });

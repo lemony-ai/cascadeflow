@@ -687,6 +687,42 @@ export class CascadeFlow extends BaseChatModel {
     runManager?: CallbackManagerForLLMRun
   ): AsyncGenerator<ChatGenerationChunk> {
     const startTime = Date.now();
+    const drafterModelName = resolveModelName(this.drafter);
+    const verifierModelName = resolveModelName(this.verifier);
+
+    const streamLlmOutput = (msg: any): Record<string, any> => {
+      const responseMetadata = msg?.response_metadata;
+      if (responseMetadata && typeof responseMetadata === 'object') {
+        return responseMetadata;
+      }
+
+      const usage = msg?.additional_kwargs?.usage || msg?.additional_kwargs?.tokenUsage;
+      if (usage && typeof usage === 'object') {
+        return { usage };
+      }
+
+      return {};
+    };
+
+    const streamResult = (content: string, lastMsg: any): ChatResult => {
+      const message = new AIMessage({
+        content,
+        additional_kwargs: lastMsg?.additional_kwargs ?? {},
+        tool_calls: lastMsg?.tool_calls ?? [],
+        invalid_tool_calls: lastMsg?.invalid_tool_calls ?? [],
+        response_metadata: lastMsg?.response_metadata ?? {},
+      } as any);
+
+      return {
+        generations: [
+          {
+            text: typeof message.content === 'string' ? message.content : '',
+            message,
+          },
+        ],
+        llmOutput: streamLlmOutput(lastMsg),
+      };
+    };
 
     // Merge bind kwargs with options
     const mergedOptions = { ...this.bindKwargs, ...options };
@@ -743,6 +779,8 @@ export class CascadeFlow extends BaseChatModel {
 
       // If direct routing, stream verifier only
       if (!useCascade || directToVerifierForDomain) {
+        let verifierContent = '';
+        let lastVerifierMsg: any;
         for await (const chunk of this.verifier._streamResponseChunks(
           messages,
           {
@@ -760,13 +798,37 @@ export class CascadeFlow extends BaseChatModel {
           },
           runManager
         )) {
+          const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
+          verifierContent += chunkText;
+          lastVerifierMsg = chunk.message;
           yield chunk;
         }
+
+        const verifierResult = streamResult(verifierContent, lastVerifierMsg);
+        const verifierTokens = extractTokenUsage(verifierResult);
+        const verifierCost =
+          this.config.costTrackingProvider === 'cascadeflow'
+            ? calculateCost(verifierModelName, verifierTokens.input, verifierTokens.output)
+            : 0;
+        const latencyMs = Date.now() - startTime;
+        this.lastCascadeResult = {
+          content: verifierResult.generations[0].text,
+          modelUsed: 'verifier',
+          drafterQuality: undefined,
+          accepted: false,
+          drafterCost: 0,
+          verifierCost,
+          totalCost: verifierCost,
+          savingsPercentage: 0,
+          latencyMs,
+        };
         return;
       }
     }
 
     if (directToVerifierForDomain) {
+      let verifierContent = '';
+      let lastVerifierMsg: any;
       for await (const chunk of this.verifier._streamResponseChunks(
         messages,
         {
@@ -789,8 +851,30 @@ export class CascadeFlow extends BaseChatModel {
         },
         runManager
       )) {
+        const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
+        verifierContent += chunkText;
+        lastVerifierMsg = chunk.message;
         yield chunk;
       }
+
+      const verifierResult = streamResult(verifierContent, lastVerifierMsg);
+      const verifierTokens = extractTokenUsage(verifierResult);
+      const verifierCost =
+        this.config.costTrackingProvider === 'cascadeflow'
+          ? calculateCost(verifierModelName, verifierTokens.input, verifierTokens.output)
+          : 0;
+      const latencyMs = Date.now() - startTime;
+      this.lastCascadeResult = {
+        content: verifierResult.generations[0].text,
+        modelUsed: 'verifier',
+        drafterQuality: undefined,
+        accepted: false,
+        drafterCost: 0,
+        verifierCost,
+        totalCost: verifierCost,
+        savingsPercentage: 0,
+        latencyMs,
+      };
       return;
     }
 
@@ -841,7 +925,7 @@ export class CascadeFlow extends BaseChatModel {
           message: combinedMessage,
         },
       ],
-      llmOutput: {},
+      llmOutput: streamLlmOutput(lastMsg),
     };
 
     const drafterQuality = this.config.qualityValidator
@@ -867,7 +951,6 @@ export class CascadeFlow extends BaseChatModel {
       if (emitSwitchMessage && !toolsBound) {
         const { ChatGenerationChunk } = await import('@langchain/core/outputs');
         const { AIMessageChunk } = await import('@langchain/core/messages');
-        const verifierModelName = resolveModelName(this.verifier);
         const switchMessage = `\n\n[CascadeFlow] Escalating to ${verifierModelName} (quality: ${drafterQuality.toFixed(2)} < ${effectiveQualityThreshold})\n\n`;
         yield new ChatGenerationChunk({
           text: switchMessage,
@@ -876,6 +959,8 @@ export class CascadeFlow extends BaseChatModel {
       }
 
       // Stream from verifier
+      let verifierContent = '';
+      let lastVerifierMsg: any;
       for await (const chunk of this.verifier._streamResponseChunks(
         messages,
         {
@@ -901,17 +986,42 @@ export class CascadeFlow extends BaseChatModel {
         },
         runManager
       )) {
+        const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
+        verifierContent += chunkText;
+        lastVerifierMsg = chunk.message;
         if (toolsBound) {
           yield chunk;
           continue;
         }
 
-        const chunkText = typeof chunk.message.content === 'string' ? chunk.message.content : '';
         yield new ChatGenerationChunk({
           text: chunkText,
           message: new AIMessageChunk({ content: chunkText }),
         });
       }
+
+      const verifierResult = streamResult(verifierContent, lastVerifierMsg);
+      const costMetadata = createCostMetadata(
+        drafterResult,
+        verifierResult,
+        drafterModelName,
+        verifierModelName,
+        false,
+        drafterQuality,
+        this.config.costTrackingProvider
+      );
+      const latencyMs = Date.now() - startTime;
+      this.lastCascadeResult = {
+        content: verifierResult.generations[0].text,
+        modelUsed: 'verifier',
+        drafterQuality,
+        accepted: false,
+        drafterCost: costMetadata.drafterCost,
+        verifierCost: costMetadata.verifierCost,
+        totalCost: costMetadata.totalCost,
+        savingsPercentage: costMetadata.savingsPercentage,
+        latencyMs,
+      };
       return;
     }
 
@@ -923,16 +1033,25 @@ export class CascadeFlow extends BaseChatModel {
     }
 
     // Store cascade result (simplified for streaming)
+    const costMetadata = createCostMetadata(
+      drafterResult,
+      null,
+      drafterModelName,
+      verifierModelName,
+      true,
+      drafterQuality,
+      this.config.costTrackingProvider
+    );
     const latencyMs = Date.now() - startTime;
     this.lastCascadeResult = {
       content: drafterContent,
-      modelUsed: accepted ? 'drafter' : 'verifier',
+      modelUsed: 'drafter',
       drafterQuality,
-      accepted,
-      drafterCost: 0,
-      verifierCost: 0,
-      totalCost: 0,
-      savingsPercentage: accepted ? 50 : 0,
+      accepted: true,
+      drafterCost: costMetadata.drafterCost,
+      verifierCost: costMetadata.verifierCost,
+      totalCost: costMetadata.totalCost,
+      savingsPercentage: costMetadata.savingsPercentage,
       latencyMs,
     };
   }

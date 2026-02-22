@@ -12,6 +12,8 @@ This package is intentionally thin: it re-exports the Vercel AI SDK integration 
 - Tool call stream events (`tool_call_delta`, `tool-input-*`) for better debugging and UI rendering.
 - Server-side tool execution loops via `toolExecutor` or `toolHandlers`.
 - Multi-step loop controls: `maxSteps`, `forceDirect`.
+- Optional cascade decision stream parts (`routing`, `draft-decision`, `switch`, `summary`).
+- Optional request-level overrides (`forceDirect`, `maxSteps`, `userTier`) with allowlist + shared-secret guard.
 
 ## Feature Matrix
 
@@ -23,6 +25,8 @@ This package is intentionally thin: it re-exports the Vercel AI SDK integration 
 | Tool call streaming visibility | ✅ | ✅ | ✅ |
 | Server-side tool execution loop | ✅ (`toolExecutor` / `toolHandlers`) | ✅ (`bindTools` + runtime tools) | ✅ (`toolExecutor`) |
 | Multi-tool loop/message-list continuation | ✅ | ✅ | ✅ |
+| Cascade decision stream parts | ✅ | ⚠️ framework-specific | ✅ |
+| Safe request-level routing overrides | ✅ | ⚠️ app-level only | ✅ |
 | Domain-aware cascading (configured on agent) | ✅ | ✅ | ✅ |
 | Draft/verifier cascade | ✅ | ✅ | ✅ |
 | Per-run observability metadata in framework traces | ⚠️ partial (via agent callbacks) | ✅ LangSmith-first | ⚠️ callback-driven |
@@ -32,16 +36,10 @@ This package is intentionally thin: it re-exports the Vercel AI SDK integration 
 
 These are the highest-value additions that make sense for Vercel AI SDK:
 
-1. Request-level override channel  
-Allow controlled per-request overrides (e.g. `forceDirect`, `maxSteps`, domain hint) from signed metadata instead of static handler config only.
-
-2. Cascade decision stream parts  
-Emit explicit UI/data stream parts for routing decisions (`direct` vs `cascade`, draft accepted/rejected) to improve frontend debuggability.
-
-3. First-class structured output helpers  
+1. First-class structured output helpers  
 Add Vercel-focused helpers for object generation patterns (AI SDK object workflows) with cascade metadata attached.
 
-4. Turn-key telemetry adapters  
+2. Turn-key telemetry adapters  
 Provide built-in hooks for common observability stacks (OpenTelemetry/Langfuse/etc.) without custom callback plumbing.
 
 ## Install
@@ -131,6 +129,10 @@ export const POST = createChatHandler(agent, {
 - `maxSteps`: max loop turns for tool execution
 - `forceDirect`: skip cascade and run direct path
 - `userTier`: reserved for tier-aware routing flows
+- `emitCascadeEvents`: include cascade routing/decision stream parts (`true` by default)
+- `requestOverrides`: allow request-level overrides from `body.cascadeflow.overrides`
+  - `enabled`, `allowedFields` (`forceDirect|maxSteps|userTier`)
+  - optional `secret` + `headerName` (default `x-cascadeflow-override-key`)
 
 ## Request Payload Compatibility
 
@@ -162,7 +164,7 @@ AI SDK `parts` messages:
 }
 ```
 
-Note: when tool execution loop is enabled, streaming responses are currently buffered through `agent.run(...)` to preserve deterministic loop semantics.
+Note: when tool execution loop is enabled, responses are buffered per loop step for deterministic semantics. The integration now runs loop continuation across iterative cascade turns (not only single-pass direct runs), so drafter/verifier routing remains active during tool loops.
 
 Real deployed smoke check:
 
