@@ -195,7 +195,8 @@ const tools = [
     name: 'calculator',
     description: 'Useful for math calculations',
     func: async (input: string) => {
-      return eval(input).toString();
+      // Use a strict parser helper (see examples/nodejs/safe-math.ts).
+      return safeCalculateExpression(input).toString();
     },
   },
 ];
@@ -243,7 +244,8 @@ const agent = new CascadeAgent({
   model: cascadeModel.bindTools(tools),
   maxSteps: 6,
   toolHandlers: {
-    calculator: async ({ expression }) => eval(expression).toString(),
+    // Use the same strict parser helper (see examples/nodejs/safe-math.ts).
+    calculator: async ({ expression }) => safeCalculateExpression(expression).toString(),
   },
 });
 

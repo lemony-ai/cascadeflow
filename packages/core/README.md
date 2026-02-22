@@ -306,10 +306,11 @@ const complexResult = await agent.run(
 // → Routes directly to best model (complex query)
 
 // ToolRouter: Filters to tool-capable models
+// Use a strict parser helper (see examples/nodejs/safe-math.ts).
 const calculatorTool = createTool({
   name: 'calculator',
   description: 'Perform calculations',
-  function: async ({ expression }) => eval(expression),
+  function: async ({ expression }) => safeCalculateExpression(expression),
 });
 
 const toolResult = await agent.run('Calculate 125 * 47', {

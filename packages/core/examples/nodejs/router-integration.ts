@@ -10,6 +10,7 @@
  */
 
 import { CascadeAgent, createTool } from '@cascadeflow/core';
+import { safeCalculateExpression } from './safe-math';
 
 async function main() {
   console.log('🔀 Router Integration Example\n');
@@ -76,7 +77,7 @@ async function main() {
     },
     function: async ({ expression }: { expression: string }) => {
       try {
-        const result = eval(expression);
+        const result = safeCalculateExpression(expression);
         return `Result: ${result}`;
       } catch (error) {
         return `Error: ${error instanceof Error ? error.message : 'Calculation failed'}`;

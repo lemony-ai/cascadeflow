@@ -56,7 +56,6 @@
     "@ai-sdk/deepseek": "^2.0.0",
     "@ai-sdk/fireworks": "^2.0.0",
     "@ai-sdk/google": "^1.0.0 || ^2.0.0 || ^3.0.0",
-    "@ai-sdk/google-vertex": "^4.0.0",
     "@ai-sdk/groq": "^1.0.0 || ^2.0.0 || ^3.0.0",
     "@ai-sdk/mistral": "^1.0.0 || ^2.0.0 || ^3.0.0",
     "@ai-sdk/openai": "^1.0.0 || ^2.0.0 || ^3.0.0",
@@ -94,9 +93,6 @@
       "optional": true
     },
     "@ai-sdk/google": {
-      "optional": true
-    },
-    "@ai-sdk/google-vertex": {
       "optional": true
     },
     "@ai-sdk/groq": {

@@ -12,6 +12,7 @@
  */
 
 import { CascadeAgent } from '@cascadeflow/core';
+import { safeCalculateExpression } from './safe-math';
 
 // ============================================================================
 // Tool Definitions
@@ -153,18 +154,7 @@ function executeWeatherTool(args: { location: string; units?: string }): string 
  */
 function executeCalculatorTool(args: { expression: string }): string {
   try {
-    // Safe evaluation for basic math
-    const expr = args.expression
-      .replace(/sqrt\(([^)]+)\)/g, 'Math.sqrt($1)')
-      .replace(/pow\(([^,]+),([^)]+)\)/g, 'Math.pow($1,$2)')
-      .replace(/abs\(([^)]+)\)/g, 'Math.abs($1)');
-
-    // Simple validation to prevent code injection
-    if (!/^[\d\s+\-*/().Math]+$/.test(expr)) {
-      throw new Error('Invalid expression');
-    }
-
-    const result = eval(expr);
+    const result = safeCalculateExpression(args.expression);
     return JSON.stringify({
       expression: args.expression,
       result,

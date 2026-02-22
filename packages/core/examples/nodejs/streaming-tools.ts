@@ -11,6 +11,7 @@
  */
 
 import { CascadeAgent, StreamEventType } from '@cascadeflow/core';
+import { safeCalculateExpression } from './safe-math';
 
 // ============================================================================
 // Tool Definitions
@@ -149,15 +150,7 @@ function executeSearchTool(args: { query: string; num_results?: number }): any {
 
 function executeCalculatorTool(args: { expression: string }): any {
   try {
-    const expr = args.expression
-      .replace(/sqrt\(([^)]+)\)/g, 'Math.sqrt($1)')
-      .replace(/pow\(([^,]+),([^)]+)\)/g, 'Math.pow($1,$2)');
-
-    if (!/^[\d\s+\-*/().Math]+$/.test(expr)) {
-      return { error: 'Invalid expression', expression: args.expression };
-    }
-
-    const result = eval(expr);
+    const result = safeCalculateExpression(args.expression);
     return {
       expression: args.expression,
       result,

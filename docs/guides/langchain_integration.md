@@ -331,7 +331,8 @@ const agent = new CascadeAgent({
   model: cascade,
   maxSteps: 6,
   toolHandlers: {
-    calculator: async ({ expression }) => eval(expression).toString(),
+    // Use a strict parser helper (see examples/nodejs/safe-math.ts).
+    calculator: async ({ expression }) => safeCalculateExpression(expression).toString(),
   },
 });
 
@@ -350,7 +351,8 @@ cascade = CascadeFlow(drafter=drafter, verifier=verifier)
 agent = CascadeAgent(
     model=cascade.bind_tools(tools),
     max_steps=6,
-    tool_handlers={"calculator": lambda args: str(eval(args["expression"]))},
+    # Use a strict parser helper (see examples/agentic_multi_agent.py).
+    tool_handlers={"calculator": lambda args: str(safe_calculate(args["expression"]))},
 )
 
 result = await agent.arun(
