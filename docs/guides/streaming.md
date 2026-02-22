@@ -903,7 +903,7 @@ python examples/tool_execution.py
 
 - 📖 Read the [Streaming Examples](../../examples/streaming_text.py)
 - 🎯 Try the [Examples](../../examples/)
-- 🔧 See [Comprehensive Test Suite](../../tests/2.py)
+- 🔧 See [Comprehensive Tool Tests](../../tests/test_tool_calling.py)
 - 💬 Join [Discord](https://discord.gg/cascadeflow) for help
 
 ---

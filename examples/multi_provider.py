@@ -414,12 +414,12 @@ async def pattern_4_reliability():
     if os.getenv("ANTHROPIC_API_KEY"):
         models.append(
             ModelConfig(
-                name="claude-3-5-haiku-20241022",
+                name="claude-haiku-4-5-20251001",
                 provider="anthropic",
                 cost=0.001,
             )
         )
-        print("✅ Fallback: Claude 3.5 Haiku (Anthropic)")
+        print("✅ Fallback: Claude Haiku 4.5 (Anthropic)")
 
     if os.getenv("GROQ_API_KEY"):
         models.append(

@@ -433,7 +433,7 @@ print(f"Avg cost: ${sum(costs)/len(costs):.6f}")
 - **[Preset Guide](./presets.md)** - Choose the right preset
 - **[Cost Tracking Guide](./cost_tracking.md)** - Monitor performance
 - **[Production Guide](./production.md)** - Deploy optimizations
-- **[Analysis Document](../../.analysis/QUALITY_AND_LATENCY_ANALYSIS.md)** - Full test results
+- **[Extended Testing Guide](./extended-testing.md)** - Long-run test profiles and logs
 
 ---
 

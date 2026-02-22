@@ -53,6 +53,7 @@ Example:
 """
 
 import asyncio
+import json
 import logging
 import sys
 import time
@@ -883,7 +884,25 @@ class CascadeAgent:
                 if hasattr(self._tool_executor, "execute"):
                     from .tools.call import ToolCall as _ToolCall
 
-                    parsed = _ToolCall.from_provider("openai", tc)
+                    openai_tc = tc
+                    if not isinstance(openai_tc, dict):
+                        openai_tc = {}
+                    if "function" not in openai_tc:
+                        tool_name = openai_tc.get("name", "unknown_tool")
+                        arguments = openai_tc.get("arguments", {})
+                        if isinstance(arguments, str):
+                            arguments_str = arguments
+                        else:
+                            arguments_str = json.dumps(arguments)
+                        openai_tc = {
+                            "id": openai_tc.get("id", ""),
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": arguments_str,
+                            },
+                        }
+                    parsed = _ToolCall.from_provider("openai", openai_tc)
                     result = await self._tool_executor.execute(parsed)
                     return {
                         "tool_call_id": call_id,
@@ -1315,6 +1334,7 @@ class CascadeAgent:
                 tools,
                 tool_choice,
                 messages=normalized_messages,
+                max_steps=max_steps,
                 **kwargs,
             )
             timing_breakdown.update(exec_timing)
@@ -2248,6 +2268,35 @@ class CascadeAgent:
                 )
                 if not tool_calls_found:
                     break
+                # OpenAI-compatible tool loops require an assistant turn with
+                # tool_calls before each subsequent tool-result message.
+                assistant_tool_calls = []
+                for tc in tool_calls_found:
+                    tool_name = tc.get("name")
+                    if not tool_name and isinstance(tc.get("function"), dict):
+                        tool_name = tc["function"].get("name")
+                    arguments = tc.get("arguments", {})
+                    if isinstance(arguments, str):
+                        arguments_str = arguments
+                    else:
+                        arguments_str = json.dumps(arguments)
+                    assistant_tool_calls.append(
+                        {
+                            "id": tc.get("id", ""),
+                            "type": "function",
+                            "function": {
+                                "name": tool_name or "unknown_tool",
+                                "arguments": arguments_str,
+                            },
+                        }
+                    )
+                tool_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": response.content or "",
+                        "tool_calls": assistant_tool_calls,
+                    }
+                )
                 tool_results = await self._execute_tool_calls_parallel(tool_calls_found)
                 for tool_result in tool_results:
                     tool_messages.append({"role": "tool", **tool_result})

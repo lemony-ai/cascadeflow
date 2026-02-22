@@ -231,7 +231,7 @@ async def main():
     print("\n📚 Learn more:")
     print("  • docs/guides/streaming.md - Full streaming guide")
     print("  • examples/tool_execution.py - Real tool execution")
-    print("  • tests/2.py - Comprehensive test suite\n")
+    print("  • tests/test_tool_calling.py - Comprehensive tool tests\n")
 
 
 if __name__ == "__main__":

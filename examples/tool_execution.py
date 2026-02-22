@@ -300,72 +300,25 @@ async def run_tool_conversation(agent, executor, query, tools, max_turns=7):
     print(f"🔍 Query: {query}")
     print(f"{'='*70}\n")
 
-    messages = [{"role": "user", "content": query}]
-    total_cost = 0.0
-    turn = 0
+    print("\n--- Tool Loop Execution ---")
 
-    while turn < max_turns:
-        turn += 1
-        print(f"\n--- Turn {turn} ---")
+    # Let CascadeAgent handle closed tool loops using the registered executor.
+    # This is the recommended production pattern for tool-enabled cascades.
+    result = await agent.run(
+        query=query,
+        tools=tools,
+        max_tokens=500,
+        temperature=0.7,
+        max_steps=max_turns,
+    )
 
-        # Get model response with tools
-        result = await agent.run(
-            query=" ".join([m["content"] for m in messages if m["role"] == "user"]),
-            tools=tools,
-            max_tokens=500,
-            temperature=0.7,
-        )
+    print("\n✅ Final Answer:")
+    print(f"   {result.content}\n")
 
-        total_cost += result.total_cost
-
-        # Check if model wants to use tools
-        if result.tool_calls and len(result.tool_calls) > 0:
-            print(f"\n💭 Model wants to call {len(result.tool_calls)} tool(s):")
-
-            # Execute the tools
-            tool_results = await execute_tool_calls(result.tool_calls, executor)
-
-            # Add assistant message with tool calls
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": result.content or "",
-                    "tool_calls": result.tool_calls,
-                }
-            )
-
-            # Add tool results as messages
-            for tool_result in tool_results:
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_result.call_id,
-                        "name": tool_result.name,
-                        "content": str(tool_result.result),
-                    }
-                )
-
-            # Continue to next turn (model will generate final answer)
-            continue
-
-        else:
-            # Model generated final answer (no more tools)
-            print("\n✅ Final Answer:")
-            print(f"   {result.content}\n")
-
-            return {
-                "answer": result.content,
-                "turns": turn,
-                "total_cost": total_cost,
-                "model_used": result.model_used,
-            }
-
-    # Max turns reached
-    print(f"\n⚠️  Reached maximum turns ({max_turns})")
     return {
-        "answer": "Conversation exceeded maximum turns",
-        "turns": turn,
-        "total_cost": total_cost,
+        "answer": result.content,
+        "turns": max_turns,
+        "total_cost": result.total_cost,
         "model_used": result.model_used,
     }
 
@@ -400,12 +353,16 @@ async def main():
 
     print("\n📋 Setting up agent with 2-tier cascade...")
 
-    agent = CascadeAgent(
-        models=[
-            ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
-            ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
-        ]
-    )
+    def create_agent(tool_executor: ToolExecutor) -> CascadeAgent:
+        # Use a fresh agent per scenario so message history from previous tool
+        # loops cannot affect subsequent examples.
+        return CascadeAgent(
+            models=[
+                ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.00015),
+                ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
+            ],
+            tool_executor=tool_executor,
+        )
 
     print("   ✓ Tier 1: gpt-4o-mini (fast & cheap)")
     print("   ✓ Tier 2: gpt-4o (powerful)")
@@ -439,7 +396,7 @@ async def main():
     print("=" * 70)
 
     result1 = await run_tool_conversation(
-        agent=agent,
+        agent=create_agent(executor),
         executor=executor,
         query="What's the weather in Paris?",
         tools=tools,
@@ -459,7 +416,7 @@ async def main():
     print("=" * 70)
 
     result2 = await run_tool_conversation(
-        agent=agent,
+        agent=create_agent(executor),
         executor=executor,
         query="Compare the weather in Paris and Tokyo, then tell me the time in JST.",
         tools=tools,
@@ -479,7 +436,7 @@ async def main():
     print("=" * 70)
 
     result3 = await run_tool_conversation(
-        agent=agent,
+        agent=create_agent(executor),
         executor=executor,
         query="What is 12.5 multiplied by 8.3?",
         tools=tools,
@@ -541,7 +498,7 @@ async def main():
     print("\n📚 Learn more:")
     print("  • docs/guides/tools.md - Complete tool guide")
     print("  • examples/streaming_tools.py - Tool call streaming")
-    print("  • tests/test_tools.py - Tool system tests\n")
+    print("  • tests/test_tool_calling.py - Tool system tests\n")
 
 
 if __name__ == "__main__":

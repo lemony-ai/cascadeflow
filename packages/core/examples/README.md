@@ -461,7 +461,7 @@ import { CascadeAgent } from '@cascadeflow/core';
 // Recommended: Claude Haiku + GPT-5
 const agent = new CascadeAgent({
   models: [
-    { name: 'claude-3-5-haiku-20241022', provider: 'anthropic', cost: 0.0008 },
+    { name: 'claude-haiku-4-5-20251001', provider: 'anthropic', cost: 0.0008 },
     { name: 'gpt-5', provider: 'openai', cost: 0.00125 },
   ],
 });
@@ -470,7 +470,7 @@ const result = await agent.run('What is TypeScript?');
 console.log(`Cost: $${result.totalCost}, Savings: ${result.savingsPercentage}%`);
 ```
 
-> **Note:** GPT-5 requires [organization verification](../../../docs/GPT-5-SETUP.md). The cascade works immediately - Claude Haiku handles 75% of queries!
+> **Note:** GPT-5 availability depends on your OpenAI account tier. The cascade works immediately - Claude Haiku handles 75% of queries!
 
 ### OpenAI Only
 
@@ -490,7 +490,7 @@ import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
 
 const models: ModelConfig[] = [
   {
-    name: 'claude-3-5-haiku-20241022',
+    name: 'claude-haiku-4-5-20251001',
     provider: 'anthropic',
     cost: 0.0008,
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -681,7 +681,7 @@ console.log(`Average cost per query: $${(costs.total / costs.queries).toFixed(6)
 - [Providers Guide](../../../docs/guides/providers.md) - Configure AI providers
 - [Tools Guide](../../../docs/guides/tools.md) - Function calling
 - [Cost Tracking](../../../docs/guides/cost_tracking.md) - Budget management
-- [TypeScript Guide](../../../docs/guides/typescript.md) - TypeScript-specific features
+- [TypeScript Quickstart](../../../docs/guides/quickstart-typescript.md) - TypeScript-specific setup
 
 ### Advanced Guides
 - [Production Guide](../../../docs/guides/production.md) - Enterprise deployment
@@ -749,7 +749,7 @@ See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for guidelines.
 🛠️ [Tools Guide](../../../docs/guides/tools.md)
 💰 [Cost Tracking Guide](../../../docs/guides/cost_tracking.md)
 🏭 [Production Guide](../../../docs/guides/production.md)
-📘 [TypeScript Guide](../../../docs/guides/typescript.md)
+📘 [TypeScript Quickstart](../../../docs/guides/quickstart-typescript.md)
 
 ### Community
 💬 [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions) - Ask questions
@@ -799,4 +799,4 @@ See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for guidelines.
 
 **💰 Save 40-85% on AI costs with intelligent cascading!** 🚀
 
-[View All Documentation](../../../docs/) • [Python Examples](../../../examples/) • [TypeScript Examples](../nodejs/) • [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
+[View All Documentation](../../../docs/) • [Python Examples](../../../examples/) • [TypeScript Examples](./nodejs/) • [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions)

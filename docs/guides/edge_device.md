@@ -484,7 +484,7 @@ WantedBy=multi-user.target
 ## Next Steps
 
 - **Example**: See [`examples/edge_device.py`](../../examples/edge_device.py)
-- **vLLM Setup**: Check [`docs/configs/vllm_setup.md`](../configs/vllm_setup.md)
+- **vLLM Setup**: Check [`local-providers.md`](./local-providers.md)
 - **Production**: Read [`production.md`](production.md) for deployment patterns
 
 ---
