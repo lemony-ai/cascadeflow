@@ -351,7 +351,15 @@ def _build_openai_response(model: str, result: Any) -> dict[str, Any]:
     prompt_tokens_raw = meta.get("prompt_tokens")
     completion_tokens_raw = meta.get("completion_tokens")
     total_tokens_raw = meta.get("total_tokens")
-    tool_calls = meta.get("tool_calls")
+    raw_tool_calls = meta.get("tool_calls")
+    openai_tool_calls: list[dict[str, Any]] = []
+    if isinstance(raw_tool_calls, list) and raw_tool_calls:
+        first = raw_tool_calls[0]
+        # If the upstream already returned OpenAI-compatible tool calls, keep them.
+        if isinstance(first, dict) and isinstance(first.get("function"), dict):
+            openai_tool_calls = raw_tool_calls
+        else:
+            openai_tool_calls = _to_openai_tool_calls(raw_tool_calls)
 
     prompt_tokens = int(prompt_tokens_raw or 0)
     completion_tokens = int(completion_tokens_raw or 0)
@@ -362,10 +370,10 @@ def _build_openai_response(model: str, result: Any) -> dict[str, Any]:
         completion_tokens = total_tokens
 
     message: dict[str, Any] = {"role": "assistant", "content": getattr(result, "content", "")}
-    if tool_calls:
-        message["tool_calls"] = tool_calls
+    if openai_tool_calls:
+        message["tool_calls"] = openai_tool_calls
 
-    finish_reason = "tool_calls" if tool_calls else "stop"
+    finish_reason = "tool_calls" if openai_tool_calls else "stop"
 
     return {
         "id": "chatcmpl-cascadeflow",
@@ -607,6 +615,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
         self._set_gateway_context(proxy, api="gateway", endpoint="options")
         self.send_response(204)
+        self.send_header("Content-Length", "0")
         self._send_cors_headers(proxy)
         self._send_gateway_headers(proxy)
         self.end_headers()
@@ -620,15 +629,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             self._set_gateway_context(proxy, api="gateway", endpoint="health")
             return self._send_json({"status": "ok"})
 
-        if path.startswith("/stats"):
+        if normalized == "/stats":
             self._set_gateway_context(proxy, api="gateway", endpoint="stats")
             telemetry = getattr(proxy.agent, "telemetry", None) if proxy.agent else None
             if telemetry is None or not hasattr(telemetry, "export_to_dict"):
-                self.send_response(404)
-                self._send_cors_headers(proxy)
-                self._send_gateway_headers(proxy)
-                self.end_headers()
-                return
+                return self._send_not_found("Stats are unavailable in mock mode.")
             try:
                 payload = telemetry.export_to_dict()
             except Exception as exc:
@@ -644,10 +649,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             model_id = normalized[len("/models/") :]
             return self._send_json(self._build_openai_model_object(model_id))
 
-        self.send_response(404)
-        self._send_cors_headers(proxy)
-        self._send_gateway_headers(proxy)
-        self.end_headers()
+        self._send_not_found(f"Unknown endpoint: {path}")
 
     def do_POST(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
@@ -679,10 +681,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             self._handle_openai_embeddings(proxy, payload)
             return
 
-        self.send_response(404)
-        self._send_cors_headers(proxy)
-        self._send_gateway_headers(proxy)
-        self.end_headers()
+        self._send_not_found(f"Unknown endpoint: {self._request_path()}")
 
     # ------------------------------------------------------------------
     # OpenAI endpoint
@@ -1476,6 +1475,17 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     def _send_anthropic_error(self, message: str, status: int = 400) -> None:
         payload = {"error": {"type": "invalid_request_error", "message": message}}
         self._send_json(payload, status=status)
+
+    def _send_not_found(self, message: str) -> None:
+        payload = {
+            "error": {
+                "message": message,
+                "type": "not_found_error",
+                "param": None,
+                "code": "not_found",
+            }
+        }
+        self._send_json(payload, status=404)
 
     def _send_json(self, payload: Any, status: int = 200) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
