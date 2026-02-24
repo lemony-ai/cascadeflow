@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/n8n-nodes-cascadeflow",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "n8n node for cascadeflow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
@@ -22,7 +22,7 @@
     "directory": "packages/integrations/n8n"
   },
   "scripts": {
-    "build": "tsc && gulp build:icons",
+    "build": "node esbuild.config.mjs",
     "dev": "tsc --watch",
     "test": "vitest run",
     "format": "prettier nodes credentials --write",
@@ -45,11 +45,13 @@
     ]
   },
   "devDependencies": {
+    "@cascadeflow/core": "^1.0.1",
     "@types/node": "^20.10.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "esbuild": "^0.24.0",
     "eslint": "^8.42.0",
     "eslint-plugin-n8n-nodes-base": "^1.11.0",
-    "gulp": "^4.0.2",
+    "glob": "^11.0.0",
     "n8n-workflow": "^1.0.0",
     "prettier": "^2.7.1",
     "typescript": "^5.1.6",
@@ -62,7 +64,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.0",
-    "@cascadeflow/core": "^1.0.1"
+    "@langchain/core": "^1.1.0"
   }
 }
