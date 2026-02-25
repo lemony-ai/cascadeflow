@@ -17,7 +17,7 @@ async def main() -> None:
     except ImportError as exc:
         raise SystemExit(
             "OpenAI Agents SDK is not installed. "
-            'Install with: pip install "cascadeflow[openai,openai-agents]"'
+            "Install with: pip install \"cascadeflow[openai,openai-agents]\""
         ) from exc
 
     from cascadeflow import init, run
@@ -44,9 +44,7 @@ async def main() -> None:
     run_config = RunConfig(model_provider=provider)
 
     with run(budget=0.5, max_tool_calls=3) as session:
-        result = await Runner.run(
-            agent, "Summarize why model routing helps agent budgets.", run_config=run_config
-        )
+        result = await Runner.run(agent, "Summarize why model routing helps agent budgets.", run_config=run_config)
 
         print("=== Result ===")
         print(result.final_output)
