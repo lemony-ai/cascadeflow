@@ -45,24 +45,16 @@ class HarnessRunContext:
     tool_calls_max: Optional[int] = None
     latency_max_ms: Optional[float] = None
     energy_max: Optional[float] = None
-    kpi_targets: Optional[dict[str, float]] = None
-    kpi_weights: Optional[dict[str, float]] = None
-    compliance: Optional[str] = None
 
     cost: float = 0.0
     savings: float = 0.0
     tool_calls: int = 0
-    step_count: int = 0
-    latency_used_ms: float = 0.0
-    energy_used: float = 0.0
     budget_remaining: Optional[float] = None
     model_used: Optional[str] = None
     last_action: str = "allow"
     draft_accepted: Optional[bool] = None
     _trace: list[dict[str, Any]] = field(default_factory=list)
-    _token: Optional[Token[Optional[HarnessRunContext]]] = field(
-        default=None, init=False, repr=False
-    )
+    _token: Optional[Token[Optional[HarnessRunContext]]] = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.budget_max is not None and self.budget_remaining is None:
@@ -86,34 +78,21 @@ class HarnessRunContext:
     def trace(self) -> list[dict[str, Any]]:
         return list(self._trace)
 
-    def record(
-        self,
-        action: str,
-        reason: str,
-        model: Optional[str] = None,
-        *,
-        applied: Optional[bool] = None,
-        decision_mode: Optional[str] = None,
-    ) -> None:
+    def record(self, action: str, reason: str, model: Optional[str] = None) -> None:
         self.last_action = action
         self.model_used = model
-        entry: dict[str, Any] = {
-            "action": action,
-            "reason": reason,
-            "model": model,
-            "run_id": self.run_id,
-        }
-        if applied is not None:
-            entry["applied"] = applied
-        if decision_mode is not None:
-            entry["decision_mode"] = decision_mode
-        self._trace.append(entry)
+        self._trace.append(
+            {
+                "action": action,
+                "reason": reason,
+                "model": model,
+                "run_id": self.run_id,
+            }
+        )
 
 
 _harness_config: HarnessConfig = HarnessConfig()
-_current_run: ContextVar[Optional[HarnessRunContext]] = ContextVar(
-    "cascadeflow_harness_run", default=None
-)
+_current_run: ContextVar[Optional[HarnessRunContext]] = ContextVar("cascadeflow_harness_run", default=None)
 _is_instrumented: bool = False
 _UNSET = object()
 
@@ -141,17 +120,13 @@ def get_current_run() -> Optional[HarnessRunContext]:
 
 def reset() -> None:
     """
-    Reset harness global state and unpatch instrumented clients.
+    Reset harness global state.
 
     Intended for tests and controlled shutdown paths.
     """
 
     global _harness_config
     global _is_instrumented
-
-    from cascadeflow.harness.instrument import unpatch_openai
-
-    unpatch_openai()
     _harness_config = HarnessConfig()
     _is_instrumented = False
     _current_run.set(None)
@@ -307,7 +282,9 @@ def init(
     compliance: Optional[str] | object = _UNSET,
 ) -> HarnessInitReport:
     """
-    Initialize global harness settings and instrument detected SDK clients.
+    Initialize global harness settings.
+
+    This is a scaffold API for V2 work and intentionally performs no request patching yet.
     """
 
     global _harness_config
@@ -326,9 +303,7 @@ def init(
     resolved_max_latency_ms = _resolve_value(
         "max_latency_ms", max_latency_ms, env_config, file_config, None, sources
     )
-    resolved_max_energy = _resolve_value(
-        "max_energy", max_energy, env_config, file_config, None, sources
-    )
+    resolved_max_energy = _resolve_value("max_energy", max_energy, env_config, file_config, None, sources)
     resolved_kpi_targets = _resolve_value(
         "kpi_targets", kpi_targets, env_config, file_config, None, sources
     )
@@ -356,16 +331,8 @@ def init(
     instrumented: list[str] = []
     detected_but_not_instrumented: list[str] = []
 
-    if validated_mode != "off" and sdk_presence["openai"]:
-        from cascadeflow.harness.instrument import patch_openai
-
-        if patch_openai():
-            instrumented.append("openai")
-    elif validated_mode == "off":
-        from cascadeflow.harness.instrument import is_patched, unpatch_openai
-
-        if is_patched():
-            unpatch_openai()
+    if sdk_presence["openai"]:
+        instrumented.append("openai")
     if sdk_presence["anthropic"]:
         detected_but_not_instrumented.append("anthropic")
 
@@ -396,9 +363,6 @@ def run(
     max_tool_calls: Optional[int] = None,
     max_latency_ms: Optional[float] = None,
     max_energy: Optional[float] = None,
-    kpi_targets: Optional[dict[str, float]] = None,
-    kpi_weights: Optional[dict[str, float]] = None,
-    compliance: Optional[str] = None,
 ) -> HarnessRunContext:
     """
     Create a scoped run context.
@@ -411,9 +375,6 @@ def run(
     resolved_tool_calls = max_tool_calls if max_tool_calls is not None else config.max_tool_calls
     resolved_latency = max_latency_ms if max_latency_ms is not None else config.max_latency_ms
     resolved_energy = max_energy if max_energy is not None else config.max_energy
-    resolved_kpi_targets = kpi_targets if kpi_targets is not None else config.kpi_targets
-    resolved_kpi_weights = kpi_weights if kpi_weights is not None else config.kpi_weights
-    resolved_compliance = compliance if compliance is not None else config.compliance
 
     return HarnessRunContext(
         mode=config.mode,
@@ -421,9 +382,6 @@ def run(
         tool_calls_max=resolved_tool_calls,
         latency_max_ms=resolved_latency,
         energy_max=resolved_energy,
-        kpi_targets=resolved_kpi_targets,
-        kpi_weights=resolved_kpi_weights,
-        compliance=resolved_compliance,
     )
 
 
