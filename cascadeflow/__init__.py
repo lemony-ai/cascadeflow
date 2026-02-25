@@ -239,6 +239,19 @@ from .routing import (
     get_tool_risk_routing,
 )
 
+# NEW: Harness API scaffold (V2 core branch)
+from .harness import (
+    HarnessConfig,
+    HarnessInitReport,
+    HarnessRunContext,
+    init,
+    reset,
+    run,
+    agent,
+    get_harness_config,
+    get_current_run,
+)
+
 # ==================== MAIN AGENT & RESULT ====================
 
 
@@ -381,6 +394,16 @@ __all__ = [
     "ToolRiskClassification",  # NEW: v0.8.0 - Classification result
     "ToolRiskClassifier",  # NEW: v0.8.0 - Tool risk classifier
     "get_tool_risk_routing",  # NEW: v0.8.0 - Routing by risk level
+    # ===== HARNESS API (V2 scaffold) =====
+    "HarnessConfig",
+    "HarnessInitReport",
+    "HarnessRunContext",
+    "init",
+    "reset",
+    "run",
+    "agent",
+    "get_harness_config",
+    "get_current_run",
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
