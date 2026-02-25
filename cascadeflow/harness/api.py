@@ -49,6 +49,9 @@ class HarnessRunContext:
     cost: float = 0.0
     savings: float = 0.0
     tool_calls: int = 0
+    step_count: int = 0
+    latency_used_ms: float = 0.0
+    energy_used: float = 0.0
     budget_remaining: Optional[float] = None
     model_used: Optional[str] = None
     last_action: str = "allow"
@@ -120,13 +123,17 @@ def get_current_run() -> Optional[HarnessRunContext]:
 
 def reset() -> None:
     """
-    Reset harness global state.
+    Reset harness global state and unpatch instrumented clients.
 
     Intended for tests and controlled shutdown paths.
     """
 
     global _harness_config
     global _is_instrumented
+
+    from cascadeflow.harness.instrument import unpatch_openai
+
+    unpatch_openai()
     _harness_config = HarnessConfig()
     _is_instrumented = False
     _current_run.set(None)
@@ -331,8 +338,11 @@ def init(
     instrumented: list[str] = []
     detected_but_not_instrumented: list[str] = []
 
-    if sdk_presence["openai"]:
-        instrumented.append("openai")
+    if validated_mode != "off" and sdk_presence["openai"]:
+        from cascadeflow.harness.instrument import patch_openai
+
+        if patch_openai():
+            instrumented.append("openai")
     if sdk_presence["anthropic"]:
         detected_but_not_instrumented.append("anthropic")
 
