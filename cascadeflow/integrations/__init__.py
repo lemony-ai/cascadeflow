@@ -90,6 +90,25 @@ except ImportError:
     extract_token_usage = None
     MODEL_PRICING = None
 
+# Try to import OpenAI Agents SDK integration
+try:
+    from .openai_agents import (
+        OPENAI_AGENTS_SDK_AVAILABLE,
+        CascadeFlowModelProvider,
+        OpenAIAgentsIntegrationConfig,
+        create_openai_agents_provider,
+        is_openai_agents_sdk_available,
+    )
+
+    OPENAI_AGENTS_AVAILABLE = OPENAI_AGENTS_SDK_AVAILABLE
+except ImportError:
+    OPENAI_AGENTS_AVAILABLE = False
+    OPENAI_AGENTS_SDK_AVAILABLE = False
+    CascadeFlowModelProvider = None
+    OpenAIAgentsIntegrationConfig = None
+    create_openai_agents_provider = None
+    is_openai_agents_sdk_available = None
+
 # OpenClaw integration helpers (no external deps)
 try:
     from .openclaw import (
@@ -209,6 +228,17 @@ if LANGCHAIN_AVAILABLE:
             ]
         )
 
+if OPENAI_AGENTS_AVAILABLE:
+    __all__.extend(
+        [
+            "OPENAI_AGENTS_SDK_AVAILABLE",
+            "CascadeFlowModelProvider",
+            "OpenAIAgentsIntegrationConfig",
+            "create_openai_agents_provider",
+            "is_openai_agents_sdk_available",
+        ]
+    )
+
 if PAYGENTIC_AVAILABLE:
     __all__.extend(
         [
@@ -227,6 +257,7 @@ INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
     "opentelemetry": OPENTELEMETRY_AVAILABLE,
     "langchain": LANGCHAIN_AVAILABLE,
+    "openai_agents": OPENAI_AGENTS_AVAILABLE,
     "openclaw": OPENCLAW_AVAILABLE,
     "paygentic": PAYGENTIC_AVAILABLE,
 }
@@ -250,6 +281,7 @@ def get_integration_info():
         "litellm_available": LITELLM_AVAILABLE,
         "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
         "langchain_available": LANGCHAIN_AVAILABLE,
+        "openai_agents_available": OPENAI_AGENTS_AVAILABLE,
         "openclaw_available": OPENCLAW_AVAILABLE,
         "paygentic_available": PAYGENTIC_AVAILABLE,
     }
