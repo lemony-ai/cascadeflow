@@ -241,6 +241,8 @@ class TestSyncWrapper:
         assert trace[0]["action"] == "allow"
         assert trace[0]["reason"] == "observe"
         assert trace[0]["model"] == "gpt-4o"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "observe"
 
     def test_off_mode_passthrough_no_tracking(self) -> None:
         init(mode="off")
@@ -641,6 +643,11 @@ class TestEnforceMode:
             wrapper(MagicMock(), model="gpt-4o")
 
         assert ctx.cost > ctx.budget_max  # type: ignore[operator]
+        trace = ctx.trace()
+        assert trace[-1]["action"] == "stop"
+        assert trace[-1]["reason"] == "budget_exceeded"
+        assert trace[-1]["applied"] is False
+        assert trace[-1]["decision_mode"] == "observe"
 
     @pytest.mark.asyncio
     async def test_enforce_raises_on_budget_exhausted_async(self) -> None:
@@ -678,6 +685,8 @@ class TestEnforceActions:
         trace = ctx.trace()
         assert trace[0]["action"] == "switch_model"
         assert trace[0]["reason"] == "budget_pressure"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     def test_observe_computes_switch_model_but_does_not_apply(self) -> None:
         init(mode="observe")
@@ -695,6 +704,8 @@ class TestEnforceActions:
         assert trace[0]["action"] == "switch_model"
         assert trace[0]["reason"] == "budget_pressure"
         assert trace[0]["model"] == "gpt-4o-mini"
+        assert trace[0]["applied"] is False
+        assert trace[0]["decision_mode"] == "observe"
 
     def test_enforce_denies_tools_when_cap_reached(self) -> None:
         init(mode="enforce", max_tool_calls=0)
@@ -709,6 +720,8 @@ class TestEnforceActions:
         trace = ctx.trace()
         assert trace[0]["action"] == "deny_tool"
         assert trace[0]["reason"] == "max_tool_calls_reached"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     def test_observe_logs_deny_tool_but_keeps_tools(self) -> None:
         init(mode="observe", max_tool_calls=0)
@@ -724,8 +737,12 @@ class TestEnforceActions:
         trace = ctx.trace()
         assert trace[0]["action"] == "deny_tool"
         assert trace[0]["reason"] == "max_tool_calls_reached"
+        assert trace[0]["applied"] is False
+        assert trace[0]["decision_mode"] == "observe"
 
     def test_enforce_stops_when_latency_limit_exceeded_at_fastest_model(self) -> None:
+        from cascadeflow.schema.exceptions import HarnessStopError
+
         init(mode="enforce")
         mock_resp = _mock_completion()
         original = MagicMock(return_value=mock_resp)
@@ -733,15 +750,19 @@ class TestEnforceActions:
 
         with run(max_latency_ms=1.0) as ctx:
             ctx.latency_used_ms = 5.0
-            with pytest.raises(RuntimeError, match="latency_limit_exceeded"):
-                wrapper(MagicMock(), model="gpt-4o-mini")
+            with pytest.raises(HarnessStopError, match="latency_limit_exceeded"):
+                wrapper(MagicMock(), model="gpt-3.5-turbo")
 
         original.assert_not_called()
         trace = ctx.trace()
         assert trace[0]["action"] == "stop"
         assert trace[0]["reason"] == "latency_limit_exceeded"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     def test_enforce_stops_when_energy_limit_exceeded_at_lowest_energy_model(self) -> None:
+        from cascadeflow.schema.exceptions import HarnessStopError
+
         init(mode="enforce")
         mock_resp = _mock_completion()
         original = MagicMock(return_value=mock_resp)
@@ -749,13 +770,15 @@ class TestEnforceActions:
 
         with run(max_energy=1.0) as ctx:
             ctx.energy_used = 5.0
-            with pytest.raises(RuntimeError, match="energy_limit_exceeded"):
+            with pytest.raises(HarnessStopError, match="energy_limit_exceeded"):
                 wrapper(MagicMock(), model="gpt-3.5-turbo")
 
         original.assert_not_called()
         trace = ctx.trace()
         assert trace[0]["action"] == "stop"
         assert trace[0]["reason"] == "energy_limit_exceeded"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     @pytest.mark.asyncio
     async def test_async_enforce_denies_tools_when_cap_reached(self) -> None:
@@ -775,6 +798,8 @@ class TestEnforceActions:
         trace = ctx.trace()
         assert trace[0]["action"] == "deny_tool"
         assert trace[0]["reason"] == "max_tool_calls_reached"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     def test_enforce_switches_model_for_compliance_policy(self) -> None:
         init(mode="enforce", compliance="strict")
@@ -789,6 +814,8 @@ class TestEnforceActions:
         trace = ctx.trace()
         assert trace[0]["action"] == "switch_model"
         assert trace[0]["reason"] == "compliance_model_policy"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     def test_enforce_denies_tool_for_strict_compliance(self) -> None:
         init(mode="enforce", compliance="strict")
@@ -803,6 +830,8 @@ class TestEnforceActions:
         trace = ctx.trace()
         assert trace[0]["action"] == "deny_tool"
         assert trace[0]["reason"] == "compliance_tool_restriction"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     def test_observe_logs_compliance_switch_without_applying(self) -> None:
         init(mode="observe", compliance="strict")
@@ -818,6 +847,8 @@ class TestEnforceActions:
         assert trace[0]["action"] == "switch_model"
         assert trace[0]["reason"] == "compliance_model_policy"
         assert trace[0]["model"] == "gpt-4o"
+        assert trace[0]["applied"] is False
+        assert trace[0]["decision_mode"] == "observe"
 
     def test_enforce_switches_model_using_kpi_weights(self) -> None:
         init(mode="enforce", kpi_weights={"quality": 1.0})
@@ -832,6 +863,8 @@ class TestEnforceActions:
         trace = ctx.trace()
         assert trace[0]["action"] == "switch_model"
         assert trace[0]["reason"] == "kpi_weight_optimization"
+        assert trace[0]["applied"] is True
+        assert trace[0]["decision_mode"] == "enforce"
 
     def test_observe_logs_kpi_switch_without_applying(self) -> None:
         init(mode="observe", kpi_weights={"quality": 1.0})
@@ -847,6 +880,8 @@ class TestEnforceActions:
         assert trace[0]["action"] == "switch_model"
         assert trace[0]["reason"] == "kpi_weight_optimization"
         assert trace[0]["model"] == "o1"
+        assert trace[0]["applied"] is False
+        assert trace[0]["decision_mode"] == "observe"
 
 
 # ---------------------------------------------------------------------------

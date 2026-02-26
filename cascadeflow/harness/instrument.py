@@ -69,7 +69,9 @@ _ENERGY_COEFFICIENTS: dict[str, float] = {
 _DEFAULT_ENERGY_COEFFICIENT: float = 1.0
 _ENERGY_OUTPUT_WEIGHT: float = 1.5
 
-# Relative quality/latency priors for KPI-weighted soft-control scoring.
+# Relative priors used by KPI-weighted soft-control scoring.
+# These are deterministic heuristics based on internal benchmark runs and
+# intended as defaults until provider-specific online scoring is wired in.
 _QUALITY_PRIORS: dict[str, float] = {
     "gpt-4o": 0.90,
     "gpt-4o-mini": 0.75,
@@ -93,6 +95,8 @@ _LATENCY_PRIORS: dict[str, float] = {
     "o3-mini": 0.78,
 }
 
+# OpenAI-model allowlists used by the current OpenAI harness instrumentation.
+# Future provider instrumentation should provide provider-specific allowlists.
 _COMPLIANCE_MODEL_ALLOWLISTS: dict[str, set[str]] = {
     "gdpr": {"gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"},
     "hipaa": {"gpt-4o", "gpt-4o-mini"},
@@ -173,9 +177,14 @@ def _select_cheaper_model(current_model: str) -> str:
 
 
 def _select_faster_model(current_model: str) -> str:
-    # We use the lowest-cost model as a deterministic latency proxy until
-    # provider-specific live latency scoring is wired into the harness.
-    return _select_cheaper_model(current_model)
+    latency_candidates = [name for name in _PRICING if name in _LATENCY_PRIORS]
+    if not latency_candidates:
+        return current_model
+    fastest = max(latency_candidates, key=lambda name: _LATENCY_PRIORS[name])
+    current_latency = _LATENCY_PRIORS.get(current_model, 0.7)
+    if _LATENCY_PRIORS[fastest] > current_latency:
+        return fastest
+    return current_model
 
 
 def _select_lower_energy_model(current_model: str) -> str:
@@ -227,7 +236,7 @@ def _energy_utility(model: str) -> float:
 def _kpi_score(model: str, weights: dict[str, float]) -> float:
     normalized = _normalize_weights(weights)
     if not normalized:
-        return -1.0
+        return 0.0
     quality = _QUALITY_PRIORS.get(model, 0.7)
     latency = _LATENCY_PRIORS.get(model, 0.7)
     cost = _cost_utility(model)
@@ -355,7 +364,7 @@ def _evaluate_pre_call_decision(ctx: Any, model: str, has_tools: bool) -> _PreCa
 
 
 def _raise_stop_error(ctx: Any, reason: str) -> None:
-    from cascadeflow.schema.exceptions import BudgetExceededError
+    from cascadeflow.schema.exceptions import BudgetExceededError, HarnessStopError
 
     if reason == "budget_exceeded":
         remaining = 0.0
@@ -365,7 +374,56 @@ def _raise_stop_error(ctx: Any, reason: str) -> None:
             f"Budget exhausted: spent ${ctx.cost:.4f} of ${ctx.budget_max or 0.0:.4f} max",
             remaining=remaining,
         )
-    raise RuntimeError(f"cascadeflow harness stop: {reason}")
+    raise HarnessStopError(f"cascadeflow harness stop: {reason}", reason=reason)
+
+
+def _resolve_pre_call_decision(
+    ctx: Any,
+    mode: str,
+    model: str,
+    kwargs: dict[str, Any],
+) -> tuple[dict[str, Any], str, str, str, str, bool]:
+    decision = _evaluate_pre_call_decision(ctx, model, has_tools=bool(kwargs.get("tools")))
+    action = decision.action
+    reason = decision.reason
+    target_model = decision.target_model
+    applied = action == "allow"
+
+    if mode == "enforce":
+        if action == "stop":
+            ctx.record(
+                action="stop",
+                reason=reason,
+                model=model,
+                applied=True,
+                decision_mode=mode,
+            )
+            _raise_stop_error(ctx, reason)
+
+        if action == "switch_model" and target_model != model:
+            kwargs = {**kwargs, "model": target_model}
+            model = target_model
+            applied = True
+        elif action == "switch_model":
+            applied = False
+
+        if action == "deny_tool":
+            if kwargs.get("tools"):
+                kwargs = {**kwargs, "tools": []}
+                applied = True
+            else:
+                applied = False
+    elif action != "allow":
+        logger.debug(
+            "harness observe decision: action=%s reason=%s model=%s target=%s",
+            action,
+            reason,
+            model,
+            target_model,
+        )
+        applied = False
+
+    return kwargs, model, action, reason, target_model, applied
 
 
 def _update_context(
@@ -379,6 +437,8 @@ def _update_context(
     action: str = "allow",
     action_reason: str | None = None,
     action_model: str | None = None,
+    applied: bool | None = None,
+    decision_mode: str | None = None,
 ) -> None:
     """Update a HarnessRunContext with call metrics."""
     cost = _estimate_cost(model, prompt_tokens, completion_tokens)
@@ -393,14 +453,27 @@ def _update_context(
     if ctx.budget_max is not None:
         ctx.budget_remaining = ctx.budget_max - ctx.cost
 
+    if applied is None:
+        applied = action == "allow"
+    if decision_mode is None:
+        decision_mode = ctx.mode
+
     if action == "allow":
-        ctx.record(action="allow", reason=ctx.mode, model=model)
+        ctx.record(
+            action="allow",
+            reason=ctx.mode,
+            model=model,
+            applied=applied,
+            decision_mode=decision_mode,
+        )
         return
 
     ctx.record(
         action=action,
         reason=action_reason or ctx.mode,
         model=action_model or model,
+        applied=applied,
+        decision_mode=decision_mode,
     )
 
 
@@ -420,6 +493,8 @@ class _InstrumentedStream:
         "_pre_action",
         "_pre_reason",
         "_pre_model",
+        "_pre_applied",
+        "_decision_mode",
         "_usage",
         "_tool_call_count",
         "_finalized",
@@ -434,6 +509,8 @@ class _InstrumentedStream:
         pre_action: str = "allow",
         pre_reason: str = "observe",
         pre_model: str | None = None,
+        pre_applied: bool = True,
+        decision_mode: str = "observe",
     ) -> None:
         self._stream = stream
         self._ctx = ctx
@@ -442,6 +519,8 @@ class _InstrumentedStream:
         self._pre_action = pre_action
         self._pre_reason = pre_reason
         self._pre_model = pre_model or model
+        self._pre_applied = pre_applied
+        self._decision_mode = decision_mode
         self._usage: Any = None
         self._tool_call_count: int = 0
         self._finalized: bool = False
@@ -528,6 +607,8 @@ class _InstrumentedStream:
             action=self._pre_action,
             action_reason=self._pre_reason,
             action_model=self._pre_model,
+            applied=self._pre_applied,
+            decision_mode=self._decision_mode,
         )
 
 
@@ -542,6 +623,8 @@ class _InstrumentedAsyncStream:
         "_pre_action",
         "_pre_reason",
         "_pre_model",
+        "_pre_applied",
+        "_decision_mode",
         "_usage",
         "_tool_call_count",
         "_finalized",
@@ -556,6 +639,8 @@ class _InstrumentedAsyncStream:
         pre_action: str = "allow",
         pre_reason: str = "observe",
         pre_model: str | None = None,
+        pre_applied: bool = True,
+        decision_mode: str = "observe",
     ) -> None:
         self._stream = stream
         self._ctx = ctx
@@ -564,6 +649,8 @@ class _InstrumentedAsyncStream:
         self._pre_action = pre_action
         self._pre_reason = pre_reason
         self._pre_model = pre_model or model
+        self._pre_applied = pre_applied
+        self._decision_mode = decision_mode
         self._usage: Any = None
         self._tool_call_count: int = 0
         self._finalized: bool = False
@@ -648,6 +735,8 @@ class _InstrumentedAsyncStream:
             action=self._pre_action,
             action_reason=self._pre_reason,
             action_model=self._pre_model,
+            applied=self._pre_applied,
+            decision_mode=self._decision_mode,
         )
 
 
@@ -674,34 +763,16 @@ def _make_patched_create(original_fn: Any) -> Any:
         pre_action = "allow"
         pre_reason = mode
         pre_model = model
+        pre_applied = True
         is_stream: bool = bool(kwargs.get("stream", False))
 
         if ctx:
-            decision = _evaluate_pre_call_decision(ctx, model, has_tools=bool(kwargs.get("tools")))
-            pre_action = decision.action
-            pre_reason = decision.reason
-            pre_model = decision.target_model
-
-            if mode == "enforce":
-                if decision.action == "stop":
-                    ctx.record(action="stop", reason=decision.reason, model=model)
-                    _raise_stop_error(ctx, decision.reason)
-
-                if decision.action == "switch_model" and decision.target_model != model:
-                    kwargs = {**kwargs, "model": decision.target_model}
-                    model = decision.target_model
-
-                if decision.action == "deny_tool" and kwargs.get("tools"):
-                    kwargs = {**kwargs, "tools": []}
-
-            elif decision.action != "allow":
-                logger.debug(
-                    "harness observe decision: action=%s reason=%s model=%s target=%s",
-                    decision.action,
-                    decision.reason,
-                    model,
-                    decision.target_model,
-                )
+            kwargs, model, pre_action, pre_reason, pre_model, pre_applied = _resolve_pre_call_decision(
+                ctx,
+                mode,
+                model,
+                kwargs,
+            )
 
         start_time = time.monotonic()
 
@@ -720,6 +791,8 @@ def _make_patched_create(original_fn: Any) -> Any:
                 pre_action,
                 pre_reason,
                 pre_model,
+                pre_applied,
+                mode,
             )
         elif not is_stream and ctx:
             elapsed_ms = (time.monotonic() - start_time) * 1000
@@ -735,6 +808,8 @@ def _make_patched_create(original_fn: Any) -> Any:
                 action=pre_action,
                 action_reason=pre_reason,
                 action_model=pre_model,
+                applied=pre_applied,
+                decision_mode=mode,
             )
         else:
             logger.debug(
@@ -766,34 +841,16 @@ def _make_patched_async_create(original_fn: Any) -> Any:
         pre_action = "allow"
         pre_reason = mode
         pre_model = model
+        pre_applied = True
         is_stream: bool = bool(kwargs.get("stream", False))
 
         if ctx:
-            decision = _evaluate_pre_call_decision(ctx, model, has_tools=bool(kwargs.get("tools")))
-            pre_action = decision.action
-            pre_reason = decision.reason
-            pre_model = decision.target_model
-
-            if mode == "enforce":
-                if decision.action == "stop":
-                    ctx.record(action="stop", reason=decision.reason, model=model)
-                    _raise_stop_error(ctx, decision.reason)
-
-                if decision.action == "switch_model" and decision.target_model != model:
-                    kwargs = {**kwargs, "model": decision.target_model}
-                    model = decision.target_model
-
-                if decision.action == "deny_tool" and kwargs.get("tools"):
-                    kwargs = {**kwargs, "tools": []}
-
-            elif decision.action != "allow":
-                logger.debug(
-                    "harness observe decision async: action=%s reason=%s model=%s target=%s",
-                    decision.action,
-                    decision.reason,
-                    model,
-                    decision.target_model,
-                )
+            kwargs, model, pre_action, pre_reason, pre_model, pre_applied = _resolve_pre_call_decision(
+                ctx,
+                mode,
+                model,
+                kwargs,
+            )
 
         start_time = time.monotonic()
 
@@ -817,6 +874,8 @@ def _make_patched_async_create(original_fn: Any) -> Any:
                 pre_action,
                 pre_reason,
                 pre_model,
+                pre_applied,
+                mode,
             )
         elif not is_stream and ctx:
             elapsed_ms = (time.monotonic() - start_time) * 1000
@@ -832,6 +891,8 @@ def _make_patched_async_create(original_fn: Any) -> Any:
                 action=pre_action,
                 action_reason=pre_reason,
                 action_model=pre_model,
+                applied=pre_applied,
+                decision_mode=mode,
             )
         else:
             logger.debug(
