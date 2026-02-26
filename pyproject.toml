@@ -92,6 +92,12 @@ semantic = [
 # OpenClaw integration (auto-enables FastEmbed for semantic routing)
 openclaw = ["fastembed>=0.7.0"]
 
+# OpenAI Agents SDK integration (opt-in)
+openai-agents = [
+    "openai-agents>=0.8.4; python_version < '3.10'",
+    "openai-agents>=0.9.0; python_version >= '3.10'",
+]
+
 # Development tools (includes rich for terminal output)
 dev = [
     "pytest>=7.4.0",

@@ -40,6 +40,7 @@ Welcome to cascadeflow documentation! 🌊
 ### Integrations
 - [n8n Integration](guides/n8n_integration.md) - Use cascadeflow in n8n workflows
 - [Paygentic Integration](guides/paygentic_integration.md) - Usage metering and billing lifecycle helpers (opt-in)
+- [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
 
 ## 📚 Examples
 
