@@ -20,6 +20,7 @@ from __future__ import annotations
 import functools
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger("cascadeflow.harness.instrument")
@@ -128,18 +129,97 @@ def _extract_usage(response: Any) -> tuple[int, int]:
     )
 
 
-def _check_budget_pre_call(ctx: Any) -> None:
-    """Raise BudgetExceededError in enforce mode if budget is already exhausted."""
-    if ctx.mode != "enforce":
-        return
-    if ctx.budget_max is not None and ctx.cost >= ctx.budget_max:
-        from cascadeflow.schema.exceptions import BudgetExceededError
+def _model_total_cost(model: str) -> float:
+    in_cost, out_cost = _PRICING.get(model, _DEFAULT_PRICING)
+    return in_cost + out_cost
 
-        remaining = ctx.budget_max - ctx.cost
+
+def _select_cheaper_model(current_model: str) -> str:
+    cheapest = min(_PRICING.keys(), key=_model_total_cost)
+    if _model_total_cost(cheapest) < _model_total_cost(current_model):
+        return cheapest
+    return current_model
+
+
+def _select_faster_model(current_model: str) -> str:
+    # We use the lowest-cost model as a deterministic latency proxy until
+    # provider-specific live latency scoring is wired into the harness.
+    return _select_cheaper_model(current_model)
+
+
+def _select_lower_energy_model(current_model: str) -> str:
+    lowest_energy = min(_ENERGY_COEFFICIENTS.keys(), key=lambda name: _ENERGY_COEFFICIENTS[name])
+    if _ENERGY_COEFFICIENTS.get(lowest_energy, _DEFAULT_ENERGY_COEFFICIENT) < _ENERGY_COEFFICIENTS.get(
+        current_model,
+        _DEFAULT_ENERGY_COEFFICIENT,
+    ):
+        return lowest_energy
+    return current_model
+
+
+@dataclass(frozen=True)
+class _PreCallDecision:
+    action: str
+    reason: str
+    target_model: str
+
+
+def _evaluate_pre_call_decision(ctx: Any, model: str, has_tools: bool) -> _PreCallDecision:
+    if ctx.budget_max is not None and ctx.cost >= ctx.budget_max:
+        return _PreCallDecision(action="stop", reason="budget_exceeded", target_model=model)
+
+    if has_tools and ctx.tool_calls_max is not None and ctx.tool_calls >= ctx.tool_calls_max:
+        return _PreCallDecision(action="deny_tool", reason="max_tool_calls_reached", target_model=model)
+
+    if ctx.latency_max_ms is not None and ctx.latency_used_ms >= ctx.latency_max_ms:
+        faster_model = _select_faster_model(model)
+        if faster_model != model:
+            return _PreCallDecision(
+                action="switch_model",
+                reason="latency_limit_exceeded",
+                target_model=faster_model,
+            )
+        return _PreCallDecision(action="stop", reason="latency_limit_exceeded", target_model=model)
+
+    if ctx.energy_max is not None and ctx.energy_used >= ctx.energy_max:
+        lower_energy_model = _select_lower_energy_model(model)
+        if lower_energy_model != model:
+            return _PreCallDecision(
+                action="switch_model",
+                reason="energy_limit_exceeded",
+                target_model=lower_energy_model,
+            )
+        return _PreCallDecision(action="stop", reason="energy_limit_exceeded", target_model=model)
+
+    if (
+        ctx.budget_max is not None
+        and ctx.budget_max > 0
+        and ctx.budget_remaining is not None
+        and (ctx.budget_remaining / ctx.budget_max) < 0.2
+    ):
+        cheaper_model = _select_cheaper_model(model)
+        if cheaper_model != model:
+            return _PreCallDecision(
+                action="switch_model",
+                reason="budget_pressure",
+                target_model=cheaper_model,
+            )
+
+    return _PreCallDecision(action="allow", reason=ctx.mode, target_model=model)
+
+
+def _raise_stop_error(ctx: Any, reason: str) -> None:
+    from cascadeflow.schema.exceptions import BudgetExceededError
+
+    if reason == "budget_exceeded":
+        remaining = 0.0
+        if ctx.budget_max is not None:
+            remaining = ctx.budget_max - ctx.cost
         raise BudgetExceededError(
-            f"Budget exhausted: spent ${ctx.cost:.4f} of ${ctx.budget_max:.4f} max",
+            f"Budget exhausted: spent ${ctx.cost:.4f} of ${ctx.budget_max or 0.0:.4f} max",
             remaining=remaining,
         )
+    raise RuntimeError(f"cascadeflow harness stop: {reason}")
 
 
 def _update_context(
@@ -149,6 +229,10 @@ def _update_context(
     completion_tokens: int,
     tool_call_count: int,
     elapsed_ms: float,
+    *,
+    action: str = "allow",
+    action_reason: str | None = None,
+    action_model: str | None = None,
 ) -> None:
     """Update a HarnessRunContext with call metrics."""
     cost = _estimate_cost(model, prompt_tokens, completion_tokens)
@@ -163,8 +247,15 @@ def _update_context(
     if ctx.budget_max is not None:
         ctx.budget_remaining = ctx.budget_max - ctx.cost
 
-    ctx.model_used = model
-    ctx.record(action="allow", reason=ctx.mode, model=model)
+    if action == "allow":
+        ctx.record(action="allow", reason=ctx.mode, model=model)
+        return
+
+    ctx.record(
+        action=action,
+        reason=action_reason or ctx.mode,
+        model=action_model or model,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +271,9 @@ class _InstrumentedStream:
         "_ctx",
         "_model",
         "_start_time",
+        "_pre_action",
+        "_pre_reason",
+        "_pre_model",
         "_usage",
         "_tool_call_count",
         "_finalized",
@@ -191,11 +285,17 @@ class _InstrumentedStream:
         ctx: Any,
         model: str,
         start_time: float,
+        pre_action: str = "allow",
+        pre_reason: str = "observe",
+        pre_model: str | None = None,
     ) -> None:
         self._stream = stream
         self._ctx = ctx
         self._model = model
         self._start_time = start_time
+        self._pre_action = pre_action
+        self._pre_reason = pre_reason
+        self._pre_model = pre_model or model
         self._usage: Any = None
         self._tool_call_count: int = 0
         self._finalized: bool = False
@@ -279,6 +379,9 @@ class _InstrumentedStream:
             completion_tokens,
             self._tool_call_count,
             elapsed_ms,
+            action=self._pre_action,
+            action_reason=self._pre_reason,
+            action_model=self._pre_model,
         )
 
 
@@ -290,6 +393,9 @@ class _InstrumentedAsyncStream:
         "_ctx",
         "_model",
         "_start_time",
+        "_pre_action",
+        "_pre_reason",
+        "_pre_model",
         "_usage",
         "_tool_call_count",
         "_finalized",
@@ -301,11 +407,17 @@ class _InstrumentedAsyncStream:
         ctx: Any,
         model: str,
         start_time: float,
+        pre_action: str = "allow",
+        pre_reason: str = "observe",
+        pre_model: str | None = None,
     ) -> None:
         self._stream = stream
         self._ctx = ctx
         self._model = model
         self._start_time = start_time
+        self._pre_action = pre_action
+        self._pre_reason = pre_reason
+        self._pre_model = pre_model or model
         self._usage: Any = None
         self._tool_call_count: int = 0
         self._finalized: bool = False
@@ -387,6 +499,9 @@ class _InstrumentedAsyncStream:
             completion_tokens,
             self._tool_call_count,
             elapsed_ms,
+            action=self._pre_action,
+            action_reason=self._pre_reason,
+            action_model=self._pre_model,
         )
 
 
@@ -410,10 +525,37 @@ def _make_patched_create(original_fn: Any) -> Any:
             return original_fn(self, *args, **kwargs)
 
         model: str = kwargs.get("model", "unknown")
+        pre_action = "allow"
+        pre_reason = mode
+        pre_model = model
         is_stream: bool = bool(kwargs.get("stream", False))
 
         if ctx:
-            _check_budget_pre_call(ctx)
+            decision = _evaluate_pre_call_decision(ctx, model, has_tools=bool(kwargs.get("tools")))
+            pre_action = decision.action
+            pre_reason = decision.reason
+            pre_model = decision.target_model
+
+            if mode == "enforce":
+                if decision.action == "stop":
+                    ctx.record(action="stop", reason=decision.reason, model=model)
+                    _raise_stop_error(ctx, decision.reason)
+
+                if decision.action == "switch_model" and decision.target_model != model:
+                    kwargs = {**kwargs, "model": decision.target_model}
+                    model = decision.target_model
+
+                if decision.action == "deny_tool" and kwargs.get("tools"):
+                    kwargs = {**kwargs, "tools": []}
+
+            elif decision.action != "allow":
+                logger.debug(
+                    "harness observe decision: action=%s reason=%s model=%s target=%s",
+                    decision.action,
+                    decision.reason,
+                    model,
+                    decision.target_model,
+                )
 
         start_time = time.monotonic()
 
@@ -424,7 +566,15 @@ def _make_patched_create(original_fn: Any) -> Any:
         response = original_fn(self, *args, **kwargs)
 
         if is_stream and ctx:
-            return _InstrumentedStream(response, ctx, model, start_time)
+            return _InstrumentedStream(
+                response,
+                ctx,
+                model,
+                start_time,
+                pre_action,
+                pre_reason,
+                pre_model,
+            )
         elif not is_stream and ctx:
             elapsed_ms = (time.monotonic() - start_time) * 1000
             prompt_tokens, completion_tokens = _extract_usage(response)
@@ -436,6 +586,9 @@ def _make_patched_create(original_fn: Any) -> Any:
                 completion_tokens,
                 tool_call_count,
                 elapsed_ms,
+                action=pre_action,
+                action_reason=pre_reason,
+                action_model=pre_model,
             )
         else:
             logger.debug(
@@ -464,10 +617,37 @@ def _make_patched_async_create(original_fn: Any) -> Any:
             return await original_fn(self, *args, **kwargs)
 
         model: str = kwargs.get("model", "unknown")
+        pre_action = "allow"
+        pre_reason = mode
+        pre_model = model
         is_stream: bool = bool(kwargs.get("stream", False))
 
         if ctx:
-            _check_budget_pre_call(ctx)
+            decision = _evaluate_pre_call_decision(ctx, model, has_tools=bool(kwargs.get("tools")))
+            pre_action = decision.action
+            pre_reason = decision.reason
+            pre_model = decision.target_model
+
+            if mode == "enforce":
+                if decision.action == "stop":
+                    ctx.record(action="stop", reason=decision.reason, model=model)
+                    _raise_stop_error(ctx, decision.reason)
+
+                if decision.action == "switch_model" and decision.target_model != model:
+                    kwargs = {**kwargs, "model": decision.target_model}
+                    model = decision.target_model
+
+                if decision.action == "deny_tool" and kwargs.get("tools"):
+                    kwargs = {**kwargs, "tools": []}
+
+            elif decision.action != "allow":
+                logger.debug(
+                    "harness observe decision async: action=%s reason=%s model=%s target=%s",
+                    decision.action,
+                    decision.reason,
+                    model,
+                    decision.target_model,
+                )
 
         start_time = time.monotonic()
 
@@ -483,7 +663,15 @@ def _make_patched_async_create(original_fn: Any) -> Any:
         response = await original_fn(self, *args, **kwargs)
 
         if is_stream and ctx:
-            return _InstrumentedAsyncStream(response, ctx, model, start_time)
+            return _InstrumentedAsyncStream(
+                response,
+                ctx,
+                model,
+                start_time,
+                pre_action,
+                pre_reason,
+                pre_model,
+            )
         elif not is_stream and ctx:
             elapsed_ms = (time.monotonic() - start_time) * 1000
             prompt_tokens, completion_tokens = _extract_usage(response)
@@ -495,6 +683,9 @@ def _make_patched_async_create(original_fn: Any) -> Any:
                 completion_tokens,
                 tool_call_count,
                 elapsed_ms,
+                action=pre_action,
+                action_reason=pre_reason,
+                action_model=pre_model,
             )
         else:
             logger.debug(

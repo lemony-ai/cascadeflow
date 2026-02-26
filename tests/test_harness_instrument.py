@@ -658,6 +658,126 @@ class TestEnforceMode:
 
 
 # ---------------------------------------------------------------------------
+# Enforce actions: switch_model, deny_tool, stop
+# ---------------------------------------------------------------------------
+
+
+class TestEnforceActions:
+    def test_enforce_switches_model_under_budget_pressure(self) -> None:
+        init(mode="enforce")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=1.0) as ctx:
+            ctx.cost = 0.85
+            ctx.budget_remaining = 0.15
+            wrapper(MagicMock(), model="gpt-4o")
+
+        assert original.call_args[1]["model"] == "gpt-4o-mini"
+        trace = ctx.trace()
+        assert trace[0]["action"] == "switch_model"
+        assert trace[0]["reason"] == "budget_pressure"
+
+    def test_observe_computes_switch_model_but_does_not_apply(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=1.0) as ctx:
+            ctx.cost = 0.85
+            ctx.budget_remaining = 0.15
+            wrapper(MagicMock(), model="gpt-4o")
+
+        assert original.call_args[1]["model"] == "gpt-4o"
+        trace = ctx.trace()
+        assert trace[0]["action"] == "switch_model"
+        assert trace[0]["reason"] == "budget_pressure"
+        assert trace[0]["model"] == "gpt-4o-mini"
+
+    def test_enforce_denies_tools_when_cap_reached(self) -> None:
+        init(mode="enforce", max_tool_calls=0)
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(max_tool_calls=0) as ctx:
+            wrapper(MagicMock(), model="gpt-4o", tools=[{"type": "function", "function": {"name": "t1"}}])
+
+        assert original.call_args[1]["tools"] == []
+        trace = ctx.trace()
+        assert trace[0]["action"] == "deny_tool"
+        assert trace[0]["reason"] == "max_tool_calls_reached"
+
+    def test_observe_logs_deny_tool_but_keeps_tools(self) -> None:
+        init(mode="observe", max_tool_calls=0)
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        tools = [{"type": "function", "function": {"name": "t1"}}]
+        with run(max_tool_calls=0) as ctx:
+            wrapper(MagicMock(), model="gpt-4o", tools=tools)
+
+        assert original.call_args[1]["tools"] == tools
+        trace = ctx.trace()
+        assert trace[0]["action"] == "deny_tool"
+        assert trace[0]["reason"] == "max_tool_calls_reached"
+
+    def test_enforce_stops_when_latency_limit_exceeded_at_fastest_model(self) -> None:
+        init(mode="enforce")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(max_latency_ms=1.0) as ctx:
+            ctx.latency_used_ms = 5.0
+            with pytest.raises(RuntimeError, match="latency_limit_exceeded"):
+                wrapper(MagicMock(), model="gpt-4o-mini")
+
+        original.assert_not_called()
+        trace = ctx.trace()
+        assert trace[0]["action"] == "stop"
+        assert trace[0]["reason"] == "latency_limit_exceeded"
+
+    def test_enforce_stops_when_energy_limit_exceeded_at_lowest_energy_model(self) -> None:
+        init(mode="enforce")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(max_energy=1.0) as ctx:
+            ctx.energy_used = 5.0
+            with pytest.raises(RuntimeError, match="energy_limit_exceeded"):
+                wrapper(MagicMock(), model="gpt-3.5-turbo")
+
+        original.assert_not_called()
+        trace = ctx.trace()
+        assert trace[0]["action"] == "stop"
+        assert trace[0]["reason"] == "energy_limit_exceeded"
+
+    @pytest.mark.asyncio
+    async def test_async_enforce_denies_tools_when_cap_reached(self) -> None:
+        init(mode="enforce", max_tool_calls=0)
+        mock_resp = _mock_completion()
+        original = AsyncMock(return_value=mock_resp)
+        wrapper = _make_patched_async_create(original)
+
+        async with run(max_tool_calls=0) as ctx:
+            await wrapper(
+                MagicMock(),
+                model="gpt-4o",
+                tools=[{"type": "function", "function": {"name": "t1"}}],
+            )
+
+        assert original.call_args[1]["tools"] == []
+        trace = ctx.trace()
+        assert trace[0]["action"] == "deny_tool"
+        assert trace[0]["reason"] == "max_tool_calls_reached"
+
+
+# ---------------------------------------------------------------------------
 # Fix: stream_options.include_usage auto-injection
 # ---------------------------------------------------------------------------
 
