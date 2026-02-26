@@ -11,16 +11,16 @@ gracefully and ``CREWAI_AVAILABLE`` is ``False``.
 Integration surface:
     - ``enable()``:  register before/after LLM-call hooks globally
     - ``disable()``: unregister hooks and clean up
-    - ``CrewAIHarnessConfig``: optional knobs (fail_open, cost_model_override)
+    - ``CrewAIHarnessConfig``: optional knobs (fail_open, enable_budget_gate)
 """
 
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger("cascadeflow.integrations.crewai")
 
@@ -71,6 +71,17 @@ def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
 def _estimate_energy(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     coeff = _ENERGY_COEFFICIENTS.get(model, _DEFAULT_ENERGY_COEFFICIENT)
     return coeff * (prompt_tokens + completion_tokens * _ENERGY_OUTPUT_WEIGHT)
+
+
+def _extract_message_content(message: Any) -> str:
+    """Extract content text from a CrewAI message (dict or object).
+
+    CrewAI hooks pass messages as dicts (``{"role": "...", "content": "..."}``)
+    but we also handle object-style messages defensively.
+    """
+    if isinstance(message, dict):
+        return str(message.get("content", "") or "")
+    return str(getattr(message, "content", "") or "")
 
 
 # ---------------------------------------------------------------------------
@@ -140,10 +151,8 @@ def _before_llm_call_hook(context: Any) -> Optional[bool]:
         if ctx is None:
             return None
 
-        # Record start time for latency tracking
-        _call_start_times[id(context)] = time.monotonic()
-
-        # Budget gate in enforce mode
+        # Budget gate in enforce mode — check BEFORE recording start time
+        # so blocked calls don't leak entries in _call_start_times.
         if (
             _config.enable_budget_gate
             and ctx.mode == "enforce"
@@ -158,6 +167,9 @@ def _before_llm_call_hook(context: Any) -> Optional[bool]:
             )
             ctx.record(action="stop", reason="budget_exhausted", model=_extract_model_name(context))
             return False
+
+        # Record start time for latency tracking (only for allowed calls)
+        _call_start_times[id(context)] = time.monotonic()
 
         return None
     except Exception:
@@ -189,10 +201,11 @@ def _after_llm_call_hook(context: Any) -> Optional[str]:
         model = _extract_model_name(context)
         response = getattr(context, "response", None) or ""
 
-        # Estimate tokens from response text (rough: 1 token ≈ 4 chars)
+        # Estimate tokens from text (rough: 1 token ≈ 4 chars).
         # CrewAI hooks don't expose raw token counts, so we approximate.
+        # Messages are typically dicts ({"role": "...", "content": "..."}).
         messages = getattr(context, "messages", [])
-        prompt_chars = sum(len(str(getattr(m, "content", "") or "")) for m in messages)
+        prompt_chars = sum(len(_extract_message_content(m)) for m in messages)
         completion_chars = len(str(response))
         prompt_tokens = max(prompt_chars // 4, 1)
         completion_tokens = max(completion_chars // 4, 1)
@@ -271,9 +284,9 @@ def enable(config: Optional[CrewAIHarnessConfig] = None) -> bool:
         _config = config
 
     try:
-        from crewai.hooks import (
-            register_before_llm_call_hook,
+        from crewai.hooks import (  # noqa: I001
             register_after_llm_call_hook,
+            register_before_llm_call_hook,
         )
     except ImportError:
         logger.warning(
@@ -304,9 +317,9 @@ def disable() -> None:
         return
 
     try:
-        from crewai.hooks import (
-            unregister_before_llm_call_hook,
+        from crewai.hooks import (  # noqa: I001
             unregister_after_llm_call_hook,
+            unregister_before_llm_call_hook,
         )
 
         if _before_hook_ref is not None:
