@@ -6,6 +6,7 @@ from cascadeflow.integrations.openai_agents import (
     CascadeFlowModelProvider,
     OpenAIAgentsIntegrationConfig,
 )
+from cascadeflow.schema.exceptions import BudgetExceededError
 
 
 def setup_function() -> None:
@@ -79,7 +80,7 @@ class _FakeBaseProvider:
 def _response_call_kwargs():
     return {
         "system_instructions": None,
-        "input_data": "hello",
+        "input": "hello",
         "model_settings": None,
         "tools": [],
         "output_schema": None,
@@ -104,6 +105,8 @@ async def test_metrics_updated_from_get_response():
 
     with run(budget=2.0) as ctx:
         await wrapped.get_response(**_response_call_kwargs())
+        assert model.last_kwargs is not None
+        assert model.last_kwargs["input"] == "hello"
         assert ctx.step_count == 1
         assert ctx.tool_calls == 1
         assert ctx.cost > 0
@@ -149,6 +152,35 @@ def test_switches_to_cheapest_candidate_under_budget_pressure():
         assert ctx.last_action == "switch_model"
 
 
+def test_budget_exceeded_raises_cascadeflow_budget_error():
+    init(mode="enforce", budget=1.0)
+
+    response = _FakeResponse()
+    model = _FakeModel(response=response)
+    provider = CascadeFlowModelProvider(base_provider=_FakeBaseProvider(model))
+
+    with run(budget=1.0) as ctx:
+        ctx.budget_remaining = 0.0
+        with pytest.raises(BudgetExceededError):
+            provider.get_model("gpt-4o-mini")
+
+
+def test_fail_open_falls_back_when_model_resolution_errors(monkeypatch):
+    response = _FakeResponse()
+    model = _FakeModel(response=response)
+    base_provider = _FakeBaseProvider(model)
+    provider = CascadeFlowModelProvider(base_provider=base_provider)
+
+    def _boom(_: object) -> str:
+        raise ValueError("resolution failed")
+
+    monkeypatch.setattr(provider, "_resolve_model", _boom)
+    wrapped = provider.get_model("gpt-4o")
+
+    assert wrapped is not None
+    assert base_provider.requested_models[-1] == "gpt-4o"
+
+
 @pytest.mark.asyncio
 async def test_stream_response_updates_metrics():
     init(mode="observe", budget=3.0)
@@ -164,12 +196,11 @@ async def test_stream_response_updates_metrics():
     wrapped = provider.get_model("gpt-4o-mini")
 
     with run(budget=3.0) as ctx:
-        async for _ in wrapped.stream_response(
-            **_response_call_kwargs(),
-            text_format=None,
-        ):
+        async for _ in wrapped.stream_response(**_response_call_kwargs()):
             pass
 
+        assert model.last_kwargs is not None
+        assert model.last_kwargs["input"] == "hello"
         assert ctx.step_count == 1
         assert ctx.tool_calls == 1
         assert ctx.cost > 0
