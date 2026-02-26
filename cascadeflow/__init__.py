@@ -250,6 +250,8 @@ from .harness import (
     agent,
     get_harness_config,
     get_current_run,
+    get_harness_callback_manager,
+    set_harness_callback_manager,
 )
 
 # ==================== MAIN AGENT & RESULT ====================
@@ -404,6 +406,8 @@ __all__ = [
     "agent",
     "get_harness_config",
     "get_current_run",
+    "get_harness_callback_manager",
+    "set_harness_callback_manager",
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",

@@ -14,11 +14,13 @@ from .api import (
     HarnessInitReport,
     HarnessRunContext,
     agent,
+    get_harness_callback_manager,
     get_current_run,
     get_harness_config,
     init,
     reset,
     run,
+    set_harness_callback_manager,
 )
 
 __all__ = [
@@ -29,6 +31,8 @@ __all__ = [
     "run",
     "agent",
     "get_current_run",
+    "get_harness_callback_manager",
     "get_harness_config",
+    "set_harness_callback_manager",
     "reset",
 ]

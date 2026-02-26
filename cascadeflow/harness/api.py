@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import os
+import time
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from importlib.util import find_spec
@@ -40,6 +41,8 @@ class HarnessInitReport:
 @dataclass
 class HarnessRunContext:
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
+    started_at_ms: float = field(default_factory=lambda: time.time() * 1000)
+    ended_at_ms: Optional[float] = None
     mode: HarnessMode = "off"
     budget_max: Optional[float] = None
     tool_calls_max: Optional[int] = None
@@ -71,6 +74,8 @@ class HarnessRunContext:
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.ended_at_ms = time.time() * 1000
+        self._log_summary()
         if self._token is not None:
             _current_run.reset(self._token)
             self._token = None
@@ -84,6 +89,47 @@ class HarnessRunContext:
     def trace(self) -> list[dict[str, Any]]:
         return list(self._trace)
 
+    def summary(self) -> dict[str, Any]:
+        duration_ms: Optional[float] = None
+        if self.ended_at_ms is not None:
+            duration_ms = max(0.0, self.ended_at_ms - self.started_at_ms)
+        return {
+            "run_id": self.run_id,
+            "mode": self.mode,
+            "step_count": self.step_count,
+            "tool_calls": self.tool_calls,
+            "cost": self.cost,
+            "savings": self.savings,
+            "latency_used_ms": self.latency_used_ms,
+            "energy_used": self.energy_used,
+            "budget_max": self.budget_max,
+            "budget_remaining": self.budget_remaining,
+            "last_action": self.last_action,
+            "model_used": self.model_used,
+            "duration_ms": duration_ms,
+        }
+
+    def _log_summary(self) -> None:
+        if self.mode == "off" or self.step_count <= 0:
+            return
+        logger.info(
+            (
+                "harness run summary run_id=%s mode=%s steps=%d tool_calls=%d "
+                "cost=%.6f latency_ms=%.2f energy=%.4f last_action=%s model=%s "
+                "budget_remaining=%s"
+            ),
+            self.run_id,
+            self.mode,
+            self.step_count,
+            self.tool_calls,
+            self.cost,
+            self.latency_used_ms,
+            self.energy_used,
+            self.last_action,
+            self.model_used,
+            self.budget_remaining,
+        )
+
     def record(
         self,
         action: str,
@@ -93,24 +139,41 @@ class HarnessRunContext:
         applied: Optional[bool] = None,
         decision_mode: Optional[str] = None,
     ) -> None:
-        self.last_action = action
-        self.model_used = model
+        safe_action = _sanitize_trace_value(action, max_length=64) or "allow"
+        safe_reason = _sanitize_trace_value(reason, max_length=160) or "unspecified"
+        safe_model = _sanitize_trace_value(model, max_length=128) if model is not None else None
+
+        self.last_action = safe_action
+        self.model_used = safe_model
         entry: dict[str, Any] = {
-            "action": action,
-            "reason": reason,
-            "model": model,
+            "action": safe_action,
+            "reason": safe_reason,
+            "model": safe_model,
             "run_id": self.run_id,
+            "mode": self.mode,
+            "step": self.step_count,
+            "timestamp_ms": time.time() * 1000,
+            "tool_calls_total": self.tool_calls,
+            "cost_total": self.cost,
+            "latency_used_ms": self.latency_used_ms,
+            "energy_used": self.energy_used,
+            "budget_state": {
+                "max": self.budget_max,
+                "remaining": self.budget_remaining,
+            },
         }
         if applied is not None:
             entry["applied"] = applied
         if decision_mode is not None:
             entry["decision_mode"] = decision_mode
         self._trace.append(entry)
+        _emit_harness_decision(entry)
 
 
 _harness_config: HarnessConfig = HarnessConfig()
 _current_run: ContextVar[Optional[HarnessRunContext]] = ContextVar("cascadeflow_harness_run", default=None)
 _is_instrumented: bool = False
+_harness_callback_manager: Any = None
 _UNSET = object()
 
 
@@ -135,6 +198,15 @@ def get_current_run() -> Optional[HarnessRunContext]:
     return _current_run.get()
 
 
+def get_harness_callback_manager() -> Any:
+    return _harness_callback_manager
+
+
+def set_harness_callback_manager(callback_manager: Any) -> None:
+    global _harness_callback_manager
+    _harness_callback_manager = callback_manager
+
+
 def reset() -> None:
     """
     Reset harness global state and unpatch instrumented clients.
@@ -144,13 +216,51 @@ def reset() -> None:
 
     global _harness_config
     global _is_instrumented
+    global _harness_callback_manager
 
     from cascadeflow.harness.instrument import unpatch_openai
 
     unpatch_openai()
     _harness_config = HarnessConfig()
     _is_instrumented = False
+    _harness_callback_manager = None
     _current_run.set(None)
+
+
+def _sanitize_trace_value(value: Any, *, max_length: int) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).replace("\n", " ").replace("\r", " ").strip()
+    if len(text) > max_length:
+        text = text[: max_length - 3] + "..."
+    return text
+
+
+def _emit_harness_decision(entry: dict[str, Any]) -> None:
+    manager = get_harness_callback_manager()
+    if manager is None:
+        return
+
+    trigger = getattr(manager, "trigger", None)
+    if not callable(trigger):
+        logger.debug("harness callback manager has no trigger() method")
+        return
+
+    try:
+        from cascadeflow.telemetry.callbacks import CallbackEvent
+    except Exception:
+        logger.debug("telemetry callbacks unavailable for harness decision emit", exc_info=True)
+        return
+
+    try:
+        trigger(
+            CallbackEvent.CASCADE_DECISION,
+            query="[harness]",
+            data=dict(entry),
+            workflow="harness",
+        )
+    except Exception:
+        logger.debug("failed to emit harness decision callback", exc_info=True)
 
 
 def _parse_bool(raw: str) -> bool:
@@ -301,6 +411,7 @@ def init(
     kpi_targets: Optional[dict[str, float]] | object = _UNSET,
     kpi_weights: Optional[dict[str, float]] | object = _UNSET,
     compliance: Optional[str] | object = _UNSET,
+    callback_manager: Any | object = _UNSET,
 ) -> HarnessInitReport:
     """
     Initialize global harness settings and instrument detected SDK clients.
@@ -332,6 +443,9 @@ def init(
     resolved_compliance = _resolve_value(
         "compliance", compliance, env_config, file_config, None, sources
     )
+    if callback_manager is not _UNSET:
+        set_harness_callback_manager(callback_manager)
+        sources["callback_manager"] = "code"
 
     validated_mode = _validate_mode(str(resolved_mode))
     _harness_config = HarnessConfig(
