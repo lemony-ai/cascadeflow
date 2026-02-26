@@ -54,6 +54,14 @@ from .langchain_callbacks import (
     CascadeFlowCallbackHandler,
     get_cascade_callback,
 )
+from .harness_callback import (
+    HarnessAwareCascadeFlowCallbackHandler,
+    get_harness_callback,
+)
+from .harness_state import (
+    apply_langgraph_state,
+    extract_langgraph_state,
+)
 
 __all__ = [
     # Main classes
@@ -93,4 +101,8 @@ __all__ = [
     # LangChain callback handlers
     "CascadeFlowCallbackHandler",
     "get_cascade_callback",
+    "HarnessAwareCascadeFlowCallbackHandler",
+    "get_harness_callback",
+    "extract_langgraph_state",
+    "apply_langgraph_state",
 ]
