@@ -116,6 +116,42 @@ def test_harness_callback_enforce_denies_tool_when_limit_reached() -> None:
         assert trace[-1]["decision_mode"] == "enforce"
 
 
+def test_on_llm_end_no_run_context_is_safe() -> None:
+    handler = HarnessAwareCascadeFlowCallbackHandler()
+    handler.on_llm_start(
+        serialized={},
+        prompts=["hello"],
+        invocation_params={"model": "gpt-4o-mini"},
+    )
+    result = handler.on_llm_end(_llm_result("gpt-4o-mini", 10, 5))
+    assert result is None
+
+
+def test_on_tool_start_no_run_context_is_safe() -> None:
+    handler = HarnessAwareCascadeFlowCallbackHandler()
+    result = handler.on_tool_start(serialized={"name": "search"}, input_str="query")
+    assert result is None
+
+
+def test_extract_state_ignores_plain_kwargs() -> None:
+    """Kwargs without a named state key should not leak into state."""
+    state = extract_langgraph_state({"model": "gpt-4o", "invocation_params": {"tools": []}})
+    assert state == {}
+
+
+def test_tool_deny_uses_run_ctx_tool_calls() -> None:
+    """Tool gating should use run_ctx.tool_calls, not a local counter."""
+    init(mode="enforce", max_tool_calls=2, budget=1.0)
+    handler = HarnessAwareCascadeFlowCallbackHandler(fail_open=False)
+
+    with run(max_tool_calls=2, budget=1.0) as ctx:
+        # Simulate tool calls already counted by on_llm_end or other integrations
+        ctx.tool_calls = 2
+
+        with pytest.raises(HarnessStopError, match="max tool calls"):
+            handler.on_tool_start(serialized={"name": "search"}, input_str="query")
+
+
 def test_extract_and_apply_langgraph_state() -> None:
     state = extract_langgraph_state(
         {

@@ -5,10 +5,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from cascadeflow.harness import init, reset, run
+from cascadeflow.integrations.langchain import CascadeFlow
 from cascadeflow.integrations.langchain.harness_callback import (
     HarnessAwareCascadeFlowCallbackHandler,
 )
-from cascadeflow.integrations.langchain import CascadeFlow
 
 
 class MockSequenceChatModel(BaseChatModel):

@@ -24,6 +24,12 @@ def _as_float(value: Any) -> Optional[float]:
 
 
 def _extract_candidate_state(source: Any) -> Optional[Mapping[str, Any]]:
+    """Extract a named state container from a mapping.
+
+    Only returns state from explicitly named keys (langgraph_state, graph_state,
+    state).  Returns None when no named key matches — avoids treating arbitrary
+    kwargs as harness state.
+    """
     if not isinstance(source, Mapping):
         return None
 
@@ -32,7 +38,7 @@ def _extract_candidate_state(source: Any) -> Optional[Mapping[str, Any]]:
         if isinstance(candidate, Mapping):
             return candidate
 
-    return source
+    return None
 
 
 def extract_langgraph_state(payload: Any) -> dict[str, Any]:
