@@ -73,6 +73,22 @@ _ENERGY_OUTPUT_WEIGHT: float = 1.5
 # ---------------------------------------------------------------------------
 
 
+def _ensure_stream_usage(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Inject ``stream_options.include_usage=True`` for streaming requests.
+
+    OpenAI only sends usage data in the final stream chunk when this option
+    is set.  Without it the harness would record zero cost for every
+    streaming call.
+    """
+    if not kwargs.get("stream", False):
+        return kwargs
+    stream_options = kwargs.get("stream_options") or {}
+    if not stream_options.get("include_usage"):
+        stream_options = {**stream_options, "include_usage": True}
+        kwargs = {**kwargs, "stream_options": stream_options}
+    return kwargs
+
+
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Estimate cost in USD from model name and token counts."""
     per_million = _PRICING.get(model, _DEFAULT_PRICING)
@@ -112,6 +128,20 @@ def _extract_usage(response: Any) -> tuple[int, int]:
     )
 
 
+def _check_budget_pre_call(ctx: Any) -> None:
+    """Raise BudgetExceededError in enforce mode if budget is already exhausted."""
+    if ctx.mode != "enforce":
+        return
+    if ctx.budget_max is not None and ctx.cost >= ctx.budget_max:
+        from cascadeflow.schema.exceptions import BudgetExceededError
+
+        remaining = ctx.budget_max - ctx.cost
+        raise BudgetExceededError(
+            f"Budget exhausted: spent ${ctx.cost:.4f} of ${ctx.budget_max:.4f} max",
+            remaining=remaining,
+        )
+
+
 def _update_context(
     ctx: Any,
     model: str,
@@ -134,7 +164,7 @@ def _update_context(
         ctx.budget_remaining = ctx.budget_max - ctx.cost
 
     ctx.model_used = model
-    ctx.record(action="allow", reason="observe", model=model)
+    ctx.record(action="allow", reason=ctx.mode, model=model)
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +411,13 @@ def _make_patched_create(original_fn: Any) -> Any:
 
         model: str = kwargs.get("model", "unknown")
         is_stream: bool = bool(kwargs.get("stream", False))
+
+        if ctx:
+            _check_budget_pre_call(ctx)
+
         start_time = time.monotonic()
+
+        kwargs = _ensure_stream_usage(kwargs)
 
         logger.debug("harness intercept: model=%s stream=%s mode=%s", model, is_stream, mode)
 
@@ -429,7 +465,13 @@ def _make_patched_async_create(original_fn: Any) -> Any:
 
         model: str = kwargs.get("model", "unknown")
         is_stream: bool = bool(kwargs.get("stream", False))
+
+        if ctx:
+            _check_budget_pre_call(ctx)
+
         start_time = time.monotonic()
+
+        kwargs = _ensure_stream_usage(kwargs)
 
         logger.debug(
             "harness intercept async: model=%s stream=%s mode=%s",

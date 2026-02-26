@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+pytest.importorskip("openai", reason="openai package required for instrumentation tests")
+
 from cascadeflow.harness import init, reset, run
 from cascadeflow.harness.instrument import (
     _InstrumentedAsyncStream,
@@ -563,3 +565,144 @@ class TestEdgeCases:
 
         assert ctx.cost == 0.0  # No usage data available
         assert ctx.step_count == 1  # Step still counted
+
+
+# ---------------------------------------------------------------------------
+# Fix: init(mode="off") unpatches previously patched client
+# ---------------------------------------------------------------------------
+
+
+class TestInitOffUnpatches:
+    def test_init_off_after_observe_unpatches(self) -> None:
+        init(mode="observe")
+        assert is_patched()
+        init(mode="off")
+        assert not is_patched()
+
+    def test_init_off_when_not_patched_is_safe(self) -> None:
+        init(mode="off")
+        assert not is_patched()
+
+
+# ---------------------------------------------------------------------------
+# Fix: enforce mode — budget gate and correct trace reason
+# ---------------------------------------------------------------------------
+
+
+class TestEnforceMode:
+    def test_enforce_trace_records_enforce_reason(self) -> None:
+        init(mode="enforce")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=10.0) as ctx:
+            wrapper(MagicMock(), model="gpt-4o")
+
+        trace = ctx.trace()
+        assert trace[0]["reason"] == "enforce"
+
+    def test_observe_trace_records_observe_reason(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=10.0) as ctx:
+            wrapper(MagicMock(), model="gpt-4o")
+
+        trace = ctx.trace()
+        assert trace[0]["reason"] == "observe"
+
+    def test_enforce_raises_on_budget_exhausted(self) -> None:
+        from cascadeflow.schema.exceptions import BudgetExceededError
+
+        init(mode="enforce")
+        mock_resp = _mock_completion(prompt_tokens=1_000_000, completion_tokens=1_000_000)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=0.001) as ctx:
+            # First call uses the tiny budget
+            wrapper(MagicMock(), model="gpt-4o")
+            # Second call should raise — budget exhausted
+            with pytest.raises(BudgetExceededError):
+                wrapper(MagicMock(), model="gpt-4o")
+
+    def test_observe_does_not_raise_on_budget_exhausted(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_completion(prompt_tokens=1_000_000, completion_tokens=1_000_000)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=0.001) as ctx:
+            wrapper(MagicMock(), model="gpt-4o")
+            # Second call should NOT raise — observe mode is permissive
+            wrapper(MagicMock(), model="gpt-4o")
+
+        assert ctx.cost > ctx.budget_max  # type: ignore[operator]
+
+    @pytest.mark.asyncio
+    async def test_enforce_raises_on_budget_exhausted_async(self) -> None:
+        from cascadeflow.schema.exceptions import BudgetExceededError
+
+        init(mode="enforce")
+        mock_resp = _mock_completion(prompt_tokens=1_000_000, completion_tokens=1_000_000)
+        original = AsyncMock(return_value=mock_resp)
+        wrapper = _make_patched_async_create(original)
+
+        async with run(budget=0.001) as ctx:
+            await wrapper(MagicMock(), model="gpt-4o")
+            with pytest.raises(BudgetExceededError):
+                await wrapper(MagicMock(), model="gpt-4o")
+
+
+# ---------------------------------------------------------------------------
+# Fix: stream_options.include_usage auto-injection
+# ---------------------------------------------------------------------------
+
+
+class TestStreamUsageInjection:
+    def test_stream_injects_include_usage(self) -> None:
+        init(mode="observe")
+        mock_stream = iter([_mock_stream_chunk("hi", usage=_mock_usage(50, 25))])
+        original = MagicMock(return_value=mock_stream)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=1.0) as ctx:
+            result = wrapper(MagicMock(), model="gpt-4o-mini", stream=True)
+            list(result)
+
+        # Check the original was called with stream_options injected
+        call_kwargs = original.call_args[1]
+        assert call_kwargs.get("stream_options", {}).get("include_usage") is True
+
+    def test_stream_preserves_existing_stream_options(self) -> None:
+        init(mode="observe")
+        mock_stream = iter([_mock_stream_chunk("hi", usage=_mock_usage(50, 25))])
+        original = MagicMock(return_value=mock_stream)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=1.0) as ctx:
+            result = wrapper(
+                MagicMock(),
+                model="gpt-4o-mini",
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            list(result)
+
+        call_kwargs = original.call_args[1]
+        assert call_kwargs["stream_options"]["include_usage"] is True
+
+    def test_non_stream_does_not_inject_stream_options(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run(budget=1.0) as ctx:
+            wrapper(MagicMock(), model="gpt-4o-mini")
+
+        call_kwargs = original.call_args[1]
+        assert "stream_options" not in call_kwargs
