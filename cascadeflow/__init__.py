@@ -250,6 +250,8 @@ from .harness import (
     agent as harness_agent,
     get_harness_config,
     get_current_run,
+    get_harness_callback_manager,
+    set_harness_callback_manager,
 )
 
 # ==================== MAIN AGENT & RESULT ====================
@@ -408,6 +410,8 @@ __all__ = [
 >>>>>>> 1aba349 (Add core harness API scaffold with context-scoped runtime)
     "get_harness_config",
     "get_current_run",
+    "get_harness_callback_manager",
+    "set_harness_callback_manager",
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",

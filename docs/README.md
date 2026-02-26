@@ -20,6 +20,7 @@ Welcome to cascadeflow documentation! 🌊
 - [Tools](guides/tools.md) - Function calling and tool usage with cascades
 - [Agentic Patterns (Python)](guides/agentic-python.md) - Tool loops and multi-agent orchestration in Python
 - [Agentic Patterns (TypeScript)](guides/agentic-typescript.md) - Tool loops, multi-agent orchestration, and message best practices
+- [Harness Telemetry & Privacy](guides/harness_telemetry_privacy.md) - Decision traces, callbacks, and privacy-safe observability
 - [Cost Tracking](guides/cost_tracking.md) - Track and analyze API costs across queries
 - [Proxy Routing](guides/proxy.md) - Route requests through provider-aware proxy plans
 
