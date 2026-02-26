@@ -15,6 +15,18 @@ from importlib.util import find_spec
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 
 from cascadeflow.harness import get_current_run
+from cascadeflow.harness.pricing import (
+    OPENAI_MODEL_POOL,
+)
+from cascadeflow.harness.pricing import (
+    estimate_cost as _estimate_shared_cost,
+)
+from cascadeflow.harness.pricing import (
+    estimate_energy as _estimate_shared_energy,
+)
+from cascadeflow.harness.pricing import (
+    model_total_price as _shared_model_total_price,
+)
 from cascadeflow.schema.exceptions import BudgetExceededError
 
 logger = logging.getLogger("cascadeflow.harness.openai_agents")
@@ -57,40 +69,16 @@ class OpenAIAgentsIntegrationConfig:
     fail_open: bool = True
 
 
-# Approximate pricing (USD per 1M tokens: input, output).
-_PRICING_USD_PER_M = {
-    "gpt-4o": (2.50, 10.00),
-    "gpt-4o-mini": (0.15, 0.60),
-    "gpt-5": (1.25, 10.00),
-    "gpt-5-mini": (0.20, 0.80),
-    "gpt-4-turbo": (10.00, 30.00),
-}
-_DEFAULT_PRICING_USD_PER_M = (2.50, 10.00)
-
-# Deterministic proxy coefficients for energy tracking.
-_ENERGY_COEFFICIENTS = {
-    "gpt-4o": 1.0,
-    "gpt-4o-mini": 0.3,
-    "gpt-5": 1.2,
-    "gpt-5-mini": 0.35,
-    "gpt-4-turbo": 1.5,
-}
-_DEFAULT_ENERGY_COEFFICIENT = 1.0
-_ENERGY_OUTPUT_WEIGHT = 1.5
-
-
 def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    in_price, out_price = _PRICING_USD_PER_M.get(model, _DEFAULT_PRICING_USD_PER_M)
-    return (input_tokens / 1_000_000.0) * in_price + (output_tokens / 1_000_000.0) * out_price
+    return _estimate_shared_cost(model, input_tokens, output_tokens)
 
 
 def _estimate_energy(model: str, input_tokens: int, output_tokens: int) -> float:
-    coefficient = _ENERGY_COEFFICIENTS.get(model, _DEFAULT_ENERGY_COEFFICIENT)
-    return coefficient * (input_tokens + (output_tokens * _ENERGY_OUTPUT_WEIGHT))
+    return _estimate_shared_energy(model, input_tokens, output_tokens)
 
 
 def _total_model_price(model: str) -> float:
-    return sum(_PRICING_USD_PER_M.get(model, _DEFAULT_PRICING_USD_PER_M))
+    return _shared_model_total_price(model)
 
 
 def _extract_usage_tokens(usage: Any) -> tuple[int, int]:
@@ -228,8 +216,10 @@ class CascadeFlowModelProvider(ModelProvider):  # type: ignore[misc]
 
         # Under budget pressure, switch to the cheapest configured candidate.
         if run.budget_remaining / run.budget_max < 0.2:
+            compatible_candidates = [name for name in self._config.model_candidates if name in OPENAI_MODEL_POOL]
+            candidates = compatible_candidates or self._config.model_candidates
             cheapest = min(
-                self._config.model_candidates,
+                candidates,
                 key=_total_model_price,
             )
             if cheapest != candidate:

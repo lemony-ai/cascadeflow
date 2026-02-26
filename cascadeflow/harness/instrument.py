@@ -23,6 +23,25 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from cascadeflow.harness.pricing import (
+    DEFAULT_ENERGY_COEFFICIENT as _DEFAULT_ENERGY_COEFFICIENT,
+)
+from cascadeflow.harness.pricing import (
+    ENERGY_COEFFICIENTS as _ENERGY_COEFFICIENTS,
+)
+from cascadeflow.harness.pricing import (
+    OPENAI_MODEL_POOL as _PRICING_MODELS,
+)
+from cascadeflow.harness.pricing import (
+    estimate_cost as _estimate_cost_shared,
+)
+from cascadeflow.harness.pricing import (
+    estimate_energy as _estimate_energy_shared,
+)
+from cascadeflow.harness.pricing import (
+    model_total_price as _model_total_price_shared,
+)
+
 logger = logging.getLogger("cascadeflow.harness.instrument")
 
 # ---------------------------------------------------------------------------
@@ -33,50 +52,17 @@ _openai_patched: bool = False
 _original_sync_create: Any = None
 _original_async_create: Any = None
 
-# ---------------------------------------------------------------------------
-# Pricing table (USD per 1M tokens: input, output)
-# ---------------------------------------------------------------------------
-
-_PRICING: dict[str, tuple[float, float]] = {
-    "gpt-4o": (2.50, 10.00),
-    "gpt-4o-mini": (0.15, 0.60),
-    "gpt-5-mini": (0.20, 0.80),
-    "gpt-4-turbo": (10.00, 30.00),
-    "gpt-4": (30.00, 60.00),
-    "gpt-3.5-turbo": (0.50, 1.50),
-    "o1": (15.00, 60.00),
-    "o1-mini": (3.00, 12.00),
-    "o3-mini": (1.10, 4.40),
-}
-_DEFAULT_PRICING: tuple[float, float] = (2.50, 10.00)
-_DEFAULT_TOTAL_COST: float = _DEFAULT_PRICING[0] + _DEFAULT_PRICING[1]
-_MODEL_TOTAL_COSTS: dict[str, float] = {name: in_cost + out_cost for name, (in_cost, out_cost) in _PRICING.items()}
-_PRICING_MODELS: tuple[str, ...] = tuple(_PRICING.keys())
+_MODEL_TOTAL_COSTS: dict[str, float] = {name: _model_total_price_shared(name) for name in _PRICING_MODELS}
 _CHEAPEST_MODEL: str = min(_MODEL_TOTAL_COSTS, key=_MODEL_TOTAL_COSTS.get)
 _MIN_TOTAL_COST: float = min(_MODEL_TOTAL_COSTS.values())
 _MAX_TOTAL_COST: float = max(_MODEL_TOTAL_COSTS.values())
 
-# ---------------------------------------------------------------------------
-# Energy estimation coefficients (deterministic proxy, not live carbon data)
-# energy_units = coefficient * (input_tokens + output_tokens * output_weight)
-# ---------------------------------------------------------------------------
-
-_ENERGY_COEFFICIENTS: dict[str, float] = {
-    "gpt-4o": 1.0,
-    "gpt-4o-mini": 0.3,
-    "gpt-5-mini": 0.35,
-    "gpt-4-turbo": 1.5,
-    "gpt-4": 1.5,
-    "gpt-3.5-turbo": 0.2,
-    "o1": 2.0,
-    "o1-mini": 0.8,
-    "o3-mini": 0.5,
+_OPENAI_ENERGY_COEFFS: dict[str, float] = {
+    name: _ENERGY_COEFFICIENTS.get(name, _DEFAULT_ENERGY_COEFFICIENT) for name in _PRICING_MODELS
 }
-_DEFAULT_ENERGY_COEFFICIENT: float = 1.0
-_ENERGY_OUTPUT_WEIGHT: float = 1.5
-_LOWEST_ENERGY_MODEL: str = min(_ENERGY_COEFFICIENTS, key=_ENERGY_COEFFICIENTS.get)
-_MIN_ENERGY_COEFF: float = min(_ENERGY_COEFFICIENTS.values())
-_MAX_ENERGY_COEFF: float = max(_ENERGY_COEFFICIENTS.values())
+_LOWEST_ENERGY_MODEL: str = min(_OPENAI_ENERGY_COEFFS, key=_OPENAI_ENERGY_COEFFS.get)
+_MIN_ENERGY_COEFF: float = min(_OPENAI_ENERGY_COEFFS.values())
+_MAX_ENERGY_COEFF: float = max(_OPENAI_ENERGY_COEFFS.values())
 
 # Relative priors used by KPI-weighted soft-control scoring.
 # These are deterministic heuristics based on internal benchmark runs and
@@ -140,16 +126,12 @@ def _ensure_stream_usage(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Estimate cost in USD from model name and token counts."""
-    per_million = _PRICING.get(model, _DEFAULT_PRICING)
-    input_cost = (prompt_tokens / 1_000_000) * per_million[0]
-    output_cost = (completion_tokens / 1_000_000) * per_million[1]
-    return input_cost + output_cost
+    return _estimate_cost_shared(model, prompt_tokens, completion_tokens)
 
 
 def _estimate_energy(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Estimate energy units (deterministic proxy, not live carbon)."""
-    coeff = _ENERGY_COEFFICIENTS.get(model, _DEFAULT_ENERGY_COEFFICIENT)
-    return coeff * (prompt_tokens + completion_tokens * _ENERGY_OUTPUT_WEIGHT)
+    return _estimate_energy_shared(model, prompt_tokens, completion_tokens)
 
 
 def _count_tool_calls_in_response(response: Any) -> int:
@@ -178,7 +160,7 @@ def _extract_usage(response: Any) -> tuple[int, int]:
 
 
 def _model_total_cost(model: str) -> float:
-    return _MODEL_TOTAL_COSTS.get(model, _DEFAULT_TOTAL_COST)
+    return _MODEL_TOTAL_COSTS.get(model, _model_total_price_shared(model))
 
 
 def _select_cheaper_model(current_model: str) -> str:
@@ -277,7 +259,7 @@ def _select_compliant_model(current_model: str, compliance: str) -> str | None:
         return current_model
     if current_model in allowlist:
         return current_model
-    available = [name for name in _PRICING if name in allowlist]
+    available = [name for name in _PRICING_MODELS if name in allowlist]
     if not available:
         return None
     return min(available, key=_model_total_cost)
@@ -487,8 +469,8 @@ def _update_context(
 # ---------------------------------------------------------------------------
 
 
-class _InstrumentedStream:
-    """Wraps an OpenAI ``Stream`` to capture usage after all chunks are consumed."""
+class _InstrumentedStreamBase:
+    """Shared stream-wrapper logic for sync and async OpenAI streams."""
 
     __slots__ = (
         "_stream",
@@ -530,7 +512,66 @@ class _InstrumentedStream:
         self._tool_call_count: int = 0
         self._finalized: bool = False
 
-    # --- iteration ---------------------------------------------------------
+    def close(self) -> None:
+        self._finalize()
+        if hasattr(self._stream, "close"):
+            self._stream.close()
+
+    @property
+    def response(self) -> Any:
+        return getattr(self._stream, "response", None)
+
+    def _inspect_chunk(self, chunk: Any) -> None:
+        usage = getattr(chunk, "usage", None)
+        if usage is not None:
+            self._usage = usage
+
+        choices = getattr(chunk, "choices", [])
+        if choices:
+            delta = getattr(choices[0], "delta", None)
+            if delta:
+                tool_calls = getattr(delta, "tool_calls", None)
+                if tool_calls:
+                    for tc in tool_calls:
+                        # A new tool call has an ``id``; subsequent deltas for
+                        # the same call only have ``index``.
+                        if getattr(tc, "id", None):
+                            self._tool_call_count += 1
+
+    def _finalize(self) -> None:
+        if self._finalized:
+            return
+        self._finalized = True
+
+        if self._ctx is None:
+            return
+
+        elapsed_ms = (time.monotonic() - self._start_time) * 1000
+        prompt_tokens = 0
+        completion_tokens = 0
+        if self._usage:
+            prompt_tokens = getattr(self._usage, "prompt_tokens", 0) or 0
+            completion_tokens = getattr(self._usage, "completion_tokens", 0) or 0
+
+        _update_context(
+            self._ctx,
+            self._model,
+            prompt_tokens,
+            completion_tokens,
+            self._tool_call_count,
+            elapsed_ms,
+            action=self._pre_action,
+            action_reason=self._pre_reason,
+            action_model=self._pre_model,
+            applied=self._pre_applied,
+            decision_mode=self._decision_mode,
+        )
+
+
+class _InstrumentedStream(_InstrumentedStreamBase):
+    """Wraps an OpenAI sync ``Stream`` and tracks usage at stream end."""
+
+    __slots__ = ()
 
     def __iter__(self) -> _InstrumentedStream:
         return self
@@ -544,8 +585,6 @@ class _InstrumentedStream:
             self._finalize()
             raise
 
-    # --- context manager ---------------------------------------------------
-
     def __enter__(self) -> _InstrumentedStream:
         if hasattr(self._stream, "__enter__"):
             self._stream.__enter__()
@@ -557,110 +596,11 @@ class _InstrumentedStream:
             return self._stream.__exit__(*args)  # type: ignore[no-any-return]
         return False
 
-    # --- proxied attributes ------------------------------------------------
 
-    def close(self) -> None:
-        self._finalize()
-        if hasattr(self._stream, "close"):
-            self._stream.close()
+class _InstrumentedAsyncStream(_InstrumentedStreamBase):
+    """Wraps an OpenAI async ``AsyncStream`` and tracks usage at stream end."""
 
-    @property
-    def response(self) -> Any:
-        return getattr(self._stream, "response", None)
-
-    # --- internals ---------------------------------------------------------
-
-    def _inspect_chunk(self, chunk: Any) -> None:
-        usage = getattr(chunk, "usage", None)
-        if usage is not None:
-            self._usage = usage
-
-        choices = getattr(chunk, "choices", [])
-        if choices:
-            delta = getattr(choices[0], "delta", None)
-            if delta:
-                tool_calls = getattr(delta, "tool_calls", None)
-                if tool_calls:
-                    for tc in tool_calls:
-                        # A new tool call has an ``id``; subsequent deltas
-                        # for the same call only have ``index``.
-                        if getattr(tc, "id", None):
-                            self._tool_call_count += 1
-
-    def _finalize(self) -> None:
-        if self._finalized:
-            return
-        self._finalized = True
-
-        if self._ctx is None:
-            return
-
-        elapsed_ms = (time.monotonic() - self._start_time) * 1000
-        prompt_tokens = 0
-        completion_tokens = 0
-        if self._usage:
-            prompt_tokens = getattr(self._usage, "prompt_tokens", 0) or 0
-            completion_tokens = getattr(self._usage, "completion_tokens", 0) or 0
-
-        _update_context(
-            self._ctx,
-            self._model,
-            prompt_tokens,
-            completion_tokens,
-            self._tool_call_count,
-            elapsed_ms,
-            action=self._pre_action,
-            action_reason=self._pre_reason,
-            action_model=self._pre_model,
-            applied=self._pre_applied,
-            decision_mode=self._decision_mode,
-        )
-
-
-class _InstrumentedAsyncStream:
-    """Wraps an OpenAI ``AsyncStream`` to capture usage after consumption."""
-
-    __slots__ = (
-        "_stream",
-        "_ctx",
-        "_model",
-        "_start_time",
-        "_pre_action",
-        "_pre_reason",
-        "_pre_model",
-        "_pre_applied",
-        "_decision_mode",
-        "_usage",
-        "_tool_call_count",
-        "_finalized",
-    )
-
-    def __init__(
-        self,
-        stream: Any,
-        ctx: Any,
-        model: str,
-        start_time: float,
-        pre_action: str = "allow",
-        pre_reason: str = "observe",
-        pre_model: str | None = None,
-        pre_applied: bool = True,
-        decision_mode: str = "observe",
-    ) -> None:
-        self._stream = stream
-        self._ctx = ctx
-        self._model = model
-        self._start_time = start_time
-        self._pre_action = pre_action
-        self._pre_reason = pre_reason
-        self._pre_model = pre_model or model
-        self._pre_applied = pre_applied
-        self._decision_mode = decision_mode
-        self._usage: Any = None
-        self._tool_call_count: int = 0
-        self._finalized: bool = False
-
-    # --- async iteration ---------------------------------------------------
+    __slots__ = ()
 
     def __aiter__(self) -> _InstrumentedAsyncStream:
         return self
@@ -674,8 +614,6 @@ class _InstrumentedAsyncStream:
             self._finalize()
             raise
 
-    # --- async context manager ---------------------------------------------
-
     async def __aenter__(self) -> _InstrumentedAsyncStream:
         if hasattr(self._stream, "__aenter__"):
             await self._stream.__aenter__()
@@ -687,67 +625,105 @@ class _InstrumentedAsyncStream:
             return await self._stream.__aexit__(*args)  # type: ignore[no-any-return]
         return False
 
-    # --- proxied attributes ------------------------------------------------
-
-    def close(self) -> None:
-        self._finalize()
-        if hasattr(self._stream, "close"):
-            self._stream.close()
-
-    @property
-    def response(self) -> Any:
-        return getattr(self._stream, "response", None)
-
-    # --- internals ---------------------------------------------------------
-
-    def _inspect_chunk(self, chunk: Any) -> None:
-        usage = getattr(chunk, "usage", None)
-        if usage is not None:
-            self._usage = usage
-
-        choices = getattr(chunk, "choices", [])
-        if choices:
-            delta = getattr(choices[0], "delta", None)
-            if delta:
-                tool_calls = getattr(delta, "tool_calls", None)
-                if tool_calls:
-                    for tc in tool_calls:
-                        if getattr(tc, "id", None):
-                            self._tool_call_count += 1
-
-    def _finalize(self) -> None:
-        if self._finalized:
-            return
-        self._finalized = True
-
-        if self._ctx is None:
-            return
-
-        elapsed_ms = (time.monotonic() - self._start_time) * 1000
-        prompt_tokens = 0
-        completion_tokens = 0
-        if self._usage:
-            prompt_tokens = getattr(self._usage, "prompt_tokens", 0) or 0
-            completion_tokens = getattr(self._usage, "completion_tokens", 0) or 0
-
-        _update_context(
-            self._ctx,
-            self._model,
-            prompt_tokens,
-            completion_tokens,
-            self._tool_call_count,
-            elapsed_ms,
-            action=self._pre_action,
-            action_reason=self._pre_reason,
-            action_model=self._pre_model,
-            applied=self._pre_applied,
-            decision_mode=self._decision_mode,
-        )
-
 
 # ---------------------------------------------------------------------------
 # Wrapper factories
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _CallInterceptionState:
+    kwargs: dict[str, Any]
+    model: str
+    pre_action: str
+    pre_reason: str
+    pre_model: str
+    pre_applied: bool
+    is_stream: bool
+    start_time: float
+
+
+def _prepare_call_interception(
+    *,
+    ctx: Any,
+    mode: str,
+    kwargs: dict[str, Any],
+) -> _CallInterceptionState:
+    model: str = kwargs.get("model", "unknown")
+    pre_action = "allow"
+    pre_reason = mode
+    pre_model = model
+    pre_applied = True
+
+    if ctx:
+        kwargs, model, pre_action, pre_reason, pre_model, pre_applied = _resolve_pre_call_decision(
+            ctx,
+            mode,
+            model,
+            kwargs,
+        )
+
+    is_stream: bool = bool(kwargs.get("stream", False))
+    kwargs = _ensure_stream_usage(kwargs)
+
+    return _CallInterceptionState(
+        kwargs=kwargs,
+        model=model,
+        pre_action=pre_action,
+        pre_reason=pre_reason,
+        pre_model=pre_model,
+        pre_applied=pre_applied,
+        is_stream=is_stream,
+        start_time=time.monotonic(),
+    )
+
+
+def _finalize_interception(
+    *,
+    ctx: Any,
+    mode: str,
+    state: _CallInterceptionState,
+    response: Any,
+    stream_wrapper: type[_InstrumentedStream] | type[_InstrumentedAsyncStream],
+) -> Any:
+    if state.is_stream and ctx:
+        return stream_wrapper(
+            response,
+            ctx,
+            state.model,
+            state.start_time,
+            state.pre_action,
+            state.pre_reason,
+            state.pre_model,
+            state.pre_applied,
+            mode,
+        )
+
+    if (not state.is_stream) and ctx:
+        elapsed_ms = (time.monotonic() - state.start_time) * 1000
+        prompt_tokens, completion_tokens = _extract_usage(response)
+        tool_call_count = _count_tool_calls_in_response(response)
+        _update_context(
+            ctx,
+            state.model,
+            prompt_tokens,
+            completion_tokens,
+            tool_call_count,
+            elapsed_ms,
+            action=state.pre_action,
+            action_reason=state.pre_reason,
+            action_model=state.pre_model,
+            applied=state.pre_applied,
+            decision_mode=mode,
+        )
+    else:
+        logger.debug(
+            "harness %s: model=%s (no active run scope, metrics not tracked)",
+            mode,
+            state.model,
+        )
+
+    return response
 
 
 def _make_patched_create(original_fn: Any) -> Any:
@@ -764,66 +740,24 @@ def _make_patched_create(original_fn: Any) -> Any:
         if mode == "off":
             return original_fn(self, *args, **kwargs)
 
-        model: str = kwargs.get("model", "unknown")
-        pre_action = "allow"
-        pre_reason = mode
-        pre_model = model
-        pre_applied = True
-        is_stream: bool = bool(kwargs.get("stream", False))
+        state = _prepare_call_interception(ctx=ctx, mode=mode, kwargs=kwargs)
 
-        if ctx:
-            kwargs, model, pre_action, pre_reason, pre_model, pre_applied = _resolve_pre_call_decision(
-                ctx,
-                mode,
-                model,
-                kwargs,
-            )
+        logger.debug(
+            "harness intercept: model=%s stream=%s mode=%s",
+            state.model,
+            state.is_stream,
+            mode,
+        )
 
-        start_time = time.monotonic()
+        response = original_fn(self, *args, **state.kwargs)
 
-        kwargs = _ensure_stream_usage(kwargs)
-
-        logger.debug("harness intercept: model=%s stream=%s mode=%s", model, is_stream, mode)
-
-        response = original_fn(self, *args, **kwargs)
-
-        if is_stream and ctx:
-            return _InstrumentedStream(
-                response,
-                ctx,
-                model,
-                start_time,
-                pre_action,
-                pre_reason,
-                pre_model,
-                pre_applied,
-                mode,
-            )
-        elif not is_stream and ctx:
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-            prompt_tokens, completion_tokens = _extract_usage(response)
-            tool_call_count = _count_tool_calls_in_response(response)
-            _update_context(
-                ctx,
-                model,
-                prompt_tokens,
-                completion_tokens,
-                tool_call_count,
-                elapsed_ms,
-                action=pre_action,
-                action_reason=pre_reason,
-                action_model=pre_model,
-                applied=pre_applied,
-                decision_mode=mode,
-            )
-        else:
-            logger.debug(
-                "harness %s: model=%s (no active run scope, metrics not tracked)",
-                mode,
-                model,
-            )
-
-        return response
+        return _finalize_interception(
+            ctx=ctx,
+            mode=mode,
+            state=state,
+            response=response,
+            stream_wrapper=_InstrumentedStream,
+        )
 
     return wrapper
 
@@ -842,71 +776,24 @@ def _make_patched_async_create(original_fn: Any) -> Any:
         if mode == "off":
             return await original_fn(self, *args, **kwargs)
 
-        model: str = kwargs.get("model", "unknown")
-        pre_action = "allow"
-        pre_reason = mode
-        pre_model = model
-        pre_applied = True
-        is_stream: bool = bool(kwargs.get("stream", False))
-
-        if ctx:
-            kwargs, model, pre_action, pre_reason, pre_model, pre_applied = _resolve_pre_call_decision(
-                ctx,
-                mode,
-                model,
-                kwargs,
-            )
-
-        start_time = time.monotonic()
-
-        kwargs = _ensure_stream_usage(kwargs)
+        state = _prepare_call_interception(ctx=ctx, mode=mode, kwargs=kwargs)
 
         logger.debug(
             "harness intercept async: model=%s stream=%s mode=%s",
-            model,
-            is_stream,
+            state.model,
+            state.is_stream,
             mode,
         )
 
-        response = await original_fn(self, *args, **kwargs)
+        response = await original_fn(self, *args, **state.kwargs)
 
-        if is_stream and ctx:
-            return _InstrumentedAsyncStream(
-                response,
-                ctx,
-                model,
-                start_time,
-                pre_action,
-                pre_reason,
-                pre_model,
-                pre_applied,
-                mode,
-            )
-        elif not is_stream and ctx:
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-            prompt_tokens, completion_tokens = _extract_usage(response)
-            tool_call_count = _count_tool_calls_in_response(response)
-            _update_context(
-                ctx,
-                model,
-                prompt_tokens,
-                completion_tokens,
-                tool_call_count,
-                elapsed_ms,
-                action=pre_action,
-                action_reason=pre_reason,
-                action_model=pre_model,
-                applied=pre_applied,
-                decision_mode=mode,
-            )
-        else:
-            logger.debug(
-                "harness %s: model=%s (no active run scope, metrics not tracked)",
-                mode,
-                model,
-            )
-
-        return response
+        return _finalize_interception(
+            ctx=ctx,
+            mode=mode,
+            state=state,
+            response=response,
+            stream_wrapper=_InstrumentedAsyncStream,
+        )
 
     return wrapper
 
