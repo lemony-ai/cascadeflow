@@ -289,9 +289,7 @@ def init(
     compliance: Optional[str] | object = _UNSET,
 ) -> HarnessInitReport:
     """
-    Initialize global harness settings.
-
-    This is a scaffold API for V2 work and intentionally performs no request patching yet.
+    Initialize global harness settings and instrument detected SDK clients.
     """
 
     global _harness_config
@@ -343,6 +341,11 @@ def init(
 
         if patch_openai():
             instrumented.append("openai")
+    elif validated_mode == "off":
+        from cascadeflow.harness.instrument import is_patched, unpatch_openai
+
+        if is_patched():
+            unpatch_openai()
     if sdk_presence["anthropic"]:
         detected_but_not_instrumented.append("anthropic")
 
