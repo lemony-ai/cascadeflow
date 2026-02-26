@@ -1,4 +1,17 @@
-"""Harness-aware callbacks for LangChain/LangGraph integration."""
+"""Harness-aware callbacks for LangChain/LangGraph integration.
+
+Enforce-mode limitations (LangChain callback architecture):
+    - ``stop`` (budget/latency/energy exceeded): fully enforced — raises
+      BudgetExceededError or HarnessStopError from ``on_llm_start``.
+    - ``deny_tool`` (tool-call cap): fully enforced at the tool level via
+      ``on_tool_start`` — raises HarnessStopError before tool execution.
+    - ``switch_model``: **observe-only** — LangChain dispatches the LLM call
+      before ``on_llm_start`` returns, so the callback cannot redirect to a
+      different model.  The decision is recorded with ``applied=False``.
+    - ``deny_tool`` at LLM level (pre-call decision): **observe-only** — the
+      callback cannot strip tools from an already-dispatched LLM request.
+      The decision is recorded with ``applied=False``.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +32,11 @@ logger = logging.getLogger("cascadeflow.harness.langchain")
 
 
 class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
-    """LangChain callback that bridges native lifecycle events into HarnessRunContext."""
+    """LangChain callback that bridges native lifecycle events into HarnessRunContext.
+
+    See module docstring for enforce-mode limitations on ``switch_model``
+    and LLM-level ``deny_tool``.
+    """
 
     def __init__(self, *, fail_open: bool = True):
         super().__init__()
@@ -29,7 +46,6 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
         self._pre_reason: str = "allow"
         self._pre_model: Optional[str] = None
         self._pre_recorded: bool = False
-        self._executed_tool_calls: int = 0
 
     def _handle_harness_error(self, error: Exception) -> None:
         if self.fail_open:
@@ -68,7 +84,7 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
             if not has_tools:
                 has_tools = bool(kwargs.get("tools"))
 
-            from cascadeflow.harness.instrument import _evaluate_pre_call_decision, _raise_stop_error
+            from cascadeflow.harness.instrument import _evaluate_pre_call_decision, _raise_stop_error  # noqa: I001
 
             decision = _evaluate_pre_call_decision(run_ctx, model_name, has_tools=has_tools)
             self._pre_action = decision.action
@@ -191,7 +207,7 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
             if run_ctx.tool_calls_max is None:
                 return None
 
-            if self._executed_tool_calls >= run_ctx.tool_calls_max:
+            if run_ctx.tool_calls >= run_ctx.tool_calls_max:
                 if run_ctx.mode == "observe":
                     run_ctx.record(
                         action="deny_tool",
@@ -214,7 +230,6 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
                         reason="max_tool_calls_reached",
                     )
 
-            self._executed_tool_calls += 1
             return None
         except Exception as exc:
             self._handle_harness_error(exc)
@@ -225,10 +240,7 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
 def get_harness_callback(*, fail_open: bool = True):
     """Context manager that yields a harness-aware LangChain callback handler."""
     callback = HarnessAwareCascadeFlowCallbackHandler(fail_open=fail_open)
-    try:
-        yield callback
-    finally:
-        return
+    yield callback
 
 
 __all__ = ["HarnessAwareCascadeFlowCallbackHandler", "get_harness_callback"]

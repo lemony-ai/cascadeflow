@@ -101,8 +101,14 @@ openai-agents = [
     "openai-agents>=0.9.0; python_version >= '3.10'",
 ]
 
-# LangChain/LangGraph harness integration (opt-in)
+# LangChain harness integration (opt-in)
 langchain = [
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+]
+
+# LangGraph state extraction (opt-in, adds langgraph on top of langchain)
+langgraph = [
     "langchain>=0.3.0",
     "langchain-core>=0.3.0",
     "langgraph>=0.2.0",
