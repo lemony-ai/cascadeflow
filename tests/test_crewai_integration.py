@@ -7,11 +7,11 @@ and test the integration logic directly against HarnessRunContext.
 from __future__ import annotations
 
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from cascadeflow.harness import get_current_run, init, reset, run
+from cascadeflow.harness import init, reset, run
 
 # Import the module directly — it does not require crewai at import time
 # (CREWAI_AVAILABLE will be False, but all functions/classes are still defined).
@@ -27,7 +27,6 @@ def _reset_crewai_state():
     crewai_mod._after_hook_ref = None
     crewai_mod._config = crewai_mod.CrewAIHarnessConfig()
     crewai_mod._call_start_times.clear()
-    yield
 
 
 # ---------------------------------------------------------------------------
@@ -40,13 +39,6 @@ class FakeLLM:
 
     def __init__(self, model: str = "gpt-4o"):
         self.model = model
-
-
-class FakeMessage:
-    """Minimal stand-in for a CrewAI message object."""
-
-    def __init__(self, content: str):
-        self.content = content
 
 
 class FakeHookContext:
@@ -78,6 +70,34 @@ def _make_fake_hooks_module():
         mod._after_hooks.remove(fn) if fn in mod._after_hooks else None
     )
     return mod
+
+
+# ---------------------------------------------------------------------------
+# _extract_message_content
+# ---------------------------------------------------------------------------
+
+
+class TestExtractMessageContent:
+    def test_dict_message(self):
+        msg = {"role": "user", "content": "Hello world"}
+        assert crewai_mod._extract_message_content(msg) == "Hello world"
+
+    def test_dict_message_missing_content(self):
+        msg = {"role": "system"}
+        assert crewai_mod._extract_message_content(msg) == ""
+
+    def test_dict_message_none_content(self):
+        msg = {"role": "assistant", "content": None}
+        assert crewai_mod._extract_message_content(msg) == ""
+
+    def test_object_message(self):
+        class Msg:
+            content = "from object"
+
+        assert crewai_mod._extract_message_content(Msg()) == "from object"
+
+    def test_object_message_no_content(self):
+        assert crewai_mod._extract_message_content(object()) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +186,15 @@ class TestBeforeHook:
             trace = run_ctx.trace()
             assert trace[-1]["reason"] == "budget_exhausted"
 
+    def test_enforce_blocked_call_does_not_leak_start_time(self):
+        """Blocked calls must not leave stale entries in _call_start_times."""
+        init(mode="enforce", budget=0.001)
+        with run(budget=0.001) as run_ctx:
+            run_ctx.cost = 0.001
+            hook_ctx = FakeHookContext(llm=FakeLLM("gpt-4o"))
+            crewai_mod._before_llm_call_hook(hook_ctx)
+            assert id(hook_ctx) not in crewai_mod._call_start_times
+
     def test_enforce_allows_when_under_budget(self):
         init(mode="enforce", budget=1.0)
         with run(budget=1.0) as run_ctx:
@@ -176,7 +205,7 @@ class TestBeforeHook:
 
     def test_records_start_time(self):
         init(mode="observe")
-        with run() as run_ctx:
+        with run():
             hook_ctx = FakeHookContext()
             crewai_mod._before_llm_call_hook(hook_ctx)
             assert id(hook_ctx) in crewai_mod._call_start_times
@@ -193,7 +222,7 @@ class TestBeforeHook:
     def test_fail_open_swallows_errors(self):
         crewai_mod._config = crewai_mod.CrewAIHarnessConfig(fail_open=True)
         init(mode="enforce")
-        with run() as run_ctx:
+        with run():
             hook_ctx = FakeHookContext()
             with patch(
                 "cascadeflow.harness.api.get_current_run",
@@ -226,15 +255,15 @@ class TestAfterHook:
         result = crewai_mod._after_llm_call_hook(ctx)
         assert result is None
 
-    def test_updates_run_metrics(self):
+    def test_updates_run_metrics_with_dict_messages(self):
+        """CrewAI passes messages as dicts — verify cost is nonzero."""
         init(mode="observe")
         with run(budget=1.0) as run_ctx:
             hook_ctx = FakeHookContext(
                 llm=FakeLLM("gpt-4o-mini"),
-                messages=[FakeMessage("What is 2+2?")],
+                messages=[{"role": "user", "content": "What is 2+2?"}],
                 response="The answer is 4.",
             )
-            # Simulate before hook setting start time
             crewai_mod._call_start_times[id(hook_ctx)] = __import__("time").monotonic() - 0.1
 
             crewai_mod._after_llm_call_hook(hook_ctx)
@@ -246,12 +275,28 @@ class TestAfterHook:
             assert run_ctx.model_used == "gpt-4o-mini"
             assert run_ctx.last_action == "allow"
 
+    def test_updates_run_metrics_with_object_messages(self):
+        """Also support object-style messages (defensive)."""
+        init(mode="observe")
+
+        class ObjMsg:
+            content = "What is 2+2?"
+
+        with run(budget=1.0) as run_ctx:
+            hook_ctx = FakeHookContext(
+                llm=FakeLLM("gpt-4o-mini"),
+                messages=[ObjMsg()],
+                response="The answer is 4.",
+            )
+            crewai_mod._after_llm_call_hook(hook_ctx)
+            assert run_ctx.cost > 0
+
     def test_updates_budget_remaining(self):
         init(mode="enforce", budget=1.0)
         with run(budget=1.0) as run_ctx:
             hook_ctx = FakeHookContext(
                 llm=FakeLLM("gpt-4o"),
-                messages=[FakeMessage("test")],
+                messages=[{"role": "user", "content": "test"}],
                 response="response",
             )
             crewai_mod._after_llm_call_hook(hook_ctx)
@@ -263,7 +308,7 @@ class TestAfterHook:
         with run() as run_ctx:
             hook_ctx = FakeHookContext(
                 llm=FakeLLM("gpt-4o"),
-                messages=[FakeMessage("test")],
+                messages=[{"role": "user", "content": "test"}],
                 response="done",
             )
             crewai_mod._after_llm_call_hook(hook_ctx)
@@ -284,12 +329,13 @@ class TestAfterHook:
             crewai_mod._after_llm_call_hook(hook_ctx)
             assert run_ctx.latency_used_ms == 0.0
 
-    def test_token_estimation_from_chars(self):
+    def test_token_estimation_from_dict_messages(self):
+        """Verify token estimation works with dict messages (real CrewAI shape)."""
         init(mode="observe")
         with run() as run_ctx:
             # 400 chars in messages → 100 prompt tokens
             # 80 chars in response → 20 completion tokens
-            messages = [FakeMessage("x" * 400)]
+            messages = [{"role": "user", "content": "x" * 400}]
             hook_ctx = FakeHookContext(
                 llm=FakeLLM("gpt-4o"),
                 messages=messages,
@@ -303,7 +349,7 @@ class TestAfterHook:
     def test_fail_open_swallows_errors(self):
         crewai_mod._config = crewai_mod.CrewAIHarnessConfig(fail_open=True)
         init(mode="observe")
-        with run() as run_ctx:
+        with run():
             hook_ctx = FakeHookContext(response="ok")
             with patch(
                 "cascadeflow.harness.api.get_current_run",
@@ -329,7 +375,6 @@ class TestEnableDisable:
         fake_hooks = _make_fake_hooks_module()
         monkeypatch.setattr(crewai_mod, "CREWAI_AVAILABLE", True)
 
-        # Make the import inside enable() find our fake module
         import sys
 
         monkeypatch.setitem(sys.modules, "crewai.hooks", fake_hooks)
@@ -409,8 +454,6 @@ class TestEnableDisable:
 
         # Remove crewai.hooks from modules so import fails
         monkeypatch.delitem(sys.modules, "crewai.hooks", raising=False)
-        # Also ensure the import fails
-        import importlib
 
         original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
 
