@@ -69,6 +69,37 @@ _ENERGY_COEFFICIENTS: dict[str, float] = {
 _DEFAULT_ENERGY_COEFFICIENT: float = 1.0
 _ENERGY_OUTPUT_WEIGHT: float = 1.5
 
+# Relative quality/latency priors for KPI-weighted soft-control scoring.
+_QUALITY_PRIORS: dict[str, float] = {
+    "gpt-4o": 0.90,
+    "gpt-4o-mini": 0.75,
+    "gpt-5-mini": 0.86,
+    "gpt-4-turbo": 0.88,
+    "gpt-4": 0.87,
+    "gpt-3.5-turbo": 0.65,
+    "o1": 0.95,
+    "o1-mini": 0.82,
+    "o3-mini": 0.80,
+}
+_LATENCY_PRIORS: dict[str, float] = {
+    "gpt-4o": 0.72,
+    "gpt-4o-mini": 0.93,
+    "gpt-5-mini": 0.84,
+    "gpt-4-turbo": 0.66,
+    "gpt-4": 0.52,
+    "gpt-3.5-turbo": 1.00,
+    "o1": 0.40,
+    "o1-mini": 0.60,
+    "o3-mini": 0.78,
+}
+
+_COMPLIANCE_MODEL_ALLOWLISTS: dict[str, set[str]] = {
+    "gdpr": {"gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"},
+    "hipaa": {"gpt-4o", "gpt-4o-mini"},
+    "pci": {"gpt-4o-mini", "gpt-3.5-turbo"},
+    "strict": {"gpt-4o"},
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -157,6 +188,87 @@ def _select_lower_energy_model(current_model: str) -> str:
     return current_model
 
 
+def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
+    normalized = {
+        key: float(value)
+        for key, value in weights.items()
+        if key in {"cost", "quality", "latency", "energy"} and float(value) > 0
+    }
+    total = sum(normalized.values())
+    if total <= 0:
+        return {}
+    return {key: value / total for key, value in normalized.items()}
+
+
+def _cost_utility(model: str) -> float:
+    costs = [_model_total_cost(name) for name in _PRICING]
+    if not costs:
+        return 0.0
+    model_cost = _model_total_cost(model)
+    min_cost = min(costs)
+    max_cost = max(costs)
+    if max_cost == min_cost:
+        return 1.0
+    return (max_cost - model_cost) / (max_cost - min_cost)
+
+
+def _energy_utility(model: str) -> float:
+    coeffs = list(_ENERGY_COEFFICIENTS.values())
+    if not coeffs:
+        return 0.0
+    coeff = _ENERGY_COEFFICIENTS.get(model, _DEFAULT_ENERGY_COEFFICIENT)
+    min_coeff = min(coeffs)
+    max_coeff = max(coeffs)
+    if max_coeff == min_coeff:
+        return 1.0
+    return (max_coeff - coeff) / (max_coeff - min_coeff)
+
+
+def _kpi_score(model: str, weights: dict[str, float]) -> float:
+    normalized = _normalize_weights(weights)
+    if not normalized:
+        return -1.0
+    quality = _QUALITY_PRIORS.get(model, 0.7)
+    latency = _LATENCY_PRIORS.get(model, 0.7)
+    cost = _cost_utility(model)
+    energy = _energy_utility(model)
+    return (
+        (normalized.get("quality", 0.0) * quality)
+        + (normalized.get("latency", 0.0) * latency)
+        + (normalized.get("cost", 0.0) * cost)
+        + (normalized.get("energy", 0.0) * energy)
+    )
+
+
+def _select_kpi_weighted_model(current_model: str, weights: dict[str, float]) -> str:
+    best_model = current_model
+    best_score = _kpi_score(current_model, weights)
+    for candidate in _PRICING:
+        score = _kpi_score(candidate, weights)
+        if score > best_score:
+            best_model = candidate
+            best_score = score
+    return best_model
+
+
+def _compliance_allowlist(compliance: str | None) -> set[str] | None:
+    if not compliance:
+        return None
+    return _COMPLIANCE_MODEL_ALLOWLISTS.get(compliance.strip().lower())
+
+
+def _select_compliant_model(current_model: str, compliance: str) -> str | None:
+    allowlist = _compliance_allowlist(compliance)
+    if not allowlist:
+        return current_model
+    if current_model in allowlist:
+        return current_model
+    available = [name for name in _PRICING if name in allowlist]
+    if not available:
+        return None
+    return min(available, key=_model_total_cost)
+
+
 @dataclass(frozen=True)
 class _PreCallDecision:
     action: str
@@ -170,6 +282,30 @@ def _evaluate_pre_call_decision(ctx: Any, model: str, has_tools: bool) -> _PreCa
 
     if has_tools and ctx.tool_calls_max is not None and ctx.tool_calls >= ctx.tool_calls_max:
         return _PreCallDecision(action="deny_tool", reason="max_tool_calls_reached", target_model=model)
+
+    compliance = getattr(ctx, "compliance", None)
+    if compliance:
+        compliant_model = _select_compliant_model(model, str(compliance))
+        if compliant_model is None:
+            if has_tools:
+                return _PreCallDecision(
+                    action="deny_tool",
+                    reason="compliance_no_approved_tool_path",
+                    target_model=model,
+                )
+            return _PreCallDecision(action="stop", reason="compliance_no_approved_model", target_model=model)
+        if compliant_model != model:
+            return _PreCallDecision(
+                action="switch_model",
+                reason="compliance_model_policy",
+                target_model=compliant_model,
+            )
+        if str(compliance).strip().lower() == "strict" and has_tools:
+            return _PreCallDecision(
+                action="deny_tool",
+                reason="compliance_tool_restriction",
+                target_model=model,
+            )
 
     if ctx.latency_max_ms is not None and ctx.latency_used_ms >= ctx.latency_max_ms:
         faster_model = _select_faster_model(model)
@@ -203,6 +339,16 @@ def _evaluate_pre_call_decision(ctx: Any, model: str, has_tools: bool) -> _PreCa
                 action="switch_model",
                 reason="budget_pressure",
                 target_model=cheaper_model,
+            )
+
+    kpi_weights = getattr(ctx, "kpi_weights", None)
+    if isinstance(kpi_weights, dict) and kpi_weights:
+        weighted_model = _select_kpi_weighted_model(model, kpi_weights)
+        if weighted_model != model:
+            return _PreCallDecision(
+                action="switch_model",
+                reason="kpi_weight_optimization",
+                target_model=weighted_model,
             )
 
     return _PreCallDecision(action="allow", reason=ctx.mode, target_model=model)

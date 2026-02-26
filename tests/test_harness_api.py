@@ -72,18 +72,36 @@ def test_init_non_numeric_env_raises(monkeypatch):
 
 
 def test_run_uses_global_defaults_and_overrides():
-    init(mode="enforce", budget=2.0, max_tool_calls=5)
+    init(
+        mode="enforce",
+        budget=2.0,
+        max_tool_calls=5,
+        kpi_targets={"quality_min": 0.9},
+        kpi_weights={"cost": 0.7, "quality": 0.3},
+        compliance="gdpr",
+    )
 
     default_ctx = run()
     assert default_ctx.mode == "enforce"
     assert default_ctx.budget_max == 2.0
     assert default_ctx.tool_calls_max == 5
     assert default_ctx.budget_remaining == 2.0
+    assert default_ctx.kpi_targets == {"quality_min": 0.9}
+    assert default_ctx.kpi_weights == {"cost": 0.7, "quality": 0.3}
+    assert default_ctx.compliance == "gdpr"
 
-    override_ctx = run(budget=0.5, max_tool_calls=3)
+    override_ctx = run(
+        budget=0.5,
+        max_tool_calls=3,
+        kpi_weights={"quality": 1.0},
+        compliance="strict",
+    )
     assert override_ctx.budget_max == 0.5
     assert override_ctx.tool_calls_max == 3
     assert override_ctx.budget_remaining == 0.5
+    assert override_ctx.kpi_targets == {"quality_min": 0.9}
+    assert override_ctx.kpi_weights == {"quality": 1.0}
+    assert override_ctx.compliance == "strict"
 
 
 def test_run_without_enter_exit_is_safe():
