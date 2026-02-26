@@ -11,42 +11,66 @@ gracefully and ``CREWAI_AVAILABLE`` is ``False``.
 Integration surface:
     - ``enable()``:  register before/after LLM-call hooks globally
     - ``disable()``: unregister hooks and clean up
-    - ``CrewAIHarnessConfig``: optional knobs (fail_open, enable_budget_gate)
+    - ``CrewAIHarnessConfig``: optional knobs (fail_open, cost_model_override)
 """
 
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib.util import find_spec
-from typing import Any, Optional
-
-from cascadeflow.harness.pricing import estimate_cost as _estimate_shared_cost
-from cascadeflow.harness.pricing import estimate_energy as _estimate_shared_energy
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 logger = logging.getLogger("cascadeflow.integrations.crewai")
 
 CREWAI_AVAILABLE = find_spec("crewai") is not None
 
+# ---------------------------------------------------------------------------
+# Pricing table (USD per 1M tokens: input, output)
+# Shared with instrument.py — kept small and self-contained to avoid
+# cross-module coupling.  A future pricing registry will deduplicate.
+# ---------------------------------------------------------------------------
+
+_PRICING: dict[str, tuple[float, float]] = {
+    "gpt-4o": (2.50, 10.00),
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-5-mini": (0.20, 0.80),
+    "gpt-4-turbo": (10.00, 30.00),
+    "gpt-4": (30.00, 60.00),
+    "gpt-3.5-turbo": (0.50, 1.50),
+    "o1": (15.00, 60.00),
+    "o1-mini": (3.00, 12.00),
+    "o3-mini": (1.10, 4.40),
+    "claude-sonnet-4": (3.00, 15.00),
+    "claude-haiku-3.5": (1.00, 5.00),
+    "claude-opus-4.5": (5.00, 25.00),
+}
+_DEFAULT_PRICING: tuple[float, float] = (2.50, 10.00)
+
+_ENERGY_COEFFICIENTS: dict[str, float] = {
+    "gpt-4o": 1.0,
+    "gpt-4o-mini": 0.3,
+    "gpt-5-mini": 0.35,
+    "gpt-4-turbo": 1.5,
+    "gpt-4": 1.5,
+    "gpt-3.5-turbo": 0.2,
+    "o1": 2.0,
+    "o1-mini": 0.8,
+    "o3-mini": 0.5,
+}
+_DEFAULT_ENERGY_COEFFICIENT: float = 1.0
+_ENERGY_OUTPUT_WEIGHT: float = 1.5
+
 
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    return _estimate_shared_cost(model, prompt_tokens, completion_tokens)
+    per_million = _PRICING.get(model, _DEFAULT_PRICING)
+    return (prompt_tokens / 1_000_000) * per_million[0] + (completion_tokens / 1_000_000) * per_million[1]
 
 
 def _estimate_energy(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    return _estimate_shared_energy(model, prompt_tokens, completion_tokens)
-
-
-def _extract_message_content(message: Any) -> str:
-    """Extract content text from a CrewAI message (dict or object).
-
-    CrewAI hooks pass messages as dicts (``{"role": "...", "content": "..."}``)
-    but we also handle object-style messages defensively.
-    """
-    if isinstance(message, dict):
-        return str(message.get("content", "") or "")
-    return str(getattr(message, "content", "") or "")
+    coeff = _ENERGY_COEFFICIENTS.get(model, _DEFAULT_ENERGY_COEFFICIENT)
+    return coeff * (prompt_tokens + completion_tokens * _ENERGY_OUTPUT_WEIGHT)
 
 
 # ---------------------------------------------------------------------------
@@ -116,8 +140,10 @@ def _before_llm_call_hook(context: Any) -> Optional[bool]:
         if ctx is None:
             return None
 
-        # Budget gate in enforce mode — check BEFORE recording start time
-        # so blocked calls don't leak entries in _call_start_times.
+        # Record start time for latency tracking
+        _call_start_times[id(context)] = time.monotonic()
+
+        # Budget gate in enforce mode
         if (
             _config.enable_budget_gate
             and ctx.mode == "enforce"
@@ -125,15 +151,13 @@ def _before_llm_call_hook(context: Any) -> Optional[bool]:
             and ctx.cost >= ctx.budget_max
         ):
             logger.warning(
-                "crewai hook: blocking LLM call — budget exhausted " "(spent $%.4f of $%.4f max)",
+                "crewai hook: blocking LLM call — budget exhausted "
+                "(spent $%.4f of $%.4f max)",
                 ctx.cost,
                 ctx.budget_max,
             )
             ctx.record(action="stop", reason="budget_exhausted", model=_extract_model_name(context))
             return False
-
-        # Record start time for latency tracking (only for allowed calls)
-        _call_start_times[id(context)] = time.monotonic()
 
         return None
     except Exception:
@@ -165,11 +189,10 @@ def _after_llm_call_hook(context: Any) -> Optional[str]:
         model = _extract_model_name(context)
         response = getattr(context, "response", None) or ""
 
-        # Estimate tokens from text (rough: 1 token ≈ 4 chars).
+        # Estimate tokens from response text (rough: 1 token ≈ 4 chars)
         # CrewAI hooks don't expose raw token counts, so we approximate.
-        # Messages are typically dicts ({"role": "...", "content": "..."}).
         messages = getattr(context, "messages", [])
-        prompt_chars = sum(len(_extract_message_content(m)) for m in messages)
+        prompt_chars = sum(len(str(getattr(m, "content", "") or "")) for m in messages)
         completion_chars = len(str(response))
         prompt_tokens = max(prompt_chars // 4, 1)
         completion_tokens = max(completion_chars // 4, 1)
@@ -248,13 +271,14 @@ def enable(config: Optional[CrewAIHarnessConfig] = None) -> bool:
         _config = config
 
     try:
-        from crewai.hooks import (  # noqa: I001
-            register_after_llm_call_hook,
+        from crewai.hooks import (
             register_before_llm_call_hook,
+            register_after_llm_call_hook,
         )
     except ImportError:
         logger.warning(
-            "crewai is installed but hooks module not available " "(requires crewai>=1.5); skipping"
+            "crewai is installed but hooks module not available "
+            "(requires crewai>=1.5); skipping"
         )
         return False
 
@@ -280,9 +304,9 @@ def disable() -> None:
         return
 
     try:
-        from crewai.hooks import (  # noqa: I001
-            unregister_after_llm_call_hook,
+        from crewai.hooks import (
             unregister_before_llm_call_hook,
+            unregister_after_llm_call_hook,
         )
 
         if _before_hook_ref is not None:
