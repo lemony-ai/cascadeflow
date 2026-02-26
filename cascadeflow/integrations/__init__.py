@@ -165,6 +165,26 @@ except ImportError:
     PaygenticUsageReporter = None
     PaygenticProxyService = None
 
+# Try to import CrewAI integration
+try:
+    from .crewai import (
+        CREWAI_AVAILABLE,
+        CrewAIHarnessConfig,
+        enable as crewai_enable,
+        disable as crewai_disable,
+        is_available as crewai_is_available,
+        is_enabled as crewai_is_enabled,
+        get_config as crewai_get_config,
+    )
+except ImportError:
+    CREWAI_AVAILABLE = False
+    CrewAIHarnessConfig = None
+    crewai_enable = None
+    crewai_disable = None
+    crewai_is_available = None
+    crewai_is_enabled = None
+    crewai_get_config = None
+
 __all__ = []
 
 if LITELLM_AVAILABLE:
@@ -252,6 +272,19 @@ if PAYGENTIC_AVAILABLE:
         ]
     )
 
+if CREWAI_AVAILABLE:
+    __all__.extend(
+        [
+            "CREWAI_AVAILABLE",
+            "CrewAIHarnessConfig",
+            "crewai_enable",
+            "crewai_disable",
+            "crewai_is_available",
+            "crewai_is_enabled",
+            "crewai_get_config",
+        ]
+    )
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
@@ -260,6 +293,7 @@ INTEGRATION_CAPABILITIES = {
     "openai_agents": OPENAI_AGENTS_AVAILABLE,
     "openclaw": OPENCLAW_AVAILABLE,
     "paygentic": PAYGENTIC_AVAILABLE,
+    "crewai": CREWAI_AVAILABLE,
 }
 
 
@@ -284,4 +318,5 @@ def get_integration_info():
         "openai_agents_available": OPENAI_AGENTS_AVAILABLE,
         "openclaw_available": OPENCLAW_AVAILABLE,
         "paygentic_available": PAYGENTIC_AVAILABLE,
+        "crewai_available": CREWAI_AVAILABLE,
     }
