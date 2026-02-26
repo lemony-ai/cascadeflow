@@ -26,7 +26,7 @@ from cascadeflow.schema.exceptions import HarnessStopError
 
 from .harness_state import apply_langgraph_state, extract_langgraph_state
 from .langchain_callbacks import CascadeFlowCallbackHandler
-from .utils import extract_token_usage, extract_tool_calls
+from .utils import extract_token_usage
 
 logger = logging.getLogger("cascadeflow.harness.langchain")
 
@@ -157,8 +157,6 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
             token_usage = extract_token_usage(response)
             prompt_tokens = int(token_usage["input"])
             completion_tokens = int(token_usage["output"])
-            tool_call_count = len(extract_tool_calls(response))
-
             elapsed_ms = 0.0
             if self._llm_started_at is not None:
                 elapsed_ms = (time.monotonic() - self._llm_started_at) * 1000.0
@@ -167,7 +165,6 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
             run_ctx.cost += estimate_cost(model_name, prompt_tokens, completion_tokens)
             run_ctx.energy_used += estimate_energy(model_name, prompt_tokens, completion_tokens)
             run_ctx.latency_used_ms += elapsed_ms
-            run_ctx.tool_calls += tool_call_count
 
             if run_ctx.budget_max is not None:
                 run_ctx.budget_remaining = run_ctx.budget_max - run_ctx.cost
@@ -230,6 +227,8 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
                         reason="max_tool_calls_reached",
                     )
 
+            # Track executed tools (not predicted tool calls in LLM output).
+            run_ctx.tool_calls += 1
             return None
         except Exception as exc:
             self._handle_harness_error(exc)
@@ -244,4 +243,3 @@ def get_harness_callback(*, fail_open: bool = True):
 
 
 __all__ = ["HarnessAwareCascadeFlowCallbackHandler", "get_harness_callback"]
-

@@ -14,6 +14,7 @@ from cascadeflow.integrations.langchain.harness_state import (
     apply_langgraph_state,
     extract_langgraph_state,
 )
+from cascadeflow.integrations.langchain.utils import extract_tool_calls
 from cascadeflow.schema.exceptions import BudgetExceededError, HarnessStopError
 
 
@@ -152,6 +153,35 @@ def test_tool_deny_uses_run_ctx_tool_calls() -> None:
             handler.on_tool_start(serialized={"name": "search"}, input_str="query")
 
 
+def test_tool_start_counts_executions_and_blocks_after_limit() -> None:
+    init(mode="enforce", max_tool_calls=1, budget=1.0)
+    handler = HarnessAwareCascadeFlowCallbackHandler(fail_open=False)
+
+    with run(max_tool_calls=1, budget=1.0) as ctx:
+        assert ctx.tool_calls == 0
+        assert handler.on_tool_start(serialized={"name": "search"}, input_str="first") is None
+        assert ctx.tool_calls == 1
+
+        with pytest.raises(HarnessStopError, match="max tool calls"):
+            handler.on_tool_start(serialized={"name": "search"}, input_str="second")
+
+        assert ctx.tool_calls == 1
+        trace = ctx.trace()
+        assert trace[-1]["action"] == "deny_tool"
+        assert trace[-1]["applied"] is True
+
+
+def test_extract_tool_calls_supports_llm_result_nested_generations() -> None:
+    generation = ChatGeneration(
+        message=AIMessage(content="", tool_calls=[{"name": "search", "args": {"q": "x"}, "id": "t1"}]),
+        generation_info={},
+    )
+    llm_result = LLMResult(generations=[[generation]], llm_output={"model_name": "gpt-4o-mini"})
+    tool_calls = extract_tool_calls(llm_result)
+    assert len(tool_calls) == 1
+    assert tool_calls[0]["name"] == "search"
+
+
 def test_extract_and_apply_langgraph_state() -> None:
     state = extract_langgraph_state(
         {
@@ -181,4 +211,3 @@ def test_extract_and_apply_langgraph_state() -> None:
         assert ctx.latency_used_ms == pytest.approx(130.0)
         assert ctx.energy_used == pytest.approx(77.0)
         assert ctx.model_used == "gpt-4o-mini"
-

@@ -195,6 +195,10 @@ def extract_tool_calls(response: Any) -> list[dict[str, Any]]:
     msg = None
     if hasattr(response, "generations") and response.generations:
         generation = response.generations[0]
+        # LLMResult.generations is often list[list[Generation]], while ChatResult
+        # uses list[Generation]. Support both shapes.
+        if isinstance(generation, list) and generation:
+            generation = generation[0]
         msg = getattr(generation, "message", None)
     else:
         msg = getattr(response, "message", None) or response
