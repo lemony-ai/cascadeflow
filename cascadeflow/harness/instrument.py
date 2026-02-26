@@ -49,6 +49,12 @@ _PRICING: dict[str, tuple[float, float]] = {
     "o3-mini": (1.10, 4.40),
 }
 _DEFAULT_PRICING: tuple[float, float] = (2.50, 10.00)
+_DEFAULT_TOTAL_COST: float = _DEFAULT_PRICING[0] + _DEFAULT_PRICING[1]
+_MODEL_TOTAL_COSTS: dict[str, float] = {name: in_cost + out_cost for name, (in_cost, out_cost) in _PRICING.items()}
+_PRICING_MODELS: tuple[str, ...] = tuple(_PRICING.keys())
+_CHEAPEST_MODEL: str = min(_MODEL_TOTAL_COSTS, key=_MODEL_TOTAL_COSTS.get)
+_MIN_TOTAL_COST: float = min(_MODEL_TOTAL_COSTS.values())
+_MAX_TOTAL_COST: float = max(_MODEL_TOTAL_COSTS.values())
 
 # ---------------------------------------------------------------------------
 # Energy estimation coefficients (deterministic proxy, not live carbon data)
@@ -68,6 +74,9 @@ _ENERGY_COEFFICIENTS: dict[str, float] = {
 }
 _DEFAULT_ENERGY_COEFFICIENT: float = 1.0
 _ENERGY_OUTPUT_WEIGHT: float = 1.5
+_LOWEST_ENERGY_MODEL: str = min(_ENERGY_COEFFICIENTS, key=_ENERGY_COEFFICIENTS.get)
+_MIN_ENERGY_COEFF: float = min(_ENERGY_COEFFICIENTS.values())
+_MAX_ENERGY_COEFF: float = max(_ENERGY_COEFFICIENTS.values())
 
 # Relative priors used by KPI-weighted soft-control scoring.
 # These are deterministic heuristics based on internal benchmark runs and
@@ -94,6 +103,10 @@ _LATENCY_PRIORS: dict[str, float] = {
     "o1-mini": 0.60,
     "o3-mini": 0.78,
 }
+_LATENCY_CANDIDATES: tuple[str, ...] = tuple(name for name in _PRICING_MODELS if name in _LATENCY_PRIORS)
+_FASTEST_MODEL: str | None = (
+    max(_LATENCY_CANDIDATES, key=lambda name: _LATENCY_PRIORS[name]) if _LATENCY_CANDIDATES else None
+)
 
 # OpenAI-model allowlists used by the current OpenAI harness instrumentation.
 # Future provider instrumentation should provide provider-specific allowlists.
@@ -165,35 +178,30 @@ def _extract_usage(response: Any) -> tuple[int, int]:
 
 
 def _model_total_cost(model: str) -> float:
-    in_cost, out_cost = _PRICING.get(model, _DEFAULT_PRICING)
-    return in_cost + out_cost
+    return _MODEL_TOTAL_COSTS.get(model, _DEFAULT_TOTAL_COST)
 
 
 def _select_cheaper_model(current_model: str) -> str:
-    cheapest = min(_PRICING.keys(), key=_model_total_cost)
-    if _model_total_cost(cheapest) < _model_total_cost(current_model):
-        return cheapest
+    if _model_total_cost(_CHEAPEST_MODEL) < _model_total_cost(current_model):
+        return _CHEAPEST_MODEL
     return current_model
 
 
 def _select_faster_model(current_model: str) -> str:
-    latency_candidates = [name for name in _PRICING if name in _LATENCY_PRIORS]
-    if not latency_candidates:
+    if _FASTEST_MODEL is None:
         return current_model
-    fastest = max(latency_candidates, key=lambda name: _LATENCY_PRIORS[name])
     current_latency = _LATENCY_PRIORS.get(current_model, 0.7)
-    if _LATENCY_PRIORS[fastest] > current_latency:
-        return fastest
+    if _LATENCY_PRIORS[_FASTEST_MODEL] > current_latency:
+        return _FASTEST_MODEL
     return current_model
 
 
 def _select_lower_energy_model(current_model: str) -> str:
-    lowest_energy = min(_ENERGY_COEFFICIENTS.keys(), key=lambda name: _ENERGY_COEFFICIENTS[name])
-    if _ENERGY_COEFFICIENTS.get(lowest_energy, _DEFAULT_ENERGY_COEFFICIENT) < _ENERGY_COEFFICIENTS.get(
+    if _ENERGY_COEFFICIENTS.get(_LOWEST_ENERGY_MODEL, _DEFAULT_ENERGY_COEFFICIENT) < _ENERGY_COEFFICIENTS.get(
         current_model,
         _DEFAULT_ENERGY_COEFFICIENT,
     ):
-        return lowest_energy
+        return _LOWEST_ENERGY_MODEL
     return current_model
 
 
@@ -210,31 +218,20 @@ def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
 
 
 def _cost_utility(model: str) -> float:
-    costs = [_model_total_cost(name) for name in _PRICING]
-    if not costs:
-        return 0.0
     model_cost = _model_total_cost(model)
-    min_cost = min(costs)
-    max_cost = max(costs)
-    if max_cost == min_cost:
+    if _MAX_TOTAL_COST == _MIN_TOTAL_COST:
         return 1.0
-    return (max_cost - model_cost) / (max_cost - min_cost)
+    return (_MAX_TOTAL_COST - model_cost) / (_MAX_TOTAL_COST - _MIN_TOTAL_COST)
 
 
 def _energy_utility(model: str) -> float:
-    coeffs = list(_ENERGY_COEFFICIENTS.values())
-    if not coeffs:
-        return 0.0
     coeff = _ENERGY_COEFFICIENTS.get(model, _DEFAULT_ENERGY_COEFFICIENT)
-    min_coeff = min(coeffs)
-    max_coeff = max(coeffs)
-    if max_coeff == min_coeff:
+    if _MAX_ENERGY_COEFF == _MIN_ENERGY_COEFF:
         return 1.0
-    return (max_coeff - coeff) / (max_coeff - min_coeff)
+    return (_MAX_ENERGY_COEFF - coeff) / (_MAX_ENERGY_COEFF - _MIN_ENERGY_COEFF)
 
 
-def _kpi_score(model: str, weights: dict[str, float]) -> float:
-    normalized = _normalize_weights(weights)
+def _kpi_score_with_normalized(model: str, normalized: dict[str, float]) -> float:
     if not normalized:
         return 0.0
     quality = _QUALITY_PRIORS.get(model, 0.7)
@@ -249,11 +246,19 @@ def _kpi_score(model: str, weights: dict[str, float]) -> float:
     )
 
 
+def _kpi_score(model: str, weights: dict[str, float]) -> float:
+    normalized = _normalize_weights(weights)
+    return _kpi_score_with_normalized(model, normalized)
+
+
 def _select_kpi_weighted_model(current_model: str, weights: dict[str, float]) -> str:
+    normalized = _normalize_weights(weights)
+    if not normalized:
+        return current_model
     best_model = current_model
-    best_score = _kpi_score(current_model, weights)
-    for candidate in _PRICING:
-        score = _kpi_score(candidate, weights)
+    best_score = _kpi_score_with_normalized(current_model, normalized)
+    for candidate in _PRICING_MODELS:
+        score = _kpi_score_with_normalized(candidate, normalized)
         if score > best_score:
             best_model = candidate
             best_score = score
