@@ -4,6 +4,10 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
+from cascadeflow.harness import init, reset, run
+from cascadeflow.integrations.langchain.harness_callback import (
+    HarnessAwareCascadeFlowCallbackHandler,
+)
 from cascadeflow.integrations.langchain import CascadeFlow
 
 
@@ -116,3 +120,35 @@ def test_domain_policy_direct_to_verifier_skips_drafter() -> None:
     assert drafter.calls == 0
     assert verifier.calls == 1
     assert result.llm_output["cascade"]["routing_reason"] == "domain_policy_direct"
+
+
+def test_wrapper_only_auto_adds_harness_callback_inside_active_run_scope() -> None:
+    reset()
+    init(mode="observe")
+    drafter = MockSequenceChatModel("draft")
+    verifier = MockSequenceChatModel("verify")
+    cascade = CascadeFlow(drafter=drafter, verifier=verifier, enable_pre_router=False)
+
+    outside_callbacks = cascade._resolve_callbacks([])
+    assert not any(
+        isinstance(cb, HarnessAwareCascadeFlowCallbackHandler) for cb in outside_callbacks
+    )
+
+    with run():
+        inside_callbacks = cascade._resolve_callbacks([])
+        assert any(
+            isinstance(cb, HarnessAwareCascadeFlowCallbackHandler) for cb in inside_callbacks
+        )
+
+
+def test_wrapper_does_not_duplicate_harness_callback() -> None:
+    reset()
+    init(mode="observe")
+    drafter = MockSequenceChatModel("draft")
+    verifier = MockSequenceChatModel("verify")
+    cascade = CascadeFlow(drafter=drafter, verifier=verifier, enable_pre_router=False)
+    existing = HarnessAwareCascadeFlowCallbackHandler()
+
+    with run():
+        callbacks = cascade._resolve_callbacks([existing])
+        assert len([cb for cb in callbacks if isinstance(cb, HarnessAwareCascadeFlowCallbackHandler)]) == 1
