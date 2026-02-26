@@ -776,6 +776,78 @@ class TestEnforceActions:
         assert trace[0]["action"] == "deny_tool"
         assert trace[0]["reason"] == "max_tool_calls_reached"
 
+    def test_enforce_switches_model_for_compliance_policy(self) -> None:
+        init(mode="enforce", compliance="strict")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run() as ctx:
+            wrapper(MagicMock(), model="gpt-4o-mini")
+
+        assert original.call_args[1]["model"] == "gpt-4o"
+        trace = ctx.trace()
+        assert trace[0]["action"] == "switch_model"
+        assert trace[0]["reason"] == "compliance_model_policy"
+
+    def test_enforce_denies_tool_for_strict_compliance(self) -> None:
+        init(mode="enforce", compliance="strict")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run() as ctx:
+            wrapper(MagicMock(), model="gpt-4o", tools=[{"type": "function", "function": {"name": "t1"}}])
+
+        assert original.call_args[1]["tools"] == []
+        trace = ctx.trace()
+        assert trace[0]["action"] == "deny_tool"
+        assert trace[0]["reason"] == "compliance_tool_restriction"
+
+    def test_observe_logs_compliance_switch_without_applying(self) -> None:
+        init(mode="observe", compliance="strict")
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run() as ctx:
+            wrapper(MagicMock(), model="gpt-4o-mini")
+
+        assert original.call_args[1]["model"] == "gpt-4o-mini"
+        trace = ctx.trace()
+        assert trace[0]["action"] == "switch_model"
+        assert trace[0]["reason"] == "compliance_model_policy"
+        assert trace[0]["model"] == "gpt-4o"
+
+    def test_enforce_switches_model_using_kpi_weights(self) -> None:
+        init(mode="enforce", kpi_weights={"quality": 1.0})
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run() as ctx:
+            wrapper(MagicMock(), model="gpt-3.5-turbo")
+
+        assert original.call_args[1]["model"] == "o1"
+        trace = ctx.trace()
+        assert trace[0]["action"] == "switch_model"
+        assert trace[0]["reason"] == "kpi_weight_optimization"
+
+    def test_observe_logs_kpi_switch_without_applying(self) -> None:
+        init(mode="observe", kpi_weights={"quality": 1.0})
+        mock_resp = _mock_completion()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_create(original)
+
+        with run() as ctx:
+            wrapper(MagicMock(), model="gpt-3.5-turbo")
+
+        assert original.call_args[1]["model"] == "gpt-3.5-turbo"
+        trace = ctx.trace()
+        assert trace[0]["action"] == "switch_model"
+        assert trace[0]["reason"] == "kpi_weight_optimization"
+        assert trace[0]["model"] == "o1"
+
 
 # ---------------------------------------------------------------------------
 # Fix: stream_options.include_usage auto-injection

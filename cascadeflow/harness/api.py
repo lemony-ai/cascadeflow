@@ -45,6 +45,9 @@ class HarnessRunContext:
     tool_calls_max: Optional[int] = None
     latency_max_ms: Optional[float] = None
     energy_max: Optional[float] = None
+    kpi_targets: Optional[dict[str, float]] = None
+    kpi_weights: Optional[dict[str, float]] = None
+    compliance: Optional[str] = None
 
     cost: float = 0.0
     savings: float = 0.0
@@ -376,6 +379,9 @@ def run(
     max_tool_calls: Optional[int] = None,
     max_latency_ms: Optional[float] = None,
     max_energy: Optional[float] = None,
+    kpi_targets: Optional[dict[str, float]] = None,
+    kpi_weights: Optional[dict[str, float]] = None,
+    compliance: Optional[str] = None,
 ) -> HarnessRunContext:
     """
     Create a scoped run context.
@@ -388,6 +394,9 @@ def run(
     resolved_tool_calls = max_tool_calls if max_tool_calls is not None else config.max_tool_calls
     resolved_latency = max_latency_ms if max_latency_ms is not None else config.max_latency_ms
     resolved_energy = max_energy if max_energy is not None else config.max_energy
+    resolved_kpi_targets = kpi_targets if kpi_targets is not None else config.kpi_targets
+    resolved_kpi_weights = kpi_weights if kpi_weights is not None else config.kpi_weights
+    resolved_compliance = compliance if compliance is not None else config.compliance
 
     return HarnessRunContext(
         mode=config.mode,
@@ -395,6 +404,9 @@ def run(
         tool_calls_max=resolved_tool_calls,
         latency_max_ms=resolved_latency,
         energy_max=resolved_energy,
+        kpi_targets=resolved_kpi_targets,
+        kpi_weights=resolved_kpi_weights,
+        compliance=resolved_compliance,
     )
 
 
