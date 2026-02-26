@@ -84,17 +84,28 @@ class HarnessRunContext:
     def trace(self) -> list[dict[str, Any]]:
         return list(self._trace)
 
-    def record(self, action: str, reason: str, model: Optional[str] = None) -> None:
+    def record(
+        self,
+        action: str,
+        reason: str,
+        model: Optional[str] = None,
+        *,
+        applied: Optional[bool] = None,
+        decision_mode: Optional[str] = None,
+    ) -> None:
         self.last_action = action
         self.model_used = model
-        self._trace.append(
-            {
-                "action": action,
-                "reason": reason,
-                "model": model,
-                "run_id": self.run_id,
-            }
-        )
+        entry: dict[str, Any] = {
+            "action": action,
+            "reason": reason,
+            "model": model,
+            "run_id": self.run_id,
+        }
+        if applied is not None:
+            entry["applied"] = applied
+        if decision_mode is not None:
+            entry["decision_mode"] = decision_mode
+        self._trace.append(entry)
 
 
 _harness_config: HarnessConfig = HarnessConfig()
