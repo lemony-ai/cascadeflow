@@ -41,8 +41,10 @@ class HarnessInitReport:
 @dataclass
 class HarnessRunContext:
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
+    _started_monotonic: float = field(default_factory=time.monotonic, init=False, repr=False)
     started_at_ms: float = field(default_factory=lambda: time.time() * 1000)
     ended_at_ms: Optional[float] = None
+    duration_ms: Optional[float] = None
     mode: HarnessMode = "off"
     budget_max: Optional[float] = None
     tool_calls_max: Optional[int] = None
@@ -75,6 +77,7 @@ class HarnessRunContext:
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         self.ended_at_ms = time.time() * 1000
+        self.duration_ms = max(0.0, (time.monotonic() - self._started_monotonic) * 1000.0)
         self._log_summary()
         if self._token is not None:
             _current_run.reset(self._token)
@@ -90,9 +93,6 @@ class HarnessRunContext:
         return list(self._trace)
 
     def summary(self) -> dict[str, Any]:
-        duration_ms: Optional[float] = None
-        if self.ended_at_ms is not None:
-            duration_ms = max(0.0, self.ended_at_ms - self.started_at_ms)
         return {
             "run_id": self.run_id,
             "mode": self.mode,
@@ -106,7 +106,7 @@ class HarnessRunContext:
             "budget_remaining": self.budget_remaining,
             "last_action": self.last_action,
             "model_used": self.model_used,
-            "duration_ms": duration_ms,
+            "duration_ms": self.duration_ms,
         }
 
     def _log_summary(self) -> None:
@@ -139,9 +139,12 @@ class HarnessRunContext:
         applied: Optional[bool] = None,
         decision_mode: Optional[str] = None,
     ) -> None:
-        safe_action = _sanitize_trace_value(action, max_length=64) or "allow"
-        safe_reason = _sanitize_trace_value(reason, max_length=160) or "unspecified"
-        safe_model = _sanitize_trace_value(model, max_length=128) if model is not None else None
+        safe_action = _sanitize_trace_value(action, max_length=_MAX_ACTION_LEN)
+        if not safe_action:
+            logger.warning("record() called with empty action, defaulting to 'allow'")
+            safe_action = "allow"
+        safe_reason = _sanitize_trace_value(reason, max_length=_MAX_REASON_LEN) or "unspecified"
+        safe_model = _sanitize_trace_value(model, max_length=_MAX_MODEL_LEN) if model is not None else None
 
         self.last_action = safe_action
         self.model_used = safe_model
@@ -217,6 +220,7 @@ def reset() -> None:
     global _harness_config
     global _is_instrumented
     global _harness_callback_manager
+    global _cached_cascade_decision_event
 
     from cascadeflow.harness.instrument import unpatch_openai
 
@@ -224,7 +228,13 @@ def reset() -> None:
     _harness_config = HarnessConfig()
     _is_instrumented = False
     _harness_callback_manager = None
+    _cached_cascade_decision_event = None
     _current_run.set(None)
+
+
+_MAX_ACTION_LEN = 64
+_MAX_REASON_LEN = 160
+_MAX_MODEL_LEN = 128
 
 
 def _sanitize_trace_value(value: Any, *, max_length: int) -> Optional[str]:
@@ -233,10 +243,15 @@ def _sanitize_trace_value(value: Any, *, max_length: int) -> Optional[str]:
     text = str(value).replace("\n", " ").replace("\r", " ").strip()
     if len(text) > max_length:
         text = text[: max_length - 3] + "..."
-    return text
+    return text or None
+
+
+_cached_cascade_decision_event: Any = None
 
 
 def _emit_harness_decision(entry: dict[str, Any]) -> None:
+    global _cached_cascade_decision_event
+
     manager = get_harness_callback_manager()
     if manager is None:
         return
@@ -246,15 +261,17 @@ def _emit_harness_decision(entry: dict[str, Any]) -> None:
         logger.debug("harness callback manager has no trigger() method")
         return
 
-    try:
-        from cascadeflow.telemetry.callbacks import CallbackEvent
-    except Exception:
-        logger.debug("telemetry callbacks unavailable for harness decision emit", exc_info=True)
-        return
+    if _cached_cascade_decision_event is None:
+        try:
+            from cascadeflow.telemetry.callbacks import CallbackEvent
+            _cached_cascade_decision_event = CallbackEvent.CASCADE_DECISION
+        except Exception:
+            logger.debug("telemetry callbacks unavailable for harness decision emit", exc_info=True)
+            return
 
     try:
         trigger(
-            CallbackEvent.CASCADE_DECISION,
+            _cached_cascade_decision_event,
             query="[harness]",
             data=dict(entry),
             workflow="harness",

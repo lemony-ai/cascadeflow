@@ -351,6 +351,8 @@ def test_run_summary_populates_on_context_exit():
     assert summary["budget_remaining"] == pytest.approx(1.08)
     assert summary["duration_ms"] is not None
     assert summary["duration_ms"] >= 0.0
+    assert ctx.duration_ms is not None
+    assert ctx.duration_ms >= 0.0
 
 
 def test_run_context_logs_summary(caplog):
@@ -399,3 +401,20 @@ def test_record_sanitizes_trace_values():
     assert "\n" not in entry["action"]
     assert "\r" not in entry["model"]
     assert len(entry["reason"]) <= 160
+
+
+def test_record_without_callback_manager_is_noop():
+    init(mode="observe")
+    with run(budget=1.0) as ctx:
+        ctx.record(action="allow", reason="test", model="gpt-4o-mini")
+    assert len(ctx.trace()) == 1
+
+
+def test_record_empty_action_warns_and_defaults(caplog):
+    init(mode="observe")
+    with caplog.at_level("WARNING", logger="cascadeflow.harness"):
+        with run(budget=1.0) as ctx:
+            ctx.record(action="", reason="test", model="gpt-4o-mini")
+    entry = ctx.trace()[0]
+    assert entry["action"] == "allow"
+    assert any("empty action" in rec.message for rec in caplog.records)
