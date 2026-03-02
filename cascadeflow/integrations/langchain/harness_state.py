@@ -122,4 +122,3 @@ def apply_langgraph_state(run_ctx: Any, state: Mapping[str, Any]) -> None:
     model_used = state.get("model_used")
     if isinstance(model_used, str) and model_used:
         run_ctx.model_used = model_used
-

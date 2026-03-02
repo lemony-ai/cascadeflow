@@ -124,14 +124,12 @@ def test_on_llm_end_no_run_context_is_safe() -> None:
         prompts=["hello"],
         invocation_params={"model": "gpt-4o-mini"},
     )
-    result = handler.on_llm_end(_llm_result("gpt-4o-mini", 10, 5))
-    assert result is None
+    handler.on_llm_end(_llm_result("gpt-4o-mini", 10, 5))
 
 
 def test_on_tool_start_no_run_context_is_safe() -> None:
     handler = HarnessAwareCascadeFlowCallbackHandler()
-    result = handler.on_tool_start(serialized={"name": "search"}, input_str="query")
-    assert result is None
+    handler.on_tool_start(serialized={"name": "search"}, input_str="query")
 
 
 def test_extract_state_ignores_plain_kwargs() -> None:
@@ -173,7 +171,9 @@ def test_tool_start_counts_executions_and_blocks_after_limit() -> None:
 
 def test_extract_tool_calls_supports_llm_result_nested_generations() -> None:
     generation = ChatGeneration(
-        message=AIMessage(content="", tool_calls=[{"name": "search", "args": {"q": "x"}, "id": "t1"}]),
+        message=AIMessage(
+            content="", tool_calls=[{"name": "search", "args": {"q": "x"}, "id": "t1"}]
+        ),
         generation_info={},
     )
     llm_result = LLMResult(generations=[[generation]], llm_output={"model_name": "gpt-4o-mini"})

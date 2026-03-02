@@ -84,7 +84,10 @@ class HarnessAwareCascadeFlowCallbackHandler(CascadeFlowCallbackHandler):
             if not has_tools:
                 has_tools = bool(kwargs.get("tools"))
 
-            from cascadeflow.harness.instrument import _evaluate_pre_call_decision, _raise_stop_error  # noqa: I001
+            from cascadeflow.harness.instrument import (
+                _evaluate_pre_call_decision,
+                _raise_stop_error,
+            )  # noqa: I001
 
             decision = _evaluate_pre_call_decision(run_ctx, model_name, has_tools=has_tools)
             self._pre_action = decision.action

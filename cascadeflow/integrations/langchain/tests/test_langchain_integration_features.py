@@ -151,4 +151,7 @@ def test_wrapper_does_not_duplicate_harness_callback() -> None:
 
     with run():
         callbacks = cascade._resolve_callbacks([existing])
-        assert len([cb for cb in callbacks if isinstance(cb, HarnessAwareCascadeFlowCallbackHandler)]) == 1
+        assert (
+            len([cb for cb in callbacks if isinstance(cb, HarnessAwareCascadeFlowCallbackHandler)])
+            == 1
+        )
