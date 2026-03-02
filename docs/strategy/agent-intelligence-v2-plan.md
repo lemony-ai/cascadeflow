@@ -849,8 +849,8 @@ Claim checklist (one owner per branch at a time):
 - [ ] `feat/v2-crewai-integration` — Owner: `@` — PR: `#` — Status: `claimed/in-progress/review/merged`
 - [x] `feat/v2-langchain-harness-extension` — Owner: `@codex` — PR: `TBD` — Status: `completed`
 - [ ] `feat/v2-dx-docs-quickstarts` — Owner: `@` — PR: `#` — Status: `claimed/in-progress/review/merged`
-- [ ] `feat/v2-bench-repro-pipeline` — Owner: `@` — PR: `#` — Status: `claimed/in-progress/review/merged`
-- [ ] `feat/v2-security-privacy-telemetry` — Owner: `@codex` — PR: `TBD` — Status: `in-progress`
+- [x] `feat/v2-bench-repro-pipeline` — Owner: `@codex` — PR: `#163` — Status: `completed (merged to integration branch)`
+- [x] `feat/v2-security-privacy-telemetry` — Owner: `@codex` — PR: `#162` — Status: `completed (merged to integration branch)`
 
 Merge gates per feature branch:
 - [ ] Unit/integration tests green for touched scope

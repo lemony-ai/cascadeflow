@@ -21,7 +21,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .artifact import bundle_artifact
+from .baseline import compare_to_baseline, load_baseline
+from .harness_overhead import measure_harness_overhead
+from .observe_validation import validate_observe_mode
 from .reporter import BenchmarkReporter
+from .repro import collect_repro_metadata, metadata_to_dict
 
 
 PROFILE_PRESETS: dict[str, dict[str, Any]] = {
@@ -432,6 +437,24 @@ async def main():
         action="store_true",
         help="Skip provider comparison benchmark (expensive; enabled by default in standard/overnight/full)",
     )
+    parser.add_argument(
+        "--baseline",
+        type=str,
+        default=None,
+        help="Path to a baseline JSON file for regression comparison",
+    )
+    parser.add_argument(
+        "--harness-mode",
+        type=str,
+        choices=["off", "observe"],
+        default="off",
+        help="Harness mode for overhead and observe-validation measurements",
+    )
+    parser.add_argument(
+        "--with-repro",
+        action="store_true",
+        help="Collect reproducibility metadata and write an artifact bundle",
+    )
 
     args = parser.parse_args()
 
@@ -460,39 +483,99 @@ async def main():
             f.write(comparison_table)
         print(f"\n✅ Markdown report: {md_path}")
 
+    # Convert summaries to dicts for JSON serialization (used by --with-repro too).
+    json_results: dict[str, Any] = {}
+    for name, summary in results.items():
+        if summary is None:
+            json_results[name] = None
+        elif summary == "completed":
+            json_results[name] = "completed"
+        elif isinstance(summary, dict):
+            json_results[name] = summary
+        else:
+            json_results[name] = {
+                "dataset_name": summary.dataset_name,
+                "total_tests": summary.total_tests,
+                "successful_tests": summary.successful_tests,
+                "failed_tests": summary.failed_tests,
+                "accuracy": summary.accuracy,
+                "drafter_accepted": summary.drafter_accepted,
+                "acceptance_rate_pct": summary.acceptance_rate_pct,
+                "escalation_rate_pct": summary.escalation_rate_pct,
+                "total_cost": summary.total_cost,
+                "total_baseline_cost": summary.total_baseline_cost,
+                "total_savings": summary.total_savings,
+                "avg_savings_pct": summary.avg_savings_pct,
+                "avg_latency_ms": summary.avg_latency_ms,
+                "drafter_accuracy": summary.drafter_accuracy,
+                "verifier_accuracy": summary.verifier_accuracy,
+            }
+
     if "json" in formats:
         json_path = output_dir / "results.json"
-        # Convert summaries to dicts for JSON serialization
-        json_results = {}
-        for name, summary in results.items():
-            if summary is None:
-                json_results[name] = None
-            elif summary == "completed":
-                json_results[name] = "completed"
-            elif isinstance(summary, dict):
-                json_results[name] = summary
-            else:
-                json_results[name] = {
-                    "dataset_name": summary.dataset_name,
-                    "total_tests": summary.total_tests,
-                    "successful_tests": summary.successful_tests,
-                    "failed_tests": summary.failed_tests,
-                    "accuracy": summary.accuracy,
-                    "drafter_accepted": summary.drafter_accepted,
-                    "acceptance_rate_pct": summary.acceptance_rate_pct,
-                    "escalation_rate_pct": summary.escalation_rate_pct,
-                    "total_cost": summary.total_cost,
-                    "total_baseline_cost": summary.total_baseline_cost,
-                    "total_savings": summary.total_savings,
-                    "avg_savings_pct": summary.avg_savings_pct,
-                    "avg_latency_ms": summary.avg_latency_ms,
-                    "drafter_accuracy": summary.drafter_accuracy,
-                    "verifier_accuracy": summary.verifier_accuracy,
-                }
-
         with open(json_path, "w") as f:
             json.dump(json_results, f, indent=2)
         print(f"✅ JSON results: {json_path}")
+
+    # ---- Reproducibility artifact (opt-in) ----
+    if args.with_repro:
+        meta = collect_repro_metadata(
+            profile=args.profile,
+            harness_mode=args.harness_mode,
+        )
+        meta_dict = metadata_to_dict(meta)
+
+        overhead_report = measure_harness_overhead()
+        overhead_dict = {
+            "iterations": overhead_report.iterations,
+            "p50_us": overhead_report.p50_us,
+            "p95_us": overhead_report.p95_us,
+            "p99_us": overhead_report.p99_us,
+            "mean_us": overhead_report.mean_us,
+            "max_us": overhead_report.max_us,
+            "p95_under_5ms": overhead_report.p95_under_5ms,
+        }
+
+        observe_result = validate_observe_mode()
+        observe_dict = {
+            "total_cases": observe_result.total_cases,
+            "passed": observe_result.passed,
+            "failed": observe_result.failed,
+            "failures": observe_result.failures,
+            "all_passed": observe_result.all_passed,
+        }
+
+        comparison_data = None
+        if args.baseline:
+            baseline_artifact = load_baseline(args.baseline)
+            report = compare_to_baseline(json_results, baseline_artifact.results)
+            comparison_data = {
+                "deltas": [
+                    {
+                        "benchmark": d.benchmark,
+                        "accuracy_delta": d.accuracy_delta,
+                        "savings_delta": d.savings_delta,
+                        "accept_rate_delta": d.accept_rate_delta,
+                        "latency_delta_ms": d.latency_delta_ms,
+                        "accuracy_regressed": d.accuracy_regressed,
+                        "savings_regressed": d.savings_regressed,
+                    }
+                    for d in report.deltas
+                ],
+                "any_accuracy_regression": report.any_accuracy_regression,
+                "any_savings_regression": report.any_savings_regression,
+            }
+
+        artifact_path = bundle_artifact(
+            results=json_results,
+            metadata=meta_dict,
+            overhead=overhead_dict,
+            observe=observe_dict,
+            comparison=comparison_data,
+            output_dir=output_dir,
+            run_id=meta.run_id,
+        )
+        print(f"✅ Artifact bundle: {artifact_path}")
 
     print("\n" + "=" * 80)
     print("BENCHMARK SUITE COMPLETED")
