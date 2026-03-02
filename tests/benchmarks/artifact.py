@@ -98,9 +98,7 @@ python -m tests.benchmarks.run_all --profile {profile} --with-repro
 def _write_reproduce_md(output_dir: Path, metadata: dict[str, Any]) -> Path:
     packages = metadata.get("package_versions", {})
     rows = [f"| {name} | {ver} |" for name, ver in sorted(packages.items())]
-    table = (
-        "| Package | Version |\n|---------|----------|\n" + "\n".join(rows) if rows else "_none_"
-    )
+    table = "| Package | Version |\n|---------|----------|\n" + "\n".join(rows) if rows else "_none_"
 
     content = _REPRODUCE_TEMPLATE.format(
         git_sha=metadata.get("git_sha", "unknown"),

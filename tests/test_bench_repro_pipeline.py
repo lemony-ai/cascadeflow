@@ -69,7 +69,9 @@ def sample_results() -> dict:
 
 @pytest.fixture
 def sample_metadata() -> dict:
-    return metadata_to_dict(collect_repro_metadata(profile="smoke", harness_mode="off"))
+    return metadata_to_dict(
+        collect_repro_metadata(profile="smoke", harness_mode="off")
+    )
 
 
 # ── 1-2: ReproMetadata ───────────────────────────────────────────────────
@@ -140,7 +142,8 @@ def test_compare_no_regression(sample_results):
 def test_compare_with_regression(sample_results):
     """Accuracy drop flagged as regression."""
     worse = {
-        name: {**vals, "accuracy": vals["accuracy"] - 5.0} for name, vals in sample_results.items()
+        name: {**vals, "accuracy": vals["accuracy"] - 5.0}
+        for name, vals in sample_results.items()
     }
     report = compare_to_baseline(worse, sample_results)
     assert report.any_accuracy_regression
