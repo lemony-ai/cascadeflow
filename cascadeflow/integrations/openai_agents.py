@@ -216,7 +216,9 @@ class CascadeFlowModelProvider(ModelProvider):  # type: ignore[misc]
 
         # Under budget pressure, switch to the cheapest configured candidate.
         if run.budget_remaining / run.budget_max < 0.2:
-            compatible_candidates = [name for name in self._config.model_candidates if name in OPENAI_MODEL_POOL]
+            compatible_candidates = [
+                name for name in self._config.model_candidates if name in OPENAI_MODEL_POOL
+            ]
             candidates = compatible_candidates or self._config.model_candidates
             cheapest = min(
                 candidates,
@@ -344,7 +346,9 @@ class _CascadeFlowWrappedModel(Model):  # type: ignore[misc]
         elapsed_ms = (time.monotonic() - started_at) * 1000.0
 
         try:
-            self._update_run_metrics(response=response, elapsed_ms=elapsed_ms, pre_action=pre_action)
+            self._update_run_metrics(
+                response=response, elapsed_ms=elapsed_ms, pre_action=pre_action
+            )
         except Exception:
             if self._config.fail_open:
                 logger.exception("openai-agents harness metric update failed (fail-open)")

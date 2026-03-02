@@ -60,7 +60,9 @@ class HarnessRunContext:
     last_action: str = "allow"
     draft_accepted: Optional[bool] = None
     _trace: list[dict[str, Any]] = field(default_factory=list)
-    _token: Optional[Token[Optional[HarnessRunContext]]] = field(default=None, init=False, repr=False)
+    _token: Optional[Token[Optional[HarnessRunContext]]] = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if self.budget_max is not None and self.budget_remaining is None:
@@ -109,7 +111,9 @@ class HarnessRunContext:
 
 
 _harness_config: HarnessConfig = HarnessConfig()
-_current_run: ContextVar[Optional[HarnessRunContext]] = ContextVar("cascadeflow_harness_run", default=None)
+_current_run: ContextVar[Optional[HarnessRunContext]] = ContextVar(
+    "cascadeflow_harness_run", default=None
+)
 _is_instrumented: bool = False
 _UNSET = object()
 
@@ -322,7 +326,9 @@ def init(
     resolved_max_latency_ms = _resolve_value(
         "max_latency_ms", max_latency_ms, env_config, file_config, None, sources
     )
-    resolved_max_energy = _resolve_value("max_energy", max_energy, env_config, file_config, None, sources)
+    resolved_max_energy = _resolve_value(
+        "max_energy", max_energy, env_config, file_config, None, sources
+    )
     resolved_kpi_targets = _resolve_value(
         "kpi_targets", kpi_targets, env_config, file_config, None, sources
     )

@@ -76,4 +76,3 @@ def model_total_price(model: str) -> float:
     """Return total (input + output) price per 1M tokens."""
     in_price, out_price = PRICING_USD_PER_M.get(model, DEFAULT_PRICING_USD_PER_M)
     return in_price + out_price
-
