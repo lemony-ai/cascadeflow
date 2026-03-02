@@ -169,6 +169,35 @@ class CascadeFlow(BaseChatModel):
                 model_kwargs[key] = value
         return model_kwargs, config
 
+    def _resolve_callbacks(self, raw_callbacks: Any) -> list[Any]:
+        if raw_callbacks is None:
+            callbacks: list[Any] = []
+        elif isinstance(raw_callbacks, list):
+            callbacks = list(raw_callbacks)
+        elif isinstance(raw_callbacks, tuple):
+            callbacks = list(raw_callbacks)
+        else:
+            callbacks = [raw_callbacks]
+
+        try:
+            from cascadeflow.harness import get_current_run, get_harness_config
+
+            harness_config = get_harness_config()
+            run_ctx = get_current_run()
+            if harness_config.mode == "off" or run_ctx is None or run_ctx.mode == "off":
+                return callbacks
+
+            from .harness_callback import HarnessAwareCascadeFlowCallbackHandler
+
+            if any(isinstance(cb, HarnessAwareCascadeFlowCallbackHandler) for cb in callbacks):
+                return callbacks
+
+            callbacks.append(HarnessAwareCascadeFlowCallbackHandler())
+            return callbacks
+        except Exception:
+            # Preserve existing behavior for users who do not enable harness flows.
+            return callbacks
+
     def _generate(
         self,
         messages: list[BaseMessage],
@@ -202,7 +231,7 @@ class CascadeFlow(BaseChatModel):
             merged_kwargs["stop"] = stop
 
         # Extract callbacks before filtering (need to pass them explicitly to nested models)
-        callbacks = merged_kwargs.get("callbacks", [])
+        callbacks = self._resolve_callbacks(merged_kwargs.get("callbacks", []))
 
         existing_tags = merged_kwargs.get("tags", []) or []
         base_tags = existing_tags + ["cascadeflow"] if existing_tags else ["cascadeflow"]
@@ -599,7 +628,7 @@ class CascadeFlow(BaseChatModel):
             merged_kwargs["stop"] = stop
 
         # Extract callbacks before filtering (need to pass them explicitly to nested models)
-        callbacks = merged_kwargs.get("callbacks", [])
+        callbacks = self._resolve_callbacks(merged_kwargs.get("callbacks", []))
 
         existing_tags = merged_kwargs.get("tags", []) or []
         base_tags = existing_tags + ["cascadeflow"] if existing_tags else ["cascadeflow"]
@@ -1001,7 +1030,7 @@ class CascadeFlow(BaseChatModel):
         stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
         base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
         existing_metadata = base_config.get("metadata", {}) or {}
-        callbacks = base_config.get("callbacks", [])
+        callbacks = self._resolve_callbacks(base_config.get("callbacks", []))
         resolved_domain = self._resolve_domain(messages, existing_metadata)
         effective_quality_threshold = self._effective_quality_threshold(resolved_domain)
         force_verifier_for_domain = self._domain_forces_verifier(resolved_domain)
@@ -1324,7 +1353,7 @@ class CascadeFlow(BaseChatModel):
         stream_kwargs, base_config = self._split_runnable_config(merged_kwargs)
         base_tags = (base_config.get("tags") or []) + ["cascadeflow"]
         existing_metadata = base_config.get("metadata", {}) or {}
-        callbacks = base_config.get("callbacks", [])
+        callbacks = self._resolve_callbacks(base_config.get("callbacks", []))
         safe_kwargs = {
             k: v
             for k, v in stream_kwargs.items()
