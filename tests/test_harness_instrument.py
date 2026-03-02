@@ -714,7 +714,11 @@ class TestEnforceActions:
         wrapper = _make_patched_create(original)
 
         with run(max_tool_calls=0) as ctx:
-            wrapper(MagicMock(), model="gpt-4o", tools=[{"type": "function", "function": {"name": "t1"}}])
+            wrapper(
+                MagicMock(),
+                model="gpt-4o",
+                tools=[{"type": "function", "function": {"name": "t1"}}],
+            )
 
         assert original.call_args[1]["tools"] == []
         trace = ctx.trace()
@@ -824,7 +828,11 @@ class TestEnforceActions:
         wrapper = _make_patched_create(original)
 
         with run() as ctx:
-            wrapper(MagicMock(), model="gpt-4o", tools=[{"type": "function", "function": {"name": "t1"}}])
+            wrapper(
+                MagicMock(),
+                model="gpt-4o",
+                tools=[{"type": "function", "function": {"name": "t1"}}],
+            )
 
         assert original.call_args[1]["tools"] == []
         trace = ctx.trace()

@@ -52,7 +52,9 @@ _openai_patched: bool = False
 _original_sync_create: Any = None
 _original_async_create: Any = None
 
-_MODEL_TOTAL_COSTS: dict[str, float] = {name: _model_total_price_shared(name) for name in _PRICING_MODELS}
+_MODEL_TOTAL_COSTS: dict[str, float] = {
+    name: _model_total_price_shared(name) for name in _PRICING_MODELS
+}
 _CHEAPEST_MODEL: str = min(_MODEL_TOTAL_COSTS, key=_MODEL_TOTAL_COSTS.get)
 _MIN_TOTAL_COST: float = min(_MODEL_TOTAL_COSTS.values())
 _MAX_TOTAL_COST: float = max(_MODEL_TOTAL_COSTS.values())
@@ -89,9 +91,13 @@ _LATENCY_PRIORS: dict[str, float] = {
     "o1-mini": 0.60,
     "o3-mini": 0.78,
 }
-_LATENCY_CANDIDATES: tuple[str, ...] = tuple(name for name in _PRICING_MODELS if name in _LATENCY_PRIORS)
+_LATENCY_CANDIDATES: tuple[str, ...] = tuple(
+    name for name in _PRICING_MODELS if name in _LATENCY_PRIORS
+)
 _FASTEST_MODEL: str | None = (
-    max(_LATENCY_CANDIDATES, key=lambda name: _LATENCY_PRIORS[name]) if _LATENCY_CANDIDATES else None
+    max(_LATENCY_CANDIDATES, key=lambda name: _LATENCY_PRIORS[name])
+    if _LATENCY_CANDIDATES
+    else None
 )
 
 # OpenAI-model allowlists used by the current OpenAI harness instrumentation.
@@ -179,7 +185,9 @@ def _select_faster_model(current_model: str) -> str:
 
 
 def _select_lower_energy_model(current_model: str) -> str:
-    if _ENERGY_COEFFICIENTS.get(_LOWEST_ENERGY_MODEL, _DEFAULT_ENERGY_COEFFICIENT) < _ENERGY_COEFFICIENTS.get(
+    if _ENERGY_COEFFICIENTS.get(
+        _LOWEST_ENERGY_MODEL, _DEFAULT_ENERGY_COEFFICIENT
+    ) < _ENERGY_COEFFICIENTS.get(
         current_model,
         _DEFAULT_ENERGY_COEFFICIENT,
     ):
@@ -277,7 +285,9 @@ def _evaluate_pre_call_decision(ctx: Any, model: str, has_tools: bool) -> _PreCa
         return _PreCallDecision(action="stop", reason="budget_exceeded", target_model=model)
 
     if has_tools and ctx.tool_calls_max is not None and ctx.tool_calls >= ctx.tool_calls_max:
-        return _PreCallDecision(action="deny_tool", reason="max_tool_calls_reached", target_model=model)
+        return _PreCallDecision(
+            action="deny_tool", reason="max_tool_calls_reached", target_model=model
+        )
 
     compliance = getattr(ctx, "compliance", None)
     if compliance:
@@ -289,7 +299,9 @@ def _evaluate_pre_call_decision(ctx: Any, model: str, has_tools: bool) -> _PreCa
                     reason="compliance_no_approved_tool_path",
                     target_model=model,
                 )
-            return _PreCallDecision(action="stop", reason="compliance_no_approved_model", target_model=model)
+            return _PreCallDecision(
+                action="stop", reason="compliance_no_approved_model", target_model=model
+            )
         if compliant_model != model:
             return _PreCallDecision(
                 action="switch_model",

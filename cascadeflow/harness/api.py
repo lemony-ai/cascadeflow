@@ -65,7 +65,9 @@ class HarnessRunContext:
     last_action: str = "allow"
     draft_accepted: Optional[bool] = None
     _trace: list[dict[str, Any]] = field(default_factory=list)
-    _token: Optional[Token[Optional[HarnessRunContext]]] = field(default=None, init=False, repr=False)
+    _token: Optional[Token[Optional[HarnessRunContext]]] = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if self.budget_max is not None and self.budget_remaining is None:
@@ -144,7 +146,9 @@ class HarnessRunContext:
             logger.warning("record() called with empty action, defaulting to 'allow'")
             safe_action = "allow"
         safe_reason = _sanitize_trace_value(reason, max_length=_MAX_REASON_LEN) or "unspecified"
-        safe_model = _sanitize_trace_value(model, max_length=_MAX_MODEL_LEN) if model is not None else None
+        safe_model = (
+            _sanitize_trace_value(model, max_length=_MAX_MODEL_LEN) if model is not None else None
+        )
 
         self.last_action = safe_action
         self.model_used = safe_model
@@ -174,7 +178,9 @@ class HarnessRunContext:
 
 
 _harness_config: HarnessConfig = HarnessConfig()
-_current_run: ContextVar[Optional[HarnessRunContext]] = ContextVar("cascadeflow_harness_run", default=None)
+_current_run: ContextVar[Optional[HarnessRunContext]] = ContextVar(
+    "cascadeflow_harness_run", default=None
+)
 _is_instrumented: bool = False
 _harness_callback_manager: Any = None
 _UNSET = object()
@@ -264,6 +270,7 @@ def _emit_harness_decision(entry: dict[str, Any]) -> None:
     if _cached_cascade_decision_event is None:
         try:
             from cascadeflow.telemetry.callbacks import CallbackEvent
+
             _cached_cascade_decision_event = CallbackEvent.CASCADE_DECISION
         except Exception:
             logger.debug("telemetry callbacks unavailable for harness decision emit", exc_info=True)
@@ -450,7 +457,9 @@ def init(
     resolved_max_latency_ms = _resolve_value(
         "max_latency_ms", max_latency_ms, env_config, file_config, None, sources
     )
-    resolved_max_energy = _resolve_value("max_energy", max_energy, env_config, file_config, None, sources)
+    resolved_max_energy = _resolve_value(
+        "max_energy", max_energy, env_config, file_config, None, sources
+    )
     resolved_kpi_targets = _resolve_value(
         "kpi_targets", kpi_targets, env_config, file_config, None, sources
     )

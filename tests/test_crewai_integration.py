@@ -455,7 +455,9 @@ class TestEnableDisable:
         # Remove crewai.hooks from modules so import fails
         monkeypatch.delitem(sys.modules, "crewai.hooks", raising=False)
 
-        original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+        original_import = (
+            __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+        )
 
         def fake_import(name, *args, **kwargs):
             if name == "crewai.hooks":

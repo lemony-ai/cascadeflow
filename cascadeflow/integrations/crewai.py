@@ -29,6 +29,7 @@ logger = logging.getLogger("cascadeflow.integrations.crewai")
 
 CREWAI_AVAILABLE = find_spec("crewai") is not None
 
+
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     return _estimate_shared_cost(model, prompt_tokens, completion_tokens)
 
@@ -124,8 +125,7 @@ def _before_llm_call_hook(context: Any) -> Optional[bool]:
             and ctx.cost >= ctx.budget_max
         ):
             logger.warning(
-                "crewai hook: blocking LLM call — budget exhausted "
-                "(spent $%.4f of $%.4f max)",
+                "crewai hook: blocking LLM call — budget exhausted " "(spent $%.4f of $%.4f max)",
                 ctx.cost,
                 ctx.budget_max,
             )
@@ -254,8 +254,7 @@ def enable(config: Optional[CrewAIHarnessConfig] = None) -> bool:
         )
     except ImportError:
         logger.warning(
-            "crewai is installed but hooks module not available "
-            "(requires crewai>=1.5); skipping"
+            "crewai is installed but hooks module not available " "(requires crewai>=1.5); skipping"
         )
         return False
 
