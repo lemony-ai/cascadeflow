@@ -247,7 +247,7 @@ from .harness import (
     init,
     reset,
     run,
-    agent,
+    agent as harness_agent,
     get_harness_config,
     get_current_run,
 )
@@ -401,7 +401,7 @@ __all__ = [
     "init",
     "reset",
     "run",
-    "agent",
+    "harness_agent",
     "get_harness_config",
     "get_current_run",
     # ===== PROVIDERS =====
