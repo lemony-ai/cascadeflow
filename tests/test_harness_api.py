@@ -170,7 +170,8 @@ def test_top_level_exports_exist():
     assert callable(cascadeflow.init)
     assert callable(cascadeflow.reset)
     assert callable(cascadeflow.run)
-    assert callable(cascadeflow.agent)
+    assert callable(cascadeflow.harness_agent)
+    assert hasattr(cascadeflow.agent, "PROVIDER_REGISTRY")
     report = cascadeflow.init(mode="off")
     assert report.mode == "off"
 
