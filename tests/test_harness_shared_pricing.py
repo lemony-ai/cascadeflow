@@ -7,7 +7,12 @@ import pytest
 import cascadeflow.harness.instrument as instrument_mod
 import cascadeflow.integrations.crewai as crewai_mod
 import cascadeflow.integrations.openai_agents as openai_agents_mod
-from cascadeflow.harness.pricing import OPENAI_MODEL_POOL, estimate_cost, estimate_energy, model_total_price
+from cascadeflow.harness.pricing import (
+    OPENAI_MODEL_POOL,
+    estimate_cost,
+    estimate_energy,
+    model_total_price,
+)
 
 
 def test_shared_estimate_cost_known_models() -> None:
@@ -35,16 +40,31 @@ def test_integration_estimators_use_shared_profiles() -> None:
     shared_cost = estimate_cost(model, input_tokens, output_tokens)
     shared_energy = estimate_energy(model, input_tokens, output_tokens)
 
-    assert instrument_mod._estimate_cost(model, input_tokens, output_tokens) == pytest.approx(shared_cost)
-    assert crewai_mod._estimate_cost(model, input_tokens, output_tokens) == pytest.approx(shared_cost)
-    assert openai_agents_mod._estimate_cost(model, input_tokens, output_tokens) == pytest.approx(shared_cost)
+    assert instrument_mod._estimate_cost(model, input_tokens, output_tokens) == pytest.approx(
+        shared_cost
+    )
+    assert crewai_mod._estimate_cost(model, input_tokens, output_tokens) == pytest.approx(
+        shared_cost
+    )
+    assert openai_agents_mod._estimate_cost(model, input_tokens, output_tokens) == pytest.approx(
+        shared_cost
+    )
 
-    assert instrument_mod._estimate_energy(model, input_tokens, output_tokens) == pytest.approx(shared_energy)
-    assert crewai_mod._estimate_energy(model, input_tokens, output_tokens) == pytest.approx(shared_energy)
-    assert openai_agents_mod._estimate_energy(model, input_tokens, output_tokens) == pytest.approx(shared_energy)
+    assert instrument_mod._estimate_energy(model, input_tokens, output_tokens) == pytest.approx(
+        shared_energy
+    )
+    assert crewai_mod._estimate_energy(model, input_tokens, output_tokens) == pytest.approx(
+        shared_energy
+    )
+    assert openai_agents_mod._estimate_energy(model, input_tokens, output_tokens) == pytest.approx(
+        shared_energy
+    )
 
 
 def test_openai_agents_total_price_uses_shared_profiles() -> None:
-    assert openai_agents_mod._total_model_price("gpt-5") == pytest.approx(model_total_price("gpt-5"))
-    assert openai_agents_mod._total_model_price("gpt-4o-mini") == pytest.approx(model_total_price("gpt-4o-mini"))
-
+    assert openai_agents_mod._total_model_price("gpt-5") == pytest.approx(
+        model_total_price("gpt-5")
+    )
+    assert openai_agents_mod._total_model_price("gpt-4o-mini") == pytest.approx(
+        model_total_price("gpt-4o-mini")
+    )
