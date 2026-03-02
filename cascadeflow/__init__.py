@@ -403,11 +403,7 @@ __all__ = [
     "init",
     "reset",
     "run",
-<<<<<<< HEAD
     "harness_agent",
-=======
-    "agent",
->>>>>>> 1aba349 (Add core harness API scaffold with context-scoped runtime)
     "get_harness_config",
     "get_current_run",
     "get_harness_callback_manager",
