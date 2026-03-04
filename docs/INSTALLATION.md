@@ -108,6 +108,24 @@ TOGETHER_API_KEY=...
 # vLLM - no API key needed! (local)
 ```
 
+## 🔌 Optional Integration Extras
+
+Integration packages are opt-in and never enabled by default.
+
+| Integration | Install Command | Python Requirement | Notes |
+|------------|-----------------|--------------------|-------|
+| OpenAI Agents SDK | `pip install "cascadeflow[openai,openai-agents]"` | 3.9+ (3.10+ recommended) | Uses explicit `ModelProvider` integration |
+| CrewAI | `pip install "cascadeflow[crewai,openai]"` | 3.10+ | Uses explicit CrewAI hook registration |
+| Google ADK | `pip install "cascadeflow[google-adk]"` | 3.10+ | Uses explicit ADK plugin in `Runner(plugins=[...])` |
+
+Optional for richer provider/model normalization in cost tracking:
+
+```bash
+pip install litellm
+```
+
+Without `litellm`, cascadeflow still provides built-in pricing-based cost estimates.
+
 ## 🚀 Quick Start
 
 ### For Production
