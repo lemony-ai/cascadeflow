@@ -33,6 +33,23 @@ pnpm add @cascadeflow/core
 yarn add @cascadeflow/core
 ```
 
+## Harness Quick Start (V2.1)
+
+```typescript
+import { cascadeflow } from '@cascadeflow/core';
+
+// 1) Turn on in-process harness decisions + SDK auto-instrumentation
+cascadeflow.init({ mode: 'enforce', budget: 0.5 });
+
+// 2) Scope one run (global defaults are inherited)
+const result = await cascadeflow.run({ maxToolCalls: 8 }, async (run) => {
+  // Any OpenAI / Anthropic SDK calls made here are evaluated by the harness.
+  return { runId: run.runId };
+});
+
+console.log(result);
+```
+
 ## Quick Start
 
 ### Recommended Setup (Claude Haiku + GPT-5)

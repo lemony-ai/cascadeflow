@@ -197,9 +197,6 @@ Framework-specific packages provide deeper integration (state extraction, middle
 ### TypeScript Equivalent
 
 ```typescript
-// Target API — does not exist in @cascadeflow/core today.
-// TS parity is a V2.1 deliverable (see Section 16, Phase F).
-
 import { cascadeflow } from '@cascadeflow/core';
 
 // Tier 1: Auto-instrument
@@ -868,10 +865,10 @@ Integration-branch promotion gates:
 
 To enable parallel work without merge collisions, split V2.1 into Python and TS tracks:
 
-- `feat/v2.1-anthropic-python-auto-instrumentation` (claimed by current agent)
+- `feat/v2.1-anthropic-python-auto-instrumentation` (completed in this branch)
   - Scope: `cascadeflow/harness/*`, Python harness tests, Python docs notes
   - Deliverables: Anthropic Python auto-instrumentation, validation for `init()/run()` harness path
-- `feat/v2.1-ts-harness-api-parity` (available for parallel agent)
+- `feat/v2.1-ts-harness-api-parity` (completed and merged into this branch scope)
   - Scope: `packages/core/*`, TS parity fixtures, TS docs notes
   - Deliverables: `@cascadeflow/core` exports parity (`init()/run()`), TS fixture parity validation
 
@@ -937,10 +934,10 @@ Go when all are true (V2 Python launch):
 - [ ] pyproject.toml extras (`openai-agents`, `crewai`, `langchain`) defined and installable
 
 V2.1 Go/No-Go (TS parity + anthropic):
-- [ ] TS parity fixtures pass
-- [ ] `@cascadeflow/core` exports `cascadeflow.init()` and `cascadeflow.run()`
-- [ ] `anthropic` Python client auto-instrumentation validated
-- [ ] `@anthropic-ai/sdk` TS client auto-instrumentation validated
+- [x] TS parity fixtures pass
+- [x] `@cascadeflow/core` exports `cascadeflow.init()` and `cascadeflow.run()`
+- [x] `anthropic` Python client auto-instrumentation validated
+- [x] `@anthropic-ai/sdk` TS client auto-instrumentation validated
 
 ## 19. Academic Validation
 
