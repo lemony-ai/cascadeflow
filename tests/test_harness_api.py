@@ -152,7 +152,9 @@ def test_top_level_exports_exist():
     assert callable(cascadeflow.init)
     assert callable(cascadeflow.reset)
     assert callable(cascadeflow.run)
-    assert callable(cascadeflow.agent)
+    # harness.agent is intentionally NOT re-exported at top level because it
+    # would shadow the cascadeflow.agent module.  Import from submodule:
+    assert callable(agent)  # imported from cascadeflow.harness
     report = cascadeflow.init(mode="off")
     assert report.mode == "off"
 

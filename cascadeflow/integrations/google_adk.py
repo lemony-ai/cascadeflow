@@ -124,6 +124,10 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
     def _callback_key(self, callback_context: Any) -> tuple[str, str]:
         invocation_id = getattr(callback_context, "invocation_id", "") or ""
         agent_name = getattr(callback_context, "agent_name", "") or ""
+        # Use object id as disambiguator when both fields are missing to
+        # prevent collisions across concurrent calls with empty metadata.
+        if not invocation_id and not agent_name:
+            invocation_id = str(id(callback_context))
         return (invocation_id, agent_name)
 
     async def before_model_callback(
