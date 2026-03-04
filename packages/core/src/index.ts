@@ -42,6 +42,31 @@ export {
   DEFAULT_CASCADE_CONFIG,
 } from './config';
 
+// Harness API (v2.1+)
+export type {
+  HarnessMode,
+  HarnessConfig,
+  HarnessInitOptions,
+  HarnessRunOptions,
+  HarnessInitReport,
+  HarnessRecordOptions,
+  HarnessTraceEntry,
+  HarnessRunSummary,
+} from './harness';
+export {
+  HarnessRunContext,
+  HarnessStopError,
+  BudgetExceededError,
+  init,
+  run,
+  agent as harnessAgent,
+  reset as resetHarness,
+  getHarnessConfig,
+  getCurrentRun,
+  isHarnessInstrumented,
+  cascadeflow,
+} from './harness';
+
 // Results
 export type { CascadeResult } from './result';
 export { resultToObject } from './result';
