@@ -23,7 +23,7 @@ async def main() -> None:
         ) from exc
 
     from cascadeflow import init, run
-    from cascadeflow.integrations.google_adk import enable, GoogleADKHarnessConfig
+    from cascadeflow.integrations.google_adk import GoogleADKHarnessConfig, enable
 
     # 1. Initialize harness globally
     init(mode="observe", budget=1.0)
