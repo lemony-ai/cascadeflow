@@ -228,9 +228,10 @@ def reset() -> None:
     global _harness_callback_manager
     global _cached_cascade_decision_event
 
-    from cascadeflow.harness.instrument import unpatch_openai
+    from cascadeflow.harness.instrument import unpatch_anthropic, unpatch_openai
 
     unpatch_openai()
+    unpatch_anthropic()
     _harness_config = HarnessConfig()
     _is_instrumented = False
     _harness_callback_manager = None
@@ -497,13 +498,29 @@ def init(
 
         if patch_openai():
             instrumented.append("openai")
-    elif validated_mode == "off":
-        from cascadeflow.harness.instrument import is_patched, unpatch_openai
+        else:
+            detected_but_not_instrumented.append("openai")
 
-        if is_patched():
+    if validated_mode != "off" and sdk_presence["anthropic"]:
+        from cascadeflow.harness.instrument import patch_anthropic
+
+        if patch_anthropic():
+            instrumented.append("anthropic")
+        else:
+            detected_but_not_instrumented.append("anthropic")
+
+    if validated_mode == "off":
+        from cascadeflow.harness.instrument import (
+            is_anthropic_patched,
+            is_openai_patched,
+            unpatch_anthropic,
+            unpatch_openai,
+        )
+
+        if is_openai_patched():
             unpatch_openai()
-    if sdk_presence["anthropic"]:
-        detected_but_not_instrumented.append("anthropic")
+        if is_anthropic_patched():
+            unpatch_anthropic()
 
     if _is_instrumented:
         logger.debug("harness init called again; instrumentation remains idempotent")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.util import find_spec
 import time
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
@@ -18,8 +19,12 @@ from cascadeflow.harness.instrument import (
     _estimate_energy,
     _make_patched_async_create,
     _make_patched_create,
+    is_anthropic_patched,
+    is_openai_patched,
     is_patched,
+    patch_anthropic,
     patch_openai,
+    unpatch_anthropic,
     unpatch_openai,
 )
 
@@ -87,19 +92,19 @@ def _mock_stream_chunk(
 
 class TestPatchLifecycle:
     def test_patch_and_unpatch(self) -> None:
-        assert not is_patched()
+        assert not is_openai_patched()
         result = patch_openai()
         assert result is True
-        assert is_patched()
+        assert is_openai_patched()
         unpatch_openai()
-        assert not is_patched()
+        assert not is_openai_patched()
 
     def test_idempotent_patching(self) -> None:
         patch_openai()
         patch_openai()
-        assert is_patched()
+        assert is_openai_patched()
         unpatch_openai()
-        assert not is_patched()
+        assert not is_openai_patched()
 
     def test_unpatch_without_prior_patch(self) -> None:
         unpatch_openai()  # should not raise
@@ -107,12 +112,12 @@ class TestPatchLifecycle:
     def test_init_observe_patches(self) -> None:
         report = init(mode="observe")
         assert "openai" in report.instrumented
-        assert is_patched()
+        assert is_openai_patched()
 
     def test_init_enforce_patches(self) -> None:
         report = init(mode="enforce")
         assert "openai" in report.instrumented
-        assert is_patched()
+        assert is_openai_patched()
 
     def test_init_off_does_not_patch(self) -> None:
         init(mode="off")
@@ -120,7 +125,7 @@ class TestPatchLifecycle:
 
     def test_reset_unpatches(self) -> None:
         init(mode="observe")
-        assert is_patched()
+        assert is_openai_patched()
         reset()
         assert not is_patched()
 
@@ -132,6 +137,27 @@ class TestPatchLifecycle:
         assert Completions.create is not original
         unpatch_openai()
         assert Completions.create is original
+
+    def test_patch_and_unpatch_anthropic(self) -> None:
+        if find_spec("anthropic") is None:
+            pytest.skip("anthropic package not available")
+        assert not is_anthropic_patched()
+        result = patch_anthropic()
+        assert result is True
+        assert is_anthropic_patched()
+        unpatch_anthropic()
+        assert not is_anthropic_patched()
+
+    def test_anthropic_class_method_actually_replaced(self) -> None:
+        if find_spec("anthropic") is None:
+            pytest.skip("anthropic package not available")
+        from anthropic.resources.messages import Messages
+
+        original = Messages.create
+        patch_anthropic()
+        assert Messages.create is not original
+        unpatch_anthropic()
+        assert Messages.create is original
 
 
 # ---------------------------------------------------------------------------

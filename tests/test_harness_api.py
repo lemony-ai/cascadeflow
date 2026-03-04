@@ -5,6 +5,7 @@ import pytest
 import cascadeflow
 import cascadeflow.harness.api as harness_api
 from cascadeflow.harness import agent, get_current_run, get_harness_config, init, reset, run
+from cascadeflow.telemetry.callbacks import CallbackEvent, CallbackManager
 
 
 def setup_function() -> None:
@@ -72,18 +73,36 @@ def test_init_non_numeric_env_raises(monkeypatch):
 
 
 def test_run_uses_global_defaults_and_overrides():
-    init(mode="enforce", budget=2.0, max_tool_calls=5)
+    init(
+        mode="enforce",
+        budget=2.0,
+        max_tool_calls=5,
+        kpi_targets={"quality_min": 0.9},
+        kpi_weights={"cost": 0.7, "quality": 0.3},
+        compliance="gdpr",
+    )
 
     default_ctx = run()
     assert default_ctx.mode == "enforce"
     assert default_ctx.budget_max == 2.0
     assert default_ctx.tool_calls_max == 5
     assert default_ctx.budget_remaining == 2.0
+    assert default_ctx.kpi_targets == {"quality_min": 0.9}
+    assert default_ctx.kpi_weights == {"cost": 0.7, "quality": 0.3}
+    assert default_ctx.compliance == "gdpr"
 
-    override_ctx = run(budget=0.5, max_tool_calls=3)
+    override_ctx = run(
+        budget=0.5,
+        max_tool_calls=3,
+        kpi_weights={"quality": 1.0},
+        compliance="strict",
+    )
     assert override_ctx.budget_max == 0.5
     assert override_ctx.tool_calls_max == 3
     assert override_ctx.budget_remaining == 0.5
+    assert override_ctx.kpi_targets == {"quality_min": 0.9}
+    assert override_ctx.kpi_weights == {"quality": 1.0}
+    assert override_ctx.compliance == "strict"
 
 
 def test_run_without_enter_exit_is_safe():
@@ -152,9 +171,10 @@ def test_top_level_exports_exist():
     assert callable(cascadeflow.init)
     assert callable(cascadeflow.reset)
     assert callable(cascadeflow.run)
-    # harness.agent is intentionally NOT re-exported at top level because it
-    # would shadow the cascadeflow.agent module.  Import from submodule:
-    assert callable(agent)  # imported from cascadeflow.harness
+    assert callable(cascadeflow.harness_agent)
+    assert hasattr(cascadeflow.agent, "PROVIDER_REGISTRY")
+    assert callable(cascadeflow.get_harness_callback_manager)
+    assert callable(cascadeflow.set_harness_callback_manager)
     report = cascadeflow.init(mode="off")
     assert report.mode == "off"
 
@@ -166,6 +186,8 @@ def test_run_record_and_trace_copy():
     trace_b = ctx.trace()
     assert trace_a == trace_b
     assert trace_a[0]["action"] == "switch_model"
+    assert "budget_state" in trace_a[0]
+    assert trace_a[0]["budget_state"]["max"] == 1.0
     trace_a.append({"action": "mutated"})
     assert len(ctx.trace()) == 1
 
@@ -310,3 +332,119 @@ def test_init_reports_openai_instrumented_when_patch_succeeds(monkeypatch):
     monkeypatch.setattr(instrument, "patch_openai", lambda: True)
     report = init(mode="observe")
     assert report.instrumented == ["openai"]
+
+
+def test_init_reports_anthropic_instrumented_when_patch_succeeds(monkeypatch):
+    monkeypatch.setattr(
+        harness_api,
+        "find_spec",
+        lambda name: object() if name == "anthropic" else None,
+    )
+
+    import cascadeflow.harness.instrument as instrument
+
+    monkeypatch.setattr(instrument, "patch_anthropic", lambda: True)
+    report = init(mode="observe")
+    assert report.instrumented == ["anthropic"]
+
+
+def test_init_reports_anthropic_detected_not_instrumented_on_patch_failure(monkeypatch):
+    monkeypatch.setattr(
+        harness_api,
+        "find_spec",
+        lambda name: object() if name == "anthropic" else None,
+    )
+
+    import cascadeflow.harness.instrument as instrument
+
+    monkeypatch.setattr(instrument, "patch_anthropic", lambda: False)
+    report = init(mode="observe")
+    assert report.instrumented == []
+    assert report.detected_but_not_instrumented == ["anthropic"]
+
+
+def test_run_summary_populates_on_context_exit():
+    init(mode="observe")
+    with run(budget=1.5) as ctx:
+        ctx.step_count = 2
+        ctx.tool_calls = 1
+        ctx.cost = 0.42
+        ctx.latency_used_ms = 123.0
+        ctx.energy_used = 33.0
+        ctx.budget_remaining = 1.08
+        ctx.last_action = "allow"
+        ctx.model_used = "gpt-4o-mini"
+
+    summary = ctx.summary()
+    assert summary["run_id"] == ctx.run_id
+    assert summary["step_count"] == 2
+    assert summary["budget_remaining"] == pytest.approx(1.08)
+    assert summary["duration_ms"] is not None
+    assert summary["duration_ms"] >= 0.0
+    assert ctx.duration_ms is not None
+    assert ctx.duration_ms >= 0.0
+
+
+def test_run_context_logs_summary(caplog):
+    init(mode="observe")
+    with caplog.at_level("INFO", logger="cascadeflow.harness"):
+        with run(budget=1.0) as ctx:
+            ctx.step_count = 1
+            ctx.cost = 0.01
+            ctx.model_used = "gpt-4o-mini"
+
+    assert any("harness run summary" in rec.message for rec in caplog.records)
+
+
+def test_record_emits_cascade_decision_callback():
+    manager = CallbackManager()
+    received = []
+
+    def _on_decision(data):
+        received.append(data)
+
+    manager.register(CallbackEvent.CASCADE_DECISION, _on_decision)
+    report = init(mode="observe", callback_manager=manager)
+    assert report.config_sources["callback_manager"] == "code"
+
+    with run(budget=1.0) as ctx:
+        ctx.step_count = 1
+        ctx.record(action="switch_model", reason="budget_pressure", model="gpt-4o-mini")
+
+    assert len(received) == 1
+    event = received[0]
+    assert event.event == CallbackEvent.CASCADE_DECISION
+    assert event.query == "[harness]"
+    assert event.workflow == "harness"
+    assert event.data["action"] == "switch_model"
+    assert event.data["run_id"] == ctx.run_id
+
+
+def test_record_sanitizes_trace_values():
+    ctx = run()
+    ctx.record(
+        action="allow\nnewline",
+        reason="a" * 400,
+        model="model\r\nname",
+    )
+    entry = ctx.trace()[0]
+    assert "\n" not in entry["action"]
+    assert "\r" not in entry["model"]
+    assert len(entry["reason"]) <= 160
+
+
+def test_record_without_callback_manager_is_noop():
+    init(mode="observe")
+    with run(budget=1.0) as ctx:
+        ctx.record(action="allow", reason="test", model="gpt-4o-mini")
+    assert len(ctx.trace()) == 1
+
+
+def test_record_empty_action_warns_and_defaults(caplog):
+    init(mode="observe")
+    with caplog.at_level("WARNING", logger="cascadeflow.harness"):
+        with run(budget=1.0) as ctx:
+            ctx.record(action="", reason="test", model="gpt-4o-mini")
+    entry = ctx.trace()[0]
+    assert entry["action"] == "allow"
+    assert any("empty action" in rec.message for rec in caplog.records)

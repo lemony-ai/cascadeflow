@@ -864,6 +864,21 @@ Integration-branch promotion gates:
 - [ ] Quickstart verification for existing app and framework paths
 - [ ] Go/No-Go checklist in Section 18 satisfied before merging to `main`
 
+### 16.2 V2.1 Parallel Execution Split
+
+To enable parallel work without merge collisions, split V2.1 into Python and TS tracks:
+
+- `feat/v2.1-anthropic-python-auto-instrumentation` (claimed by current agent)
+  - Scope: `cascadeflow/harness/*`, Python harness tests, Python docs notes
+  - Deliverables: Anthropic Python auto-instrumentation, validation for `init()/run()` harness path
+- `feat/v2.1-ts-harness-api-parity` (available for parallel agent)
+  - Scope: `packages/core/*`, TS parity fixtures, TS docs notes
+  - Deliverables: `@cascadeflow/core` exports parity (`init()/run()`), TS fixture parity validation
+
+Parallel-safe rule:
+- Python track does not touch `packages/core/*`
+- TS track does not touch `cascadeflow/harness/*`
+
 ## 17. Future Phases (Post-V2, Not in Scope)
 
 For roadmap visibility. These inform V2 telemetry design but are not V2 deliverables.
