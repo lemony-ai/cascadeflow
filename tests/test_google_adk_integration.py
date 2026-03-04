@@ -596,3 +596,60 @@ class TestExtractTokens:
         inp, out = adk_mod.CascadeFlowADKPlugin._extract_tokens(response)
         assert inp == 0
         assert out == 1  # max(0//4, 1)
+
+
+class TestCallbackKeyCollision:
+    """Verify _callback_key uses id() fallback when both fields are empty."""
+
+    def test_distinct_keys_when_metadata_missing(self):
+        """Two contexts with no invocation_id/agent_name get distinct keys."""
+        plugin = adk_mod.CascadeFlowADKPlugin()
+        ctx_a = FakeCallbackContext(invocation_id="", agent_name="")
+        ctx_b = FakeCallbackContext(invocation_id="", agent_name="")
+        key_a = plugin._callback_key(ctx_a)
+        key_b = plugin._callback_key(ctx_b)
+        assert key_a != key_b, "Empty-metadata contexts must produce distinct keys"
+
+    def test_key_stable_for_same_object(self):
+        """Same context object always produces the same key."""
+        plugin = adk_mod.CascadeFlowADKPlugin()
+        ctx = FakeCallbackContext(invocation_id="", agent_name="")
+        assert plugin._callback_key(ctx) == plugin._callback_key(ctx)
+
+    def test_normal_key_unaffected(self):
+        """Contexts with real IDs don't use the id() fallback."""
+        plugin = adk_mod.CascadeFlowADKPlugin()
+        ctx = FakeCallbackContext(invocation_id="inv-42", agent_name="my-agent")
+        key = plugin._callback_key(ctx)
+        assert key == ("inv-42", "my-agent")
+
+    @pytest.mark.asyncio
+    async def test_concurrent_empty_contexts_track_independently(self):
+        """Two concurrent calls with empty metadata don't corrupt each other."""
+        init(mode="observe")
+        with run(budget=1.0) as harness_ctx:
+            plugin = adk_mod.CascadeFlowADKPlugin()
+            ctx_a = FakeCallbackContext(invocation_id="", agent_name="")
+            ctx_b = FakeCallbackContext(invocation_id="", agent_name="")
+
+            req_a = FakeLlmRequest(model="gpt-4o")
+            req_b = FakeLlmRequest(model="gpt-4o-mini")
+
+            # Start both calls
+            await plugin.before_model_callback(ctx_a, req_a)
+            await plugin.before_model_callback(ctx_b, req_b)
+
+            # Finish in reverse order
+            resp_b = FakeLlmResponse(
+                usage_metadata=FakeUsageMetadata(50, 25),
+            )
+            resp_a = FakeLlmResponse(
+                usage_metadata=FakeUsageMetadata(100, 50),
+            )
+            await plugin.after_model_callback(ctx_b, resp_b)
+            await plugin.after_model_callback(ctx_a, resp_a)
+
+            assert harness_ctx.step_count == 2
+            # Verify no leftover state (both keys were cleaned up)
+            assert len(plugin._call_start_times) == 0
+            assert len(plugin._call_models) == 0

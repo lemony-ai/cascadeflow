@@ -240,6 +240,10 @@ from .routing import (
 )
 
 # NEW: Harness API scaffold (V2 core branch)
+# NOTE: harness.agent is NOT re-exported here — it would shadow the
+# cascadeflow.agent *module* and break dotted-path resolution
+# (e.g. patch("cascadeflow.agent.PROVIDER_REGISTRY")).
+# Use ``from cascadeflow.harness import agent`` instead.
 from .harness import (
     HarnessConfig,
     HarnessInitReport,
@@ -247,11 +251,8 @@ from .harness import (
     init,
     reset,
     run,
-    agent as harness_agent,
     get_harness_config,
     get_current_run,
-    get_harness_callback_manager,
-    set_harness_callback_manager,
 )
 
 # ==================== MAIN AGENT & RESULT ====================
@@ -403,11 +404,8 @@ __all__ = [
     "init",
     "reset",
     "run",
-    "harness_agent",
     "get_harness_config",
     "get_current_run",
-    "get_harness_callback_manager",
-    "set_harness_callback_manager",
     # ===== PROVIDERS =====
     "ModelResponse",
     "BaseProvider",
