@@ -29,6 +29,12 @@ pip install "cascadeflow[google-adk]"
 
 Requires Python 3.10+ (ADK requirement).
 
+Optional (more precise provider/model cost tracking in harness telemetry):
+
+```bash
+pip install litellm
+```
+
 ---
 
 ## Quick Start
@@ -89,6 +95,10 @@ Every LLM call is tracked with:
 - **Energy** — Deterministic proxy coefficient for compute intensity
 - **Latency** — Wall-clock time per call
 - **Tool calls** — Count of `function_call` parts in responses
+
+By default this uses cascadeflow's built-in pricing table. If you install
+`litellm`, provider/model normalization can be more precise for some aliased
+model identifiers.
 
 ### Trace Recording
 

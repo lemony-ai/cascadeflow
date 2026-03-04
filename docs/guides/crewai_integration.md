@@ -17,6 +17,13 @@ pip install "cascadeflow[crewai,openai]"
 ```
 
 `crewai` is optional and only installed when you request this extra.
+Requires Python 3.10+.
+
+Optional (more precise provider/model cost tracking in harness telemetry):
+
+```bash
+pip install litellm
+```
 
 ## Quickstart
 
@@ -77,3 +84,4 @@ with run(budget=0.4) as session:
 
 - Existing non-CrewAI users are unaffected.
 - If CrewAI is not installed, `enable()` returns `False` and no hooks are registered.
+- Without `litellm`, cost tracking still works using cascadeflow's built-in pricing estimates.

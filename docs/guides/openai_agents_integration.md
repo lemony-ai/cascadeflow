@@ -15,6 +15,14 @@ Use cascadeflow as an explicit, opt-in `ModelProvider` integration for the OpenA
 pip install "cascadeflow[openai,openai-agents]"
 ```
 
+Recommended: Python 3.10+.
+
+Optional (more precise provider/model cost tracking in harness telemetry):
+
+```bash
+pip install litellm
+```
+
 ## Quickstart
 
 ```python
@@ -71,3 +79,4 @@ if __name__ == "__main__":
 - This is a Python integration for OpenAI Agents SDK.
 - The SDK remains optional and is only installed via the `openai-agents` extra.
 - Existing non-Agents users are unaffected.
+- Without `litellm`, cost tracking still works using cascadeflow's built-in pricing estimates.

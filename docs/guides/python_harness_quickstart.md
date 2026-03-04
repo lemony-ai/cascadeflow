@@ -20,6 +20,16 @@ pip install "cascadeflow[crewai]"
 pip install "cascadeflow[google-adk]"
 ```
 
+Version notes:
+- `crewai` and `google-adk` integrations require Python 3.10+.
+- `openai-agents` is recommended on Python 3.10+.
+
+Optional for richer cost normalization across aliased provider model names:
+
+```bash
+pip install litellm
+```
+
 ## 1) Initialize Harness
 
 ```python

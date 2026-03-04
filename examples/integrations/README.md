@@ -154,6 +154,9 @@ pip install "cascadeflow[openai,openai-agents]"
 python examples/integrations/openai_agents_harness.py
 ```
 
+Recommended: Python 3.10+.
+Optional: `pip install litellm` for more precise provider/model cost normalization.
+
 ### What It Shows
 
 - Harness-aware model switching with candidate models
@@ -175,6 +178,9 @@ pip install "cascadeflow[crewai,openai]"
 python examples/integrations/crewai_harness.py
 ```
 
+Requires Python 3.10+.
+Optional: `pip install litellm` for more precise provider/model cost normalization.
+
 ### What It Shows
 
 - Explicit `enable(...)` hook registration (never on by default)
@@ -195,6 +201,9 @@ Use cascadeflow as an explicit, opt-in plugin integration for Google ADK.
 pip install "cascadeflow[google-adk]"
 python examples/integrations/google_adk_harness.py
 ```
+
+Requires Python 3.10+.
+Optional: `pip install litellm` for more precise provider/model cost normalization.
 
 ### What It Shows
 
