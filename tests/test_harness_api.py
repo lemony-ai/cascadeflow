@@ -155,6 +155,17 @@ def test_agent_decorator_keeps_sync_behavior_and_attaches_metadata():
     assert policy["compliance"] == "gdpr"
 
 
+def test_agent_decorator_preserves_function_metadata():
+    @agent(budget=0.5)
+    def fn(x: int) -> int:
+        """sample doc"""
+        return x
+
+    assert fn.__name__ == "fn"
+    assert fn.__doc__ == "sample doc"
+    assert fn.__annotations__ == {"x": int, "return": int}
+
+
 @pytest.mark.asyncio
 async def test_agent_decorator_keeps_async_behavior_and_attaches_metadata():
     @agent(budget=0.4, kpi_weights={"cost": 1.0})
@@ -208,6 +219,12 @@ def test_init_reads_from_env(monkeypatch):
     assert cfg.kpi_weights == {"cost": 1.0}
     assert report.config_sources["mode"] == "env"
     assert report.config_sources["budget"] == "env"
+
+
+def test_init_rejects_oversized_env_json(monkeypatch):
+    monkeypatch.setenv("CASCADEFLOW_HARNESS_KPI_TARGETS", "x" * 5000)
+    with pytest.raises(ValueError, match="JSON config exceeds"):
+        init()
 
 
 def test_init_reads_from_config_file(tmp_path, monkeypatch):
@@ -431,6 +448,15 @@ def test_record_sanitizes_trace_values():
     assert "\n" not in entry["action"]
     assert "\r" not in entry["model"]
     assert len(entry["reason"]) <= 160
+
+
+def test_record_sanitizes_non_printable_values():
+    ctx = run()
+    ctx.record(action="allow\x00", reason="ok\x1f", model="gpt-4o-mini\x07")
+    entry = ctx.trace()[0]
+    assert "\x00" not in entry["action"]
+    assert "\x1f" not in entry["reason"]
+    assert "\x07" not in entry["model"]
 
 
 def test_record_without_callback_manager_is_noop():
