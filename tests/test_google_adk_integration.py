@@ -199,9 +199,7 @@ class TestBeforeModelCallback:
         init(mode="observe", budget=0.001)
         with run(budget=0.001) as run_ctx:
             run_ctx.cost = 0.002
-            result = await plugin.before_model_callback(
-                FakeCallbackContext(), FakeLlmRequest()
-            )
+            result = await plugin.before_model_callback(FakeCallbackContext(), FakeLlmRequest())
             assert result is None  # observe never blocks
 
     async def test_enforce_blocks_when_budget_exhausted(self, plugin):
@@ -230,9 +228,7 @@ class TestBeforeModelCallback:
         init(mode="enforce", budget=1.0)
         with run(budget=1.0) as run_ctx:
             run_ctx.cost = 0.5
-            result = await plugin.before_model_callback(
-                FakeCallbackContext(), FakeLlmRequest()
-            )
+            result = await plugin.before_model_callback(FakeCallbackContext(), FakeLlmRequest())
             assert result is None
 
     async def test_records_start_time_and_model(self, plugin):
@@ -259,9 +255,7 @@ class TestBeforeModelCallback:
         init(mode="enforce", budget=0.001)
         with run(budget=0.001) as run_ctx:
             run_ctx.cost = 0.002
-            result = await plugin.before_model_callback(
-                FakeCallbackContext(), FakeLlmRequest()
-            )
+            result = await plugin.before_model_callback(FakeCallbackContext(), FakeLlmRequest())
             assert result is None  # gate disabled
 
     async def test_fail_open_swallows_errors(self, plugin):
@@ -271,9 +265,7 @@ class TestBeforeModelCallback:
                 "cascadeflow.integrations.google_adk.get_current_run",
                 side_effect=RuntimeError("boom"),
             ):
-                result = await plugin.before_model_callback(
-                    FakeCallbackContext(), FakeLlmRequest()
-                )
+                result = await plugin.before_model_callback(FakeCallbackContext(), FakeLlmRequest())
                 assert result is None
 
 
@@ -566,9 +558,7 @@ class TestDeactivate:
         init(mode="enforce", budget=0.001)
         with run(budget=0.001) as run_ctx:
             run_ctx.cost = 0.002
-            result = await plugin.before_model_callback(
-                FakeCallbackContext(), FakeLlmRequest()
-            )
+            result = await plugin.before_model_callback(FakeCallbackContext(), FakeLlmRequest())
             assert result is None  # no-op, not blocked
 
     async def test_deactivate_clears_state(self):
@@ -676,9 +666,7 @@ class TestOffMode:
         init(mode="off")
         plugin = adk_mod.CascadeFlowADKPlugin()
         with run() as run_ctx:
-            result = await plugin.before_model_callback(
-                FakeCallbackContext(), FakeLlmRequest()
-            )
+            result = await plugin.before_model_callback(FakeCallbackContext(), FakeLlmRequest())
             assert result is None
             assert len(plugin._call_start_times) == 0
 

@@ -19,8 +19,7 @@ async def main() -> None:
         from google.adk.sessions import InMemorySessionService
     except ImportError as exc:
         raise SystemExit(
-            "Google ADK is not installed. "
-            'Install with: pip install "cascadeflow[google-adk]"'
+            "Google ADK is not installed. " 'Install with: pip install "cascadeflow[google-adk]"'
         ) from exc
 
     from cascadeflow import init, run

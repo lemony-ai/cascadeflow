@@ -306,9 +306,7 @@ def _parse_int(raw: str) -> int:
 
 def _parse_json_dict(raw: str) -> dict[str, float]:
     if len(raw) > _MAX_ENV_JSON_LEN:
-        raise ValueError(
-            f"JSON config exceeds {_MAX_ENV_JSON_LEN} characters for harness env var"
-        )
+        raise ValueError(f"JSON config exceeds {_MAX_ENV_JSON_LEN} characters for harness env var")
     value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("expected JSON object")

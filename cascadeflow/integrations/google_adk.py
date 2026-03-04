@@ -223,9 +223,7 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
             return None
         except Exception:
             if self._config.fail_open:
-                logger.debug(
-                    "google-adk before_model_callback error (fail_open)", exc_info=True
-                )
+                logger.debug("google-adk before_model_callback error (fail_open)", exc_info=True)
                 return None
             raise
 
@@ -289,9 +287,7 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
             return None
         except Exception:
             if self._config.fail_open:
-                logger.debug(
-                    "google-adk after_model_callback error (fail_open)", exc_info=True
-                )
+                logger.debug("google-adk after_model_callback error (fail_open)", exc_info=True)
                 return None
             raise
 
@@ -328,9 +324,7 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
             return None
         except Exception:
             if self._config.fail_open:
-                logger.debug(
-                    "google-adk on_model_error_callback error (fail_open)", exc_info=True
-                )
+                logger.debug("google-adk on_model_error_callback error (fail_open)", exc_info=True)
                 return None
             raise
 

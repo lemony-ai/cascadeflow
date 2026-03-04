@@ -531,7 +531,9 @@ class TestAsyncStreamWrapper:
             raise RuntimeError("async stream failed")
 
         async with run(budget=1.0) as ctx:
-            wrapped = _InstrumentedAsyncStream(_failing_iter(), ctx, "gpt-4o-mini", time.monotonic())
+            wrapped = _InstrumentedAsyncStream(
+                _failing_iter(), ctx, "gpt-4o-mini", time.monotonic()
+            )
             with pytest.raises(RuntimeError, match="async stream failed"):
                 async for _ in wrapped:
                     pass

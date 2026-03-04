@@ -15,8 +15,7 @@ def main() -> None:
         from crewai import Agent, Crew, Process, Task
     except ImportError as exc:
         raise SystemExit(
-            "CrewAI is not installed. "
-            'Install with: pip install "cascadeflow[crewai,openai]"'
+            "CrewAI is not installed. " 'Install with: pip install "cascadeflow[crewai,openai]"'
         ) from exc
 
     from cascadeflow import init, run
@@ -34,8 +33,7 @@ def main() -> None:
     )
     if not enabled:
         raise SystemExit(
-            "CrewAI hooks are unavailable in this environment. "
-            "Ensure crewai>=1.5 is installed."
+            "CrewAI hooks are unavailable in this environment. " "Ensure crewai>=1.5 is installed."
         )
 
     agent = Agent(
