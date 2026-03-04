@@ -23,6 +23,8 @@ import {
   getEnabledDomains,
 } from './config';
 import { buildCascadeMetadata } from './cascade-metadata';
+import { estimateCost as harnessEstimateCost } from '../harness/pricing';
+import type { HarnessRunContext } from '../harness/harness';
 
 // Quality validation, cost tracking, and routing - optional import
 let QualityValidator: any;
@@ -109,6 +111,29 @@ export class CascadeChatModel extends BaseChatModel {
   // Domain-specific verifiers
   private domainVerifiers: Map<DomainType, BaseChatModel | undefined> = new Map();
   private domainVerifierGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map();
+
+  // Harness context (set by agent node)
+  private harnessCtx: HarnessRunContext | null = null;
+
+  setHarnessContext(ctx: HarnessRunContext | null): void {
+    this.harnessCtx = ctx;
+  }
+
+  private recordHarnessCall(message: BaseMessage, model: BaseChatModel, elapsedMs: number): void {
+    if (!this.harnessCtx) return;
+    const responseMetadata = (message as any).response_metadata || {};
+    const tokenUsage = responseMetadata.tokenUsage || responseMetadata.usage || {};
+    const inputTokens = tokenUsage.promptTokens || tokenUsage.prompt_tokens || 0;
+    const outputTokens = tokenUsage.completionTokens || tokenUsage.completion_tokens || 0;
+    const modelName = (model as any).modelName || (model as any).model || 'unknown';
+    this.harnessCtx.recordCall({
+      model: modelName,
+      inputTokens,
+      outputTokens,
+      toolCallCount: 0,
+      elapsedMs,
+    });
+  }
 
   constructor(
     drafterModelGetter: () => Promise<BaseChatModel>,
@@ -257,6 +282,7 @@ export class CascadeChatModel extends BaseChatModel {
     const latency = Date.now() - start;
 
     const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+    this.recordHarnessCall(verifierMessage, verifierModel, latency);
     const costBreakdown = {
       drafter: 0,
       verifier: verifierCost,
@@ -584,37 +610,8 @@ export class CascadeChatModel extends BaseChatModel {
       }
     }
 
-    // Fallback to rough estimates based on model name
-    const estimatesPerMillion: Record<string, { input: number; output: number }> = {
-      'gpt-4o-mini': { input: 0.15, output: 0.6 },
-      'gpt-4o': { input: 2.5, output: 10.0 },
-      'gpt-5-mini': { input: 0.20, output: 0.80 },
-      'gpt-4-turbo': { input: 10.0, output: 30.0 },
-      'gpt-4': { input: 30.0, output: 60.0 },
-      'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-      'claude-3-5-haiku': { input: 1.0, output: 5.0 },
-      'claude-haiku-4-5': { input: 1.0, output: 5.0 },
-      'claude-3-5-sonnet': { input: 3.0, output: 15.0 },
-      'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
-      'claude-sonnet-4': { input: 3.0, output: 15.0 },
-      'claude-opus-4-5': { input: 5.0, output: 25.0 },
-      'claude-3-haiku': { input: 0.25, output: 1.25 },
-      default: { input: 1.0, output: 2.0 },
-    };
-
-    let estimate = estimatesPerMillion.default;
-    for (const [key, value] of Object.entries(estimatesPerMillion)) {
-      if (modelName.includes(key)) {
-        estimate = value;
-        break;
-      }
-    }
-
-    const cost =
-      (inputTokens / 1_000_000) * estimate.input +
-      (outputTokens / 1_000_000) * estimate.output;
-
-    return cost;
+    // Use shared harness pricing (fuzzy model resolution, 18 models)
+    return harnessEstimateCost(modelName, inputTokens, outputTokens);
   }
 
   /**
@@ -711,6 +708,7 @@ export class CascadeChatModel extends BaseChatModel {
         this.verifierCount++;
 
         const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
+        this.recordHarnessCall(verifierMessage, verifierModel, verifierLatency);
         const costBreakdown = {
           drafter: 0,
           verifier: verifierCost,
@@ -772,6 +770,7 @@ export class CascadeChatModel extends BaseChatModel {
       const drafterStartTime = Date.now();
       const drafterMessage = await modelToUse.invoke(messages, options);
       const drafterLatency = Date.now() - drafterStartTime;
+      this.recordHarnessCall(drafterMessage, modelToUse, drafterLatency);
 
       if (domainModel && detectedDomain) {
         this.domainCounts.set(detectedDomain, (this.domainCounts.get(detectedDomain) || 0) + 1);
@@ -798,6 +797,7 @@ export class CascadeChatModel extends BaseChatModel {
           const verifierStartTime = Date.now();
           const verifierMessage = await verifierModel.invoke(messages, options);
           const verifierLatency = Date.now() - verifierStartTime;
+          this.recordHarnessCall(verifierMessage, verifierModel, verifierLatency);
 
           this.verifierCount++;
 
@@ -1060,6 +1060,7 @@ export class CascadeChatModel extends BaseChatModel {
       const verifierInfo = this.getModelInfo(verifierModel);
       const verifierMessage = await verifierModel.invoke(messages, options);
       const verifierLatency = Date.now() - verifierStartTime;
+      this.recordHarnessCall(verifierMessage, verifierModel, verifierLatency);
 
       this.verifierCount++;
 
@@ -1136,7 +1137,9 @@ export class CascadeChatModel extends BaseChatModel {
 
       const verifierModel = await this.getVerifierModel();
       const verifierInfo = this.getModelInfo(verifierModel);
+      const fallbackStart = Date.now();
       const verifierMessage = await verifierModel.invoke(messages, options);
+      this.recordHarnessCall(verifierMessage, verifierModel, Date.now() - fallbackStart);
       this.verifierCount++;
       const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
 

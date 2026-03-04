@@ -21,6 +21,7 @@ import {
   type DomainType,
   getEnabledDomains,
 } from '../LmChatCascadeFlow/config';
+import { HarnessRunContext, type HarnessConfig, type HarnessMode, type KpiWeights } from '../harness';
 
 // Tool cascade validator - optional import
 let ToolCascadeValidator: any;
@@ -65,6 +66,7 @@ export class CascadeFlowAgentExecutor {
   private routingRules: Map<string, ToolRoutingMode>;
   private enableToolCascadeValidation: boolean;
   private toolCascadeValidator: any;
+  private harnessCtx: HarnessRunContext | null;
 
   constructor(
     private cascadeModel: CascadeChatModel,
@@ -72,7 +74,9 @@ export class CascadeFlowAgentExecutor {
     routingRules: ToolRoutingRule[],
     private maxIterations: number,
     enableToolCascadeValidation: boolean = false,
+    harnessCtx: HarnessRunContext | null = null,
   ) {
+    this.harnessCtx = harnessCtx;
     this.toolMap = new Map(
       tools.filter((tool) => tool?.name).map((tool) => [tool.name as string, tool])
     );
@@ -295,6 +299,18 @@ export class CascadeFlowAgentExecutor {
     let iterations = 0;
 
     while (iterations < this.maxIterations) {
+      // Harness enforce-mode pre-checks
+      if (this.harnessCtx?.config.mode === 'enforce') {
+        if (this.harnessCtx.isBudgetExhausted()) {
+          finalMessage = new AIMessage(`[Harness] Budget exhausted ($${this.harnessCtx.cost.toFixed(4)} of $${this.harnessCtx.config.budgetMax?.toFixed(4)} max). Agent stopped.`);
+          break;
+        }
+        if (this.harnessCtx.isToolCapReached()) {
+          finalMessage = new AIMessage(`[Harness] Tool call cap reached (${this.harnessCtx.toolCalls} of ${this.harnessCtx.config.toolCallsMax} max). Agent stopped.`);
+          break;
+        }
+      }
+
       const message = await this.cascadeModel.invoke(currentMessages, options);
       const toolCalls = this.extractToolCalls(message);
       trace.push(this.buildTraceEntry(message, toolCalls));
@@ -350,6 +366,12 @@ export class CascadeFlowAgentExecutor {
         );
       }
 
+      // Track tool calls in harness (CascadeChatModel records LLM token costs;
+      // agent executor tracks tool-call counts from the loop itself)
+      if (this.harnessCtx) {
+        this.harnessCtx.toolCalls += toolCalls.length;
+      }
+
       if (routing === 'verifier') {
         const verifierMessage = await this.cascadeModel.invokeVerifierDirect(currentMessages, options);
         trace.push(this.buildTraceEntry(verifierMessage));
@@ -377,6 +399,7 @@ export class CascadeFlowAgentExecutor {
       output: finalMessage.content.toString(),
       message: finalMessage,
       trace,
+      harness: this.harnessCtx?.summary() ?? null,
     };
   }
 
@@ -753,6 +776,99 @@ export class CascadeFlowAgent implements INodeType {
         default: '',
       },
       ...generateDomainProperties(),
+      // -----------------------------------------------------------------
+      // Harness: Multi-Dimensional Cascading
+      // -----------------------------------------------------------------
+      {
+        displayName: 'Harness',
+        name: 'harnessHeading',
+        type: 'notice',
+        default: '',
+      },
+      {
+        displayName: 'Harness Mode',
+        name: 'harnessMode',
+        type: 'options',
+        options: [
+          { name: 'Off', value: 'off', description: 'Harness disabled, zero overhead' },
+          { name: 'Observe', value: 'observe', description: 'Track all dimensions, record trace, no enforcement' },
+          { name: 'Enforce', value: 'enforce', description: 'Stop agent loop when limits are hit' },
+        ],
+        default: 'observe',
+        description: 'Harness mode: off (disabled), observe (telemetry only), or enforce (stop when limits hit)',
+      },
+      {
+        displayName: 'Budget (USD)',
+        name: 'harnessBudget',
+        type: 'number',
+        default: 0,
+        typeOptions: { minValue: 0, numberPrecision: 4 },
+        displayOptions: { hide: { harnessMode: ['off'] } },
+        description: 'Max budget in USD. 0 = unlimited.',
+      },
+      {
+        displayName: 'Max Tool Calls',
+        name: 'harnessMaxToolCalls',
+        type: 'number',
+        default: 0,
+        typeOptions: { minValue: 0 },
+        displayOptions: { hide: { harnessMode: ['off'] } },
+        description: 'Max tool call count. 0 = unlimited.',
+      },
+      {
+        displayName: 'Max Latency (Ms)',
+        name: 'harnessMaxLatencyMs',
+        type: 'number',
+        default: 0,
+        typeOptions: { minValue: 0 },
+        displayOptions: { hide: { harnessMode: ['off'] } },
+        description: 'Max cumulative latency in milliseconds. 0 = unlimited.',
+      },
+      {
+        displayName: 'Max Energy',
+        name: 'harnessMaxEnergy',
+        type: 'number',
+        default: 0,
+        typeOptions: { minValue: 0, numberPrecision: 2 },
+        displayOptions: { hide: { harnessMode: ['off'] } },
+        description: 'Max energy proxy units. 0 = unlimited.',
+      },
+      {
+        displayName: 'Compliance',
+        name: 'harnessCompliance',
+        type: 'options',
+        options: [
+          { name: 'GDPR', value: 'gdpr' },
+          { name: 'HIPAA', value: 'hipaa' },
+          { name: 'None', value: '' },
+          { name: 'PCI', value: 'pci' },
+          { name: 'Strict', value: 'strict' },
+        ],
+        default: '',
+        displayOptions: { hide: { harnessMode: ['off'] } },
+        description: 'Compliance policy to enforce model allowlists',
+      },
+      {
+        displayName: 'KPI Weights',
+        name: 'harnessKpiWeights',
+        type: 'fixedCollection',
+        typeOptions: { multipleValues: false },
+        displayOptions: { hide: { harnessMode: ['off'] } },
+        default: { weights: [{ quality: 0.4, cost: 0.3, latency: 0.2, energy: 0.1 }] },
+        options: [
+          {
+            name: 'weights',
+            displayName: 'Weights',
+            values: [
+              { displayName: 'Quality', name: 'quality', type: 'number', default: 0.4, typeOptions: { minValue: 0, maxValue: 1, numberPrecision: 2 } },
+              { displayName: 'Cost', name: 'cost', type: 'number', default: 0.3, typeOptions: { minValue: 0, maxValue: 1, numberPrecision: 2 } },
+              { displayName: 'Latency', name: 'latency', type: 'number', default: 0.2, typeOptions: { minValue: 0, maxValue: 1, numberPrecision: 2 } },
+              { displayName: 'Energy', name: 'energy', type: 'number', default: 0.1, typeOptions: { minValue: 0, maxValue: 1, numberPrecision: 2 } },
+            ],
+          },
+        ],
+        description: 'KPI dimension weights for optimization scoring (normalized automatically)',
+      },
     ],
   };
 
@@ -781,6 +897,35 @@ export class CascadeFlowAgent implements INodeType {
 
     const toolRoutingRaw = this.getNodeParameter('toolRoutingRules', 0, { rule: [] }) as any;
     const toolRoutingRules = (toolRoutingRaw?.rule ?? []) as ToolRoutingRule[];
+
+    // Harness parameters
+    const harnessMode = this.getNodeParameter('harnessMode', 0, 'observe') as HarnessMode;
+    let harnessCtx: HarnessRunContext | null = null;
+    if (harnessMode !== 'off') {
+      const rawBudget = this.getNodeParameter('harnessBudget', 0, 0) as number;
+      const rawToolCalls = this.getNodeParameter('harnessMaxToolCalls', 0, 0) as number;
+      const rawLatency = this.getNodeParameter('harnessMaxLatencyMs', 0, 0) as number;
+      const rawEnergy = this.getNodeParameter('harnessMaxEnergy', 0, 0) as number;
+      const compliance = this.getNodeParameter('harnessCompliance', 0, '') as string;
+      const kpiRaw = this.getNodeParameter('harnessKpiWeights', 0, { weights: [{ quality: 0.4, cost: 0.3, latency: 0.2, energy: 0.1 }] }) as any;
+      const kpiEntry = kpiRaw?.weights?.[0] ?? { quality: 0.4, cost: 0.3, latency: 0.2, energy: 0.1 };
+
+      const config: HarnessConfig = {
+        mode: harnessMode,
+        budgetMax: rawBudget > 0 ? rawBudget : null,
+        toolCallsMax: rawToolCalls > 0 ? rawToolCalls : null,
+        latencyMaxMs: rawLatency > 0 ? rawLatency : null,
+        energyMax: rawEnergy > 0 ? rawEnergy : null,
+        compliance: compliance || null,
+        kpiWeights: {
+          quality: kpiEntry.quality ?? 0.4,
+          cost: kpiEntry.cost ?? 0.3,
+          latency: kpiEntry.latency ?? 0.2,
+          energy: kpiEntry.energy ?? 0.1,
+        },
+      };
+      harnessCtx = new HarnessRunContext(config);
+    }
 
     // Domain routing parameters
     const enableDomainRouting = this.getNodeParameter('enableDomainRouting', 0, false) as boolean;
@@ -887,12 +1032,18 @@ export class CascadeFlowAgent implements INodeType {
       domainVerifierGetters,
     );
 
+    // Wire harness context into cascade model for per-call recording
+    if (harnessCtx) {
+      cascadeModel.setHarnessContext(harnessCtx);
+    }
+
     const agentExecutor = new CascadeFlowAgentExecutor(
       cascadeModel,
       tools,
       toolRoutingRules,
       maxIterations,
       enableToolCascadeValidation,
+      harnessCtx,
     );
 
     // --- Process each input item ---
@@ -933,6 +1084,7 @@ export class CascadeFlowAgent implements INodeType {
           output: result.output,
           ...cascadeflowMeta,
           trace: result.trace,
+          harness: result.harness ?? null,
         },
         pairedItem: { item: itemIndex },
       });
