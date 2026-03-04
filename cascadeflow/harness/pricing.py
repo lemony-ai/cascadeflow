@@ -11,6 +11,8 @@ for harness-level cost/energy estimation.
 
 from __future__ import annotations
 
+import re as _re
+
 # ---------------------------------------------------------------------------
 # Pricing (USD per 1M tokens: input, output)
 # ---------------------------------------------------------------------------
@@ -71,13 +73,61 @@ DEFAULT_ENERGY_COEFFICIENT: float = 1.0
 ENERGY_OUTPUT_WEIGHT: float = 1.5
 
 
+# Pre-compiled pattern for stripping version/preview/date suffixes.
+# Matches: -preview, -preview-05-20, -20250120, -latest, -exp-0827, etc.
+_VERSION_SUFFIX_RE = _re.compile(
+    r"(-preview(?:-\d{2,4}-\d{2})?|-\d{8,}|-latest|-exp(?:-\d+)?|-it)$"
+)
+
+# Cache for resolved model → pricing key lookups.
+_pricing_key_cache: dict[str, str | None] = {}
+
+
+def _resolve_pricing_key(model: str) -> str | None:
+    """Resolve a model name to a known pricing table key.
+
+    Tries exact match first, then strips version/preview/date suffixes,
+    then tries longest-prefix match against known model names.
+    Returns ``None`` when no match is found (caller should use defaults).
+    """
+    if model in _pricing_key_cache:
+        return _pricing_key_cache[model]
+
+    # Exact match
+    if model in PRICING_USD_PER_M:
+        _pricing_key_cache[model] = model
+        return model
+
+    # Strip version suffixes and retry
+    stripped = _VERSION_SUFFIX_RE.sub("", model)
+    if stripped != model and stripped in PRICING_USD_PER_M:
+        _pricing_key_cache[model] = stripped
+        return stripped
+
+    # Longest-prefix match (e.g. "gemini-2.5-flash-8b" → "gemini-2.5-flash")
+    best: str | None = None
+    best_len = 0
+    for known in PRICING_USD_PER_M:
+        if model.startswith(known) and len(known) > best_len:
+            best = known
+            best_len = len(known)
+    if best is not None:
+        _pricing_key_cache[model] = best
+        return best
+
+    _pricing_key_cache[model] = None
+    return None
+
+
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     """Estimate cost in USD from model name and token counts."""
-    in_price, out_price = PRICING_USD_PER_M.get(model, DEFAULT_PRICING_USD_PER_M)
+    key = _resolve_pricing_key(model)
+    in_price, out_price = PRICING_USD_PER_M.get(key, DEFAULT_PRICING_USD_PER_M) if key else DEFAULT_PRICING_USD_PER_M
     return (input_tokens / 1_000_000) * in_price + (output_tokens / 1_000_000) * out_price
 
 
 def estimate_energy(model: str, input_tokens: int, output_tokens: int) -> float:
     """Estimate energy proxy from model name and token counts."""
-    coeff = ENERGY_COEFFICIENTS.get(model, DEFAULT_ENERGY_COEFFICIENT)
+    key = _resolve_pricing_key(model)
+    coeff = ENERGY_COEFFICIENTS.get(key, DEFAULT_ENERGY_COEFFICIENT) if key else DEFAULT_ENERGY_COEFFICIENT
     return coeff * (input_tokens + output_tokens * ENERGY_OUTPUT_WEIGHT)

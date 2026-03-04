@@ -268,7 +268,7 @@ class TestBeforeModelCallback:
         init(mode="enforce")
         with run():
             with patch(
-                "cascadeflow.harness.api.get_current_run",
+                "cascadeflow.integrations.google_adk.get_current_run",
                 side_effect=RuntimeError("boom"),
             ):
                 result = await plugin.before_model_callback(
@@ -401,7 +401,7 @@ class TestAfterModelCallback:
         init(mode="observe")
         with run():
             with patch(
-                "cascadeflow.harness.api.get_current_run",
+                "cascadeflow.integrations.google_adk.get_current_run",
                 side_effect=RuntimeError("boom"),
             ):
                 result = await plugin.after_model_callback(
@@ -454,7 +454,7 @@ class TestOnModelErrorCallback:
         init(mode="observe")
         with run():
             with patch(
-                "cascadeflow.harness.api.get_current_run",
+                "cascadeflow.integrations.google_adk.get_current_run",
                 side_effect=RuntimeError("boom"),
             ):
                 result = await plugin.on_model_error_callback(
@@ -557,8 +557,8 @@ class TestDeactivate:
 
     async def test_deactivate_clears_state(self):
         plugin = adk_mod.CascadeFlowADKPlugin()
-        plugin._call_start_times[("a", "b")] = 1.0
-        plugin._call_models[("a", "b")] = "test"
+        plugin._call_start_times[12345] = 1.0
+        plugin._call_models[12345] = "test"
         plugin.deactivate()
         assert len(plugin._call_start_times) == 0
         assert len(plugin._call_models) == 0
@@ -599,57 +599,136 @@ class TestExtractTokens:
 
 
 class TestCallbackKeyCollision:
-    """Verify _callback_key uses id() fallback when both fields are empty."""
+    """Verify _callback_key uses id() for per-object uniqueness."""
 
-    def test_distinct_keys_when_metadata_missing(self):
-        """Two contexts with no invocation_id/agent_name get distinct keys."""
-        plugin = adk_mod.CascadeFlowADKPlugin()
-        ctx_a = FakeCallbackContext(invocation_id="", agent_name="")
-        ctx_b = FakeCallbackContext(invocation_id="", agent_name="")
-        key_a = plugin._callback_key(ctx_a)
-        key_b = plugin._callback_key(ctx_b)
-        assert key_a != key_b, "Empty-metadata contexts must produce distinct keys"
+    def test_distinct_keys_for_different_objects(self):
+        """Two distinct context objects always produce distinct keys."""
+        ctx_a = FakeCallbackContext(invocation_id="inv-1", agent_name="agent-a")
+        ctx_b = FakeCallbackContext(invocation_id="inv-1", agent_name="agent-a")
+        key_a = adk_mod.CascadeFlowADKPlugin._callback_key(ctx_a)
+        key_b = adk_mod.CascadeFlowADKPlugin._callback_key(ctx_b)
+        assert key_a != key_b, "Same IDs on different objects must produce distinct keys"
 
     def test_key_stable_for_same_object(self):
         """Same context object always produces the same key."""
-        plugin = adk_mod.CascadeFlowADKPlugin()
-        ctx = FakeCallbackContext(invocation_id="", agent_name="")
-        assert plugin._callback_key(ctx) == plugin._callback_key(ctx)
+        ctx = FakeCallbackContext()
+        key1 = adk_mod.CascadeFlowADKPlugin._callback_key(ctx)
+        key2 = adk_mod.CascadeFlowADKPlugin._callback_key(ctx)
+        assert key1 == key2
 
-    def test_normal_key_unaffected(self):
-        """Contexts with real IDs don't use the id() fallback."""
-        plugin = adk_mod.CascadeFlowADKPlugin()
-        ctx = FakeCallbackContext(invocation_id="inv-42", agent_name="my-agent")
-        key = plugin._callback_key(ctx)
-        assert key == ("inv-42", "my-agent")
+    def test_key_is_int(self):
+        """Key type is int (object id)."""
+        ctx = FakeCallbackContext()
+        assert isinstance(adk_mod.CascadeFlowADKPlugin._callback_key(ctx), int)
 
     @pytest.mark.asyncio
-    async def test_concurrent_empty_contexts_track_independently(self):
-        """Two concurrent calls with empty metadata don't corrupt each other."""
+    async def test_concurrent_same_ids_track_independently(self):
+        """Two concurrent calls with same invocation_id+agent_name don't corrupt."""
         init(mode="observe")
         with run(budget=1.0) as harness_ctx:
             plugin = adk_mod.CascadeFlowADKPlugin()
-            ctx_a = FakeCallbackContext(invocation_id="", agent_name="")
-            ctx_b = FakeCallbackContext(invocation_id="", agent_name="")
+            # Same IDs — previously would collide
+            ctx_a = FakeCallbackContext(invocation_id="inv-1", agent_name="agent")
+            ctx_b = FakeCallbackContext(invocation_id="inv-1", agent_name="agent")
 
             req_a = FakeLlmRequest(model="gpt-4o")
             req_b = FakeLlmRequest(model="gpt-4o-mini")
 
-            # Start both calls
             await plugin.before_model_callback(ctx_a, req_a)
             await plugin.before_model_callback(ctx_b, req_b)
 
-            # Finish in reverse order
-            resp_b = FakeLlmResponse(
-                usage_metadata=FakeUsageMetadata(50, 25),
-            )
-            resp_a = FakeLlmResponse(
-                usage_metadata=FakeUsageMetadata(100, 50),
-            )
+            resp_b = FakeLlmResponse(usage_metadata=FakeUsageMetadata(50, 25))
+            resp_a = FakeLlmResponse(usage_metadata=FakeUsageMetadata(100, 50))
             await plugin.after_model_callback(ctx_b, resp_b)
             await plugin.after_model_callback(ctx_a, resp_a)
 
             assert harness_ctx.step_count == 2
-            # Verify no leftover state (both keys were cleaned up)
             assert len(plugin._call_start_times) == 0
             assert len(plugin._call_models) == 0
+
+
+# ---------------------------------------------------------------------------
+# Off-mode behavior
+# ---------------------------------------------------------------------------
+
+
+class TestOffMode:
+    """mode='off' must not track metrics or update run context."""
+
+    @pytest.mark.asyncio
+    async def test_off_mode_before_callback_returns_none(self):
+        init(mode="off")
+        plugin = adk_mod.CascadeFlowADKPlugin()
+        with run() as run_ctx:
+            result = await plugin.before_model_callback(
+                FakeCallbackContext(), FakeLlmRequest()
+            )
+            assert result is None
+            assert len(plugin._call_start_times) == 0
+
+    @pytest.mark.asyncio
+    async def test_off_mode_after_callback_does_not_track(self):
+        init(mode="off")
+        plugin = adk_mod.CascadeFlowADKPlugin()
+        with run() as run_ctx:
+            await plugin.after_model_callback(
+                FakeCallbackContext(),
+                FakeLlmResponse(usage_metadata=FakeUsageMetadata(1000, 500)),
+            )
+            assert run_ctx.step_count == 0
+            assert run_ctx.cost == 0.0
+            assert run_ctx.energy_used == 0.0
+            assert len(run_ctx.trace()) == 0
+
+
+# ---------------------------------------------------------------------------
+# Versioned model name resolution
+# ---------------------------------------------------------------------------
+
+
+class TestVersionedModelPricing:
+    """Versioned model IDs must resolve to correct pricing, not default."""
+
+    def test_versioned_gemini_flash(self):
+        from cascadeflow.harness.pricing import estimate_cost
+
+        # Should resolve to gemini-2.5-flash pricing ($0.15/$0.60)
+        cost = estimate_cost("gemini-2.5-flash-preview-05-20", 1_000_000, 1_000_000)
+        assert cost == pytest.approx(0.75, abs=0.01)
+
+    def test_versioned_gemini_pro(self):
+        from cascadeflow.harness.pricing import estimate_cost
+
+        cost = estimate_cost("gemini-2.5-pro-preview-05-06", 1_000_000, 1_000_000)
+        assert cost == pytest.approx(11.25, abs=0.01)
+
+    def test_dated_model_suffix(self):
+        from cascadeflow.harness.pricing import estimate_cost
+
+        cost = estimate_cost("gemini-2.5-flash-20250120", 1_000_000, 1_000_000)
+        assert cost == pytest.approx(0.75, abs=0.01)
+
+    def test_latest_suffix(self):
+        from cascadeflow.harness.pricing import estimate_cost
+
+        cost = estimate_cost("gemini-2.5-flash-latest", 1_000_000, 1_000_000)
+        assert cost == pytest.approx(0.75, abs=0.01)
+
+    def test_unknown_model_still_uses_default(self):
+        from cascadeflow.harness.pricing import estimate_cost
+
+        cost = estimate_cost("totally-unknown-model", 1_000_000, 0)
+        assert cost == pytest.approx(2.50)
+
+    def test_exact_match_still_works(self):
+        from cascadeflow.harness.pricing import estimate_cost
+
+        cost = estimate_cost("gemini-2.5-flash", 1_000_000, 1_000_000)
+        assert cost == pytest.approx(0.75, abs=0.01)
+
+    def test_prefix_match_variant(self):
+        """A variant like gemini-2.5-flash-8b matches the base model."""
+        from cascadeflow.harness.pricing import estimate_cost
+
+        cost = estimate_cost("gemini-2.5-flash-8b", 1_000_000, 1_000_000)
+        assert cost == pytest.approx(0.75, abs=0.01)

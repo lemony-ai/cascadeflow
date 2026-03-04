@@ -116,19 +116,22 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
     def __init__(self, config: Optional[GoogleADKHarnessConfig] = None) -> None:
         self._config = config or GoogleADKHarnessConfig()
         self._active = True
+        self._call_seq: int = 0
         # Track call metadata between before/after callbacks.
-        # Keyed by (invocation_id, agent_name) to handle concurrent calls.
-        self._call_start_times: dict[tuple[str, str], float] = {}
-        self._call_models: dict[tuple[str, str], str] = {}
+        # Keyed by id(callback_context) to guarantee uniqueness even when
+        # two concurrent calls share (invocation_id, agent_name).
+        self._call_start_times: dict[int, float] = {}
+        self._call_models: dict[int, str] = {}
 
-    def _callback_key(self, callback_context: Any) -> tuple[str, str]:
-        invocation_id = getattr(callback_context, "invocation_id", "") or ""
-        agent_name = getattr(callback_context, "agent_name", "") or ""
-        # Use object id as disambiguator when both fields are missing to
-        # prevent collisions across concurrent calls with empty metadata.
-        if not invocation_id and not agent_name:
-            invocation_id = str(id(callback_context))
-        return (invocation_id, agent_name)
+    @staticmethod
+    def _callback_key(callback_context: Any) -> int:
+        """Return a unique key for a callback_context object.
+
+        Uses ``id()`` which is guaranteed unique for the lifetime of the
+        object — ADK keeps the same CallbackContext alive across the
+        before/after/error callback sequence for a single LLM call.
+        """
+        return id(callback_context)
 
     async def before_model_callback(
         self,
@@ -146,6 +149,8 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
         try:
             ctx = get_current_run()
             if ctx is None:
+                return None
+            if ctx.mode == "off":
                 return None
 
             # Extract model name from request
@@ -195,6 +200,8 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
         try:
             ctx = get_current_run()
             if ctx is None:
+                return None
+            if ctx.mode == "off":
                 return None
 
             key = self._callback_key(callback_context)
@@ -282,6 +289,7 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
     def deactivate(self) -> None:
         """Make all callbacks no-ops without unregistering from Runner."""
         self._active = False
+        self._call_seq = 0
         self._call_start_times.clear()
         self._call_models.clear()
 
@@ -316,10 +324,17 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
 
         When ADK is available we return a real ``LlmResponse``.  When not
         (shouldn't happen in practice), we return a sentinel dict.
+
+        The user-facing message is intentionally generic to avoid leaking
+        internal spend/limit numbers.  Exact figures are logged separately.
         """
-        msg = (
-            f"cascadeflow harness budget exceeded "
-            f"(spent ${ctx.cost:.4f} of ${ctx.budget_max:.4f} max)"
+        # Generic message safe for end-user exposure.
+        msg = "cascadeflow harness budget exceeded"
+        # Detailed figures for operators only.
+        logger.warning(
+            "google-adk: budget exceeded — spent $%.4f of $%.4f max",
+            ctx.cost,
+            ctx.budget_max,
         )
         if GOOGLE_ADK_AVAILABLE:
             try:
