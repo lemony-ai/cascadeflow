@@ -101,6 +101,9 @@ openai-agents = [
     "openai-agents>=0.9.0; python_version >= '3.10'",
 ]
 
+# Google ADK integration (opt-in, requires Python 3.10+)
+google-adk = ["google-adk>=1.0.0; python_version >= '3.10'"]
+
 # Development tools (includes rich for terminal output)
 dev = [
     "pytest>=7.4.0",
