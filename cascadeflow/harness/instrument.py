@@ -1,11 +1,10 @@
-"""OpenAI Python client auto-instrumentation for cascadeflow harness.
+"""Python SDK auto-instrumentation for cascadeflow harness.
 
-Patches ``openai.resources.chat.completions.Completions.create`` (sync) and
-``AsyncCompletions.create`` (async) to intercept LLM calls for observe/enforce
-modes.
+Patches OpenAI and Anthropic SDK request methods to intercept LLM calls for
+observe/enforce modes.
 
-This module is called internally by ``cascadeflow.harness.init()``.  Users
-should not call ``patch_openai`` / ``unpatch_openai`` directly.
+This module is called internally by ``cascadeflow.harness.init()``. Users
+should not call patch/unpatch helpers directly.
 
 Implementation notes:
     - Patching is class-level (all current and future client instances).
@@ -51,6 +50,9 @@ logger = logging.getLogger("cascadeflow.harness.instrument")
 _openai_patched: bool = False
 _original_sync_create: Any = None
 _original_async_create: Any = None
+_anthropic_patched: bool = False
+_original_anthropic_sync_create: Any = None
+_original_anthropic_async_create: Any = None
 
 _MODEL_TOTAL_COSTS: dict[str, float] = {
     name: _model_total_price_shared(name) for name in _PRICING_MODELS
@@ -140,7 +142,7 @@ def _estimate_energy(model: str, prompt_tokens: int, completion_tokens: int) -> 
     return _estimate_energy_shared(model, prompt_tokens, completion_tokens)
 
 
-def _count_tool_calls_in_response(response: Any) -> int:
+def _count_tool_calls_in_openai_response(response: Any) -> int:
     """Count tool calls in a non-streaming ChatCompletion response."""
     choices = getattr(response, "choices", None)
     if not choices:
@@ -154,7 +156,7 @@ def _count_tool_calls_in_response(response: Any) -> int:
     return len(tool_calls)
 
 
-def _extract_usage(response: Any) -> tuple[int, int]:
+def _extract_openai_usage(response: Any) -> tuple[int, int]:
     """Extract (prompt_tokens, completion_tokens) from a response."""
     usage = getattr(response, "usage", None)
     if usage is None:
@@ -163,6 +165,29 @@ def _extract_usage(response: Any) -> tuple[int, int]:
         getattr(usage, "prompt_tokens", 0) or 0,
         getattr(usage, "completion_tokens", 0) or 0,
     )
+
+
+def _extract_anthropic_usage(response: Any) -> tuple[int, int]:
+    """Extract (input_tokens, output_tokens) from an Anthropic response."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0, 0
+    return (
+        getattr(usage, "input_tokens", 0) or 0,
+        getattr(usage, "output_tokens", 0) or 0,
+    )
+
+
+def _count_tool_calls_in_anthropic_response(response: Any) -> int:
+    """Count Anthropic ``tool_use`` blocks in a non-streaming response."""
+    content = getattr(response, "content", None)
+    if not content:
+        return 0
+    count = 0
+    for block in content:
+        if getattr(block, "type", None) == "tool_use":
+            count += 1
+    return count
 
 
 def _model_total_cost(model: str) -> float:
@@ -713,8 +738,8 @@ def _finalize_interception(
 
     if (not state.is_stream) and ctx:
         elapsed_ms = (time.monotonic() - state.start_time) * 1000
-        prompt_tokens, completion_tokens = _extract_usage(response)
-        tool_call_count = _count_tool_calls_in_response(response)
+        prompt_tokens, completion_tokens = _extract_openai_usage(response)
+        tool_call_count = _count_tool_calls_in_openai_response(response)
         _update_context(
             ctx,
             state.model,
@@ -810,6 +835,150 @@ def _make_patched_async_create(original_fn: Any) -> Any:
     return wrapper
 
 
+def _make_patched_anthropic_create(original_fn: Any) -> Any:
+    """Create a patched version of ``anthropic.Messages.create``."""
+
+    @functools.wraps(original_fn)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        from cascadeflow.harness.api import get_current_run, get_harness_config
+
+        config = get_harness_config()
+        ctx = get_current_run()
+        mode = ctx.mode if ctx else config.mode
+
+        if mode == "off":
+            return original_fn(self, *args, **kwargs)
+
+        model: str = kwargs.get("model", "unknown")
+        pre_action = "allow"
+        pre_reason = mode
+        pre_model = model
+        pre_applied = True
+
+        if ctx:
+            kwargs, model, pre_action, pre_reason, pre_model, pre_applied = (
+                _resolve_pre_call_decision(
+                    ctx,
+                    mode,
+                    model,
+                    kwargs,
+                )
+            )
+
+        is_stream = bool(kwargs.get("stream", False))
+        start_time = time.monotonic()
+        response = original_fn(self, *args, **kwargs)
+
+        if not ctx:
+            logger.debug(
+                "harness %s (anthropic): model=%s (no active run scope, metrics not tracked)",
+                mode,
+                model,
+            )
+            return response
+
+        # Anthropic stream wrappers are not instrumented in V2.1 (known limitation).
+        if is_stream:
+            logger.debug(
+                "harness %s (anthropic): stream passthrough model=%s (usage tracking unavailable)",
+                mode,
+                model,
+            )
+            return response
+
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+        input_tokens, output_tokens = _extract_anthropic_usage(response)
+        tool_call_count = _count_tool_calls_in_anthropic_response(response)
+        _update_context(
+            ctx,
+            model,
+            input_tokens,
+            output_tokens,
+            tool_call_count,
+            elapsed_ms,
+            action=pre_action,
+            action_reason=pre_reason,
+            action_model=pre_model,
+            applied=pre_applied,
+            decision_mode=mode,
+        )
+        return response
+
+    return wrapper
+
+
+def _make_patched_anthropic_async_create(original_fn: Any) -> Any:
+    """Create a patched version of ``anthropic.AsyncMessages.create``."""
+
+    @functools.wraps(original_fn)
+    async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        from cascadeflow.harness.api import get_current_run, get_harness_config
+
+        config = get_harness_config()
+        ctx = get_current_run()
+        mode = ctx.mode if ctx else config.mode
+
+        if mode == "off":
+            return await original_fn(self, *args, **kwargs)
+
+        model: str = kwargs.get("model", "unknown")
+        pre_action = "allow"
+        pre_reason = mode
+        pre_model = model
+        pre_applied = True
+
+        if ctx:
+            kwargs, model, pre_action, pre_reason, pre_model, pre_applied = (
+                _resolve_pre_call_decision(
+                    ctx,
+                    mode,
+                    model,
+                    kwargs,
+                )
+            )
+
+        is_stream = bool(kwargs.get("stream", False))
+        start_time = time.monotonic()
+        response = await original_fn(self, *args, **kwargs)
+
+        if not ctx:
+            logger.debug(
+                "harness %s async (anthropic): model=%s (no active run scope, metrics not tracked)",
+                mode,
+                model,
+            )
+            return response
+
+        # Anthropic stream wrappers are not instrumented in V2.1 (known limitation).
+        if is_stream:
+            logger.debug(
+                "harness %s async (anthropic): stream passthrough model=%s (usage tracking unavailable)",
+                mode,
+                model,
+            )
+            return response
+
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+        input_tokens, output_tokens = _extract_anthropic_usage(response)
+        tool_call_count = _count_tool_calls_in_anthropic_response(response)
+        _update_context(
+            ctx,
+            model,
+            input_tokens,
+            output_tokens,
+            tool_call_count,
+            elapsed_ms,
+            action=pre_action,
+            action_reason=pre_reason,
+            action_model=pre_model,
+            applied=pre_applied,
+            decision_mode=mode,
+        )
+        return response
+
+    return wrapper
+
+
 # ---------------------------------------------------------------------------
 # Public API (called by cascadeflow.harness.api)
 # ---------------------------------------------------------------------------
@@ -846,6 +1015,37 @@ def patch_openai() -> bool:
     return True
 
 
+def patch_anthropic() -> bool:
+    """Patch the Anthropic Python client for harness instrumentation.
+
+    Returns ``True`` if patching succeeded, ``False`` if anthropic is not
+    installed. Idempotent: safe to call multiple times.
+    """
+    global _anthropic_patched, _original_anthropic_sync_create, _original_anthropic_async_create
+
+    if _anthropic_patched:
+        logger.debug("anthropic already patched, skipping")
+        return True
+
+    try:
+        from anthropic.resources.messages import AsyncMessages, Messages
+    except ImportError:
+        logger.debug("anthropic package not available, skipping instrumentation")
+        return False
+
+    _original_anthropic_sync_create = Messages.create
+    _original_anthropic_async_create = AsyncMessages.create
+
+    Messages.create = _make_patched_anthropic_create(_original_anthropic_sync_create)  # type: ignore[assignment]
+    AsyncMessages.create = _make_patched_anthropic_async_create(  # type: ignore[assignment]
+        _original_anthropic_async_create,
+    )
+
+    _anthropic_patched = True
+    logger.info("anthropic client instrumented (sync + async)")
+    return True
+
+
 def unpatch_openai() -> None:
     """Restore original OpenAI client methods.
 
@@ -873,6 +1073,43 @@ def unpatch_openai() -> None:
     logger.info("openai client unpatched")
 
 
-def is_patched() -> bool:
+def unpatch_anthropic() -> None:
+    """Restore original Anthropic client methods.
+
+    Safe to call even if not patched. Used by ``reset()`` and tests.
+    """
+    global _anthropic_patched, _original_anthropic_sync_create, _original_anthropic_async_create
+
+    if not _anthropic_patched:
+        return
+
+    try:
+        from anthropic.resources.messages import AsyncMessages, Messages
+    except ImportError:
+        _anthropic_patched = False
+        return
+
+    if _original_anthropic_sync_create is not None:
+        Messages.create = _original_anthropic_sync_create  # type: ignore[assignment]
+    if _original_anthropic_async_create is not None:
+        AsyncMessages.create = _original_anthropic_async_create  # type: ignore[assignment]
+
+    _original_anthropic_sync_create = None
+    _original_anthropic_async_create = None
+    _anthropic_patched = False
+    logger.info("anthropic client unpatched")
+
+
+def is_openai_patched() -> bool:
     """Return whether the OpenAI client is currently patched."""
     return _openai_patched
+
+
+def is_anthropic_patched() -> bool:
+    """Return whether the Anthropic client is currently patched."""
+    return _anthropic_patched
+
+
+def is_patched() -> bool:
+    """Return whether any supported Python SDK is currently patched."""
+    return _openai_patched or _anthropic_patched

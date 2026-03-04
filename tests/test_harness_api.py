@@ -334,6 +334,35 @@ def test_init_reports_openai_instrumented_when_patch_succeeds(monkeypatch):
     assert report.instrumented == ["openai"]
 
 
+def test_init_reports_anthropic_instrumented_when_patch_succeeds(monkeypatch):
+    monkeypatch.setattr(
+        harness_api,
+        "find_spec",
+        lambda name: object() if name == "anthropic" else None,
+    )
+
+    import cascadeflow.harness.instrument as instrument
+
+    monkeypatch.setattr(instrument, "patch_anthropic", lambda: True)
+    report = init(mode="observe")
+    assert report.instrumented == ["anthropic"]
+
+
+def test_init_reports_anthropic_detected_not_instrumented_on_patch_failure(monkeypatch):
+    monkeypatch.setattr(
+        harness_api,
+        "find_spec",
+        lambda name: object() if name == "anthropic" else None,
+    )
+
+    import cascadeflow.harness.instrument as instrument
+
+    monkeypatch.setattr(instrument, "patch_anthropic", lambda: False)
+    report = init(mode="observe")
+    assert report.instrumented == []
+    assert report.detected_but_not_instrumented == ["anthropic"]
+
+
 def test_run_summary_populates_on_context_exit():
     init(mode="observe")
     with run(budget=1.5) as ctx:
