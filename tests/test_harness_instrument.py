@@ -434,6 +434,31 @@ class TestSyncStreamWrapper:
 
         assert ctx.step_count == 1  # Should not double-count
 
+    def test_stream_finalizes_on_iteration_error(self) -> None:
+        init(mode="observe")
+        chunk1 = _mock_stream_chunk("data", usage=_mock_usage(100, 50))
+
+        class _FailingStream:
+            def __init__(self) -> None:
+                self._done = False
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if not self._done:
+                    self._done = True
+                    return chunk1
+                raise RuntimeError("stream failed")
+
+        with run(budget=1.0) as ctx:
+            wrapped = _InstrumentedStream(_FailingStream(), ctx, "gpt-4o-mini", time.monotonic())
+            with pytest.raises(RuntimeError, match="stream failed"):
+                list(wrapped)
+
+        assert ctx.step_count == 1
+        assert ctx.cost > 0
+
     def test_stream_wrapper_via_patched_create(self) -> None:
         """Verify that stream=True in the wrapper returns an _InstrumentedStream."""
         init(mode="observe")
@@ -495,6 +520,24 @@ class TestAsyncStreamWrapper:
             _ = [c async for c in result]
 
         assert ctx.step_count == 1
+
+    @pytest.mark.asyncio
+    async def test_async_stream_finalizes_on_iteration_error(self) -> None:
+        init(mode="observe")
+        chunk1 = _mock_stream_chunk("data", usage=_mock_usage(100, 50))
+
+        async def _failing_iter():
+            yield chunk1
+            raise RuntimeError("async stream failed")
+
+        async with run(budget=1.0) as ctx:
+            wrapped = _InstrumentedAsyncStream(_failing_iter(), ctx, "gpt-4o-mini", time.monotonic())
+            with pytest.raises(RuntimeError, match="async stream failed"):
+                async for _ in wrapped:
+                    pass
+
+        assert ctx.step_count == 1
+        assert ctx.cost > 0
 
 
 # ---------------------------------------------------------------------------
@@ -1246,6 +1289,34 @@ class TestAnthropicSyncWrapper:
         assert ctx.step_count == 1
         assert ctx.tool_calls == 1
 
+    def test_stream_finalizes_on_iteration_error(self) -> None:
+        init(mode="observe")
+
+        class _FailingAnthropicStream:
+            def __init__(self) -> None:
+                self._done = False
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if not self._done:
+                    self._done = True
+                    return _mock_anthropic_message_start_event(input_tokens=1_000_000)
+                raise RuntimeError("anthropic stream failed")
+
+        original = MagicMock(return_value=_FailingAnthropicStream())
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            result = wrapper(MagicMock(), model="claude-sonnet-4", stream=True)
+            assert isinstance(result, _InstrumentedAnthropicStream)
+            with pytest.raises(RuntimeError, match="anthropic stream failed"):
+                list(result)
+
+        assert ctx.step_count == 1
+        assert ctx.cost > 0
+
     def test_multiple_calls_accumulate(self) -> None:
         init(mode="observe")
         mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
@@ -1322,6 +1393,26 @@ class TestAnthropicAsyncWrapper:
         assert ctx.cost == pytest.approx(18.0, abs=0.01)
         assert ctx.step_count == 1
         assert ctx.tool_calls == 1
+
+    async def test_stream_finalizes_on_iteration_error(self) -> None:
+        init(mode="observe")
+
+        async def _failing_event_stream():
+            yield _mock_anthropic_message_start_event(input_tokens=1_000_000)
+            raise RuntimeError("anthropic async stream failed")
+
+        original = AsyncMock(return_value=_failing_event_stream())
+        wrapper = _make_patched_anthropic_async_create(original)
+
+        async with run(budget=1.0) as ctx:
+            result = await wrapper(MagicMock(), model="claude-sonnet-4", stream=True)
+            assert isinstance(result, _InstrumentedAnthropicAsyncStream)
+            with pytest.raises(RuntimeError, match="anthropic async stream failed"):
+                async for _ in result:
+                    pass
+
+        assert ctx.step_count == 1
+        assert ctx.cost > 0
 
 
 # ---------------------------------------------------------------------------

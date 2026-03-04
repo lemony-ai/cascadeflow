@@ -7,6 +7,7 @@ import os
 import time
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
+from functools import wraps
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable, Literal, Optional, TypeVar, cast
@@ -242,12 +243,14 @@ def reset() -> None:
 _MAX_ACTION_LEN = 64
 _MAX_REASON_LEN = 160
 _MAX_MODEL_LEN = 128
+_MAX_ENV_JSON_LEN = 4096
 
 
 def _sanitize_trace_value(value: Any, *, max_length: int) -> Optional[str]:
     if value is None:
         return None
     text = str(value).replace("\n", " ").replace("\r", " ").strip()
+    text = "".join(c for c in text if c.isprintable())
     if len(text) > max_length:
         text = text[: max_length - 3] + "..."
     return text or None
@@ -302,6 +305,10 @@ def _parse_int(raw: str) -> int:
 
 
 def _parse_json_dict(raw: str) -> dict[str, float]:
+    if len(raw) > _MAX_ENV_JSON_LEN:
+        raise ValueError(
+            f"JSON config exceeds {_MAX_ENV_JSON_LEN} characters for harness env var"
+        )
     value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("expected JSON object")
@@ -606,18 +613,18 @@ def agent(
 
         if inspect.iscoroutinefunction(func):
 
+            @wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return await func(*args, **kwargs)
 
             async_wrapper.__cascadeflow_agent_policy__ = metadata  # type: ignore[attr-defined]
-            async_wrapper.__name__ = getattr(func, "__name__", "wrapped_agent")
             return cast(F, async_wrapper)
 
+        @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
 
         sync_wrapper.__cascadeflow_agent_policy__ = metadata  # type: ignore[attr-defined]
-        sync_wrapper.__name__ = getattr(func, "__name__", "wrapped_agent")
         return cast(F, sync_wrapper)
 
     return decorator

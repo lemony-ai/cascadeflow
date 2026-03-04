@@ -621,6 +621,9 @@ class _InstrumentedStream(_InstrumentedStreamBase):
         except StopIteration:
             self._finalize()
             raise
+        except Exception:
+            self._finalize()
+            raise
 
     def __enter__(self) -> _InstrumentedStream:
         if hasattr(self._stream, "__enter__"):
@@ -648,6 +651,9 @@ class _InstrumentedAsyncStream(_InstrumentedStreamBase):
             self._inspect_chunk(chunk)
             return chunk
         except StopAsyncIteration:
+            self._finalize()
+            raise
+        except Exception:
             self._finalize()
             raise
 
@@ -783,6 +789,9 @@ class _InstrumentedAnthropicStream(_InstrumentedAnthropicStreamBase):
         except StopIteration:
             self._finalize()
             raise
+        except Exception:
+            self._finalize()
+            raise
 
     def __enter__(self) -> _InstrumentedAnthropicStream:
         if hasattr(self._stream, "__enter__"):
@@ -810,6 +819,9 @@ class _InstrumentedAnthropicAsyncStream(_InstrumentedAnthropicStreamBase):
             self._inspect_event(event)
             return event
         except StopAsyncIteration:
+            self._finalize()
+            raise
+        except Exception:
             self._finalize()
             raise
 
