@@ -11,6 +11,7 @@ Welcome to cascadeflow documentation! 🌊
 
 ### Core Concepts
 - [Quickstart](guides/quickstart.md) - Get started with cascadeflow in 5 minutes
+- [Python Harness Quickstart](guides/python_harness_quickstart.md) - `init`, `run`, and `@agent` for in-process policy control
 - [Providers](guides/providers.md) - Configure and use different AI providers (OpenAI, Anthropic, Groq, Ollama, etc.)
 - [Presets](guides/presets.md) - Use built-in presets for common use cases
 - [Gateway Server](guides/gateway.md) - Drop-in OpenAI/Anthropic-compatible endpoint for existing apps
@@ -39,9 +40,11 @@ Welcome to cascadeflow documentation! 🌊
 - [Agent Intelligence V2/V2.1 Plan](strategy/agent-intelligence-v2-plan.md) - Unified strategic and execution plan for in-process agent intelligence harness delivery
 
 ### Integrations
+- [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
+- [CrewAI Integration](guides/crewai_integration.md) - Hook-based harness metrics + budget gating (opt-in)
+- [Google ADK Integration](guides/google_adk_integration.md) - Plugin-based harness integration for ADK runners (opt-in)
 - [n8n Integration](guides/n8n_integration.md) - Use cascadeflow in n8n workflows
 - [Paygentic Integration](guides/paygentic_integration.md) - Usage metering and billing lifecycle helpers (opt-in)
-- [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
 
 ## 📚 Examples
 

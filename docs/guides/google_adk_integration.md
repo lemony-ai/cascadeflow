@@ -11,7 +11,8 @@ trace recording across all agents in an ADK Runner.
 - **Plugin-based** — Uses ADK's `BasePlugin` system to intercept every LLM call
   across all agents in a Runner. One plugin covers the entire agent graph.
 - **Opt-in** — Install `cascadeflow[google-adk]` and create a plugin explicitly.
-  Never enabled by default.
+  Never enabled by default. Core cascadeflow behavior is unchanged unless you
+  explicitly wire this integration into `Runner(plugins=[...])`.
 - **Fail-open** — Integration errors are logged but never break ADK execution
   (configurable).
 - **No tool gating** — ADK's `tools_dict` is part of agent definition, not
