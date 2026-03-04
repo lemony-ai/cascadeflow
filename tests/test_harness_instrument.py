@@ -1,4 +1,4 @@
-"""Tests for cascadeflow.harness.instrument — OpenAI auto-instrumentation."""
+"""Tests for cascadeflow.harness.instrument — OpenAI + Anthropic auto-instrumentation."""
 
 from __future__ import annotations
 
@@ -15,8 +15,12 @@ from cascadeflow.harness import init, reset, run
 from cascadeflow.harness.instrument import (
     _InstrumentedAsyncStream,
     _InstrumentedStream,
+    _count_tool_calls_in_anthropic_response,
     _estimate_cost,
     _estimate_energy,
+    _extract_anthropic_usage,
+    _make_patched_anthropic_async_create,
+    _make_patched_anthropic_create,
     _make_patched_async_create,
     _make_patched_create,
     is_anthropic_patched,
@@ -967,3 +971,381 @@ class TestStreamUsageInjection:
 
         call_kwargs = original.call_args[1]
         assert "stream_options" not in call_kwargs
+
+
+# ===========================================================================
+# Anthropic instrumentation tests
+# ===========================================================================
+
+
+def _mock_anthropic_usage(input_tokens: int = 100, output_tokens: int = 50) -> MagicMock:
+    u = MagicMock()
+    u.input_tokens = input_tokens
+    u.output_tokens = output_tokens
+    return u
+
+
+def _mock_anthropic_response(
+    input_tokens: int = 100,
+    output_tokens: int = 50,
+    content: Optional[list] = None,
+) -> MagicMock:
+    resp = MagicMock()
+    resp.usage = _mock_anthropic_usage(input_tokens, output_tokens)
+    resp.content = content or []
+    return resp
+
+
+def _mock_tool_use_block() -> MagicMock:
+    block = MagicMock()
+    block.type = "tool_use"
+    return block
+
+
+def _mock_text_block() -> MagicMock:
+    block = MagicMock()
+    block.type = "text"
+    return block
+
+
+# ---------------------------------------------------------------------------
+# Anthropic usage extraction
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicUsageExtraction:
+    def test_extract_usage(self) -> None:
+        resp = _mock_anthropic_response(input_tokens=200, output_tokens=100)
+        inp, out = _extract_anthropic_usage(resp)
+        assert inp == 200
+        assert out == 100
+
+    def test_extract_usage_none(self) -> None:
+        resp = MagicMock()
+        resp.usage = None
+        inp, out = _extract_anthropic_usage(resp)
+        assert inp == 0
+        assert out == 0
+
+
+# ---------------------------------------------------------------------------
+# Anthropic tool call counting
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicToolCallCounting:
+    def test_counts_tool_use_blocks(self) -> None:
+        resp = _mock_anthropic_response(
+            content=[_mock_text_block(), _mock_tool_use_block(), _mock_tool_use_block()]
+        )
+        assert _count_tool_calls_in_anthropic_response(resp) == 2
+
+    def test_no_content(self) -> None:
+        resp = MagicMock()
+        resp.content = None
+        assert _count_tool_calls_in_anthropic_response(resp) == 0
+
+    def test_empty_content(self) -> None:
+        resp = _mock_anthropic_response(content=[])
+        assert _count_tool_calls_in_anthropic_response(resp) == 0
+
+    def test_text_only(self) -> None:
+        resp = _mock_anthropic_response(content=[_mock_text_block()])
+        assert _count_tool_calls_in_anthropic_response(resp) == 0
+
+
+# ---------------------------------------------------------------------------
+# Anthropic sync wrapper
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicSyncWrapper:
+    def test_observe_passes_through_response(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            result = wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert result is mock_resp
+        original.assert_called_once()
+
+    def test_observe_tracks_cost(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=100.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        # claude-sonnet-4: $3.00/1M in + $15.00/1M out = $18.00
+        assert ctx.cost == pytest.approx(18.0, abs=0.01)
+
+    def test_observe_tracks_step_count(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert ctx.step_count == 2
+
+    def test_observe_tracks_tool_calls(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response(
+            content=[_mock_tool_use_block(), _mock_tool_use_block()]
+        )
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert ctx.tool_calls == 2
+
+    def test_observe_tracks_energy(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response(input_tokens=1000, output_tokens=500)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        # claude-sonnet-4 uses default coefficient=1.0, output_weight=1.5
+        # energy = 1.0 * (1000 + 500 * 1.5) = 1750.0
+        assert ctx.energy_used == pytest.approx(1750.0)
+
+    def test_observe_tracks_latency(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert ctx.latency_used_ms > 0
+
+    def test_budget_remaining_decreases(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=100.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert ctx.budget_remaining is not None
+        assert ctx.budget_remaining == pytest.approx(100.0 - 18.0, abs=0.01)
+
+    def test_trace_records_model_and_mode(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        trace = ctx.trace()
+        assert len(trace) == 1
+        assert trace[0]["action"] == "allow"
+        assert trace[0]["reason"] == "observe"
+        assert trace[0]["model"] == "claude-sonnet-4"
+
+    def test_off_mode_passthrough_no_tracking(self) -> None:
+        init(mode="off")
+        mock_resp = _mock_anthropic_response()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run() as ctx:
+            result = wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert result is mock_resp
+        assert ctx.cost == 0.0
+        assert ctx.step_count == 0
+
+    def test_no_run_scope_returns_response(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        result = wrapper(MagicMock(), model="claude-sonnet-4")
+        assert result is mock_resp
+
+    def test_stream_passthrough_no_usage_tracking(self) -> None:
+        """Anthropic streams are not instrumented in V2.1 — verify passthrough."""
+        init(mode="observe")
+        mock_stream = MagicMock()
+        original = MagicMock(return_value=mock_stream)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=1.0) as ctx:
+            result = wrapper(MagicMock(), model="claude-sonnet-4", stream=True)
+
+        assert result is mock_stream
+        assert ctx.cost == 0.0
+        assert ctx.step_count == 0
+
+    def test_multiple_calls_accumulate(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=100.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert ctx.cost == pytest.approx(36.0, abs=0.01)
+        assert ctx.step_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Anthropic async wrapper
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicAsyncWrapper:
+    async def test_observe_passes_through_response(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response()
+        original = AsyncMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_async_create(original)
+
+        async with run(budget=1.0) as ctx:
+            result = await wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert result is mock_resp
+
+    async def test_observe_tracks_cost(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
+        original = AsyncMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_async_create(original)
+
+        async with run(budget=100.0) as ctx:
+            await wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert ctx.cost == pytest.approx(18.0, abs=0.01)
+        assert ctx.step_count == 1
+
+    async def test_off_mode_passthrough(self) -> None:
+        init(mode="off")
+        mock_resp = _mock_anthropic_response()
+        original = AsyncMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_async_create(original)
+
+        async with run() as ctx:
+            result = await wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert result is mock_resp
+        assert ctx.cost == 0.0
+
+    async def test_stream_passthrough(self) -> None:
+        init(mode="observe")
+        mock_stream = AsyncMock()
+        original = AsyncMock(return_value=mock_stream)
+        wrapper = _make_patched_anthropic_async_create(original)
+
+        async with run(budget=1.0) as ctx:
+            result = await wrapper(MagicMock(), model="claude-sonnet-4", stream=True)
+
+        assert result is mock_stream
+        assert ctx.cost == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Anthropic enforce mode
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicEnforceMode:
+    def test_enforce_trace_records_enforce_reason(self) -> None:
+        init(mode="enforce")
+        mock_resp = _mock_anthropic_response()
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=100.0) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        trace = ctx.trace()
+        assert trace[0]["reason"] == "enforce"
+
+    def test_enforce_raises_on_budget_exhausted(self) -> None:
+        from cascadeflow.schema.exceptions import BudgetExceededError
+
+        init(mode="enforce")
+        mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=0.001) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+            with pytest.raises(BudgetExceededError):
+                wrapper(MagicMock(), model="claude-sonnet-4")
+
+    def test_observe_does_not_raise_on_budget_exhausted(self) -> None:
+        init(mode="observe")
+        mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
+        original = MagicMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_create(original)
+
+        with run(budget=0.001) as ctx:
+            wrapper(MagicMock(), model="claude-sonnet-4")
+            wrapper(MagicMock(), model="claude-sonnet-4")
+
+        assert ctx.cost > ctx.budget_max
+
+    async def test_async_enforce_raises_on_budget_exhausted(self) -> None:
+        from cascadeflow.schema.exceptions import BudgetExceededError
+
+        init(mode="enforce")
+        mock_resp = _mock_anthropic_response(input_tokens=1_000_000, output_tokens=1_000_000)
+        original = AsyncMock(return_value=mock_resp)
+        wrapper = _make_patched_anthropic_async_create(original)
+
+        async with run(budget=0.001) as ctx:
+            await wrapper(MagicMock(), model="claude-sonnet-4")
+            with pytest.raises(BudgetExceededError):
+                await wrapper(MagicMock(), model="claude-sonnet-4")
+
+
+# ---------------------------------------------------------------------------
+# Anthropic init() integration
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicInitIntegration:
+    def test_init_observe_patches_anthropic(self) -> None:
+        if find_spec("anthropic") is None:
+            pytest.skip("anthropic package not available")
+        report = init(mode="observe")
+        assert "anthropic" in report.instrumented
+        assert is_anthropic_patched()
+
+    def test_init_off_unpatches_anthropic(self) -> None:
+        if find_spec("anthropic") is None:
+            pytest.skip("anthropic package not available")
+        init(mode="observe")
+        assert is_anthropic_patched()
+        init(mode="off")
+        assert not is_anthropic_patched()
+
+    def test_reset_unpatches_anthropic(self) -> None:
+        if find_spec("anthropic") is None:
+            pytest.skip("anthropic package not available")
+        init(mode="observe")
+        assert is_anthropic_patched()
+        reset()
+        assert not is_anthropic_patched()
