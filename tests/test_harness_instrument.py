@@ -13,6 +13,8 @@ pytest.importorskip("openai", reason="openai package required for instrumentatio
 
 from cascadeflow.harness import init, reset, run
 from cascadeflow.harness.instrument import (
+    _InstrumentedAnthropicAsyncStream,
+    _InstrumentedAnthropicStream,
     _InstrumentedAsyncStream,
     _InstrumentedStream,
     _count_tool_calls_in_anthropic_response,
@@ -978,7 +980,10 @@ class TestStreamUsageInjection:
 # ===========================================================================
 
 
-def _mock_anthropic_usage(input_tokens: int = 100, output_tokens: int = 50) -> MagicMock:
+def _mock_anthropic_usage(
+    input_tokens: Optional[int] = 100,
+    output_tokens: Optional[int] = 50,
+) -> MagicMock:
     u = MagicMock()
     u.input_tokens = input_tokens
     u.output_tokens = output_tokens
@@ -1006,6 +1011,43 @@ def _mock_text_block() -> MagicMock:
     block = MagicMock()
     block.type = "text"
     return block
+
+
+def _mock_anthropic_message_start_event(
+    input_tokens: int = 100,
+    output_tokens: int = 0,
+) -> MagicMock:
+    event = MagicMock()
+    event.type = "message_start"
+    event.message = MagicMock()
+    event.message.usage = _mock_anthropic_usage(input_tokens, output_tokens)
+    return event
+
+
+def _mock_anthropic_message_delta_event(
+    output_tokens: int = 50,
+) -> MagicMock:
+    event = MagicMock()
+    event.type = "message_delta"
+    event.usage = _mock_anthropic_usage(None, output_tokens)
+    return event
+
+
+def _mock_anthropic_content_block_start_event(
+    block_type: str = "tool_use",
+) -> MagicMock:
+    event = MagicMock()
+    event.type = "content_block_start"
+    event.content_block = MagicMock()
+    event.content_block.type = block_type
+    return event
+
+
+def _mock_anthropic_message_stop_event() -> MagicMock:
+    event = MagicMock()
+    event.type = "message_stop"
+    event.usage = None
+    return event
 
 
 # ---------------------------------------------------------------------------
@@ -1182,19 +1224,27 @@ class TestAnthropicSyncWrapper:
         result = wrapper(MagicMock(), model="claude-sonnet-4")
         assert result is mock_resp
 
-    def test_stream_passthrough_no_usage_tracking(self) -> None:
-        """Anthropic streams are not instrumented in V2.1 — verify passthrough."""
+    def test_stream_tracks_usage_and_tool_calls(self) -> None:
         init(mode="observe")
-        mock_stream = MagicMock()
+        mock_stream = iter(
+            [
+                _mock_anthropic_message_start_event(input_tokens=1_000_000),
+                _mock_anthropic_content_block_start_event("tool_use"),
+                _mock_anthropic_message_delta_event(output_tokens=1_000_000),
+                _mock_anthropic_message_stop_event(),
+            ]
+        )
         original = MagicMock(return_value=mock_stream)
         wrapper = _make_patched_anthropic_create(original)
 
         with run(budget=1.0) as ctx:
             result = wrapper(MagicMock(), model="claude-sonnet-4", stream=True)
+            assert isinstance(result, _InstrumentedAnthropicStream)
+            list(result)
 
-        assert result is mock_stream
-        assert ctx.cost == 0.0
-        assert ctx.step_count == 0
+        assert ctx.cost == pytest.approx(18.0, abs=0.01)
+        assert ctx.step_count == 1
+        assert ctx.tool_calls == 1
 
     def test_multiple_calls_accumulate(self) -> None:
         init(mode="observe")
@@ -1251,17 +1301,27 @@ class TestAnthropicAsyncWrapper:
         assert result is mock_resp
         assert ctx.cost == 0.0
 
-    async def test_stream_passthrough(self) -> None:
+    async def test_stream_tracks_usage_and_tool_calls(self) -> None:
         init(mode="observe")
-        mock_stream = AsyncMock()
-        original = AsyncMock(return_value=mock_stream)
+
+        async def _event_stream():
+            yield _mock_anthropic_message_start_event(input_tokens=1_000_000)
+            yield _mock_anthropic_content_block_start_event("tool_use")
+            yield _mock_anthropic_message_delta_event(output_tokens=1_000_000)
+            yield _mock_anthropic_message_stop_event()
+
+        original = AsyncMock(return_value=_event_stream())
         wrapper = _make_patched_anthropic_async_create(original)
 
         async with run(budget=1.0) as ctx:
             result = await wrapper(MagicMock(), model="claude-sonnet-4", stream=True)
+            assert isinstance(result, _InstrumentedAnthropicAsyncStream)
+            async for _ in result:
+                pass
 
-        assert result is mock_stream
-        assert ctx.cost == 0.0
+        assert ctx.cost == pytest.approx(18.0, abs=0.01)
+        assert ctx.step_count == 1
+        assert ctx.tool_calls == 1
 
 
 # ---------------------------------------------------------------------------

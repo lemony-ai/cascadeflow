@@ -663,6 +663,168 @@ class _InstrumentedAsyncStream(_InstrumentedStreamBase):
         return False
 
 
+class _InstrumentedAnthropicStreamBase:
+    """Shared stream-wrapper logic for sync and async Anthropic streams."""
+
+    __slots__ = (
+        "_stream",
+        "_ctx",
+        "_model",
+        "_start_time",
+        "_pre_action",
+        "_pre_reason",
+        "_pre_model",
+        "_pre_applied",
+        "_decision_mode",
+        "_input_tokens",
+        "_output_tokens",
+        "_tool_call_count",
+        "_finalized",
+    )
+
+    def __init__(
+        self,
+        stream: Any,
+        ctx: Any,
+        model: str,
+        start_time: float,
+        pre_action: str = "allow",
+        pre_reason: str = "observe",
+        pre_model: str | None = None,
+        pre_applied: bool = True,
+        decision_mode: str = "observe",
+    ) -> None:
+        self._stream = stream
+        self._ctx = ctx
+        self._model = model
+        self._start_time = start_time
+        self._pre_action = pre_action
+        self._pre_reason = pre_reason
+        self._pre_model = pre_model or model
+        self._pre_applied = pre_applied
+        self._decision_mode = decision_mode
+        self._input_tokens: int = 0
+        self._output_tokens: int = 0
+        self._tool_call_count: int = 0
+        self._finalized: bool = False
+
+    def close(self) -> None:
+        self._finalize()
+        if hasattr(self._stream, "close"):
+            self._stream.close()
+
+    def _inspect_event(self, event: Any) -> None:
+        event_type = getattr(event, "type", None)
+
+        if event_type == "message_start":
+            message = getattr(event, "message", None)
+            usage = getattr(message, "usage", None)
+            if usage is not None:
+                input_tokens = getattr(usage, "input_tokens", None)
+                output_tokens = getattr(usage, "output_tokens", None)
+                if isinstance(input_tokens, (int, float)):
+                    self._input_tokens = int(input_tokens) if input_tokens > 0 else 0
+                if isinstance(output_tokens, (int, float)):
+                    self._output_tokens = int(output_tokens) if output_tokens > 0 else 0
+            return
+
+        usage = getattr(event, "usage", None)
+        if usage is not None:
+            input_tokens = getattr(usage, "input_tokens", None)
+            output_tokens = getattr(usage, "output_tokens", None)
+            if isinstance(input_tokens, (int, float)) and input_tokens > 0:
+                self._input_tokens = int(input_tokens)
+            if isinstance(output_tokens, (int, float)):
+                self._output_tokens = int(output_tokens) if output_tokens > 0 else 0
+
+        if event_type == "content_block_start":
+            content_block = getattr(event, "content_block", None)
+            block_type = getattr(content_block, "type", None)
+            if block_type in {"tool_use", "server_tool_use"}:
+                self._tool_call_count += 1
+
+    def _finalize(self) -> None:
+        if self._finalized:
+            return
+        self._finalized = True
+
+        if self._ctx is None:
+            return
+
+        elapsed_ms = (time.monotonic() - self._start_time) * 1000
+        _update_context(
+            self._ctx,
+            self._model,
+            self._input_tokens,
+            self._output_tokens,
+            self._tool_call_count,
+            elapsed_ms,
+            action=self._pre_action,
+            action_reason=self._pre_reason,
+            action_model=self._pre_model,
+            applied=self._pre_applied,
+            decision_mode=self._decision_mode,
+        )
+
+
+class _InstrumentedAnthropicStream(_InstrumentedAnthropicStreamBase):
+    """Wraps an Anthropic sync stream and tracks usage at stream end."""
+
+    __slots__ = ()
+
+    def __iter__(self) -> _InstrumentedAnthropicStream:
+        return self
+
+    def __next__(self) -> Any:
+        try:
+            event = next(self._stream)
+            self._inspect_event(event)
+            return event
+        except StopIteration:
+            self._finalize()
+            raise
+
+    def __enter__(self) -> _InstrumentedAnthropicStream:
+        if hasattr(self._stream, "__enter__"):
+            self._stream.__enter__()
+        return self
+
+    def __exit__(self, *args: Any) -> bool:
+        self._finalize()
+        if hasattr(self._stream, "__exit__"):
+            return self._stream.__exit__(*args)  # type: ignore[no-any-return]
+        return False
+
+
+class _InstrumentedAnthropicAsyncStream(_InstrumentedAnthropicStreamBase):
+    """Wraps an Anthropic async stream and tracks usage at stream end."""
+
+    __slots__ = ()
+
+    def __aiter__(self) -> _InstrumentedAnthropicAsyncStream:
+        return self
+
+    async def __anext__(self) -> Any:
+        try:
+            event = await self._stream.__anext__()
+            self._inspect_event(event)
+            return event
+        except StopAsyncIteration:
+            self._finalize()
+            raise
+
+    async def __aenter__(self) -> _InstrumentedAnthropicAsyncStream:
+        if hasattr(self._stream, "__aenter__"):
+            await self._stream.__aenter__()
+        return self
+
+    async def __aexit__(self, *args: Any) -> bool:
+        self._finalize()
+        if hasattr(self._stream, "__aexit__"):
+            return await self._stream.__aexit__(*args)  # type: ignore[no-any-return]
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Wrapper factories
 # ---------------------------------------------------------------------------
@@ -877,14 +1039,18 @@ def _make_patched_anthropic_create(original_fn: Any) -> Any:
             )
             return response
 
-        # Anthropic stream wrappers are not instrumented in V2.1 (known limitation).
         if is_stream:
-            logger.debug(
-                "harness %s (anthropic): stream passthrough model=%s (usage tracking unavailable)",
-                mode,
+            return _InstrumentedAnthropicStream(
+                response,
+                ctx,
                 model,
+                start_time,
+                pre_action,
+                pre_reason,
+                pre_model,
+                pre_applied,
+                mode,
             )
-            return response
 
         elapsed_ms = (time.monotonic() - start_time) * 1000
         input_tokens, output_tokens = _extract_anthropic_usage(response)
@@ -949,14 +1115,18 @@ def _make_patched_anthropic_async_create(original_fn: Any) -> Any:
             )
             return response
 
-        # Anthropic stream wrappers are not instrumented in V2.1 (known limitation).
         if is_stream:
-            logger.debug(
-                "harness %s async (anthropic): stream passthrough model=%s (usage tracking unavailable)",
-                mode,
+            return _InstrumentedAnthropicAsyncStream(
+                response,
+                ctx,
                 model,
+                start_time,
+                pre_action,
+                pre_reason,
+                pre_model,
+                pre_applied,
+                mode,
             )
-            return response
 
         elapsed_ms = (time.monotonic() - start_time) * 1000
         input_tokens, output_tokens = _extract_anthropic_usage(response)
