@@ -397,6 +397,21 @@ class TestAfterModelCallback:
             await plugin.after_model_callback(cb_ctx, response)
             assert run_ctx.latency_used_ms == 0.0
 
+    async def test_fallback_key_tracks_across_distinct_context_objects(self, plugin):
+        """ADK runtimes may pass different callback_context objects per phase."""
+        init(mode="observe")
+        with run() as run_ctx:
+            before_ctx = FakeCallbackContext(invocation_id="inv-x", agent_name="agent-a")
+            after_ctx = FakeCallbackContext(invocation_id="inv-x", agent_name="agent-a")
+            await plugin.before_model_callback(before_ctx, FakeLlmRequest("gemini-2.5-flash"))
+
+            response = FakeLlmResponse(
+                usage_metadata=FakeUsageMetadata(100, 50),
+            )
+            await plugin.after_model_callback(after_ctx, response)
+            assert run_ctx.model_used == "gemini-2.5-flash"
+            assert run_ctx.latency_used_ms >= 0.0
+
     async def test_fail_open_swallows_errors(self, plugin):
         init(mode="observe")
         with run():
@@ -473,6 +488,7 @@ class TestEnableDisable:
     def test_enable_returns_plugin_instance(self):
         plugin = adk_mod.enable()
         assert isinstance(plugin, adk_mod.CascadeFlowADKPlugin)
+        assert plugin.name == "cascadeflow_harness"
         assert adk_mod.is_enabled()
 
     def test_enable_is_idempotent(self):

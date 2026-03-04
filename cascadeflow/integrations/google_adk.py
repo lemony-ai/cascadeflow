@@ -114,6 +114,13 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
     """
 
     def __init__(self, config: Optional[GoogleADKHarnessConfig] = None) -> None:
+        # google-adk BasePlugin requires a stable plugin name.
+        try:
+            super().__init__(name="cascadeflow_harness")
+        except TypeError:
+            # Fallback for local test environments where BasePlugin is ``object``.
+            super().__init__()
+            self.name = "cascadeflow_harness"
         self._config = config or GoogleADKHarnessConfig()
         self._active = True
         self._call_seq: int = 0
@@ -122,6 +129,9 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
         # two concurrent calls share (invocation_id, agent_name).
         self._call_start_times: dict[int, float] = {}
         self._call_models: dict[int, str] = {}
+        # Fallback mapping for runtimes that provide distinct callback_context
+        # objects between before/after callbacks.
+        self._call_fallback_keys: dict[tuple[str, str], list[int]] = {}
 
     @staticmethod
     def _callback_key(callback_context: Any) -> int:
@@ -132,6 +142,36 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
         before/after/error callback sequence for a single LLM call.
         """
         return id(callback_context)
+
+    @staticmethod
+    def _fallback_key(callback_context: Any) -> tuple[str, str]:
+        """Return a stable fallback key for correlation across callbacks."""
+        invocation_id = str(getattr(callback_context, "invocation_id", "") or "")
+        agent_name = str(getattr(callback_context, "agent_name", "") or "")
+        return (invocation_id, agent_name)
+
+    def _track_call_key(self, callback_context: Any, key: int) -> None:
+        """Register key in fallback queue for cross-object callback matching."""
+        fallback_key = self._fallback_key(callback_context)
+        if not fallback_key[0] and not fallback_key[1]:
+            return
+        self._call_fallback_keys.setdefault(fallback_key, []).append(key)
+
+    def _resolve_call_key(self, callback_context: Any) -> int | None:
+        """Resolve stored key for callback context across runtime variants."""
+        key = self._callback_key(callback_context)
+        if key in self._call_models or key in self._call_start_times:
+            return key
+
+        fallback_key = self._fallback_key(callback_context)
+        keys = self._call_fallback_keys.get(fallback_key)
+        if not keys:
+            return None
+
+        resolved = keys.pop(0)
+        if not keys:
+            self._call_fallback_keys.pop(fallback_key, None)
+        return resolved
 
     async def before_model_callback(
         self,
@@ -178,6 +218,7 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
             # Record start time and model for after_model_callback
             self._call_start_times[key] = time.monotonic()
             self._call_models[key] = model
+            self._track_call_key(callback_context, key)
 
             return None
         except Exception:
@@ -204,10 +245,10 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
             if ctx.mode == "off":
                 return None
 
-            key = self._callback_key(callback_context)
+            key = self._resolve_call_key(callback_context)
 
             # Recover model name stored during before_model_callback
-            model = self._call_models.pop(key, "unknown")
+            model = self._call_models.pop(key, "unknown") if key is not None else "unknown"
 
             # Extract token counts from usage_metadata
             input_tokens, output_tokens = self._extract_tokens(llm_response)
@@ -221,7 +262,7 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
             energy = estimate_energy(model, input_tokens, output_tokens)
 
             # Latency
-            start_time = self._call_start_times.pop(key, None)
+            start_time = self._call_start_times.pop(key, None) if key is not None else None
             elapsed_ms = (time.monotonic() - start_time) * 1000 if start_time else 0.0
 
             # Update run context
@@ -257,19 +298,26 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
     async def on_model_error_callback(
         self,
         callback_context: Any,
-        error: Exception,
+        llm_request: Any = None,
+        error: Exception | None = None,
     ) -> Any:
         """Record error in trace and clean up timing state."""
         if not self._active:
             return None
 
         try:
-            key = self._callback_key(callback_context)
-            model = self._call_models.pop(key, "unknown")
-            self._call_start_times.pop(key, None)
+            # Backward-compatible calling form used in existing tests:
+            # on_model_error_callback(callback_context, error)
+            if error is None and isinstance(llm_request, Exception):
+                error = llm_request
+
+            key = self._resolve_call_key(callback_context)
+            model = self._call_models.pop(key, "unknown") if key is not None else "unknown"
+            if key is not None:
+                self._call_start_times.pop(key, None)
 
             ctx = get_current_run()
-            if ctx is not None:
+            if ctx is not None and error is not None:
                 error_type = type(error).__name__
                 ctx.record(
                     action="error",
@@ -292,6 +340,7 @@ class CascadeFlowADKPlugin(_ADKBasePlugin):  # type: ignore[misc]
         self._call_seq = 0
         self._call_start_times.clear()
         self._call_models.clear()
+        self._call_fallback_keys.clear()
 
     @staticmethod
     def _extract_tokens(llm_response: Any) -> tuple[int, int]:
