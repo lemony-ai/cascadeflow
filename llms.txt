@@ -77,7 +77,7 @@ All integrations are opt-in. Install the extra and explicitly enable the integra
 
 ## Supported Models (pricing table)
 
-OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, o1, o1-mini, o3-mini, gpt-5, gpt-5-mini, gpt-5-nano
+OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, o1, o1-mini, o3-mini, gpt-5, gpt-5-mini
 Anthropic: claude-sonnet-4, claude-haiku-3.5, claude-opus-4.5
 Google: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro
 

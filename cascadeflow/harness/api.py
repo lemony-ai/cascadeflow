@@ -41,6 +41,16 @@ class HarnessInitReport:
 
 @dataclass
 class HarnessRunContext:
+    """Scoped run context for tracking harness metrics across LLM calls.
+
+    Thread safety: the context is stored in a ``ContextVar`` and is safe for
+    asyncio (each task gets its own copy of the token).  However, the context
+    object itself uses plain attribute mutation (``+=``) for counters.  If
+    multiple OS threads share the *same* ``HarnessRunContext`` instance,
+    concurrent updates may race.  Each ``with run(...)`` scope should be
+    confined to a single thread or asyncio task.
+    """
+
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
     _started_monotonic: float = field(default_factory=time.monotonic, init=False, repr=False)
     started_at_ms: float = field(default_factory=lambda: time.time() * 1000)
@@ -175,6 +185,8 @@ class HarnessRunContext:
         if decision_mode is not None:
             entry["decision_mode"] = decision_mode
         self._trace.append(entry)
+        if len(self._trace) > _MAX_TRACE_ENTRIES:
+            self._trace = self._trace[-_MAX_TRACE_ENTRIES:]
         _emit_harness_decision(entry)
 
 
@@ -191,6 +203,32 @@ def _validate_mode(mode: str) -> HarnessMode:
     if mode not in {"off", "observe", "enforce"}:
         raise ValueError("mode must be one of: off, observe, enforce")
     return cast(HarnessMode, mode)
+
+
+_VALID_COMPLIANCE_VALUES = {"gdpr", "hipaa", "pci", "strict"}
+
+
+def _validate_harness_params(
+    *,
+    budget: Optional[float],
+    max_tool_calls: Optional[int],
+    max_latency_ms: Optional[float],
+    max_energy: Optional[float],
+    compliance: Optional[str],
+) -> None:
+    """Validate harness parameters, raising ValueError for invalid inputs."""
+    if budget is not None and budget < 0:
+        raise ValueError(f"budget must be non-negative, got {budget}")
+    if max_tool_calls is not None and max_tool_calls < 0:
+        raise ValueError(f"max_tool_calls must be non-negative, got {max_tool_calls}")
+    if max_latency_ms is not None and max_latency_ms < 0:
+        raise ValueError(f"max_latency_ms must be non-negative, got {max_latency_ms}")
+    if max_energy is not None and max_energy < 0:
+        raise ValueError(f"max_energy must be non-negative, got {max_energy}")
+    if compliance is not None and compliance.strip().lower() not in _VALID_COMPLIANCE_VALUES:
+        raise ValueError(
+            f"compliance must be one of {sorted(_VALID_COMPLIANCE_VALUES)}, got {compliance!r}"
+        )
 
 
 def _detect_sdks() -> dict[str, bool]:
@@ -244,6 +282,7 @@ _MAX_ACTION_LEN = 64
 _MAX_REASON_LEN = 160
 _MAX_MODEL_LEN = 128
 _MAX_ENV_JSON_LEN = 4096
+_MAX_TRACE_ENTRIES = 1000
 
 
 def _sanitize_trace_value(value: Any, *, max_length: int) -> Optional[str]:
@@ -482,6 +521,13 @@ def init(
         sources["callback_manager"] = "code"
 
     validated_mode = _validate_mode(str(resolved_mode))
+    _validate_harness_params(
+        budget=cast(Optional[float], resolved_budget),
+        max_tool_calls=cast(Optional[int], resolved_max_tool_calls),
+        max_latency_ms=cast(Optional[float], resolved_max_latency_ms),
+        max_energy=cast(Optional[float], resolved_max_energy),
+        compliance=cast(Optional[str], resolved_compliance),
+    )
     _harness_config = HarnessConfig(
         mode=validated_mode,
         verbose=bool(resolved_verbose),
@@ -572,6 +618,14 @@ def run(
     resolved_kpi_targets = kpi_targets if kpi_targets is not None else config.kpi_targets
     resolved_kpi_weights = kpi_weights if kpi_weights is not None else config.kpi_weights
     resolved_compliance = compliance if compliance is not None else config.compliance
+
+    _validate_harness_params(
+        budget=resolved_budget,
+        max_tool_calls=resolved_tool_calls,
+        max_latency_ms=resolved_latency,
+        max_energy=resolved_energy,
+        compliance=resolved_compliance,
+    )
 
     return HarnessRunContext(
         mode=config.mode,

@@ -240,6 +240,15 @@ function selectLowerEnergyModel(currentModel: string): string {
 // HarnessRunContext
 // ---------------------------------------------------------------------------
 
+const MAX_TRACE_ENTRIES = 1000;
+
+/** Coerce NaN, Infinity, or negative values to null (unlimited). */
+function sanitizeNumericParam(value: number | null): number | null {
+  if (value === null || value === undefined) return null;
+  if (!Number.isFinite(value) || value < 0) return null;
+  return value;
+}
+
 let runIdCounter = 0;
 
 function generateRunId(): string {
@@ -266,8 +275,14 @@ export class HarnessRunContext {
 
   constructor(config: HarnessConfig) {
     this.runId = generateRunId();
-    this.config = config;
-    this.budgetRemaining = config.budgetMax;
+    this.config = {
+      ...config,
+      budgetMax: sanitizeNumericParam(config.budgetMax),
+      toolCallsMax: sanitizeNumericParam(config.toolCallsMax),
+      latencyMaxMs: sanitizeNumericParam(config.latencyMaxMs),
+      energyMax: sanitizeNumericParam(config.energyMax),
+    };
+    this.budgetRemaining = this.config.budgetMax;
     this.startedAt = Date.now();
   }
 
@@ -386,6 +401,9 @@ export class HarnessRunContext {
       applied,
       decisionMode: this.config.mode,
     });
+    if (this.trace.length > MAX_TRACE_ENTRIES) {
+      this.trace = this.trace.slice(-MAX_TRACE_ENTRIES);
+    }
   }
 
   // -----------------------------------------------------------------------

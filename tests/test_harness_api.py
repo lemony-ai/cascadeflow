@@ -474,3 +474,63 @@ def test_record_empty_action_warns_and_defaults(caplog):
     entry = ctx.trace()[0]
     assert entry["action"] == "allow"
     assert any("empty action" in rec.message for rec in caplog.records)
+
+
+def test_init_rejects_negative_budget():
+    with pytest.raises(ValueError, match="non-negative"):
+        init(mode="observe", budget=-1.0)
+
+
+def test_init_rejects_negative_max_tool_calls():
+    with pytest.raises(ValueError, match="non-negative"):
+        init(mode="observe", max_tool_calls=-1)
+
+
+def test_init_rejects_negative_max_latency():
+    with pytest.raises(ValueError, match="non-negative"):
+        init(mode="observe", max_latency_ms=-100.0)
+
+
+def test_init_rejects_negative_max_energy():
+    with pytest.raises(ValueError, match="non-negative"):
+        init(mode="observe", max_energy=-0.5)
+
+
+def test_init_rejects_invalid_compliance():
+    with pytest.raises(ValueError, match="compliance"):
+        init(mode="observe", compliance="invalid_mode")
+
+
+def test_run_rejects_negative_budget():
+    init(mode="observe")
+    with pytest.raises(ValueError, match="non-negative"):
+        run(budget=-0.5)
+
+
+def test_run_rejects_invalid_compliance():
+    init(mode="observe")
+    with pytest.raises(ValueError, match="compliance"):
+        run(compliance="foobar")
+
+
+def test_init_accepts_zero_budget():
+    report = init(mode="observe", budget=0.0)
+    cfg = get_harness_config()
+    assert cfg.budget == 0.0
+
+
+def test_init_accepts_valid_compliance():
+    for value in ("gdpr", "hipaa", "pci", "strict"):
+        reset()
+        report = init(mode="observe", compliance=value)
+        cfg = get_harness_config()
+        assert cfg.compliance == value
+
+
+def test_trace_rotation_limits_entries():
+    init(mode="observe")
+    with run(budget=100.0) as ctx:
+        for i in range(1050):
+            ctx.record(action="allow", reason="test", model="gpt-4o-mini")
+    trace = ctx.trace()
+    assert len(trace) <= 1000
