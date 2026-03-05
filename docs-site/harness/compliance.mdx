@@ -1,0 +1,66 @@
+---
+title: Compliance Gating
+description: GDPR, HIPAA, PCI, and strict model allowlists for compliance-aware model gating in agent workflows.
+---
+
+# Compliance Gating
+
+The harness enforces model allowlists based on compliance requirements. When a compliance mode is set, only models in the corresponding allowlist are permitted.
+
+## Compliance Modes
+
+| Mode | Allowed Models | Use Case |
+|---|---|---|
+| `gdpr` | gpt-4o, gpt-4o-mini, gpt-3.5-turbo | EU data protection |
+| `hipaa` | gpt-4o, gpt-4o-mini | Healthcare data |
+| `pci` | gpt-4o-mini, gpt-3.5-turbo | Payment card data |
+| `strict` | gpt-4o | Maximum restriction |
+
+## Usage
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+# GDPR compliance — only gpt-4o, gpt-4o-mini, gpt-3.5-turbo allowed
+with cascadeflow.run(compliance="gdpr") as session:
+    result = await agent.run("Process this EU customer data")
+```
+
+Or as agent metadata:
+
+```python
+@cascadeflow.agent(compliance="hipaa")
+async def medical_agent(query: str):
+    return await llm.complete(query)
+```
+
+## Enforcement Behavior
+
+When a model outside the allowlist is requested:
+
+- In `observe` mode: the trace records `action: "switch_model"` with the suggested compliant alternative, but execution continues with the original model
+- In `enforce` mode: the harness blocks the non-compliant model and either switches to a compliant alternative or stops execution
+
+## Combining with Budget
+
+Compliance and budget constraints are independent. Both are checked at every step:
+
+```python
+with cascadeflow.run(budget=0.50, compliance="gdpr") as session:
+    # Must stay within budget AND use only GDPR-approved models
+    result = await agent.run("Analyze EU customer feedback")
+```
+
+## Custom Allowlists
+
+The built-in allowlists cover common regulations. For custom requirements, set compliance at the integration level or use the `HarnessConfig` directly:
+
+```python
+config = HarnessConfig(
+    mode="enforce",
+    compliance="strict",  # Only gpt-4o
+)
+cascadeflow.init(config=config)
+```

@@ -1,0 +1,77 @@
+---
+title: "@cascadeflow/core"
+description: TypeScript core package with CascadeAgent for model routing, cost tracking, and quality validation.
+---
+
+# @cascadeflow/core
+
+The core TypeScript package for cascadeflow. Provides `CascadeAgent` for speculative model cascading with quality validation.
+
+## Install
+
+```bash
+npm install @cascadeflow/core
+```
+
+## CascadeAgent
+
+```typescript
+import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
+
+const result = await agent.run('What is TypeScript?');
+console.log(`Model: ${result.modelUsed}`);
+console.log(`Cost: $${result.totalCost}`);
+console.log(`Saved: ${result.savingsPercentage}%`);
+```
+
+## ModelConfig
+
+```typescript
+interface ModelConfig {
+  name: string;        // Model name (e.g. 'gpt-4o-mini')
+  provider: string;    // Provider name (e.g. 'openai')
+  cost: number;        // Cost per token (approximate)
+}
+```
+
+## CascadeAgentOptions
+
+```typescript
+interface CascadeAgentOptions {
+  models: ModelConfig[];
+  quality?: {
+    threshold?: number;              // Confidence threshold (0-1)
+    requireMinimumTokens?: number;   // Min response length
+    useSemanticValidation?: boolean; // Enable ML validation
+    semanticThreshold?: number;      // Semantic similarity threshold
+  };
+}
+```
+
+## Result
+
+```typescript
+interface CascadeResult {
+  content: string;
+  modelUsed: string;
+  totalCost: number;
+  savingsPercentage: number;
+  cascadeDecision: string;
+}
+```
+
+## Features
+
+- Speculative execution with quality validation
+- Multi-provider support (OpenAI, Anthropic, Groq, Ollama, vLLM)
+- Streaming responses
+- Tool calling and structured output
+- Cost tracking and analytics
+- Works in Node.js, Browser, and Edge Functions

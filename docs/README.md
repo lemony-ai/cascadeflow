@@ -1,8 +1,10 @@
 # cascadeflow Documentation
 
-Welcome to cascadeflow documentation! 🌊
+> **Full documentation is now at [docs.cascadeflow.dev](https://docs.cascadeflow.dev)** — the Mintlify-powered docs site is the primary reference for cascadeflow's agent runtime intelligence layer. The guides below remain for quick reference and deep links.
 
-## 📖 Quick Links
+Agent runtime intelligence layer — optimize cost, latency, quality, budget, compliance, and energy across AI agent workflows. In-process harness, not a proxy.
+
+## Quick Links
 
 - [Installation Guide](INSTALLATION.md)
 - [Quick Start Guide](guides/quickstart.md)
@@ -40,6 +42,7 @@ Welcome to cascadeflow documentation! 🌊
 - [Agent Intelligence V2/V2.1 Plan](strategy/agent-intelligence-v2-plan.md) - Unified strategic and execution plan for in-process agent intelligence harness delivery
 
 ### Integrations
+- [LangChain Integration](guides/langchain_integration.md) - Callback handler for LangChain/LangGraph with harness-aware cascading
 - [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
 - [CrewAI Integration](guides/crewai_integration.md) - Hook-based harness metrics + budget gating (opt-in)
 - [Google ADK Integration](guides/google_adk_integration.md) - Plugin-based harness integration for ADK runners (opt-in)

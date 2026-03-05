@@ -1,30 +1,23 @@
 """
-cascadeflow - Smart AI model cascading for cost optimization.
+cascadeflow - Agent runtime intelligence layer.
 
-Route queries intelligently across multiple AI models from tiny SLMs
-to frontier LLMs based on complexity, domain, and budget.
+In-process harness that optimizes cost, latency, quality, budget, compliance,
+and energy across AI agent workflows. Works inside agent execution loops with
+full state awareness -- not an external proxy.
 
-Features:
-- 🚀 Speculative cascades (2-3x faster)
-- 💰 60-95% cost savings
-- 🎯 Per-prompt domain detection
-- 🎨 2.0x domain boost for specialists
-- 🔍 Multi-factor optimization
-- 🆓 Free tier (Ollama + Groq)
-- ⚡ 3 lines of code
+Quick start:
+    import cascadeflow
+    cascadeflow.init(mode="observe")
+    # All OpenAI/Anthropic SDK calls are now tracked and traced.
 
-Example:
-    >>> from cascadeflow import CascadeAgent, CascadePresets
-    >>>
-    >>> # Auto-detect available models
-    >>> models = CascadePresets.auto_detect_models()
-    >>>
-    >>> # Create agent with intelligence layer
-    >>> agent = CascadeAgent(models, enable_caching=True)
-    >>>
-    >>> # Run query (automatically optimized!)
-    >>> result = await agent.run("Fix this Python bug")
-    >>> print(f"Used {result.model_used} - Cost: ${result.cost:.6f}")
+Key APIs:
+    cascadeflow.init(mode)        -- activate harness (off | observe | enforce)
+    cascadeflow.run(budget)       -- scoped run with budget/trace
+    @cascadeflow.agent(budget)    -- policy metadata on agent functions
+    session.summary()             -- structured metrics
+    session.trace()               -- full decision audit trail
+
+Integrations: LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI SDK
 """
 
 __version__ = "1.0.0"

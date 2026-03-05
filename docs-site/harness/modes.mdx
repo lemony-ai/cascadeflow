@@ -1,0 +1,78 @@
+---
+title: Harness Modes
+description: Three harness modes — off, observe, and enforce — with rollout guidance for production deployments.
+---
+
+# Harness Modes
+
+cascadeflow operates in one of three modes, set at initialization.
+
+## Modes
+
+### `off`
+
+No tracking, no enforcement. The harness is completely disabled. This is the default.
+
+```python
+cascadeflow.init(mode="off")
+```
+
+### `observe`
+
+Track all metrics and decisions, but never block execution. Every LLM call and tool execution is recorded with full decision traces. Actions are computed but not enforced — `applied` is always `false` in trace records.
+
+```python
+cascadeflow.init(mode="observe")
+```
+
+Use `observe` for:
+- Initial production rollout to validate metrics before enforcing
+- Shadow-mode testing to understand what the harness would do
+- Cost and usage analytics without affecting agent behavior
+
+### `enforce`
+
+Track all metrics and enforce constraints. When a hard cap is hit (budget, tool calls, latency, energy) or a compliance violation is detected, the harness takes action: `stop`, `deny_tool`, or `switch_model`.
+
+```python
+cascadeflow.init(mode="enforce")
+```
+
+Use `enforce` when:
+- You have validated metrics in `observe` mode
+- You need hard budget caps to prevent runaway costs
+- Compliance requirements mandate model gating
+
+## Rollout Guidance
+
+Recommended rollout sequence for production:
+
+1. **Deploy with `observe`** — No risk to agent behavior. Collect metrics, review decision traces, validate that the harness sees what you expect.
+
+2. **Review traces** — Check that compliance allowlists, budget calculations, and KPI scoring match your expectations.
+
+3. **Switch to `enforce`** — Once validated, change the mode. The harness will now enforce constraints.
+
+4. **Monitor** — Use `session.summary()` and `session.trace()` to monitor enforcement in production.
+
+```python
+import os
+
+# Environment-driven mode selection
+mode = os.getenv("CASCADEFLOW_MODE", "observe")
+cascadeflow.init(mode=mode)
+```
+
+## Mode Behavior Matrix
+
+| Behavior | `off` | `observe` | `enforce` |
+|---|---|---|---|
+| Cost tracking | No | Yes | Yes |
+| Latency tracking | No | Yes | Yes |
+| Energy tracking | No | Yes | Yes |
+| Decision traces | No | Yes | Yes |
+| Budget enforcement | No | No | Yes |
+| Tool call gating | No | No | Yes |
+| Compliance gating | No | No | Yes |
+| `session.summary()` | Empty | Full metrics | Full metrics |
+| `session.trace()` | Empty | Decisions (applied=false) | Decisions (applied=true) |

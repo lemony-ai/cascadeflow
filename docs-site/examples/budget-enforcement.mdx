@@ -1,0 +1,84 @@
+---
+title: Budget Enforcement
+description: Per-run and per-user budget caps with enforcement callbacks, cost tracking, and automatic stop actions.
+---
+
+# Budget Enforcement
+
+Enforce spending limits on agent runs with automatic stop actions when budget is exceeded.
+
+## Basic Budget Cap
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Research and summarize this topic")
+
+    summary = session.summary()
+    print(f"Cost: ${summary['cost_total']:.4f}")
+    print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
+    print(f"Steps completed: {summary['steps']}")
+```
+
+## Budget with Tool Call Limit
+
+```python
+with cascadeflow.run(budget=1.00, max_tool_calls=5) as session:
+    result = await agent.run("Search and analyze this dataset")
+    # Stops when either budget or tool call limit is hit
+```
+
+## Per-Agent Budgets
+
+```python
+@cascadeflow.agent(budget=0.10)
+async def triage_agent(query: str):
+    """Cheap triage — $0.10 max."""
+    return await llm.complete(query)
+
+@cascadeflow.agent(budget=2.00)
+async def research_agent(query: str):
+    """Deep research — $2.00 max."""
+    return await llm.complete(query)
+```
+
+## Cost Tracking (Legacy API)
+
+For pre-harness budget enforcement using the telemetry API:
+
+```python
+from cascadeflow.telemetry import BudgetConfig, CostTracker, strict_budget_enforcement
+
+tracker = CostTracker(
+    budget_config=BudgetConfig(
+        daily_limit=10.0,
+        per_query_limit=0.50,
+        alert_threshold=0.8,
+    ),
+    enforcement_callback=strict_budget_enforcement,
+)
+
+# Track costs manually
+tracker.track(model="gpt-4o", cost=0.003)
+print(f"Daily spend: ${tracker.daily_spend:.4f}")
+```
+
+## Decision Trace
+
+```python
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Multi-step analysis")
+
+    for record in session.trace():
+        if record['action'] == 'stop':
+            print(f"Stopped at step {record['step']}: {record['reason']}")
+        else:
+            print(f"Step {record['step']}: {record['action']} (${record['cost_total']:.4f})")
+```
+
+## Source
+
+[examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py)

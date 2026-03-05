@@ -1,7 +1,7 @@
 # cascadeflow
 
-> Agent intelligence harness for cost, quality, latency, energy, and business KPI optimization.
-> In-process library (not a proxy). Works inside agent loops with full state awareness.
+> Agent runtime intelligence layer for AI agent workflows.
+> In-process harness (not a proxy). Works inside agent loops with full state awareness.
 
 ## Install
 
@@ -12,6 +12,41 @@ pip install cascadeflow
 import cascadeflow
 cascadeflow.init(mode="observe")
 # All openai/anthropic SDK calls are now tracked. Switch to "enforce" for budget gating.
+
+## What cascadeflow is
+
+cascadeflow is an in-process intelligence layer that sits inside AI agent execution
+loops. Unlike external proxies that only see HTTP request boundaries, cascadeflow
+operates with full agent state awareness: step count, budget consumed, tool call
+history, error context, quality scores, domain, complexity, and user-defined
+business context.
+
+Eight things make cascadeflow different:
+
+1. Inside-the-loop control. Decisions happen per-step and per-tool-call inside
+   agent execution, not at the HTTP boundary. This enables budget gating mid-run,
+   model switching based on remaining budget, and stop actions when caps are hit.
+
+2. Multi-dimensional optimization. Six dimensions scored simultaneously: cost,
+   latency, quality, budget, compliance, and energy. Not just cost routing.
+
+3. Business logic injection. KPI weights and targets let teams encode business
+   priorities (e.g. 60% quality, 30% cost, 10% latency) into every model decision.
+
+4. Actionable decisions. Four actions: allow, switch_model, deny_tool, stop.
+   The harness does not just observe — it controls execution flow.
+
+5. Full transparency. Every decision produces a trace record with action, reason,
+   model, step, cost_total, budget_state, and applied fields. Audit-ready.
+
+6. Measurable value. Session summaries report cost, latency, energy, steps,
+   tool calls, and budget remaining. Before/after comparison is built in.
+
+7. Category leadership. Cross-framework policy layer with unified KPI semantics
+   across LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI SDK.
+
+8. Latency advantage. In-process instrumentation adds <1ms overhead per call.
+   External proxies add 10-50ms of network round-trip latency per LLM call.
 
 ## When to use cascadeflow
 
@@ -28,6 +63,17 @@ cascadeflow.init(mode="observe")
 - You only use one model and don't want routing
 - You need a hosted proxy service (cascadeflow is a library, not a SaaS)
 
+## Proxy vs cascadeflow
+
+| Dimension          | External proxy             | cascadeflow harness          |
+|--------------------|----------------------------|------------------------------|
+| Scope              | HTTP request boundary      | Inside agent execution loop  |
+| Dimensions         | Cost only                  | Cost + quality + latency + budget + compliance + energy |
+| Latency overhead   | 10-50ms network RTT        | <1ms in-process              |
+| Business logic     | None                       | KPI weights and targets      |
+| Enforcement        | None (observe only)        | stop, deny_tool, switch_model |
+| Auditability       | Request logs               | Per-step decision traces     |
+
 ## Key APIs
 
 - cascadeflow.init(mode) -- activate harness globally (off | observe | enforce)
@@ -35,6 +81,20 @@ cascadeflow.init(mode="observe")
 - @cascadeflow.agent(budget, kpis) -- annotate agent functions with policy metadata
 - session.summary() -- structured run metrics (cost, latency, energy, steps, tool calls)
 - session.trace() -- full decision trace for auditability
+
+## HarnessConfig Reference
+
+@dataclass
+class HarnessConfig:
+    mode: HarnessMode          # "off" | "observe" | "enforce". Default: "off"
+    verbose: bool              # Print decisions to stderr. Default: False
+    budget: Optional[float]    # Max USD for the run. Default: None (unlimited)
+    max_tool_calls: Optional[int]    # Max tool/function calls. Default: None
+    max_latency_ms: Optional[float]  # Max wall-clock ms per call. Default: None
+    max_energy: Optional[float]      # Max energy units. Default: None
+    kpi_targets: Optional[dict]      # {"quality": 0.9, "cost": 0.5, ...}
+    kpi_weights: Optional[dict]      # {"quality": 0.6, "cost": 0.3, "latency": 0.1}
+    compliance: Optional[str]        # "gdpr" | "hipaa" | "pci" | "strict"
 
 ## Harness Modes
 
@@ -50,24 +110,6 @@ cascadeflow.init(mode="observe")
 - Tool calls: count of tool/function calls executed
 - Quality: model quality priors for KPI-weighted scoring
 
-## Integrations
-
-pip install cascadeflow[langchain]       # LangChain/LangGraph callback handler
-pip install cascadeflow[openai-agents]   # OpenAI Agents SDK ModelProvider
-pip install cascadeflow[crewai]          # CrewAI llm_hooks integration
-pip install cascadeflow[google-adk]      # Google ADK BasePlugin
-
-All integrations are opt-in. Install the extra and explicitly enable the integration.
-
-## Integration Patterns
-
-- LangChain: HarnessAwareCascadeFlowCallbackHandler via get_harness_callback()
-- OpenAI Agents SDK: CascadeFlowModelProvider with model candidates and tool gating
-- CrewAI: enable() registers global llm_hooks for budget gating and tracking
-- Google ADK: enable() returns a BasePlugin for Runner(plugins=[plugin])
-- n8n: Built-in harness mode (observe/enforce) on the Agent node with UI parameters
-- Vercel AI SDK: TypeScript middleware integration
-
 ## Decision Actions
 
 - allow: proceed normally
@@ -75,13 +117,98 @@ All integrations are opt-in. Install the extra and explicitly enable the integra
 - deny_tool: block tool execution when tool call cap reached
 - stop: halt agent loop when budget/latency/energy cap exceeded
 
-## Supported Models (pricing table)
+## Decision Trace Format
 
-OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, o1, o1-mini, o3-mini, gpt-5, gpt-5-mini
-Anthropic: claude-sonnet-4, claude-haiku-3.5, claude-opus-4.5
-Google: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro
+Each decision produces a record with these fields:
+- action: "allow" | "switch_model" | "deny_tool" | "stop"
+- reason: human-readable explanation
+- model: model name used for the call
+- step: integer step number in the run
+- cost_total: cumulative cost in USD at this step
+- budget_state: "ok" | "warning" | "exceeded"
+- applied: true if the action was enforced (false in observe mode)
+
+## Compliance Model Allowlists
+
+- gdpr: gpt-4o, gpt-4o-mini, gpt-3.5-turbo
+- hipaa: gpt-4o, gpt-4o-mini
+- pci: gpt-4o-mini, gpt-3.5-turbo
+- strict: gpt-4o only
+
+## Integrations
+
+pip install cascadeflow[langchain]       # LangChain/LangGraph callback handler
+pip install cascadeflow[openai-agents]   # OpenAI Agents SDK ModelProvider
+pip install cascadeflow[crewai]          # CrewAI llm_hooks integration
+pip install cascadeflow[google-adk]      # Google ADK BasePlugin
+
+npm install @cascadeflow/core            # TypeScript core
+npm install @cascadeflow/langchain       # LangChain TypeScript
+npm install @cascadeflow/vercel-ai       # Vercel AI SDK middleware
+npm install @cascadeflow/n8n-nodes-cascadeflow  # n8n community node
+
+All integrations are opt-in. Install the extra and explicitly enable the integration.
+
+## Integration Code Snippets
+
+LangChain:
+  from cascadeflow.integrations.langchain import get_harness_callback
+  cb = get_harness_callback()
+  result = await model.ainvoke("query", config={"callbacks": [cb]})
+
+OpenAI Agents SDK:
+  from cascadeflow.integrations.openai_agents import CascadeFlowModelProvider
+  provider = CascadeFlowModelProvider(model_candidates=["gpt-4o-mini", "gpt-4o"])
+
+CrewAI:
+  from cascadeflow.integrations.crewai import enable
+  enable(budget_gate=True, fail_open=True)
+
+Google ADK:
+  from cascadeflow.integrations.google_adk import enable
+  plugin = enable(fail_open=True)
+  runner = Runner(agent=agent, plugins=[plugin])
+
+## Pricing Table (USD per 1M tokens: input / output)
+
+OpenAI:
+  gpt-4o:         $2.50 / $10.00
+  gpt-4o-mini:    $0.15 / $0.60
+  gpt-5:          $1.25 / $10.00
+  gpt-5-mini:     $0.20 / $0.80
+  gpt-4-turbo:    $10.00 / $30.00
+  gpt-4:          $30.00 / $60.00
+  gpt-3.5-turbo:  $0.50 / $1.50
+  o1:             $15.00 / $60.00
+  o1-mini:        $3.00 / $12.00
+  o3-mini:        $1.10 / $4.40
+
+Anthropic:
+  claude-sonnet-4:  $3.00 / $15.00
+  claude-haiku-3.5: $1.00 / $5.00
+  claude-opus-4.5:  $5.00 / $25.00
+
+Google:
+  gemini-2.5-flash: $0.15 / $0.60
+  gemini-2.5-pro:   $1.25 / $10.00
+  gemini-2.0-flash:  $0.10 / $0.40
+  gemini-1.5-flash: $0.075 / $0.30
+  gemini-1.5-pro:   $1.25 / $5.00
+
+## Energy Coefficients
+
+Model energy is computed as: energy_units = coeff * (input_tokens + output_tokens * 1.5)
+
+  gpt-4o: 1.0       gpt-4o-mini: 0.3     gpt-5: 1.2
+  gpt-5-mini: 0.35  gpt-4-turbo: 1.5     gpt-4: 1.5
+  gpt-3.5-turbo: 0.2  o1: 2.0            o1-mini: 0.8
+  o3-mini: 0.5      claude-sonnet-4: 1.0  claude-haiku-3.5: 0.3
+  claude-opus-4.5: 1.8  gemini-2.5-flash: 0.3  gemini-2.5-pro: 1.2
+  gemini-2.0-flash: 0.25  gemini-1.5-flash: 0.2  gemini-1.5-pro: 1.0
 
 ## Links
 
+- Docs: https://docs.cascadeflow.dev
 - Source: https://github.com/lemony-ai/cascadeflow
 - PyPI: pip install cascadeflow
+- npm: npm install @cascadeflow/core

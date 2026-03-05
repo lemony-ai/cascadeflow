@@ -1,0 +1,95 @@
+---
+title: KPI-Weighted Routing
+description: Configure quality, cost, latency, and energy weights to encode business priorities into model routing decisions.
+---
+
+# KPI-Weighted Routing
+
+Inject business priorities into every model decision using KPI weights.
+
+## Quality-First (Premium Workload)
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(
+    budget=2.00,
+    kpi_weights={"quality": 0.8, "cost": 0.1, "latency": 0.1},
+    kpi_targets={"quality": 0.9}
+) as session:
+    # Routes to highest-quality models within budget
+    result = await agent.run("Draft a legal contract clause")
+    print(session.summary())
+```
+
+## Cost-First (High-Volume Batch)
+
+```python
+with cascadeflow.run(
+    budget=5.00,
+    kpi_weights={"cost": 0.7, "quality": 0.2, "latency": 0.1}
+) as session:
+    # Routes to cheapest models that meet quality floor
+    for query in batch_queries:
+        result = await agent.run(query)
+    print(f"Total cost: ${session.summary()['cost_total']:.4f}")
+```
+
+## Latency-First (Real-Time)
+
+```python
+with cascadeflow.run(
+    kpi_weights={"latency": 0.7, "quality": 0.2, "cost": 0.1},
+    max_latency_ms=2000.0
+) as session:
+    # Routes to fastest models, hard cap at 2 seconds
+    result = await agent.run("Quick classification task")
+```
+
+## Energy-Aware (Carbon-Conscious)
+
+```python
+with cascadeflow.run(
+    kpi_weights={"quality": 0.4, "energy": 0.3, "cost": 0.3},
+    max_energy=100.0
+) as session:
+    # Balances quality with energy efficiency
+    result = await agent.run("Summarize this report")
+    print(f"Energy used: {session.summary()['energy_used']:.1f} units")
+```
+
+## Per-Agent Profiles
+
+```python
+@cascadeflow.agent(
+    budget=0.10,
+    kpi_weights={"cost": 0.9, "quality": 0.1}
+)
+async def triage_agent(query: str):
+    """Quick classification — prioritize cost."""
+    return await llm.complete(query)
+
+@cascadeflow.agent(
+    budget=2.00,
+    kpi_weights={"quality": 0.9, "cost": 0.1},
+    kpi_targets={"quality": 0.95}
+)
+async def analysis_agent(query: str):
+    """Deep analysis — prioritize quality."""
+    return await llm.complete(query)
+```
+
+## Quality Priors
+
+The harness uses built-in quality priors for scoring:
+
+| Model | Quality Prior | Latency Prior |
+|---|---|---|
+| o1 | 0.95 | 0.40 |
+| gpt-4o | 0.90 | 0.72 |
+| gpt-4-turbo | 0.88 | 0.66 |
+| gpt-5-mini | 0.86 | 0.84 |
+| gpt-4o-mini | 0.75 | 0.93 |
+| gpt-3.5-turbo | 0.65 | 1.00 |

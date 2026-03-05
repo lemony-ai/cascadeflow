@@ -1,0 +1,78 @@
+---
+title: CrewAI
+description: Hook-based harness integration for CrewAI with budget gating, metrics tracking, and decision traces across crew steps.
+---
+
+# CrewAI Integration
+
+cascadeflow integrates with CrewAI through the native `llm_hooks` system. Call `enable()` to register global hooks that track all crew steps, enforce budget caps, and record decision traces.
+
+## Install
+
+```bash
+pip install "cascadeflow[crewai]"
+```
+
+## Quick Start
+
+```python
+from crewai import Agent, Crew, Process, Task
+import cascadeflow
+from cascadeflow.integrations.crewai import CrewAIHarnessConfig, enable
+
+cascadeflow.init(mode="observe")
+
+# Enable harness hooks
+config = CrewAIHarnessConfig(
+    fail_open=True,
+    budget_gate=True,
+)
+enable(config=config)
+
+# Define agents and tasks as usual
+researcher = Agent(
+    role="Researcher",
+    goal="Find relevant information",
+    llm="gpt-4o-mini",
+)
+
+task = Task(
+    description="Research the topic of AI agent frameworks",
+    agent=researcher,
+)
+
+crew = Crew(
+    agents=[researcher],
+    tasks=[task],
+    process=Process.sequential,
+)
+
+# Run with budget tracking
+with cascadeflow.run(budget=1.00) as session:
+    result = crew.kickoff()
+    print(session.summary())
+    for record in session.trace():
+        print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+```
+
+## Configuration
+
+```python
+config = CrewAIHarnessConfig(
+    fail_open=True,    # Continue on harness errors
+    budget_gate=True,  # Enforce budget caps
+)
+```
+
+## Features
+
+- Tracks all crew steps automatically via `llm_hooks`
+- Budget gating stops crew execution when budget is exceeded
+- Full decision trace across all agents in the crew
+- Fail-open mode for production safety
+- No changes to existing CrewAI agent or task definitions
+
+## Limitations
+
+- Tool-level gating is not currently applied (CrewAI hooks operate at the LLM call level)
+- Model switching depends on CrewAI's model configuration

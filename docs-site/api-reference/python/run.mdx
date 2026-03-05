@@ -1,0 +1,83 @@
+---
+title: cascadeflow.run()
+description: Create a scoped run context with budget caps, tool call limits, and metrics tracking.
+---
+
+# cascadeflow.run()
+
+Create a scoped run context manager that tracks metrics and optionally enforces constraints for a block of agent execution.
+
+## Signature
+
+```python
+def run(
+    budget: Optional[float] = None,
+    max_tool_calls: Optional[int] = None,
+    max_latency_ms: Optional[float] = None,
+    max_energy: Optional[float] = None,
+    compliance: Optional[str] = None,
+    kpi_weights: Optional[dict[str, float]] = None,
+    kpi_targets: Optional[dict[str, float]] = None,
+) -> ContextManager[HarnessRunContext]
+```
+
+## Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `budget` | `float \| None` | `None` | Max USD for this run |
+| `max_tool_calls` | `int \| None` | `None` | Max tool/function calls |
+| `max_latency_ms` | `float \| None` | `None` | Max wall-clock ms per call |
+| `max_energy` | `float \| None` | `None` | Max energy units |
+| `compliance` | `str \| None` | `None` | `"gdpr"`, `"hipaa"`, `"pci"`, or `"strict"` |
+| `kpi_weights` | `dict \| None` | `None` | KPI dimension weights |
+| `kpi_targets` | `dict \| None` | `None` | KPI dimension targets |
+
+## Returns
+
+Context manager yielding `HarnessRunContext`. See [HarnessRunContext](/api-reference/python/run-context).
+
+## Usage
+
+### Basic budget
+
+```python
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Analyze this data")
+    print(session.summary())
+```
+
+### Full configuration
+
+```python
+with cascadeflow.run(
+    budget=1.00,
+    max_tool_calls=10,
+    max_energy=100.0,
+    compliance="gdpr",
+    kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1},
+    kpi_targets={"quality": 0.9},
+) as session:
+    result = await agent.run("Process EU customer data")
+    print(session.summary())
+    for record in session.trace():
+        print(f"Step {record['step']}: {record['action']}")
+```
+
+### Nested runs
+
+Runs can be nested. Inner runs inherit the parent's remaining budget:
+
+```python
+with cascadeflow.run(budget=1.00) as outer:
+    with cascadeflow.run(budget=0.30) as inner:
+        await agent.run("Sub-task")
+    # outer.summary() includes inner costs
+```
+
+## Notes
+
+- `run()` requires `init()` to have been called first
+- Parameters override the global config for the duration of the block
+- Use `session.summary()` for aggregate metrics
+- Use `session.trace()` for per-step decision records

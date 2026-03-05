@@ -1,0 +1,76 @@
+---
+title: HarnessRunContext
+description: Run context object yielded by cascadeflow.run() with summary(), trace(), and budget tracking methods.
+---
+
+# HarnessRunContext
+
+The context object yielded by `cascadeflow.run()`. Provides access to run metrics, decision traces, and budget state.
+
+## Methods
+
+### summary()
+
+Returns aggregate metrics for the run.
+
+```python
+summary = session.summary()
+```
+
+Returns a dict with:
+
+| Key | Type | Description |
+|---|---|---|
+| `cost_total` | `float` | Cumulative cost in USD |
+| `steps` | `int` | Number of LLM calls |
+| `tool_calls` | `int` | Number of tool/function calls |
+| `latency_total_ms` | `float` | Total wall-clock latency in ms |
+| `energy_used` | `float` | Total energy units consumed |
+| `budget_remaining` | `float \| None` | USD remaining (None if no budget set) |
+
+### trace()
+
+Returns the list of decision records for the run.
+
+```python
+records = session.trace()
+```
+
+Each record is a dict with:
+
+| Key | Type | Description |
+|---|---|---|
+| `action` | `str` | `"allow"`, `"switch_model"`, `"deny_tool"`, or `"stop"` |
+| `reason` | `str` | Human-readable explanation |
+| `model` | `str` | Model name |
+| `step` | `int` | Step number (1-indexed) |
+| `cost_total` | `float` | Cumulative cost at this step |
+| `budget_state` | `str` | `"ok"`, `"warning"`, or `"exceeded"` |
+| `applied` | `bool` | Whether the action was enforced |
+
+## Usage
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Analyze this dataset")
+
+    # Aggregate metrics
+    summary = session.summary()
+    print(f"Cost: ${summary['cost_total']:.4f}")
+    print(f"Steps: {summary['steps']}")
+    print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
+
+    # Decision trace
+    for record in session.trace():
+        print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+```
+
+## Import
+
+```python
+from cascadeflow import HarnessRunContext
+```

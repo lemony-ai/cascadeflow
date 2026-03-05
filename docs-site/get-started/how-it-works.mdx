@@ -1,0 +1,112 @@
+---
+title: How It Works
+description: Architecture of cascadeflow's two engines — Cascade for speculative model routing and Harness for agent runtime intelligence.
+---
+
+# How It Works
+
+cascadeflow ships two complementary engines that can be used independently or together.
+
+## Cascade Engine
+
+The Cascade Engine optimizes model selection through **speculative execution with quality validation**:
+
+1. **Speculatively executes** small, fast models first — optimistic execution ($0.15-0.30/1M tokens)
+2. **Validates quality** of responses using configurable thresholds (completeness, confidence, correctness)
+3. **Dynamically escalates** to larger models only when quality validation fails ($1.25-3.00/1M tokens)
+4. **Learns patterns** to optimize future cascading decisions and domain-specific routing
+
+In practice, 60-70% of queries are handled by small, efficient models without escalation.
+
+**Result:** 40-85% cost reduction, 2-10x faster responses, zero quality loss.
+
+```
+Query → Domain Detection → Try Draft Model → Quality Check
+                                                  │
+                                          Pass ───┘─── Fail
+                                           │            │
+                                        Return      Escalate to
+                                        Result      Verifier Model
+```
+
+## Harness Engine
+
+The Harness Engine provides **agent runtime intelligence** — budget enforcement, compliance gating, KPI-weighted routing, energy tracking, and decision traces.
+
+Unlike the Cascade Engine which routes between models, the Harness Engine wraps existing agent execution and makes decisions at every step:
+
+```
+Agent Step → Harness Decision → allow / switch_model / deny_tool / stop
+                 │
+                 ├── Check budget remaining
+                 ├── Check compliance allowlist
+                 ├── Score KPI dimensions
+                 ├── Check tool call cap
+                 ├── Check latency cap
+                 └── Check energy cap
+```
+
+### Decision Flow
+
+For each LLM call or tool execution inside an agent loop, the harness:
+
+1. **Records** the model, step number, and cumulative metrics
+2. **Evaluates** all configured constraints (budget, compliance, tool calls, latency, energy)
+3. **Scores** the call against KPI weights if configured
+4. **Decides** an action: `allow`, `switch_model`, `deny_tool`, or `stop`
+5. **Enforces** the action if in `enforce` mode (logs only in `observe` mode)
+6. **Appends** a trace record for auditability
+
+### HarnessConfig
+
+All harness behavior is configured through a single dataclass:
+
+```python
+HarnessConfig(
+    mode="enforce",           # off | observe | enforce
+    budget=0.50,              # Max USD for the run
+    max_tool_calls=10,        # Max tool/function calls
+    max_latency_ms=5000.0,    # Max wall-clock ms per call
+    max_energy=100.0,         # Max energy units
+    compliance="gdpr",        # gdpr | hipaa | pci | strict
+    kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1},
+    kpi_targets={"quality": 0.9},
+)
+```
+
+## Combined Usage
+
+When both engines are active, the Cascade Engine handles model selection while the Harness Engine enforces constraints:
+
+```python
+import cascadeflow
+from cascadeflow import CascadeAgent, ModelConfig
+
+# Harness: enforce budget and compliance
+cascadeflow.init(mode="enforce")
+
+# Cascade: speculative model routing
+agent = CascadeAgent(models=[
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
+])
+
+with cascadeflow.run(budget=1.00) as session:
+    result = await agent.run("Analyze this contract for GDPR compliance")
+    print(session.summary())
+```
+
+## Provider Abstraction
+
+cascadeflow supports 17+ providers through a unified interface:
+
+| Provider | Type | Package |
+|---|---|---|
+| OpenAI | API | `cascadeflow[openai]` |
+| Anthropic | API | `cascadeflow[anthropic]` |
+| Groq | API | `cascadeflow[groq]` |
+| Together | API | `cascadeflow[together]` |
+| Hugging Face | API | `cascadeflow[huggingface]` |
+| Ollama | Local | Built-in (HTTP) |
+| vLLM | Local | `cascadeflow[vllm]` |
+| Vercel AI SDK | TypeScript | `@cascadeflow/vercel-ai` |

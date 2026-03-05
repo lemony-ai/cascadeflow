@@ -1,0 +1,53 @@
+---
+title: Integrations Overview
+description: Matrix of all cascadeflow framework integrations with supported features, languages, and integration patterns.
+---
+
+# Integrations Overview
+
+cascadeflow integrates with six agent frameworks. All integrations are opt-in — install the extra and explicitly enable.
+
+## Integration Matrix
+
+| Framework | Language | Package | Integration Type | Budget Gating | Tool Gating | Traces |
+|---|---|---|---|---|---|---|
+| [LangChain](/integrations/langchain) | Python, TS | `cascadeflow[langchain]`, `@cascadeflow/langchain` | Callback handler | Yes | No | Yes |
+| [OpenAI Agents SDK](/integrations/openai-agents) | Python | `cascadeflow[openai-agents]` | ModelProvider | Yes | Yes | Yes |
+| [CrewAI](/integrations/crewai) | Python | `cascadeflow[crewai]` | llm_hooks | Yes | No | Yes |
+| [Google ADK](/integrations/google-adk) | Python | `cascadeflow[google-adk]` | BasePlugin | Yes | No | Yes |
+| [n8n](/integrations/n8n) | TypeScript | `@cascadeflow/n8n-nodes-cascadeflow` | Community node | Yes | Yes | Yes |
+| [Vercel AI SDK](/integrations/vercel-ai) | TypeScript | `@cascadeflow/vercel-ai` | Middleware | Yes | No | Yes |
+
+## Integration Patterns
+
+Each integration follows the same principle: wrap the framework's extension point with cascadeflow's harness, without modifying agent code.
+
+### Python
+
+```python
+import cascadeflow
+cascadeflow.init(mode="observe")
+
+# Framework-specific activation
+from cascadeflow.integrations.langchain import get_harness_callback
+from cascadeflow.integrations.openai_agents import CascadeFlowModelProvider
+from cascadeflow.integrations.crewai import enable as enable_crewai
+from cascadeflow.integrations.google_adk import enable as enable_adk
+```
+
+### TypeScript
+
+```bash
+npm install @cascadeflow/langchain
+npm install @cascadeflow/vercel-ai
+npm install @cascadeflow/n8n-nodes-cascadeflow
+```
+
+## Choosing an Integration
+
+- **LangChain/LangGraph**: Use if you have existing LangChain chains or agents. The callback handler wraps any `BaseChatModel`.
+- **OpenAI Agents SDK**: Use if you're building with OpenAI's Agents SDK. The `ModelProvider` supports model candidates and tool gating.
+- **CrewAI**: Use if you're building multi-agent crews. The `llm_hooks` integration tracks all crew steps.
+- **Google ADK**: Use if you're building with Google's Agent Development Kit. The plugin integrates with `Runner`.
+- **n8n**: Use if you're building no-code workflows. The community node adds cascade routing to any n8n flow.
+- **Vercel AI SDK**: Use if you're building TypeScript server-side agents. The middleware wraps AI SDK streams.

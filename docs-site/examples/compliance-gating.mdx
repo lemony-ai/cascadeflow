@@ -1,0 +1,89 @@
+---
+title: Compliance Gating
+description: GDPR, HIPAA, PCI, and strict model allowlists with enforcement examples for regulated agent workflows.
+---
+
+# Compliance Gating
+
+Restrict which models can be used based on compliance requirements.
+
+## GDPR Compliance
+
+Only allow models approved for EU data processing:
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(compliance="gdpr") as session:
+    # Only gpt-4o, gpt-4o-mini, gpt-3.5-turbo are allowed
+    result = await agent.run("Process this EU customer feedback")
+
+    for record in session.trace():
+        if record['action'] == 'switch_model':
+            print(f"Model switched: {record['reason']}")
+```
+
+## HIPAA Compliance
+
+For healthcare data — stricter allowlist:
+
+```python
+with cascadeflow.run(compliance="hipaa") as session:
+    # Only gpt-4o, gpt-4o-mini are allowed
+    result = await agent.run("Summarize this patient record")
+```
+
+## PCI Compliance
+
+For payment card data:
+
+```python
+with cascadeflow.run(compliance="pci") as session:
+    # Only gpt-4o-mini, gpt-3.5-turbo are allowed
+    result = await agent.run("Analyze this transaction")
+```
+
+## Strict Mode
+
+Maximum restriction — single model only:
+
+```python
+with cascadeflow.run(compliance="strict") as session:
+    # Only gpt-4o is allowed
+    result = await agent.run("Classify this sensitive document")
+```
+
+## Compliance Allowlists
+
+| Mode | Allowed Models |
+|---|---|
+| `gdpr` | gpt-4o, gpt-4o-mini, gpt-3.5-turbo |
+| `hipaa` | gpt-4o, gpt-4o-mini |
+| `pci` | gpt-4o-mini, gpt-3.5-turbo |
+| `strict` | gpt-4o |
+
+## Combining with Budget
+
+```python
+@cascadeflow.agent(budget=1.00, compliance="gdpr")
+async def eu_data_agent(query: str):
+    """Process EU data within budget using only GDPR-approved models."""
+    return await llm.complete(query)
+```
+
+## Observe Mode for Audit
+
+Use `observe` mode to audit which models would be blocked without affecting production:
+
+```python
+cascadeflow.init(mode="observe")
+
+with cascadeflow.run(compliance="hipaa") as session:
+    result = await agent.run("Process health data")
+
+    # Check which calls would have been blocked
+    violations = [r for r in session.trace() if r['action'] == 'switch_model']
+    print(f"Compliance violations detected: {len(violations)}")
+```

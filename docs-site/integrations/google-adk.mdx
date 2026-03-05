@@ -1,0 +1,91 @@
+---
+title: Google ADK
+description: Plugin-based harness integration for Google Agent Development Kit with budget enforcement and metrics tracking.
+---
+
+# Google ADK Integration
+
+cascadeflow integrates with Google's Agent Development Kit (ADK) through the `BasePlugin` system. Call `enable()` to get a plugin that plugs into `Runner(plugins=[...])`.
+
+## Install
+
+```bash
+pip install "cascadeflow[google-adk]"
+```
+
+Requires Python 3.10+.
+
+## Quick Start
+
+```python
+import asyncio
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai.types import Content, Part
+
+import cascadeflow
+from cascadeflow.integrations.google_adk import GoogleADKHarnessConfig, enable
+
+cascadeflow.init(mode="observe")
+
+# Enable harness plugin
+config = GoogleADKHarnessConfig(
+    fail_open=True,
+    enable_budget_gate=True,
+)
+plugin = enable(config=config)
+
+# Create ADK agent
+agent = Agent(
+    name="research_agent",
+    model="gemini-2.5-flash",
+    instruction="You are a helpful research assistant.",
+)
+
+# Run with plugin
+session_service = InMemorySessionService()
+runner = Runner(agent=agent, plugins=[plugin])
+
+async def main():
+    with cascadeflow.run(budget=0.50) as session:
+        user_content = Content(parts=[Part(text="Explain cascadeflow")])
+        async for event in runner.run_async(
+            session_id="test",
+            user_id="user-1",
+            new_message=user_content,
+        ):
+            pass  # Process streaming events
+
+        print(session.summary())
+
+asyncio.run(main())
+```
+
+## Configuration
+
+```python
+config = GoogleADKHarnessConfig(
+    fail_open=True,          # Continue on harness errors
+    enable_budget_gate=True, # Enforce budget caps
+)
+```
+
+## Supported Gemini Models
+
+| Model | Input $/1M | Output $/1M | Energy Coeff |
+|---|---|---|---|
+| gemini-2.5-flash | $0.15 | $0.60 | 0.30 |
+| gemini-2.5-pro | $1.25 | $10.00 | 1.20 |
+| gemini-2.0-flash | $0.10 | $0.40 | 0.25 |
+| gemini-1.5-flash | $0.075 | $0.30 | 0.20 |
+| gemini-1.5-pro | $1.25 | $5.00 | 1.00 |
+
+## Budget Enforcement
+
+When budget is exceeded in `enforce` mode, the plugin returns an `LlmResponse` with `error_code="BUDGET_EXCEEDED"`. The ADK runner handles this as a graceful stop.
+
+## Limitations
+
+- Tool gating is not applied (intentional design choice — ADK manages tool execution internally)
+- Model switching depends on ADK's model configuration

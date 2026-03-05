@@ -1,0 +1,91 @@
+---
+title: cascadeflow
+description: Agent runtime intelligence layer — optimize cost, latency, quality, budget, compliance, and energy across AI agent workflows.
+---
+
+# cascadeflow
+
+The in-process intelligence layer for AI agents. Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/get-started/quickstart">
+    Get running in 3 minutes with zero code changes.
+  </Card>
+  <Card title="How It Works" icon="diagram-project" href="/get-started/how-it-works">
+    Two engines: Cascade for model routing, Harness for agent intelligence.
+  </Card>
+  <Card title="Harness API" icon="shield-halved" href="/harness/overview">
+    Budget enforcement, compliance gating, KPI-weighted routing, energy tracking.
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations/overview">
+    LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI SDK.
+  </Card>
+</CardGroup>
+
+## Install
+
+<CodeGroup>
+
+```bash pip
+pip install cascadeflow
+```
+
+```bash npm
+npm install @cascadeflow/core
+```
+
+</CodeGroup>
+
+## Quick Start
+
+<CodeGroup>
+
+```python Observe (zero-change)
+import cascadeflow
+cascadeflow.init(mode="observe")
+# All OpenAI/Anthropic SDK calls are now tracked.
+```
+
+```python Scoped Run
+import cascadeflow
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Analyze this dataset")
+    print(session.summary())
+```
+
+```python Decorated Agent
+import cascadeflow
+cascadeflow.init(mode="enforce")
+
+@cascadeflow.agent(budget=0.20, compliance="gdpr")
+async def my_agent(query: str):
+    return await llm.complete(query)
+```
+
+</CodeGroup>
+
+## Supported Frameworks
+
+| Framework | Python | TypeScript | Integration Type |
+|---|---|---|---|
+| LangChain / LangGraph | `cascadeflow[langchain]` | `@cascadeflow/langchain` | Callback handler |
+| OpenAI Agents SDK | `cascadeflow[openai-agents]` | -- | ModelProvider |
+| CrewAI | `cascadeflow[crewai]` | -- | llm_hooks |
+| Google ADK | `cascadeflow[google-adk]` | -- | BasePlugin |
+| n8n | -- | `@cascadeflow/n8n-nodes-cascadeflow` | Community node |
+| Vercel AI SDK | -- | `@cascadeflow/vercel-ai` | Middleware |
+
+## Six Dimensions
+
+cascadeflow optimizes across six dimensions simultaneously:
+
+| Dimension | What it controls | Example |
+|---|---|---|
+| **Cost** | USD per LLM call from pricing table | Budget cap of $0.50 per run |
+| **Latency** | Wall-clock milliseconds per call | Max 2000ms per call |
+| **Quality** | Model quality priors for routing | 60% weight on quality KPI |
+| **Budget** | Cumulative spend tracking and caps | Per-user daily limits |
+| **Compliance** | Model allowlists per regulation | GDPR: only gpt-4o, gpt-4o-mini |
+| **Energy** | Compute-intensity coefficients | Carbon-aware model selection |

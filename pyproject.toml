@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cascadeflow"
 version = "1.0.0"
-description = "Smart AI model cascading for cost optimization - Save 40-85% on LLM costs with 2-6x faster responses. Available for Python and TypeScript/JavaScript."
+description = "Agent runtime intelligence layer — optimize cost, latency, quality, budget, compliance, and energy across AI agent workflows."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -32,9 +32,17 @@ keywords = [
     "javascript",
     "browser",
     "edge-functions",
+    "agent-intelligence",
+    "runtime-optimization",
+    "budget-enforcement",
+    "compliance",
+    "harness",
+    "agent-runtime",
+    "kpi",
+    "energy-tracking",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -141,7 +149,7 @@ all = [
 
 [project.urls]
 Homepage = "https://lemony.ai"
-Documentation = "https://github.com/lemony-ai/cascadeflow"
+Documentation = "https://docs.cascadeflow.dev"
 Repository = "https://github.com/lemony-ai/cascadeflow"
 "Bug Tracker" = "https://github.com/lemony-ai/cascadeflow/issues"
 Changelog = "https://github.com/lemony-ai/cascadeflow/releases"

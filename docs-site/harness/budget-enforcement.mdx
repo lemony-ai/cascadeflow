@@ -1,0 +1,83 @@
+---
+title: Budget Enforcement
+description: Configure budget enforcement with per-run caps and automatic stop actions when budget is exceeded.
+---
+
+# Budget Enforcement
+
+The harness tracks cumulative cost across all LLM calls in a run and enforces budget caps in `enforce` mode.
+
+## Per-Run Budget
+
+Set a budget cap on a scoped run:
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=0.50) as session:
+    # Agent executes multiple LLM calls
+    result = await agent.run("Research and summarize this topic")
+
+    summary = session.summary()
+    print(f"Total cost: ${summary['cost_total']:.4f}")
+    print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
+```
+
+When cumulative cost exceeds the budget:
+- In `observe` mode: the trace records `action: "stop"` with `applied: false`
+- In `enforce` mode: the harness stops execution with `action: "stop"` and `applied: true`
+
+## Per-Agent Budget
+
+Attach budget metadata to agent functions:
+
+```python
+@cascadeflow.agent(budget=0.20)
+async def cheap_agent(query: str):
+    return await llm.complete(query)
+
+@cascadeflow.agent(budget=2.00)
+async def premium_agent(query: str):
+    return await llm.complete(query)
+```
+
+## Budget Pressure Routing
+
+When budget is partially consumed, the harness can route to cheaper models. This happens automatically when KPI weights include a cost dimension:
+
+```python
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(
+    budget=1.00,
+    kpi_weights={"quality": 0.5, "cost": 0.5}
+) as session:
+    # Early calls may use gpt-4o (high quality)
+    # As budget pressure increases, routing shifts toward gpt-4o-mini (lower cost)
+    for query in queries:
+        result = await agent.run(query)
+```
+
+## Cost Calculation
+
+Cost is estimated from the built-in pricing table:
+
+```
+cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
+```
+
+The pricing table covers 18 models across OpenAI, Anthropic, and Google. Unknown models are resolved via fuzzy matching.
+
+## Combining with Tool Call Caps
+
+Budget and tool call caps work together:
+
+```python
+with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:
+    # Stops when either limit is hit
+    result = await agent.run("Analyze this data")
+```
+
+The harness checks all constraints at every step. The first constraint that is violated triggers the corresponding action (`stop` for budget, `deny_tool` for tool calls).

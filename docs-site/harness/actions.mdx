@@ -1,0 +1,99 @@
+---
+title: Decision Actions
+description: Four harness actions — allow, switch_model, deny_tool, and stop — and when each is triggered.
+---
+
+# Decision Actions
+
+The harness makes one of four decisions at every step. Actions are computed in both `observe` and `enforce` modes, but only applied in `enforce` mode.
+
+## Actions
+
+### `allow`
+
+Proceed normally. No constraints are violated.
+
+```
+Step 1: allow — budget ok, model compliant
+```
+
+This is the most common action. It means all hard caps (budget, tool calls, latency, energy) are within limits and compliance is satisfied.
+
+### `switch_model`
+
+Route to a different model. Triggered when:
+- The current model is not in the compliance allowlist
+- KPI scoring indicates a better model choice
+- Budget pressure suggests a cheaper alternative
+
+```
+Step 3: switch_model — compliance violation, switching to gpt-4o-mini (gdpr allowlist)
+```
+
+In `enforce` mode, the harness substitutes the model. In `observe` mode, the original model is used and the trace records what would have happened.
+
+### `deny_tool`
+
+Block a tool/function call. Triggered when `max_tool_calls` is reached.
+
+```
+Step 5: deny_tool — tool call cap reached (10/10)
+```
+
+In `enforce` mode, the tool call is blocked. The agent receives a signal that the tool was denied.
+
+### `stop`
+
+Halt agent execution. Triggered when:
+- Budget is exceeded
+- Latency cap is exceeded
+- Energy cap is exceeded
+
+```
+Step 7: stop — budget exceeded ($0.52 > $0.50 cap)
+```
+
+In `enforce` mode, the agent loop is stopped. In `observe` mode, execution continues and the trace records the violation.
+
+## Decision Priority
+
+When multiple constraints are violated simultaneously, the harness applies this priority:
+
+1. **Compliance** — check first (switch_model or stop)
+2. **Budget** — check second (stop)
+3. **Tool calls** — check third (deny_tool)
+4. **Latency** — check fourth (stop)
+5. **Energy** — check fifth (stop)
+6. **KPI scoring** — soft optimization (switch_model or allow)
+
+## Hard vs Soft Controls
+
+**Hard controls** trigger `stop` or `deny_tool` when limits are exceeded:
+- `budget` — max USD
+- `max_tool_calls` — max tool/function calls
+- `max_latency_ms` — max wall-clock ms per call
+- `max_energy` — max energy units
+- `compliance` — model allowlist
+
+**Soft controls** influence model selection through KPI weights but never block execution:
+- `kpi_weights` — relative importance of quality, cost, latency, energy
+- `kpi_targets` — target values for KPI dimensions
+
+## Example: Combined Constraints
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(
+    budget=1.00,
+    max_tool_calls=5,
+    compliance="gdpr",
+    kpi_weights={"quality": 0.6, "cost": 0.4}
+) as session:
+    result = await agent.run("Process EU customer data")
+
+    for record in session.trace():
+        print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+```

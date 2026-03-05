@@ -1,0 +1,73 @@
+---
+title: HarnessConfig
+description: Full configuration dataclass for the cascadeflow harness with all fields, types, and defaults.
+---
+
+# HarnessConfig
+
+Configuration dataclass for the cascadeflow harness. Pass to `cascadeflow.init(config=...)` for full control.
+
+## Definition
+
+```python
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class HarnessConfig:
+    mode: HarnessMode = "off"
+    verbose: bool = False
+    budget: Optional[float] = None
+    max_tool_calls: Optional[int] = None
+    max_latency_ms: Optional[float] = None
+    max_energy: Optional[float] = None
+    kpi_targets: Optional[dict[str, float]] = None
+    kpi_weights: Optional[dict[str, float]] = None
+    compliance: Optional[str] = None
+```
+
+## Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `mode` | `"off" \| "observe" \| "enforce"` | `"off"` | Harness mode |
+| `verbose` | `bool` | `False` | Print decisions to stderr |
+| `budget` | `float \| None` | `None` | Max USD for the run (None = unlimited) |
+| `max_tool_calls` | `int \| None` | `None` | Max tool/function calls (None = unlimited) |
+| `max_latency_ms` | `float \| None` | `None` | Max wall-clock ms per call (None = unlimited) |
+| `max_energy` | `float \| None` | `None` | Max energy units (None = unlimited) |
+| `kpi_targets` | `dict \| None` | `None` | Target values per KPI dimension |
+| `kpi_weights` | `dict \| None` | `None` | Relative weights per KPI dimension |
+| `compliance` | `str \| None` | `None` | Compliance mode: `"gdpr"`, `"hipaa"`, `"pci"`, `"strict"` |
+
+## HarnessMode
+
+```python
+HarnessMode = Literal["off", "observe", "enforce"]
+```
+
+## Usage
+
+```python
+from cascadeflow import HarnessConfig
+import cascadeflow
+
+config = HarnessConfig(
+    mode="enforce",
+    budget=1.00,
+    max_tool_calls=20,
+    max_energy=200.0,
+    compliance="gdpr",
+    kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1},
+    kpi_targets={"quality": 0.85},
+    verbose=True,
+)
+
+cascadeflow.init(config=config)
+```
+
+## Import
+
+```python
+from cascadeflow import HarnessConfig
+```

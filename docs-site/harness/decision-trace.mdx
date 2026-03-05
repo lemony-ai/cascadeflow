@@ -1,0 +1,102 @@
+---
+title: Decision Traces
+description: Per-step audit trail of every harness decision — action, reason, model, cost, budget state, and enforcement status.
+---
+
+# Decision Traces
+
+Every harness decision produces a trace record. Traces provide a full audit trail for debugging, compliance reporting, and performance tuning.
+
+## Trace Format
+
+Each trace record contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `action` | string | `"allow"`, `"switch_model"`, `"deny_tool"`, or `"stop"` |
+| `reason` | string | Human-readable explanation of the decision |
+| `model` | string | Model name used for the call |
+| `step` | int | Step number in the run (1-indexed) |
+| `cost_total` | float | Cumulative cost in USD at this step |
+| `budget_state` | string | `"ok"`, `"warning"`, or `"exceeded"` |
+| `applied` | bool | `true` if the action was enforced, `false` in observe mode |
+
+## Accessing Traces
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="observe")
+
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Research this topic")
+
+    # Full decision trace
+    for record in session.trace():
+        print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+        print(f"  Model: {record['model']}, Cost: ${record['cost_total']:.4f}")
+        print(f"  Budget: {record['budget_state']}, Applied: {record['applied']}")
+```
+
+Example output:
+
+```
+Step 1: allow — budget ok, model compliant
+  Model: gpt-4o-mini, Cost: $0.0003
+  Budget: ok, Applied: false
+Step 2: allow — budget ok, model compliant
+  Model: gpt-4o-mini, Cost: $0.0007
+  Budget: ok, Applied: false
+Step 3: switch_model — budget pressure, routing to cheaper model
+  Model: gpt-4o, Cost: $0.0032
+  Budget: warning, Applied: false
+```
+
+## Observe vs Enforce
+
+In `observe` mode, traces record what the harness *would* do:
+- `applied` is always `false`
+- Agent execution continues regardless of the action
+
+In `enforce` mode, traces record what the harness *did*:
+- `applied` is `true` when the action was enforced
+- `stop` actions halt execution
+- `deny_tool` actions block tool calls
+
+## Privacy
+
+Decision traces do not contain prompt content, response content, or user data. They only contain:
+- Model names and step numbers
+- Cost and budget metrics
+- Action decisions and reasons
+
+This makes traces safe for logging, external storage, and compliance reporting without data classification concerns.
+
+## Callbacks
+
+Register callbacks to receive trace records in real time:
+
+```python
+from cascadeflow import get_harness_callback_manager, set_harness_callback_manager
+
+cb_manager = get_harness_callback_manager()
+
+# Traces are emitted through the callback system
+# Use framework-specific integrations for structured access
+```
+
+## Session Summary
+
+In addition to per-step traces, `session.summary()` provides aggregate metrics:
+
+```python
+summary = session.summary()
+# {
+#     "cost_total": 0.0032,
+#     "steps": 3,
+#     "tool_calls": 1,
+#     "latency_total_ms": 1250.0,
+#     "energy_used": 45.2,
+#     "budget_remaining": 0.4968,
+# }
+```

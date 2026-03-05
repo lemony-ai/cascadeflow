@@ -1,0 +1,77 @@
+---
+title: "@cascadeflow/langchain"
+description: TypeScript LangChain integration with withCascade() for drop-in cascade routing and model discovery helpers.
+---
+
+# @cascadeflow/langchain
+
+LangChain integration for TypeScript. Provides `withCascade()` for drop-in cascade routing with any LangChain chat model.
+
+## Install
+
+```bash
+npm install @cascadeflow/langchain @langchain/core @langchain/openai
+```
+
+## withCascade
+
+Creates a cascade-enabled chat model from a drafter and verifier.
+
+```typescript
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { withCascade } from '@cascadeflow/langchain';
+
+const cascade = withCascade({
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatAnthropic({ model: 'claude-sonnet-4' }),
+  qualityThreshold: 0.8,
+});
+
+// Use like any LangChain chat model
+const result = await cascade.invoke('Explain quantum computing');
+
+// With LCEL chains
+const chain = prompt.pipe(cascade).pipe(new StringOutputParser());
+```
+
+## Options
+
+```typescript
+interface CascadeOptions {
+  drafter: BaseChatModel;        // Cheap, fast model
+  verifier: BaseChatModel;       // Powerful fallback model
+  qualityThreshold?: number;     // 0-1, default 0.4
+}
+```
+
+## Model Discovery
+
+```typescript
+import {
+  discoverCascadePairs,
+  findBestCascadePair,
+  analyzeModel,
+  validateCascadePair,
+} from '@cascadeflow/langchain';
+
+const models = [
+  new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  new ChatOpenAI({ model: 'gpt-4o' }),
+  new ChatAnthropic({ model: 'claude-sonnet-4' }),
+];
+
+const best = findBestCascadePair(models);
+const cascade = withCascade({
+  drafter: best.drafter,
+  verifier: best.verifier,
+});
+```
+
+## Features
+
+- Full LCEL support (pipes, sequences, batch)
+- Streaming with pre-routing
+- Tool calling and structured output
+- LangSmith cost tracking metadata
+- Model discovery and pair validation
