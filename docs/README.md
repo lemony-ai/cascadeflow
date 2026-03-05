@@ -35,10 +35,12 @@ Welcome to cascadeflow documentation! 🌊
 - [Custom Validation](guides/custom_validation.md) - Implement custom quality validators
 - [Edge Device Deployment](guides/edge_device.md) - Deploy cascades on edge devices (Jetson, etc.)
 - [Browser/Edge Runtime](guides/browser_cascading.md) - Run cascades in browser or edge environments
+- [Agent Intelligence V2/V2.1 Plan](strategy/agent-intelligence-v2-plan.md) - Unified strategic and execution plan for in-process agent intelligence harness delivery
 
 ### Integrations
 - [n8n Integration](guides/n8n_integration.md) - Use cascadeflow in n8n workflows
 - [Paygentic Integration](guides/paygentic_integration.md) - Usage metering and billing lifecycle helpers (opt-in)
+- [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
 
 ## 📚 Examples
 

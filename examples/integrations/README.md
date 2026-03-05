@@ -5,6 +5,7 @@ This directory contains production-ready integration examples for cascadeflow wi
 ## 📋 Table of Contents
 
 - [LiteLLM Integration](#-litellm-integration) - Access 10+ providers with automatic cost tracking
+- [OpenAI Agents SDK Integration](#-openai-agents-sdk-integration) - Harness-aware ModelProvider for existing agent apps
 - [Paygentic Integration](#-paygentic-integration) - Usage event reporting and billing lifecycle helpers
 - [Local Providers](#-local-providers-setup) - Ollama and vLLM configuration examples
 - [OpenTelemetry & Grafana](#-opentelemetry--grafana) - Production observability and metrics
@@ -135,6 +136,27 @@ export HF_TOKEN="..."
 - GPT-4o only: $30,000/year
 - With DeepSeek/Gemini cascade: $1,500-$9,000/year
 - **Savings: $21,000-$28,500/year (70-95%)**
+
+---
+
+## 🤖 OpenAI Agents SDK Integration
+
+**File:** [`openai_agents_harness.py`](openai_agents_harness.py)
+
+Use cascadeflow as an explicit `ModelProvider` integration in the OpenAI Agents SDK.
+
+### Quick Start
+
+```bash
+pip install "cascadeflow[openai,openai-agents]"
+python examples/integrations/openai_agents_harness.py
+```
+
+### What It Shows
+
+- Harness-aware model switching with candidate models
+- Tool gating when enforce-mode caps are reached
+- Run-scoped metrics and trace inspection via `cascadeflow.run(...)`
 
 ---
 

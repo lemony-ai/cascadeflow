@@ -12,6 +12,7 @@ Exception Hierarchy:
     │   └── TimeoutError
     ├── ModelError
     ├── BudgetExceededError
+    ├── HarnessStopError
     ├── RateLimitError
     ├── QualityThresholdError
     ├── RoutingError
@@ -137,6 +138,14 @@ class BudgetExceededError(cascadeflowError):
         self.remaining = remaining
 
 
+class HarnessStopError(cascadeflowError):
+    """Harness enforcement stop for non-budget hard limits."""
+
+    def __init__(self, message: str, reason: str):
+        super().__init__(message)
+        self.reason = reason
+
+
 class RateLimitError(cascadeflowError):
     """Rate limit exceeded."""
 
@@ -202,6 +211,7 @@ __all__ = [
     "TimeoutError",
     "ModelError",
     "BudgetExceededError",
+    "HarnessStopError",
     "RateLimitError",
     "QualityThresholdError",
     "RoutingError",
