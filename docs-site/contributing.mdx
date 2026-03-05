@@ -1,0 +1,96 @@
+---
+title: Contributing
+description: How to contribute to cascadeflow — development setup, code style, testing, and pull request process.
+---
+
+# Contributing
+
+We welcome contributions to cascadeflow. This guide covers development setup for both Python and TypeScript.
+
+## Monorepo Structure
+
+```
+cascadeflow/
+  cascadeflow/         # Python package
+  packages/
+    core/              # TypeScript core
+    langchain-cascadeflow/  # LangChain TypeScript
+    integrations/
+      vercel-ai/       # Vercel AI SDK
+      n8n/             # n8n community nodes
+  tests/               # Python tests
+  examples/            # Python examples
+  docs/                # Documentation
+  docs-site/           # Mintlify docs site
+```
+
+## Python Development
+
+### Setup
+
+```bash
+git clone https://github.com/lemony-ai/cascadeflow.git
+cd cascadeflow
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pre-commit install
+```
+
+### Code Style
+
+- **Formatter**: Black (line length 100)
+- **Linter**: Ruff
+- **Type checker**: mypy
+- **Import sorting**: isort
+
+```bash
+black cascadeflow/ tests/
+ruff check cascadeflow/ tests/
+mypy cascadeflow/
+```
+
+### Testing
+
+```bash
+pytest tests/ -x -q                    # Run all tests
+pytest tests/ -m "not integration"     # Skip integration tests
+pytest tests/ --cov=cascadeflow        # With coverage
+```
+
+## TypeScript Development
+
+### Setup
+
+```bash
+cd packages/core
+pnpm install
+pnpm build
+pnpm test
+```
+
+### Code Style
+
+- **Linter**: ESLint
+- **Language**: TypeScript (strict mode)
+- **Indentation**: 2 spaces
+
+## Making Changes
+
+1. Create a branch from `main`
+2. Make changes with clear, descriptive commits
+3. Follow commit conventions: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
+4. Add tests for new functionality
+5. Ensure all tests pass
+
+## Pull Requests
+
+- All PRs require review approval
+- Linear history enforced (no merge commits)
+- CI must pass before merge
+
+## Links
+
+- [GitHub Issues](https://github.com/lemony-ai/cascadeflow/issues) — Bug reports and feature requests
+- [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions) — Questions and community
+- [Email](mailto:hello@lemony.ai) — Direct support

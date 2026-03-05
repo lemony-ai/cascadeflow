@@ -1,4 +1,5 @@
 import type { DomainType } from './config';
+import type { HarnessSummary } from '../harness';
 
 export interface CostBreakdown {
   drafter: number;
@@ -12,12 +13,15 @@ export interface SavingsBreakdown {
   percent: number;
 }
 
+export interface HarnessSummaryOutput extends HarnessSummary {}
+
 export interface CascadeFlowMetadata {
   model_used: string;
   domain: DomainType | null;
   confidence?: number;
   costs: CostBreakdown;
   savings: SavingsBreakdown;
+  harness?: HarnessSummaryOutput | null;
 }
 
 export const calculateSavings = (

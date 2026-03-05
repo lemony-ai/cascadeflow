@@ -1,0 +1,79 @@
+---
+title: "@cascadeflow.agent()"
+description: Decorate agent functions with policy metadata including budget, compliance, and KPI weights.
+---
+
+# @cascadeflow.agent()
+
+Annotate agent functions with policy metadata. The decorator attaches budget, compliance, and KPI configuration to the function for the harness to use at runtime.
+
+## Signature
+
+```python
+def agent(
+    budget: Optional[float] = None,
+    compliance: Optional[str] = None,
+    kpi_weights: Optional[dict[str, float]] = None,
+    kpi_targets: Optional[dict[str, float]] = None,
+    max_tool_calls: Optional[int] = None,
+)
+```
+
+## Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `budget` | `float \| None` | `None` | Max USD for this agent |
+| `compliance` | `str \| None` | `None` | Compliance mode |
+| `kpi_weights` | `dict \| None` | `None` | KPI dimension weights |
+| `kpi_targets` | `dict \| None` | `None` | KPI dimension targets |
+| `max_tool_calls` | `int \| None` | `None` | Max tool/function calls |
+
+## Usage
+
+### Basic
+
+```python
+@cascadeflow.agent(budget=0.20)
+async def my_agent(query: str):
+    return await llm.complete(query)
+```
+
+### With compliance
+
+```python
+@cascadeflow.agent(budget=0.50, compliance="gdpr")
+async def eu_agent(query: str):
+    return await llm.complete(query)
+```
+
+### With KPI weights
+
+```python
+@cascadeflow.agent(
+    budget=1.00,
+    kpi_weights={"quality": 0.8, "cost": 0.2},
+    kpi_targets={"quality": 0.9},
+)
+async def premium_agent(query: str):
+    return await llm.complete(query)
+```
+
+### Multiple agents with different policies
+
+```python
+@cascadeflow.agent(budget=0.10, kpi_weights={"cost": 0.9, "quality": 0.1})
+async def triage_agent(query: str):
+    return await llm.complete(query)
+
+@cascadeflow.agent(budget=2.00, kpi_weights={"quality": 0.9, "cost": 0.1})
+async def analysis_agent(query: str):
+    return await llm.complete(query)
+```
+
+## Notes
+
+- The decorator does not wrap or modify the function's execution. It attaches metadata that the harness reads at runtime.
+- Works with both sync and async functions.
+- Requires `init()` to have been called for the metadata to take effect.
+- Can be combined with `run()` — the run's constraints are checked in addition to the decorator's.

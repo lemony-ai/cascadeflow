@@ -185,6 +185,28 @@ except ImportError:
     crewai_is_enabled = None
     crewai_get_config = None
 
+# Try to import Google ADK integration
+try:
+    from .google_adk import (
+        GOOGLE_ADK_AVAILABLE,
+        GoogleADKHarnessConfig,
+        CascadeFlowADKPlugin,
+        enable as google_adk_enable,
+        disable as google_adk_disable,
+        is_available as google_adk_is_available,
+        is_enabled as google_adk_is_enabled,
+        get_config as google_adk_get_config,
+    )
+except ImportError:
+    GOOGLE_ADK_AVAILABLE = False
+    GoogleADKHarnessConfig = None
+    CascadeFlowADKPlugin = None
+    google_adk_enable = None
+    google_adk_disable = None
+    google_adk_is_available = None
+    google_adk_is_enabled = None
+    google_adk_get_config = None
+
 __all__ = []
 
 if LITELLM_AVAILABLE:
@@ -285,6 +307,20 @@ if CREWAI_AVAILABLE:
         ]
     )
 
+if GOOGLE_ADK_AVAILABLE:
+    __all__.extend(
+        [
+            "GOOGLE_ADK_AVAILABLE",
+            "GoogleADKHarnessConfig",
+            "CascadeFlowADKPlugin",
+            "google_adk_enable",
+            "google_adk_disable",
+            "google_adk_is_available",
+            "google_adk_is_enabled",
+            "google_adk_get_config",
+        ]
+    )
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
@@ -294,6 +330,7 @@ INTEGRATION_CAPABILITIES = {
     "openclaw": OPENCLAW_AVAILABLE,
     "paygentic": PAYGENTIC_AVAILABLE,
     "crewai": CREWAI_AVAILABLE,
+    "google_adk": GOOGLE_ADK_AVAILABLE,
 }
 
 
@@ -319,4 +356,5 @@ def get_integration_info():
         "openclaw_available": OPENCLAW_AVAILABLE,
         "paygentic_available": PAYGENTIC_AVAILABLE,
         "crewai_available": CREWAI_AVAILABLE,
+        "google_adk_available": GOOGLE_ADK_AVAILABLE,
     }

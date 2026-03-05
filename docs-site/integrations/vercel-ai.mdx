@@ -1,0 +1,88 @@
+---
+title: Vercel AI SDK
+description: TypeScript middleware integration for Vercel AI SDK with cascade routing, multi-turn chat, and tool execution.
+---
+
+# Vercel AI SDK Integration
+
+cascadeflow integrates with the Vercel AI SDK as middleware, providing cascade routing for server-side AI applications with streaming support.
+
+## Install
+
+```bash
+npm install @cascadeflow/vercel-ai
+```
+
+## Quick Start
+
+```typescript
+import { createChatHandler } from '@cascadeflow/vercel-ai';
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
+
+const handler = createChatHandler(agent, {
+  protocol: 'data',           // AI SDK v4 data stream
+  tools,                       // Tool definitions
+  toolHandlers,                // Server-side tool execution
+  maxSteps: 5,                 // Multi-step tool loops
+});
+
+// Use in Next.js API route, Express, or any Node.js server
+export const POST = handler;
+```
+
+## Features
+
+- **AI SDK v4 `data` stream** and **AI SDK v5/v6 UI streams**
+- **`useChat` multi-turn support** — conversation history preserved
+- **`parts` message format** (AI SDK v6)
+- **Tool call streaming visibility** — see tool calls as they happen
+- **Server-side tool execution** via `toolExecutor` or `toolHandlers`
+- **Multi-step controls**: `maxSteps`, `forceDirect`
+- **Cascade decision stream parts** — optional metadata in the stream
+- **Request-level overrides** with allowlist + shared-secret guard
+
+## Multi-Turn Chat
+
+```typescript
+import { useChat } from 'ai/react';
+
+export default function Chat() {
+  const { messages, input, handleSubmit, handleInputChange } = useChat({
+    api: '/api/chat',
+  });
+
+  return (
+    <div>
+      {messages.map((m) => (
+        <div key={m.id}>{m.content}</div>
+      ))}
+      <form onSubmit={handleSubmit}>
+        <input value={input} onChange={handleInputChange} />
+      </form>
+    </div>
+  );
+}
+```
+
+## Request Overrides
+
+Override cascade behavior per request (protected by shared secret):
+
+```typescript
+const handler = createChatHandler(agent, {
+  protocol: 'data',
+  allowOverrides: ['forceDirect', 'maxSteps'],
+  overrideSecret: process.env.OVERRIDE_SECRET,
+});
+```
+
+## Result
+
+40-85% cost savings for Vercel AI SDK applications with streaming support and zero client-side changes.

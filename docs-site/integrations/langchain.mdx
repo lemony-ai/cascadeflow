@@ -1,0 +1,106 @@
+---
+title: LangChain
+description: Harness-aware callback handler for LangChain and LangGraph with budget tracking, cost analytics, and decision traces.
+---
+
+# LangChain Integration
+
+cascadeflow integrates with LangChain through a callback handler that wraps any `BaseChatModel`. Works with LCEL chains, streaming, tool calling, structured output, and LangGraph agents.
+
+## Install
+
+<CodeGroup>
+
+```bash Python
+pip install "cascadeflow[langchain]"
+```
+
+```bash TypeScript
+npm install @cascadeflow/langchain @langchain/core @langchain/openai
+```
+
+</CodeGroup>
+
+## Quick Start
+
+<CodeGroup>
+
+```python Python — Harness callback
+import cascadeflow
+from cascadeflow.integrations.langchain import get_harness_callback
+from langchain_openai import ChatOpenAI
+
+cascadeflow.init(mode="observe")
+
+model = ChatOpenAI(model="gpt-4o")
+cb = get_harness_callback()
+
+with cascadeflow.run(budget=0.50) as session:
+    result = await model.ainvoke("Explain quantum computing", config={"callbacks": [cb]})
+    print(session.summary())
+```
+
+```python Python — Cascade routing
+from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from cascadeflow.integrations.langchain import CascadeFlow
+
+cascade = CascadeFlow(
+    drafter=ChatOpenAI(model="gpt-4o-mini"),
+    verifier=ChatAnthropic(model="claude-sonnet-4"),
+    quality_threshold=0.8,
+)
+
+result = await cascade.ainvoke("Explain quantum computing")
+```
+
+```typescript TypeScript — Drop-in cascade
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { withCascade } from '@cascadeflow/langchain';
+
+const cascade = withCascade({
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatAnthropic({ model: 'claude-sonnet-4' }),
+  qualityThreshold: 0.8,
+});
+
+const result = await cascade.invoke('Explain quantum computing');
+```
+
+</CodeGroup>
+
+## Features
+
+- Full LCEL support (pipes, sequences, batch)
+- Streaming with pre-routing
+- Tool calling and structured output
+- LangSmith cost tracking metadata
+- Cost tracking callbacks
+- Domain policies with `cascadeflow_domain` metadata
+
+## Cost Tracking Callback
+
+```python
+from cascadeflow.integrations.langchain.langchain_callbacks import get_cascade_callback
+
+with get_cascade_callback() as cb:
+    response = await cascade.ainvoke("What is Python?")
+    print(f"Total cost: ${cb.total_cost:.6f}")
+    print(f"Drafter cost: ${cb.drafter_cost:.6f}")
+    print(f"Verifier cost: ${cb.verifier_cost:.6f}")
+```
+
+## LangSmith Integration
+
+When LangSmith tracing is enabled, cascadeflow adds metadata to runs:
+- `cascade_decision`: whether the drafter was accepted
+- `modelUsed`: which model produced the final response
+- `drafterQuality`: quality score from validation
+- `savingsPercentage`: cost savings achieved
+
+```bash
+export LANGSMITH_API_KEY="..."
+export LANGSMITH_PROJECT="my-project"
+export LANGSMITH_TRACING=true
+```

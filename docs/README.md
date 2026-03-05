@@ -1,8 +1,10 @@
 # cascadeflow Documentation
 
-Welcome to cascadeflow documentation! 🌊
+> **Full documentation is now at [docs.cascadeflow.dev](https://docs.cascadeflow.dev)** — the Mintlify-powered docs site is the primary reference for cascadeflow's agent runtime intelligence layer. The guides below remain for quick reference and deep links.
 
-## 📖 Quick Links
+Agent runtime intelligence layer — optimize cost, latency, quality, budget, compliance, and energy across AI agent workflows. In-process harness, not a proxy.
+
+## Quick Links
 
 - [Installation Guide](INSTALLATION.md)
 - [Quick Start Guide](guides/quickstart.md)
@@ -11,6 +13,7 @@ Welcome to cascadeflow documentation! 🌊
 
 ### Core Concepts
 - [Quickstart](guides/quickstart.md) - Get started with cascadeflow in 5 minutes
+- [Python Harness Quickstart](guides/python_harness_quickstart.md) - `init`, `run`, and `@agent` for in-process policy control
 - [Providers](guides/providers.md) - Configure and use different AI providers (OpenAI, Anthropic, Groq, Ollama, etc.)
 - [Presets](guides/presets.md) - Use built-in presets for common use cases
 - [Gateway Server](guides/gateway.md) - Drop-in OpenAI/Anthropic-compatible endpoint for existing apps
@@ -20,6 +23,7 @@ Welcome to cascadeflow documentation! 🌊
 - [Tools](guides/tools.md) - Function calling and tool usage with cascades
 - [Agentic Patterns (Python)](guides/agentic-python.md) - Tool loops and multi-agent orchestration in Python
 - [Agentic Patterns (TypeScript)](guides/agentic-typescript.md) - Tool loops, multi-agent orchestration, and message best practices
+- [Harness Telemetry & Privacy](guides/harness_telemetry_privacy.md) - Decision traces, callbacks, and privacy-safe observability
 - [Cost Tracking](guides/cost_tracking.md) - Track and analyze API costs across queries
 - [Proxy Routing](guides/proxy.md) - Route requests through provider-aware proxy plans
 
@@ -38,9 +42,12 @@ Welcome to cascadeflow documentation! 🌊
 - [Agent Intelligence V2/V2.1 Plan](strategy/agent-intelligence-v2-plan.md) - Unified strategic and execution plan for in-process agent intelligence harness delivery
 
 ### Integrations
+- [LangChain Integration](guides/langchain_integration.md) - Callback handler for LangChain/LangGraph with harness-aware cascading
+- [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
+- [CrewAI Integration](guides/crewai_integration.md) - Hook-based harness metrics + budget gating (opt-in)
+- [Google ADK Integration](guides/google_adk_integration.md) - Plugin-based harness integration for ADK runners (opt-in)
 - [n8n Integration](guides/n8n_integration.md) - Use cascadeflow in n8n workflows
 - [Paygentic Integration](guides/paygentic_integration.md) - Usage metering and billing lifecycle helpers (opt-in)
-- [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
 
 ## 📚 Examples
 

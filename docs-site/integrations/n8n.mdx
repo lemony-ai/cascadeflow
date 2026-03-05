@@ -1,0 +1,70 @@
+---
+title: n8n
+description: cascadeflow community nodes for n8n with cascade model routing, tool gating, and harness modes for no-code AI workflows.
+---
+
+# n8n Integration
+
+cascadeflow provides two community nodes for n8n workflows: a Model sub-node for drop-in cascade routing and an Agent node for standalone multi-step reasoning.
+
+## Install
+
+In n8n:
+1. Go to **Settings** > **Community Nodes**
+2. Search for: `@cascadeflow/n8n-nodes-cascadeflow`
+3. Click **Install**
+
+Or via npm:
+```bash
+npm install @cascadeflow/n8n-nodes-cascadeflow
+```
+
+## Two Nodes
+
+| Node | Type | Use Case |
+|---|---|---|
+| **CascadeFlow (Model)** | Language Model sub-node | Drop-in for any Chain/LLM node |
+| **CascadeFlow Agent** | Standalone agent | Tool calling, memory, multi-step reasoning |
+
+## CascadeFlow (Model)
+
+Drop-in replacement for any AI Chat Model in n8n chains:
+
+1. Add two **AI Chat Model** nodes (cheap drafter + powerful verifier)
+2. Add **CascadeFlow (Model)** and connect both models
+3. Connect to a **Basic LLM Chain** or **Chain** node
+4. Check the **Logs tab** to see cascade decisions
+
+**Features:**
+- Quality threshold (default: 0.4)
+- 16 supported domains (Code, Math, Data, Legal, Medical, Financial, etc.)
+- Complexity thresholds for automatic routing
+
+## CascadeFlow Agent
+
+Standalone agent with tool calling and multi-step reasoning:
+
+1. Add a **Chat Trigger** node
+2. Add **CascadeFlow Agent** and connect to the trigger
+3. Connect **Drafter**, **Verifier**, optional **Memory** and **Tools**
+4. Check the **Output tab** for cascade metadata and decision trace
+
+**Features:**
+- Harness mode: `observe` or `enforce`
+- Budget caps and tool call limits
+- Tool routing rules: Cascade (default) or Verifier (for high-stakes tools)
+- Tool call validation with JSON schema checking
+
+## Complexity Thresholds
+
+| Level | Threshold | Routing |
+|---|---|---|
+| Trivial | 0.25 | Always use drafter |
+| Simple | 0.40 | Prefer drafter |
+| Moderate | 0.55 | Quality-dependent |
+| Hard | 0.70 | Prefer verifier |
+| Expert | 0.80 | Always use verifier |
+
+## Result
+
+40-85% cost savings in n8n workflows with zero changes to existing chains.

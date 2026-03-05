@@ -1,0 +1,103 @@
+---
+title: Multi-Agent Orchestration
+description: Multi-turn tool execution with agent-as-a-tool delegation and budget tracking across agent boundaries.
+---
+
+# Multi-Agent Orchestration
+
+cascadeflow supports multi-agent patterns with tool execution, delegation, and budget tracking across agent boundaries.
+
+## Tool Execution Loop
+
+```python
+import asyncio
+from cascadeflow import CascadeAgent, ModelConfig
+from cascadeflow.tools import ToolConfig, ToolExecutor
+
+# Define tools
+tools = [
+    ToolConfig(
+        name="calculator",
+        description="Evaluate a math expression",
+        parameters={"expression": {"type": "string"}},
+        handler=lambda expression: str(eval(expression)),
+    ),
+    ToolConfig(
+        name="search",
+        description="Search the web",
+        parameters={"query": {"type": "string"}},
+        handler=lambda query: f"Results for: {query}",
+    ),
+]
+
+agent = CascadeAgent(models=[
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
+])
+
+executor = ToolExecutor(tools=tools)
+
+async def main():
+    result = await agent.run(
+        "Calculate 15% of 250 and search for tax rates",
+        tools=tools,
+        tool_executor=executor,
+        max_steps=5,
+    )
+    print(result.content)
+
+asyncio.run(main())
+```
+
+## With Harness Budget Tracking
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=1.00, max_tool_calls=10) as session:
+    result = await agent.run(
+        "Research this topic using multiple tools",
+        tools=tools,
+        tool_executor=executor,
+        max_steps=10,
+    )
+
+    summary = session.summary()
+    print(f"Cost: ${summary['cost_total']:.4f}")
+    print(f"Tool calls: {summary['tool_calls']}")
+    print(f"Steps: {summary['steps']}")
+```
+
+## Agent-as-a-Tool Delegation
+
+```python
+# Define a researcher agent as a tool
+researcher = CascadeAgent(models=[
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
+])
+
+async def research_handler(query: str) -> str:
+    result = await researcher.run(query)
+    return result.content
+
+# Main agent can delegate to researcher
+tools = [
+    ToolConfig(
+        name="research",
+        description="Delegate research to a specialist agent",
+        parameters={"query": {"type": "string"}},
+        handler=research_handler,
+    ),
+]
+
+# Budget tracks across both agents
+with cascadeflow.run(budget=2.00) as session:
+    result = await main_agent.run("Analyze and research this topic", tools=tools)
+```
+
+## Source
+
+[examples/agentic_multi_agent.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/agentic_multi_agent.py)

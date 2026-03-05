@@ -1,0 +1,77 @@
+---
+title: OpenAI Agents SDK
+description: CascadeFlowModelProvider for OpenAI Agents SDK with model candidates, tool gating, and budget tracking.
+---
+
+# OpenAI Agents SDK Integration
+
+cascadeflow provides a `CascadeFlowModelProvider` that integrates with the OpenAI Agents SDK as an explicit `ModelProvider`. Supports model candidates, tool gating, and scoped budget tracking.
+
+## Install
+
+```bash
+pip install "cascadeflow[openai-agents]"
+```
+
+## Quick Start
+
+```python
+import asyncio
+from agents import Agent, Runner
+import cascadeflow
+from cascadeflow.integrations.openai_agents import (
+    CascadeFlowModelProvider,
+    OpenAIAgentsIntegrationConfig,
+)
+
+cascadeflow.init(mode="observe")
+
+# Configure integration
+config = OpenAIAgentsIntegrationConfig(
+    model_candidates=["gpt-4o-mini", "gpt-4o"],
+    enable_tool_gating=True,
+)
+
+provider = CascadeFlowModelProvider(config=config)
+
+agent = Agent(
+    name="research_agent",
+    instructions="You are a helpful research assistant.",
+    model_provider=provider,
+)
+
+async def main():
+    with cascadeflow.run(budget=0.50) as session:
+        result = await Runner.run(agent, "Explain cascadeflow")
+        print(result.final_output)
+        print(session.summary())
+
+asyncio.run(main())
+```
+
+## Features
+
+- **Model candidates**: List of models the provider can select from based on harness scoring
+- **Tool gating**: Block tool calls when `max_tool_calls` is reached
+- **Scoped runs**: Use `cascadeflow.run()` for per-task budget tracking
+- **Decision traces**: Full audit trail of model selection and tool gating decisions
+- **Fail-open**: If the harness encounters an error, execution continues with the default model
+
+## Configuration
+
+```python
+config = OpenAIAgentsIntegrationConfig(
+    model_candidates=["gpt-4o-mini", "gpt-4o"],  # Models to choose from
+    enable_tool_gating=True,                       # Block tools at cap
+)
+```
+
+## Session Metrics
+
+After a run, `session.summary()` includes:
+- `cost_total`: cumulative USD spent
+- `budget_remaining`: USD left in the budget
+- `step_count`: number of LLM calls
+- `tool_calls`: number of tool executions
+- `latency_used_ms`: total latency
+- `energy_used`: total energy units

@@ -1,0 +1,118 @@
+---
+title: Quickstart
+description: Get cascadeflow running in 3 minutes with zero code changes using the harness API.
+---
+
+# Quickstart
+
+Three tiers of integration — pick the one that matches your needs.
+
+## Install
+
+<CodeGroup>
+
+```bash pip
+pip install "cascadeflow[openai]"
+```
+
+```bash With integrations
+pip install "cascadeflow[langchain]"     # LangChain/LangGraph
+pip install "cascadeflow[openai-agents]" # OpenAI Agents SDK
+pip install "cascadeflow[crewai]"        # CrewAI
+pip install "cascadeflow[google-adk]"    # Google ADK
+```
+
+```bash npm
+npm install @cascadeflow/core
+```
+
+</CodeGroup>
+
+## Tier 1: Zero-Change Observability
+
+Add two lines. All OpenAI and Anthropic SDK calls are automatically tracked.
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="observe")
+
+# Your existing code — no changes needed
+import openai
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "What is cascadeflow?"}]
+)
+# cascadeflow is now tracking cost, latency, energy, and model usage.
+```
+
+## Tier 2: Scoped Runs with Budget
+
+Wrap agent execution in a `run()` context manager for budget tracking and enforcement.
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:
+    # Your agent code here
+    result = await agent.run("Analyze this dataset and create a report")
+
+    # After execution, inspect metrics
+    summary = session.summary()
+    print(f"Cost: ${summary['cost_total']:.4f}")
+    print(f"Steps: {summary['steps']}")
+    print(f"Tool calls: {summary['tool_calls']}")
+    print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
+
+    # Full decision audit trail
+    for decision in session.trace():
+        print(f"  Step {decision['step']}: {decision['action']} — {decision['reason']}")
+```
+
+## Tier 3: Decorated Agents with Policy
+
+Annotate agent functions with budget, compliance, and KPI metadata.
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+@cascadeflow.agent(
+    budget=0.20,
+    compliance="gdpr",
+    kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1}
+)
+async def research_agent(query: str):
+    return await llm.complete(query)
+```
+
+## Harness Modes
+
+| Mode | Tracking | Enforcement | Use Case |
+|---|---|---|---|
+| `off` | No | No | Disabled |
+| `observe` | Yes | No | Safe production rollout, metrics collection |
+| `enforce` | Yes | Yes | Budget caps, compliance gating, stop actions |
+
+Start with `observe` in production. Switch to `enforce` once you've validated the metrics.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/get-started/installation">
+    All pip extras, npm packages, and provider setup.
+  </Card>
+  <Card title="How It Works" icon="gears" href="/get-started/how-it-works">
+    Architecture of the Cascade and Harness engines.
+  </Card>
+  <Card title="Budget Enforcement" icon="wallet" href="/harness/budget-enforcement">
+    Per-run and per-user budget caps.
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations/overview">
+    LangChain, OpenAI Agents, CrewAI, Google ADK, n8n, Vercel AI.
+  </Card>
+</CardGroup>

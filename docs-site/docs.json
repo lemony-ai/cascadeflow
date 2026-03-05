@@ -1,0 +1,130 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "palm",
+  "name": "cascadeflow",
+  "colors": {
+    "primary": "#0E7490",
+    "light": "#22D3EE",
+    "dark": "#0E7490"
+  },
+  "logo": {
+    "light": "/logo/cascadeflow-light.svg",
+    "dark": "/logo/cascadeflow-dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "tabs": [
+    { "id": "get-started", "name": "Get Started" },
+    { "id": "harness", "name": "Harness" },
+    { "id": "integrations", "name": "Integrations" },
+    { "id": "api-reference", "name": "API Reference" },
+    { "id": "examples", "name": "Examples" }
+  ],
+  "navigation": {
+    "get-started": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "get-started/introduction",
+          "get-started/quickstart",
+          "get-started/installation",
+          "get-started/how-it-works"
+        ]
+      },
+      {
+        "group": "Resources",
+        "pages": [
+          "changelog",
+          "contributing"
+        ]
+      }
+    ],
+    "harness": [
+      {
+        "group": "Harness",
+        "pages": [
+          "harness/overview",
+          "harness/modes",
+          "harness/budget-enforcement",
+          "harness/compliance",
+          "harness/kpi-optimization",
+          "harness/energy-tracking",
+          "harness/decision-trace",
+          "harness/actions"
+        ]
+      }
+    ],
+    "integrations": [
+      {
+        "group": "Integrations",
+        "pages": [
+          "integrations/overview",
+          "integrations/langchain",
+          "integrations/openai-agents",
+          "integrations/crewai",
+          "integrations/google-adk",
+          "integrations/n8n",
+          "integrations/vercel-ai"
+        ]
+      }
+    ],
+    "api-reference": [
+      {
+        "group": "Python",
+        "pages": [
+          "api-reference/python/init",
+          "api-reference/python/run",
+          "api-reference/python/agent-decorator",
+          "api-reference/python/harness-config",
+          "api-reference/python/run-context"
+        ]
+      },
+      {
+        "group": "TypeScript",
+        "pages": [
+          "api-reference/typescript/core",
+          "api-reference/typescript/vercel-ai",
+          "api-reference/typescript/langchain"
+        ]
+      }
+    ],
+    "examples": [
+      {
+        "group": "Examples",
+        "pages": [
+          "examples/basic-usage",
+          "examples/budget-enforcement",
+          "examples/compliance-gating",
+          "examples/kpi-weighted-routing",
+          "examples/multi-agent",
+          "examples/enterprise-patterns"
+        ]
+      }
+    ]
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/lemony-ai/cascadeflow"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "/get-started/quickstart"
+  },
+  "footerSocials": {
+    "github": "https://github.com/lemony-ai/cascadeflow",
+    "x": "https://x.com/saschabuehrle"
+  },
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/lemony-ai/cascadeflow"
+    },
+    {
+      "name": "PyPI",
+      "icon": "python",
+      "url": "https://pypi.org/project/cascadeflow/"
+    }
+  ]
+}

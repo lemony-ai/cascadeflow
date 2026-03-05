@@ -1,0 +1,63 @@
+---
+title: "@cascadeflow/vercel-ai"
+description: Vercel AI SDK middleware integration for cascade routing with streaming, multi-turn chat, and tool execution.
+---
+
+# @cascadeflow/vercel-ai
+
+Middleware integration for the Vercel AI SDK. Adds cascade routing to AI SDK applications with streaming support.
+
+## Install
+
+```bash
+npm install @cascadeflow/vercel-ai
+```
+
+## createChatHandler
+
+Creates a request handler for AI SDK chat endpoints.
+
+```typescript
+import { createChatHandler } from '@cascadeflow/vercel-ai';
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
+
+const handler = createChatHandler(agent, {
+  protocol: 'data',
+  tools,
+  toolHandlers,
+  maxSteps: 5,
+});
+```
+
+## Options
+
+```typescript
+interface ChatHandlerOptions {
+  protocol: 'data' | 'ui';             // AI SDK stream protocol
+  tools?: ToolDefinition[];             // Tool definitions
+  toolHandlers?: Record<string, Function>; // Server-side tool execution
+  toolExecutor?: Function;              // Universal tool executor
+  maxSteps?: number;                    // Multi-step tool loop limit
+  forceDirect?: boolean;                // Skip cascade, use verifier
+  allowOverrides?: string[];            // Request-level override keys
+  overrideSecret?: string;              // Shared secret for overrides
+}
+```
+
+## Features
+
+- AI SDK v4 `data` stream and v5/v6 UI streams
+- `useChat` multi-turn support
+- `parts` message format (AI SDK v6)
+- Tool call streaming visibility
+- Server-side tool execution loops
+- Multi-step controls
+- Cascade decision stream parts
+- Request-level overrides with allowlist

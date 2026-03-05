@@ -1,0 +1,80 @@
+---
+title: Harness Overview
+description: Overview of the cascadeflow harness — six optimization dimensions, HarnessConfig surface, and high-level decision flow.
+---
+
+# Harness Overview
+
+The cascadeflow harness is an in-process intelligence layer that wraps AI agent execution. It tracks, scores, and optionally enforces constraints across six dimensions for every LLM call and tool execution inside agent loops.
+
+## Six Dimensions
+
+| Dimension | What it measures | Hard cap | Soft scoring |
+|---|---|---|---|
+| **Cost** | Estimated USD from the pricing table | `budget` | `kpi_weights.cost` |
+| **Latency** | Wall-clock milliseconds per LLM call | `max_latency_ms` | `kpi_weights.latency` |
+| **Quality** | Model quality priors (0-1 score) | -- | `kpi_weights.quality` |
+| **Tool calls** | Count of tool/function calls | `max_tool_calls` | -- |
+| **Energy** | Compute-intensity coefficient | `max_energy` | `kpi_weights.energy` |
+| **Compliance** | Model allowlist per regulation | `compliance` | -- |
+
+## HarnessConfig
+
+All harness behavior is configured through a single dataclass:
+
+```python
+from cascadeflow import HarnessConfig
+
+config = HarnessConfig(
+    mode="enforce",                    # "off" | "observe" | "enforce"
+    verbose=False,                     # Print decisions to stderr
+    budget=0.50,                       # Max USD for the run (None = unlimited)
+    max_tool_calls=10,                 # Max tool/function calls (None = unlimited)
+    max_latency_ms=5000.0,             # Max wall-clock ms per call (None = unlimited)
+    max_energy=100.0,                  # Max energy units (None = unlimited)
+    kpi_targets={"quality": 0.9},      # Target values for KPI dimensions
+    kpi_weights={                      # Relative importance of each dimension
+        "quality": 0.6,
+        "cost": 0.3,
+        "latency": 0.1,
+    },
+    compliance="gdpr",                 # "gdpr" | "hipaa" | "pci" | "strict" | None
+)
+```
+
+## Activation
+
+```python
+import cascadeflow
+
+# Global activation
+cascadeflow.init(mode="observe")
+
+# Scoped run with overrides
+with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:
+    # agent code
+    pass
+
+# Decorated agent function
+@cascadeflow.agent(budget=0.20, compliance="gdpr")
+async def my_agent(query: str):
+    pass
+```
+
+## Decision Flow
+
+For each LLM call or tool execution:
+
+1. **Record** model, step number, cumulative cost, latency, energy
+2. **Check compliance** — is the model in the allowlist for the configured regulation?
+3. **Check hard caps** — budget, tool calls, latency, energy
+4. **Score KPI dimensions** — quality, cost, latency, energy weighted by `kpi_weights`
+5. **Decide action** — `allow`, `switch_model`, `deny_tool`, or `stop`
+6. **Enforce or log** — enforce in `enforce` mode, log only in `observe` mode
+7. **Append trace** — full decision record for auditability
+
+## Supported Models
+
+The harness includes a built-in pricing table for 18 models across OpenAI, Anthropic, and Google. Unknown models are resolved via fuzzy matching (e.g. `gpt-5-mini` matches even before official pricing is announced).
+
+See [Energy Tracking](/harness/energy-tracking) for the full pricing and energy coefficients table.

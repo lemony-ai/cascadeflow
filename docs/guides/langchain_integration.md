@@ -12,6 +12,7 @@ This guide shows how to use cascadeflow with LangChain for intelligent AI model 
 6. [Use Cases](#use-cases)
 7. [Best Practices](#best-practices)
 8. [Troubleshooting](#troubleshooting)
+9. [Harness Integration (Python)](#harness-integration-python)
 
 ---
 
@@ -821,6 +822,132 @@ console.log(result.response_metadata?.cascade);
 
 // Not result.metadata (wrong)
 ```
+
+---
+
+## Harness Integration (Python)
+
+The cascadeflow harness adds multi-dimensional budget enforcement, energy tracking,
+tool call gating, and trace recording to LangChain applications via a callback handler.
+
+### Design Principles
+
+- **Callback-based** — Uses LangChain's native callback system to intercept every
+  LLM and tool call. Works with any chain, agent, or LangGraph graph.
+- **Opt-in** — Install `cascadeflow[langchain]` and pass the callback explicitly.
+  Never enabled by default.
+- **Fail-open** — Integration errors are logged but never break chain execution
+  (configurable).
+- **No model switching** — LangChain dispatches the LLM call before `on_llm_start`
+  returns, so the callback cannot redirect to a different model. `switch_model`
+  decisions are recorded with `applied=False` for observability.
+
+### Install
+
+```bash
+pip install "cascadeflow[langchain]"
+```
+
+Requires Python 3.10+.
+
+### Quick Start
+
+```python
+from langchain_openai import ChatOpenAI
+from cascadeflow import init, run
+from cascadeflow.integrations.langchain import get_harness_callback
+
+# 1. Initialize harness globally
+init(mode="observe", budget=1.0)
+
+model = ChatOpenAI(model="gpt-4o-mini")
+
+# 2. Use the harness-aware callback in a run scope
+with run(budget=0.5) as session:
+    with get_harness_callback() as cb:
+        response = model.invoke(
+            "Explain why model routing helps agent budgets.",
+            config={"callbacks": [cb]},
+        )
+
+    print(response.content)
+    print(f"Cost: ${session.cost:.6f}")
+    print(f"Steps: {session.step_count}")
+    print(f"Tool calls: {session.tool_calls}")
+    for event in session.trace():
+        print(event)
+```
+
+### What This Integration Adds
+
+- Budget gating in enforce mode (`on_llm_start` raises `HarnessStopError`)
+- Tool call gating in enforce mode (`on_tool_start` raises `HarnessStopError`)
+- Run metrics on `cascadeflow.run()` scope:
+  - `cost`, `budget_remaining`, `step_count`, `tool_calls`, `latency_used_ms`, `energy_used`
+- Full decision trace through `session.trace()`
+- LangGraph state extraction — automatically syncs `step_count`, `tool_calls`,
+  `budget_remaining`, `latency_used_ms`, `energy_used` from graph state payloads
+
+### Enforce-Mode Limitations
+
+| Decision | Enforced? | Notes |
+|----------|-----------|-------|
+| `stop` (budget/latency/energy) | Yes | Raises `HarnessStopError` from `on_llm_start` |
+| `deny_tool` (tool cap) | Yes | Raises `HarnessStopError` from `on_tool_start` |
+| `switch_model` | Observe-only | Recorded with `applied=False` — LangChain cannot redirect mid-call |
+| `deny_tool` (LLM-level) | Observe-only | Cannot strip tools from already-dispatched request |
+
+### Configuration
+
+```python
+from cascadeflow.integrations.langchain import (
+    HarnessAwareCascadeFlowCallbackHandler,
+    get_harness_callback,
+)
+
+# Context manager (recommended)
+with get_harness_callback(fail_open=True) as cb:
+    result = model.invoke("...", config={"callbacks": [cb]})
+
+# Direct instantiation
+cb = HarnessAwareCascadeFlowCallbackHandler(fail_open=True)
+result = model.invoke("...", config={"callbacks": [cb]})
+```
+
+### With LangGraph
+
+The callback automatically extracts harness-relevant state from LangGraph payloads
+(via `langgraph_state`, `graph_state`, or `state` keys in metadata/configurable).
+
+```python
+from langgraph.graph import StateGraph
+from cascadeflow import init, run
+from cascadeflow.integrations.langchain import get_harness_callback
+
+init(mode="observe", budget=1.0)
+
+# Build your graph as normal
+graph = builder.compile()
+
+with run(budget=0.5) as session:
+    with get_harness_callback() as cb:
+        result = graph.invoke(
+            {"messages": [("user", "What is model routing?")]},
+            config={"callbacks": [cb]},
+        )
+    print(session.summary())
+```
+
+### Troubleshooting
+
+| Symptom | Solution |
+|---------|----------|
+| `ImportError: cascadeflow.integrations.langchain` | `pip install "cascadeflow[langchain]"` |
+| Callback not tracking calls | Ensure `cb` is passed in `config={"callbacks": [cb]}` |
+| Budget not enforced | Check `init(mode="enforce", ...)` — observe mode never blocks |
+| Zero cost reported | Model name may not match pricing table; check `response.response_metadata` |
+
+---
 
 ## Next Steps
 

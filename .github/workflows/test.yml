@@ -47,6 +47,52 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  # Python opt-in integration install + focused tests
+  test-python-optional-integrations:
+    name: Python Optional Integrations (${{ matrix.integration }} / py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - integration: openai-agents
+            python-version: '3.9'
+            extras: ".[dev,openai,openai-agents]"
+            tests: "tests/test_openai_agents_integration.py"
+          - integration: openai-agents
+            python-version: '3.11'
+            extras: ".[dev,openai,openai-agents]"
+            tests: "tests/test_openai_agents_integration.py"
+          - integration: crewai
+            python-version: '3.11'
+            extras: ".[dev,crewai,openai]"
+            tests: "tests/test_crewai_integration.py"
+          - integration: google-adk
+            python-version: '3.11'
+            extras: ".[dev,google-adk]"
+            tests: "tests/test_google_adk_integration.py"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install integration dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "${{ matrix.extras }}"
+
+      - name: Run focused integration tests
+        run: |
+          pytest ${{ matrix.tests }} -v
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
   # TypeScript Core Tests
   test-typescript-core:
     name: TypeScript Core Tests

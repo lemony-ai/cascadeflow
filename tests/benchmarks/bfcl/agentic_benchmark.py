@@ -61,6 +61,7 @@ class AgenticResult:
     correct: bool
     draft_accepted: bool
     cost: float
+    baseline_cost: float
     latency_ms: float
     draft_accepted_turns: int = 0
     draft_acceptance_rate: float = 0.0
@@ -761,6 +762,23 @@ class AgenticBenchmark:
             lines.append(f"- {name}: {description} (params: {param_names})")
         return "\n".join(lines)
 
+    @staticmethod
+    def _extract_baseline_cost(result: Any) -> float:
+        """Extract baseline cost for a call from cascade metadata.
+
+        ``cost_saved`` is defined relative to a verifier-only baseline.
+        """
+        total_cost = float(getattr(result, "total_cost", 0.0) or 0.0)
+        metadata = getattr(result, "metadata", {}) or {}
+        raw_saved = metadata.get("cost_saved", 0.0) or 0.0
+        try:
+            cost_saved = float(raw_saved)
+        except (TypeError, ValueError):
+            cost_saved = 0.0
+
+        baseline_cost = total_cost + cost_saved
+        return baseline_cost if baseline_cost > 0 else total_cost
+
     def _extract_parameters(self, response: str) -> list[dict[str, Any]]:
         """Extract JSON parameter blocks from a tool response."""
         parameters = []
@@ -939,6 +957,7 @@ Reason: <explanation>"""
                 draft_accepted_turns=1 if draft_accepted else 0,
                 draft_acceptance_rate=1.0 if draft_accepted else 0.0,
                 cost=result.total_cost,
+                baseline_cost=self._extract_baseline_cost(result),
                 latency_ms=latency_ms,
                 turns_completed=1,
                 tools_called=tools_called,
@@ -952,6 +971,7 @@ Reason: <explanation>"""
                 correct=False,
                 draft_accepted=False,
                 cost=0.0,
+                baseline_cost=0.0,
                 latency_ms=latency_ms,
                 error=str(e),
             )
@@ -976,6 +996,7 @@ Reason: <explanation>"""
 
         start_time = time.time()
         total_cost = 0.0
+        total_baseline_cost = 0.0
         all_tools_called = []
         turns_completed = 0
         state_maintained = True
@@ -1011,6 +1032,7 @@ If you need to respond to the user, call generate_response after any lookup/sear
 
                 result = await agent.run(prompt, max_tokens=500)
                 total_cost += result.total_cost
+                total_baseline_cost += self._extract_baseline_cost(result)
 
                 tools_in_turn = self._extract_tool_calls(result.content)
                 params_in_turn = self._extract_parameters(result.content)
@@ -1057,6 +1079,7 @@ If you need to respond to the user, call generate_response after any lookup/sear
                 draft_accepted_turns=draft_accepted_turns,
                 draft_acceptance_rate=draft_acceptance_rate,
                 cost=total_cost,
+                baseline_cost=total_baseline_cost if total_baseline_cost > 0 else total_cost,
                 latency_ms=latency_ms,
                 turns_completed=turns_completed,
                 tools_called=all_tools_called,
@@ -1072,6 +1095,7 @@ If you need to respond to the user, call generate_response after any lookup/sear
                 draft_accepted_turns=draft_accepted_turns,
                 draft_acceptance_rate=0.0,
                 cost=total_cost,
+                baseline_cost=total_baseline_cost if total_baseline_cost > 0 else total_cost,
                 latency_ms=latency_ms,
                 turns_completed=turns_completed,
                 error=str(e),
@@ -1127,6 +1151,13 @@ If you need to respond to the user, call generate_response after any lookup/sear
         draft_accepted_turns = sum(r.draft_accepted_turns for r in self.results)
         dependency_handled = sum(1 for r in self.results if r.dependency_handled)
         total_cost = sum(r.cost for r in self.results)
+        total_baseline_cost = sum(
+            r.baseline_cost if r.baseline_cost > 0 else r.cost for r in self.results
+        )
+        total_savings = total_baseline_cost - total_cost
+        cost_reduction_pct = (
+            (total_savings / total_baseline_cost) * 100 if total_baseline_cost > 0 else 0.0
+        )
         total_turns = sum(r.turns_completed for r in self.results)
 
         # Group by task type
@@ -1172,6 +1203,9 @@ If you need to respond to the user, call generate_response after any lookup/sear
             "draft_acceptance_by_task": draft_accepted / total if total > 0 else 0,
             "dependency_handling": dependency_rate,
             "total_cost": total_cost,
+            "baseline_cost": total_baseline_cost,
+            "total_savings": total_savings,
+            "cost_reduction_pct": cost_reduction_pct,
             "by_type": by_type,
             # Natural vs Explicit comparison
             "natural_language": {
@@ -1198,6 +1232,8 @@ If you need to respond to the user, call generate_response after any lookup/sear
         print(f"  Draft Acceptance:    {draft_rate:.1%} (by turn)")
         print(f"  Dependency Handling: {dependency_rate:.1%}")
         print(f"  Total Cost:          ${total_cost:.4f}")
+        print(f"  Baseline Cost:       ${total_baseline_cost:.4f}")
+        print(f"  Cost Reduction:      {cost_reduction_pct:.1f}%")
 
         # Natural vs Explicit comparison (key insight)
         print("\n" + "-" * 70)
@@ -1287,6 +1323,7 @@ async def main():
                         "correct": r.correct,
                         "draft_accepted": r.draft_accepted,
                         "cost": r.cost,
+                        "baseline_cost": r.baseline_cost,
                         "latency_ms": r.latency_ms,
                         "turns_completed": r.turns_completed,
                         "tools_called": r.tools_called,

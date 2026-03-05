@@ -322,6 +322,10 @@ def generate_comparison_table(results: dict[str, Any]) -> str:
         )
         table += f"- **Dependency Handling:** {agentic_summary.get('dependency_handling', 0) * 100:.1f}%\n"
         table += f"- **Total Cost:** ${agentic_summary.get('total_cost', 0):.6f}\n"
+        if "baseline_cost" in agentic_summary:
+            table += f"- **Baseline Cost:** ${agentic_summary.get('baseline_cost', 0):.6f}\n"
+        if "cost_reduction_pct" in agentic_summary:
+            table += f"- **Cost Reduction:** {agentic_summary.get('cost_reduction_pct', 0):.1f}%\n"
 
         natural = agentic_summary.get("natural_language", {})
         explicit = agentic_summary.get("explicit_steps", {})

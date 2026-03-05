@@ -6,7 +6,7 @@
   <img alt="cascadeflow Logo" src="./.github/assets/CF_logo_dark.svg" width="80%" style="margin: 20px auto;">
 </picture>
 
-# Smart AI model cascading for cost optimization
+# Agent Runtime Intelligence Layer
 
 [![PyPI version](https://img.shields.io/pypi/v/cascadeflow?color=blue&label=Python)](https://pypi.org/project/cascadeflow/)
 [![npm version](https://img.shields.io/npm/v/@cascadeflow/core?color=red&label=TypeScript)](https://www.npmjs.com/package/@cascadeflow/core)
@@ -17,10 +17,11 @@
 [![PyPI Downloads](https://static.pepy.tech/badge/cascadeflow)](https://pepy.tech/project/cascadeflow)
 [![npm Downloads](https://img.shields.io/npm/dt/@cascadeflow/n8n-nodes-cascadeflow?label=npm%20downloads&color=orange)](https://www.npmjs.com/search?q=%40cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
+[![Docs](https://img.shields.io/badge/docs-cascadeflow.dev-blue)](https://docs.cascadeflow.dev)
 [![Python Docs](https://img.shields.io/badge/docs-Python-blue)](./docs/)
 [![TypeScript Docs](https://img.shields.io/badge/docs-TypeScript-red)](./docs/)
 [![X Follow](https://img.shields.io/twitter/follow/saschabuehrle?style=social)](https://x.com/saschabuehrle)
-[![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=social)](https://github.com/lemony-ai/cascadeflow)
+[![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=flat&color=yellow&label=Stars)](https://github.com/lemony-ai/cascadeflow/stargazers)
 
 <br>
 
@@ -28,17 +29,15 @@
 
 <br>
 
-**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](#-langchain-integration) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](./packages/integrations/vercel-ai/) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://clawhub.ai/saschabuehrle/cascadeflow) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
+**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](#-langchain-integration) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](./packages/integrations/vercel-ai/) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://clawhub.ai/saschabuehrle/cascadeflow) • [Full Docs](https://docs.cascadeflow.dev) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
 
 </div>
 
 ---
 
-**Stop Bleeding Money on AI Calls. Cut Costs 30-65% in 3 Lines of Code.**
+**The in-process intelligence layer for AI agents.** Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary.
 
-40-70% of text prompts and 20-60% of agent calls don't need expensive flagship models. You're overpaying every single day.
-
-*cascadeflow fixes this with intelligent model cascading, available in Python and TypeScript.*
+cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. Sub-1ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, and Vercel AI SDK.
 
 ```python
 pip install cascadeflow
@@ -51,6 +50,17 @@ npm install @cascadeflow/core
 ---
 
 ## Why cascadeflow?
+
+### Proxy vs In-Process Harness
+
+| Dimension | External Proxy | cascadeflow Harness |
+|---|---|---|
+| **Scope** | HTTP request boundary | Inside agent execution loop |
+| **Dimensions** | Cost only | Cost + quality + latency + budget + compliance + energy |
+| **Latency overhead** | 10-50ms network RTT | <1ms in-process |
+| **Business logic** | None | KPI weights and targets |
+| **Enforcement** | None (observe only) | stop, deny_tool, switch_model |
+| **Auditability** | Request logs | Per-step decision traces |
 
 cascadeflow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, cascadeflow automatically escalates to flagship models if needed.
 
@@ -136,6 +146,34 @@ In practice, 60-70% of queries are handled by small, efficient models (8-20x cos
 │  └───────────────────────────────────────────────────────┘  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Harness API
+
+Three tiers of integration — zero-change observability to full policy control:
+
+**Tier 1: Zero-change observability**
+```python
+import cascadeflow
+cascadeflow.init(mode="observe")
+# All OpenAI/Anthropic SDK calls are now tracked. No code changes needed.
+```
+
+**Tier 2: Scoped runs with budget**
+```python
+with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:
+    result = await agent.run("Analyze this dataset")
+    print(session.summary())  # cost, latency, energy, steps, tool calls
+    print(session.trace())    # full decision audit trail
+```
+
+**Tier 3: Decorated agents with policy**
+```python
+@cascadeflow.agent(budget=0.20, compliance="gdpr", kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1})
+async def my_agent(query: str):
+    return await llm.complete(query)
 ```
 
 ---
@@ -724,6 +762,12 @@ console.log(`Warnings: ${validation.warnings}`);
 | 📋 **Message & Tool Call Lists** | Full conversation history with tool_calls and tool_call_id preservation across turns |
 | 🪝 **Hooks & Callbacks** | Telemetry callbacks, cost events, and streaming hooks for observability |
 | 🏭 **Production Ready**  | Streaming, batch processing, tool handling, reasoning model support, caching, error recovery, anomaly detection |
+| 💳 **Budget Enforcement** | Per-run and per-user budget caps with automatic stop actions when limits are exceeded |
+| 🔒 **Compliance Gating** | GDPR, HIPAA, PCI, and strict model allowlists — block non-compliant models before execution |
+| 📊 **KPI-Weighted Routing** | Inject business priorities (quality, cost, latency, energy) as weights into every model decision |
+| 🌱 **Energy Tracking** | Deterministic compute-intensity coefficients for carbon-aware AI operations |
+| 🔍 **Decision Traces** | Full per-step audit trail: action, reason, model, cost, budget state, enforcement status |
+| ⚙️ **Harness Modes** | off / observe / enforce — roll out safely with observe, then switch to enforce when ready |
 
 ---
 
@@ -774,7 +818,7 @@ If you use cascadeflow in your research or project, please cite:
 ```bibtex
 @software{cascadeflow2025,
   author = {Lemony Inc., Sascha Buehrle and Contributors},
-  title = {cascadeflow: Smart AI model cascading for cost optimization},
+  title = {cascadeflow: Agent runtime intelligence layer for AI agent workflows},
   year = {2025},
   publisher = {GitHub},
   url = {https://github.com/lemony-ai/cascadeflow}

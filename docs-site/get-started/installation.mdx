@@ -1,0 +1,101 @@
+---
+title: Installation
+description: Install cascadeflow with pip extras for Python or npm packages for TypeScript, including provider-specific setup.
+---
+
+# Installation
+
+## Python
+
+### Minimal install
+
+```bash
+pip install cascadeflow
+```
+
+Core dependencies: `pydantic>=2.0.0`, `httpx>=0.25.0`, `tiktoken>=0.5.0`, `rich>=13.0.0`.
+
+### With providers
+
+```bash
+pip install "cascadeflow[providers]"  # OpenAI + Anthropic + Groq
+```
+
+Individual providers:
+
+```bash
+pip install "cascadeflow[openai]"      # OpenAI
+pip install "cascadeflow[anthropic]"   # Anthropic
+pip install "cascadeflow[groq]"        # Groq
+pip install "cascadeflow[huggingface]" # Hugging Face
+pip install "cascadeflow[together]"    # Together AI
+```
+
+### With framework integrations
+
+```bash
+pip install "cascadeflow[langchain]"       # LangChain/LangGraph
+pip install "cascadeflow[openai-agents]"   # OpenAI Agents SDK
+pip install "cascadeflow[crewai]"          # CrewAI (Python 3.10+)
+pip install "cascadeflow[google-adk]"      # Google ADK (Python 3.10+)
+```
+
+### Local inference
+
+```bash
+pip install "cascadeflow[vllm]"  # vLLM (Python 3.10-3.13)
+```
+
+Ollama does not need a Python package — cascadeflow communicates with Ollama via HTTP at `localhost:11434`. Install Ollama separately from [ollama.ai](https://ollama.ai).
+
+### Everything
+
+```bash
+pip install "cascadeflow[all]"  # All providers + semantic routing
+```
+
+### Development
+
+```bash
+git clone https://github.com/lemony-ai/cascadeflow.git
+cd cascadeflow
+pip install -e ".[dev]"
+```
+
+## TypeScript
+
+### Core
+
+```bash
+npm install @cascadeflow/core
+```
+
+### Framework packages
+
+```bash
+npm install @cascadeflow/langchain                # LangChain integration
+npm install @cascadeflow/vercel-ai                 # Vercel AI SDK middleware
+npm install @cascadeflow/n8n-nodes-cascadeflow     # n8n community node
+```
+
+## Provider Setup
+
+Set API keys as environment variables:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GROQ_API_KEY="gsk_..."
+```
+
+cascadeflow auto-detects available providers based on which API keys are set.
+
+## Verify Installation
+
+```bash
+python -c "import cascadeflow; print(cascadeflow.__version__)"
+```
+
+```bash
+python -c "from cascadeflow import init, run, HarnessConfig, HarnessRunContext; print('OK')"
+```

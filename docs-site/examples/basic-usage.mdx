@@ -1,0 +1,81 @@
+---
+title: Basic Usage
+description: Simple cascade setup with OpenAI models showing speculative execution, cost tracking, and savings calculation.
+---
+
+# Basic Usage
+
+A minimal example showing cascadeflow's speculative cascade with two OpenAI models.
+
+## Setup
+
+```bash
+pip install "cascadeflow[openai]"
+export OPENAI_API_KEY="sk-..."
+```
+
+## Code
+
+```python
+import asyncio
+from cascadeflow import CascadeAgent, ModelConfig
+
+agent = CascadeAgent(models=[
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
+])
+
+queries = [
+    "What's the capital of France?",        # Simple — draft model handles
+    "Explain quantum computing",             # Medium — may escalate
+    "Write a Python function to sort a list", # Code — domain routing
+]
+
+async def main():
+    total_cost = 0
+    baseline_cost = 0
+
+    for query in queries:
+        result = await agent.run(query)
+        total_cost += result.total_cost
+        baseline_cost += result.total_cost if result.model_used == "gpt-4o" else result.total_cost * (0.00625 / 0.000375)
+
+        print(f"Query: {query[:40]}...")
+        print(f"  Model: {result.model_used}")
+        print(f"  Cost: ${result.total_cost:.6f}")
+        print()
+
+    savings = (1 - total_cost / baseline_cost) * 100 if baseline_cost > 0 else 0
+    print(f"Total cost: ${total_cost:.6f}")
+    print(f"Savings: {savings:.0f}%")
+
+asyncio.run(main())
+```
+
+## How It Works
+
+1. `gpt-4o-mini` (draft model) handles the query first
+2. Quality validation checks the response
+3. If quality passes, the draft response is returned (60-70% of queries)
+4. If quality fails, `gpt-4o` (verifier model) handles the query
+5. Cost tracking reports per-query and aggregate metrics
+
+## TypeScript
+
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
+
+const result = await agent.run('What is TypeScript?');
+console.log(`Model: ${result.modelUsed}, Cost: $${result.totalCost}`);
+```
+
+## Source
+
+[examples/basic_usage.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/basic_usage.py)

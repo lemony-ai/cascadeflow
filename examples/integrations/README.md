@@ -6,6 +6,8 @@ This directory contains production-ready integration examples for cascadeflow wi
 
 - [LiteLLM Integration](#-litellm-integration) - Access 10+ providers with automatic cost tracking
 - [OpenAI Agents SDK Integration](#-openai-agents-sdk-integration) - Harness-aware ModelProvider for existing agent apps
+- [CrewAI Integration](#-crewai-integration) - Hook-based harness metrics and budget gating
+- [Google ADK Integration](#-google-adk-integration) - Plugin-based harness integration for ADK runners
 - [Paygentic Integration](#-paygentic-integration) - Usage event reporting and billing lifecycle helpers
 - [Local Providers](#-local-providers-setup) - Ollama and vLLM configuration examples
 - [OpenTelemetry & Grafana](#-opentelemetry--grafana) - Production observability and metrics
@@ -152,11 +154,62 @@ pip install "cascadeflow[openai,openai-agents]"
 python examples/integrations/openai_agents_harness.py
 ```
 
+Recommended: Python 3.10+.
+Optional: `pip install litellm` for more precise provider/model cost normalization.
+
 ### What It Shows
 
 - Harness-aware model switching with candidate models
 - Tool gating when enforce-mode caps are reached
 - Run-scoped metrics and trace inspection via `cascadeflow.run(...)`
+
+---
+
+## 👥 CrewAI Integration
+
+**File:** [`crewai_harness.py`](crewai_harness.py)
+
+Use cascadeflow as an explicit, opt-in CrewAI hook integration.
+
+### Quick Start
+
+```bash
+pip install "cascadeflow[crewai,openai]"
+python examples/integrations/crewai_harness.py
+```
+
+Requires Python 3.10+.
+Optional: `pip install litellm` for more precise provider/model cost normalization.
+
+### What It Shows
+
+- Explicit `enable(...)` hook registration (never on by default)
+- Enforce-mode budget gating before CrewAI LLM calls
+- Run metrics and decision trace via `cascadeflow.run(...)`
+
+---
+
+## 🧠 Google ADK Integration
+
+**File:** [`google_adk_harness.py`](google_adk_harness.py)
+
+Use cascadeflow as an explicit, opt-in plugin integration for Google ADK.
+
+### Quick Start
+
+```bash
+pip install "cascadeflow[google-adk]"
+python examples/integrations/google_adk_harness.py
+```
+
+Requires Python 3.10+.
+Optional: `pip install litellm` for more precise provider/model cost normalization.
+
+### What It Shows
+
+- Explicit plugin creation with `enable(...)` (integration-only behavior)
+- Runner-level plugin wiring via `Runner(..., plugins=[plugin])`
+- Budget gate + run-scoped metrics and trace
 
 ---
 
@@ -412,6 +465,9 @@ Cost Calculation Tests
 |------|---------|-------------------|
 | `litellm_providers.py` | Comprehensive LiteLLM demo with 8 examples | No (for cost info) |
 | `litellm_cost_tracking.py` | Cost tracking and provider validation | No (for cost info) |
+| `openai_agents_harness.py` | OpenAI Agents SDK harness integration (ModelProvider) | Yes |
+| `crewai_harness.py` | CrewAI hook-based harness integration (opt-in) | Yes |
+| `google_adk_harness.py` | Google ADK plugin harness integration (opt-in) | Yes |
 | `paygentic_usage.py` | Usage event reporting to Paygentic (opt-in, fail-open) | Yes |
 | `local_providers_setup.py` | Ollama and vLLM setup guide | No |
 | `opentelemetry_grafana.py` | Production observability example | No |
@@ -473,6 +529,18 @@ pip install cascadeflow[all]
 pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 ```
 
+### "CrewAI hooks unavailable"
+```bash
+pip install "cascadeflow[crewai,openai]"
+# Requires crewai>=1.5 for llm_hooks
+```
+
+### "Google ADK not installed"
+```bash
+pip install "cascadeflow[google-adk]"
+# Google ADK requires Python 3.10+
+```
+
 ### "Metrics not appearing in Grafana"
 1. Check OpenTelemetry Collector logs: `docker-compose logs otel-collector`
 2. Verify metrics: `curl http://localhost:8889/metrics`
@@ -490,6 +558,9 @@ Always use provider prefixes for LiteLLM:
 
 - **Provider Guide:** [docs/guides/providers.md](../../docs/guides/providers.md)
 - **Cost Tracking:** [docs/guides/cost_tracking.md](../../docs/guides/cost_tracking.md)
+- **OpenAI Agents Guide:** [docs/guides/openai_agents_integration.md](../../docs/guides/openai_agents_integration.md)
+- **CrewAI Guide:** [docs/guides/crewai_integration.md](../../docs/guides/crewai_integration.md)
+- **Google ADK Guide:** [docs/guides/google_adk_integration.md](../../docs/guides/google_adk_integration.md)
 - **Paygentic Guide:** [docs/guides/paygentic_integration.md](../../docs/guides/paygentic_integration.md)
 - **Production Guide:** [docs/guides/production.md](../../docs/guides/production.md)
 
@@ -498,10 +569,13 @@ Always use provider prefixes for LiteLLM:
 ## 🚀 Next Steps
 
 1. **Try LiteLLM:** `python examples/integrations/litellm_providers.py`
-2. **Try Paygentic usage reporting:** `python examples/integrations/paygentic_usage.py`
-3. **Setup local providers:** `python examples/integrations/local_providers_setup.py`
-4. **Test your API keys:** `python examples/integrations/test_all_providers.py`
-5. **Add monitoring:** Follow OpenTelemetry section above
+2. **Try OpenAI Agents integration:** `python examples/integrations/openai_agents_harness.py`
+3. **Try CrewAI integration:** `python examples/integrations/crewai_harness.py`
+4. **Try Google ADK integration:** `python examples/integrations/google_adk_harness.py`
+5. **Try Paygentic usage reporting:** `python examples/integrations/paygentic_usage.py`
+6. **Setup local providers:** `python examples/integrations/local_providers_setup.py`
+7. **Test your API keys:** `python examples/integrations/test_all_providers.py`
+8. **Add monitoring:** Follow OpenTelemetry section above
 
 ---
 
