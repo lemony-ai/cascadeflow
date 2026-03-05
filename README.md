@@ -21,7 +21,7 @@
 [![Python Docs](https://img.shields.io/badge/docs-Python-blue)](./docs/)
 [![TypeScript Docs](https://img.shields.io/badge/docs-TypeScript-red)](./docs/)
 [![X Follow](https://img.shields.io/twitter/follow/saschabuehrle?style=social)](https://x.com/saschabuehrle)
-[![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=social)](https://github.com/lemony-ai/cascadeflow)
+[![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=flat&color=yellow&label=Stars)](https://github.com/lemony-ai/cascadeflow/stargazers)
 
 <br>
 
