@@ -25,7 +25,7 @@
 
 <br>
 
-**[Cost Savings Benchmarks](./tests/benchmarks/):** 69% (MT-Bench), 93% (GSM8K), 52% (MMLU), 80% (TruthfulQA) savings, retaining 96% GPT-5 quality.
+**Cost Savings:** 69% (MT-Bench), 93% (GSM8K), 52% (MMLU), 80% (TruthfulQA) savings, retaining 96% GPT-5 quality.
 
 <br>
 
@@ -799,7 +799,6 @@ We ❤️ contributions!
 - ✅ **Semantic Quality Validators** - Lightweight local quality scoring via FastEmbed
 - ✅ **Code Complexity Detection** - Dynamic cascading based on task complexity analysis
 - ✅ **Domain Aware Cascading** - ML-based semantic domain detection with per-domain routing
-- ✅ **Benchmark Reports** - Automated benchmarking (MMLU, GSM8K, MT-Bench, HumanEval, TruthfulQA)
 
 ---
 

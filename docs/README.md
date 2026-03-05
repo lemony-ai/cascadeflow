@@ -39,8 +39,6 @@ Agent runtime intelligence layer — optimize cost, latency, quality, budget, co
 - [Custom Validation](guides/custom_validation.md) - Implement custom quality validators
 - [Edge Device Deployment](guides/edge_device.md) - Deploy cascades on edge devices (Jetson, etc.)
 - [Browser/Edge Runtime](guides/browser_cascading.md) - Run cascades in browser or edge environments
-- [Agent Intelligence V2/V2.1 Plan](strategy/agent-intelligence-v2-plan.md) - Unified strategic and execution plan for in-process agent intelligence harness delivery
-
 ### Integrations
 - [LangChain Integration](guides/langchain_integration.md) - Callback handler for LangChain/LangGraph with harness-aware cascading
 - [OpenAI Agents SDK Integration](guides/openai_agents_integration.md) - Harness-aware model provider for existing OpenAI Agents apps
