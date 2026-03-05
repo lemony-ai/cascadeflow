@@ -125,5 +125,64 @@ describe('CascadeAgent tool loop (auto-execution)', () => {
     expect(assistantWithToolCalls.tool_calls?.[0]?.id).toBe('call_1');
     expect(toolMsg.tool_call_id).toBe('call_1');
   });
-});
 
+  it('respects forceDirect for tool loops even when tool routing would prefer cascade', async () => {
+    const tools: Tool[] = [
+      {
+        type: 'function',
+        function: {
+          name: 'calculate',
+          description: 'Calculator',
+          parameters: {
+            type: 'object',
+            properties: { expression: { type: 'string' } },
+            required: ['expression'],
+          },
+        },
+      },
+    ];
+
+    const executor = new ToolExecutor([
+      new ToolConfig({
+        name: 'calculate',
+        description: 'Calculator',
+        parameters: {
+          type: 'object',
+          properties: { expression: { type: 'string' } },
+          required: ['expression'],
+        },
+        function: ({ expression }: { expression: string }) => ({ result: expression === '2+2' ? 4 : null }),
+      }),
+    ]);
+
+    const agent = new CascadeAgent({
+      models: [
+        {
+          name: 'gpt-4o-mini',
+          provider: 'openai',
+          cost: 0,
+          supportsTools: true,
+          apiKey: 'test-key',
+        },
+        {
+          name: 'gpt-4o',
+          provider: 'openai',
+          cost: 0.1,
+          supportsTools: true,
+          apiKey: 'test-key',
+        },
+      ],
+    });
+
+    const result = await agent.run('Use calculate for 2+2, then answer with the result.', {
+      tools,
+      toolExecutor: executor,
+      maxSteps: 3,
+      forceDirect: true,
+    });
+
+    expect(result.content).toBe('The result is 4.');
+    expect(result.hasToolCalls).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
