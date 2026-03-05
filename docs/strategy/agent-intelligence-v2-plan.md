@@ -1,7 +1,7 @@
 # Agent Intelligence V2 Plan
 
-Last updated: February 25, 2026
-Status: Planning (no implementation in this document)
+Last updated: March 5, 2026
+Status: V2/V2.1 execution plan with implementation tracking (historical + active reference)
 Supersedes: agent-intelligence-v1-plan.md
 
 ## 1. Objective
@@ -828,9 +828,9 @@ Estimated: 6-8 weeks after V2 Python launch.
 
 Estimated: 3-4 weeks (can parallel with Phase F).
 
-### 16.1 Parallel Branch Workboard (Tick-Off)
+### 16.1 Parallel Branch Workboard (Historical Tick-Off)
 
-Use this section as the single coordination board for parallel execution.
+Use this section as the historical coordination board for parallel execution.
 
 Branching model:
 - Keep `main` always releasable.
@@ -839,15 +839,17 @@ Branching model:
 - Merge to `main` only after integration branch CI + benchmark gates are green.
 
 Claim checklist (one owner per branch at a time):
-- [x] `feat/v2-core-harness-api` — Owner: `@codex` — PR: `TBD` — Status: `completed`
-- [x] `feat/v2-openai-auto-instrumentation` — Owner: `@claude` — PR: `TBD` — Status: `in-progress`
-- [x] `feat/v2-enforce-actions` — Owner: `@codex` — PR: `TBD` — Status: `completed (ready for PR)`
-- [ ] `feat/v2-openai-agents-integration` — Owner: `@codex` — PR: `TBD` — Status: `in-progress`
-- [ ] `feat/v2-crewai-integration` — Owner: `@` — PR: `#` — Status: `claimed/in-progress/review/merged`
-- [ ] `feat/v2-langchain-harness-extension` — Owner: `@codex` — PR: `TBD` — Status: `in-progress`
-- [ ] `feat/v2-dx-docs-quickstarts` — Owner: `@` — PR: `#` — Status: `claimed/in-progress/review/merged`
-- [x] `feat/v2-bench-repro-pipeline` — Owner: `@codex` — PR: `#163` — Status: `review`
-- [ ] `feat/v2-security-privacy-telemetry` — Owner: `@` — PR: `#` — Status: `claimed/in-progress/review/merged`
+- [x] `feat/v2-core-harness-api` — Owner: `@codex` — Status: `completed (merged to integration branch)`
+- [x] `feat/v2-openai-auto-instrumentation` — Owner: `@claude` — Status: `completed (merged to integration branch)`
+- [x] `feat/v2-enforce-actions` — Owner: `@codex` — Status: `completed (merged to integration branch)`
+- [x] `feat/v2-openai-agents-integration` — Owner: `@codex` — Status: `completed (merged to integration branch)` — code + 7 tests + docs + example
+- [x] `feat/v2-crewai-integration` — Owner: `@codex` — Status: `completed (merged to integration branch)` — code + 44 tests + docs + example
+- [x] `feat/v2-langchain-harness-extension` — Owner: `@codex` — Status: `completed (merged to integration branch)` — code + 79 tests + docs + example
+- [x] `feat/v2-dx-docs-quickstarts` — Owner: `@codex` — Status: `completed (merged to integration branch)` — quickstart + llms.txt
+- [x] `feat/v2-bench-repro-pipeline` — Owner: `@codex` — PR: `#163` — Status: `completed (merged to integration branch)`
+- [x] `feat/v2-security-privacy-telemetry` — Owner: `@codex` — PR: `#162` — Status: `completed (merged to integration branch)`
+- [x] `feat/v2-google-adk-integration` — Owner: `@codex` — Status: `completed (merged to integration branch)` — code + 63 tests + docs + example
+- [x] `feat/v2-n8n-harness` — Owner: `@codex` — PR: `#164` — Status: `completed (merged to integration branch)` — TS harness + 50 tests + UI
 
 Merge gates per feature branch:
 - [ ] Unit/integration tests green for touched scope
@@ -915,23 +917,23 @@ For roadmap visibility. These inform V2 telemetry design but are not V2 delivera
 
 Go when all are true (V2 Python launch):
 
-- [ ] Harness layer is opt-in and backward compatible
-- [ ] `cascadeflow.init()` auto-instruments `openai` Python client
-- [ ] `observe` mode produces zero behavior change (benchmark-validated)
-- [ ] `enforce` mode actions work correctly (switch_model, deny_tool, stop)
-- [ ] Harness decision overhead <5ms p95
-- [ ] Python parity fixture tests pass
-- [ ] Core + integration CI green
-- [ ] Benchmark comparison acceptable vs latest baseline
-- [ ] OpenAI Agents SDK integration documented and validated
-- [ ] CrewAI integration documented and validated
-- [ ] LangChain integration extended and validated
-- [ ] Existing integrations (Vercel AI, n8n) verified compatible (no regressions)
-- [ ] DX quickstart works for existing app/agent users with 1-3 lines of code change
+- [x] Harness layer is opt-in and backward compatible
+- [x] `cascadeflow.init()` auto-instruments `openai` Python client
+- [x] `observe` mode produces zero behavior change (benchmark-validated)
+- [x] `enforce` mode actions work correctly (switch_model, deny_tool, stop)
+- [x] Harness decision overhead <5ms p95
+- [x] Python parity fixture tests pass
+- [x] Core + integration CI green
+- [x] Benchmark comparison acceptable vs latest baseline
+- [x] OpenAI Agents SDK integration documented and validated
+- [x] CrewAI integration documented and validated
+- [x] LangChain integration extended and validated
+- [x] Existing integrations (Vercel AI, n8n) verified compatible (no regressions)
+- [x] DX quickstart works for existing app/agent users with 1-3 lines of code change
 - [ ] External pilot median time-to-first-value <15 minutes
-- [ ] Public benchmark results ready for launch
-- [ ] Benchmark scripts + raw artifacts are reproducible by third parties
-- [ ] pyproject.toml extras (`openai-agents`, `crewai`, `langchain`) defined and installable
+- [x] Public benchmark results ready for launch
+- [x] Benchmark scripts + raw artifacts are reproducible by third parties
+- [x] pyproject.toml extras (`openai-agents`, `crewai`, `langchain`, `google-adk`) defined and installable
 
 V2.1 Go/No-Go (TS parity + anthropic):
 - [x] TS parity fixtures pass
