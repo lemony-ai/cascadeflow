@@ -256,6 +256,8 @@ print(f"Toxic: {result.is_toxic}")
 
 📖 **Learn more:** [Python Documentation](https://docs.cascadeflow.ai/api-reference/python/overview) | [Quickstart Guide](https://docs.cascadeflow.ai/get-started/installation) | [Providers Guide](https://docs.cascadeflow.ai/developers/providers-and-presets)
 
+<br>
+
 ### <img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> TypeScript
 
 ```bash
@@ -343,6 +345,8 @@ if (await checker.isAvailable()) {
 </details>
 
 📖 **Learn more:** [TypeScript Documentation](https://docs.cascadeflow.ai/api-reference/typescript/overview) | [Quickstart Guide](https://docs.cascadeflow.ai/get-started/installation) | [Node.js Examples](./packages/core/examples/nodejs/)
+
+<br>
 
 ### 🔄 Migration Example
 
