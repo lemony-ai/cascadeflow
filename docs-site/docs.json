@@ -12,92 +12,114 @@
     "dark": "/logo/cascadeflow-dark.svg"
   },
   "favicon": "/favicon.svg",
-  "tabs": [
-    { "id": "get-started", "name": "Get Started" },
-    { "id": "harness", "name": "Harness" },
-    { "id": "integrations", "name": "Integrations" },
-    { "id": "api-reference", "name": "API Reference" },
-    { "id": "examples", "name": "Examples" }
-  ],
   "navigation": {
-    "get-started": [
+    "tabs": [
       {
-        "group": "Get Started",
-        "pages": [
-          "get-started/introduction",
-          "get-started/quickstart",
-          "get-started/installation",
-          "get-started/how-it-works"
+        "tab": "Get Started",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "get-started/introduction",
+              "get-started/quickstart",
+              "get-started/installation",
+              "get-started/how-it-works"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "changelog",
+              "contributing"
+            ]
+          }
         ]
       },
       {
-        "group": "Resources",
-        "pages": [
-          "changelog",
-          "contributing"
-        ]
-      }
-    ],
-    "harness": [
-      {
-        "group": "Harness",
-        "pages": [
-          "harness/overview",
-          "harness/modes",
-          "harness/budget-enforcement",
-          "harness/compliance",
-          "harness/kpi-optimization",
-          "harness/energy-tracking",
-          "harness/decision-trace",
-          "harness/actions"
-        ]
-      }
-    ],
-    "integrations": [
-      {
-        "group": "Integrations",
-        "pages": [
-          "integrations/overview",
-          "integrations/langchain",
-          "integrations/openai-agents",
-          "integrations/crewai",
-          "integrations/google-adk",
-          "integrations/n8n",
-          "integrations/vercel-ai"
-        ]
-      }
-    ],
-    "api-reference": [
-      {
-        "group": "Python",
-        "pages": [
-          "api-reference/python/init",
-          "api-reference/python/run",
-          "api-reference/python/agent-decorator",
-          "api-reference/python/harness-config",
-          "api-reference/python/run-context"
+        "tab": "Harness",
+        "groups": [
+          {
+            "group": "Harness",
+            "pages": [
+              "harness/overview",
+              "harness/modes",
+              "harness/budget-enforcement",
+              "harness/compliance",
+              "harness/kpi-optimization",
+              "harness/energy-tracking",
+              "harness/decision-trace",
+              "harness/actions"
+            ]
+          }
         ]
       },
       {
-        "group": "TypeScript",
-        "pages": [
-          "api-reference/typescript/core",
-          "api-reference/typescript/vercel-ai",
-          "api-reference/typescript/langchain"
+        "tab": "Integrations",
+        "groups": [
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/langchain",
+              "integrations/openai-agents",
+              "integrations/crewai",
+              "integrations/google-adk",
+              "integrations/n8n",
+              "integrations/vercel-ai"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Python",
+            "pages": [
+              "api-reference/python/init",
+              "api-reference/python/run",
+              "api-reference/python/agent-decorator",
+              "api-reference/python/harness-config",
+              "api-reference/python/run-context"
+            ]
+          },
+          {
+            "group": "TypeScript",
+            "pages": [
+              "api-reference/typescript/core",
+              "api-reference/typescript/vercel-ai",
+              "api-reference/typescript/langchain"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-usage",
+              "examples/budget-enforcement",
+              "examples/compliance-gating",
+              "examples/kpi-weighted-routing",
+              "examples/multi-agent",
+              "examples/enterprise-patterns"
+            ]
+          }
         ]
       }
     ],
-    "examples": [
+    "anchors": [
       {
-        "group": "Examples",
-        "pages": [
-          "examples/basic-usage",
-          "examples/budget-enforcement",
-          "examples/compliance-gating",
-          "examples/kpi-weighted-routing",
-          "examples/multi-agent",
-          "examples/enterprise-patterns"
-        ]
+        "anchor": "GitHub",
+        "icon": "github",
+        "url": "https://github.com/lemony-ai/cascadeflow"
+      },
+      {
+        "anchor": "PyPI",
+        "icon": "python",
+        "url": "https://pypi.org/project/cascadeflow/"
       }
     ]
   },
@@ -114,17 +136,5 @@
   "footerSocials": {
     "github": "https://github.com/lemony-ai/cascadeflow",
     "x": "https://x.com/saschabuehrle"
-  },
-  "anchors": [
-    {
-      "name": "GitHub",
-      "icon": "github",
-      "url": "https://github.com/lemony-ai/cascadeflow"
-    },
-    {
-      "name": "PyPI",
-      "icon": "python",
-      "url": "https://pypi.org/project/cascadeflow/"
-    }
-  ]
+  }
 }
