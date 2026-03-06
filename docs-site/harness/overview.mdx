@@ -42,7 +42,9 @@ config = HarnessConfig(
 
 ## Activation
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 
 # Global activation
@@ -58,6 +60,26 @@ with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:
 async def my_agent(query: str):
     pass
 ```
+
+```typescript TypeScript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+  quality: {
+    threshold: 0.8,
+    useSemanticValidation: true,
+  },
+});
+
+const result = await agent.run('Analyze this data');
+console.log(`Model: ${result.modelUsed}, Cost: $${result.totalCost}`);
+```
+
+</CodeGroup>
 
 ## Decision Flow
 
@@ -76,3 +98,7 @@ For each LLM call or tool execution:
 The harness includes a built-in pricing table for 18 models across OpenAI, Anthropic, and Google. Unknown models are resolved via fuzzy matching (e.g. `gpt-5-mini` matches even before official pricing is announced).
 
 See [Energy Tracking](/harness/energy-tracking) for the full pricing and energy coefficients table.
+
+<Tip>
+**Getting started:** [Agent Harness](/get-started/agent-harness) | [Agent Loop](/get-started/agent-loop) | **API reference:** [HarnessConfig](/api-reference/python/harness-config)
+</Tip>

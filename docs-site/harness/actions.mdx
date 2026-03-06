@@ -95,3 +95,7 @@ with cascadeflow.run(
     for record in session.trace():
         print(f"Step {record['step']}: {record['action']} — {record['reason']}")
 ```
+
+<Tip>
+**Examples on GitHub:** [examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py) | [examples/agentic_multi_agent.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/agentic_multi_agent.py)
+</Tip>

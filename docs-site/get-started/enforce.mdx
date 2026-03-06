@@ -1,0 +1,127 @@
+---
+title: "Quickstart: Enforce Mode"
+description: Add budget caps and constraints that actively control agent execution — stop runs, switch models, and gate tool calls.
+---
+
+# Enforce Mode — Active Runtime Control
+
+Enforce mode moves from observation to action. Budget caps, tool call limits, and compliance rules become hard constraints that shape agent behavior in real time.
+
+<Steps>
+
+<Step title="Switch to enforce">
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")  # Changed from "observe" to "enforce"
+```
+
+</Step>
+
+<Step title="Add a budget cap">
+
+Wrap any block of agent work with `cascadeflow.run()` and set a budget:
+
+```python
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Research and summarize this topic")
+
+    summary = session.summary()
+    print(f"Cost: ${summary['cost_total']:.4f}")
+    print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
+    print(f"Steps completed: {summary['steps']}")
+```
+
+If the agent exceeds $0.50, cascadeflow issues a `stop` action. The agent halts cleanly — no runaway spend.
+
+</Step>
+
+<Step title="Combine budget with tool call limits">
+
+```python
+with cascadeflow.run(budget=1.00, max_tool_calls=5) as session:
+    result = await agent.run("Search and analyze this dataset")
+    # Stops when either budget OR tool call limit is hit first
+```
+
+</Step>
+
+<Step title="Add compliance gating">
+
+Restrict which models can process sensitive data:
+
+```python
+with cascadeflow.run(budget=1.00, compliance="gdpr") as session:
+    result = await agent.run("Process EU customer feedback")
+    # Only GDPR-approved models are allowed — non-compliant models are switched
+```
+
+</Step>
+
+<Step title="See what happened">
+
+The decision trace shows every enforcement action:
+
+```python
+for record in session.trace():
+    print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+    # Step 1: allow — budget ok, compliance passed
+    # Step 3: switch_model — model not in GDPR allowlist
+    # Step 7: stop — budget exceeded ($0.50/$0.50)
+```
+
+In enforce mode, `record['applied']` is `True` — actions are executed, not just logged.
+
+</Step>
+
+</Steps>
+
+## Gradual Rollout
+
+You do not need to jump from observe to full enforcement. Start with one constraint:
+
+```python
+# Week 1: Just budget — see if anything would stop
+cascadeflow.init(mode="enforce")
+with cascadeflow.run(budget=5.00) as session:  # Generous cap
+    ...
+
+# Week 2: Add tool call limits
+with cascadeflow.run(budget=2.00, max_tool_calls=20) as session:
+    ...
+
+# Week 3: Add compliance
+with cascadeflow.run(budget=1.00, max_tool_calls=10, compliance="gdpr") as session:
+    ...
+```
+
+## TypeScript
+
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+  quality: {
+    threshold: 0.8,
+    useSemanticValidation: true,
+  },
+});
+
+const result = await agent.run('Explain quantum computing');
+console.log(`Model: ${result.modelUsed}, Saved: ${result.savingsPercentage}%`);
+```
+
+<Tip>
+**Run this example:** [examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py) | [examples/user_budget_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/user_budget_tracking.py)
+</Tip>
+
+## Next Step
+
+Ready to attach policy to individual agents? [Use the @agent decorator →](/get-started/agent-decorator)

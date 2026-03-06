@@ -12,182 +12,139 @@
     "dark": "/logo/cascadeflow-dark.svg"
   },
   "favicon": "/favicon.svg",
-  "navigation": {
-    "tabs": [
-      {
-        "tab": "Get Started",
-        "groups": [
-          {
-            "group": "Start Here",
-            "pages": [
-              "index",
-              "get-started/index",
-              "get-started/introduction",
-              "get-started/quickstart",
-              "get-started/integrate-fast",
-              "get-started/installation",
-              "get-started/how-it-works"
-            ]
-          },
-          {
-            "group": "Resources",
-            "pages": [
-              "changelog",
-              "contributing"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Users",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "users/index",
-              "users/overview",
-              "users/business-value",
-              "users/rollout-playbook",
-              "capabilities/index",
-              "capabilities/overview"
-            ]
-          },
-          {
-            "group": "Harness",
-            "pages": [
-              "harness/index",
-              "harness/overview",
-              "harness/modes",
-              "harness/budget-enforcement",
-              "harness/compliance",
-              "harness/kpi-optimization",
-              "harness/energy-tracking",
-              "harness/decision-trace",
-              "harness/actions"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Developers",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "developers/index",
-              "developers/overview"
-            ]
-          },
-          {
-            "group": "Core Topics",
-            "pages": [
-              "developers/providers-and-presets",
-              "developers/tools-and-streaming",
-              "developers/production-and-deployment",
-              "developers/customization",
-              "developers/enterprise-networking",
-              "developers/observability-and-privacy"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "developers/guides"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              "integrations/index",
-              "integrations/overview",
-              "integrations/langchain",
-              "integrations/openai-agents",
-              "integrations/crewai",
-              "integrations/google-adk",
-              "integrations/n8n",
-              "integrations/vercel-ai",
-              "integrations/openclaw"
-            ]
-          },
-          {
-            "group": "API Reference",
-            "pages": [
-              "api-reference/python/init",
-              "api-reference/python/run",
-              "api-reference/python/agent-decorator",
-              "api-reference/python/harness-config",
-              "api-reference/python/run-context",
-              "api-reference/typescript/core",
-              "api-reference/typescript/vercel-ai",
-              "api-reference/typescript/langchain"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Agents",
-        "groups": [
-          {
-            "group": "Agent Guide",
-            "pages": [
-              "agents/index",
-              "agents/overview",
-              "agents/implementation-checklist"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Examples",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "examples/index",
-              "examples/overview",
-              "examples/catalog"
-            ]
-          },
-          {
-            "group": "Example Walkthroughs",
-            "pages": [
-              "examples/basic-usage",
-              "examples/budget-enforcement",
-              "examples/compliance-gating",
-              "examples/kpi-weighted-routing",
-              "examples/multi-agent",
-              "examples/enterprise-patterns"
-            ]
-          }
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
+  "navigation": [
+    {
+      "group": "",
+      "pages": [
+        "index",
+        "why-cascadeflow"
+      ]
+    },
+    {
+      "group": "Getting Started",
+      "pages": [
+        "get-started/installation",
+        "get-started/observe",
+        "get-started/enforce",
+        "get-started/agent-decorator",
+        "get-started/agent-harness",
+        "get-started/agent-loop",
+        "get-started/rollout-guide",
+        "get-started/choose-integration"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "get-started/how-it-works",
+        "capabilities/overview"
+      ]
+    },
+    {
+      "group": "Harness",
+      "pages": [
+        "harness/overview",
+        "harness/modes",
+        "harness/budget-enforcement",
+        "harness/compliance",
+        "harness/kpi-optimization",
+        "harness/energy-tracking",
+        "harness/decision-trace",
+        "harness/actions"
+      ]
+    },
+    {
+      "group": "Integrations",
+      "pages": [
+        "integrations/overview",
+        "integrations/langchain",
+        "integrations/openai-agents",
+        "integrations/crewai",
+        "integrations/google-adk",
+        "integrations/vercel-ai",
+        "integrations/n8n",
+        "integrations/openclaw"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "developers/providers-and-presets",
+        "developers/tools-and-streaming",
+        "developers/production-and-deployment",
+        "developers/enterprise-networking",
+        "developers/customization",
+        "developers/observability-and-privacy"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
         {
-          "anchor": "GitHub",
-          "icon": "github",
-          "href": "https://github.com/lemony-ai/cascadeflow"
+          "group": "Python",
+          "pages": [
+            "api-reference/python/init",
+            "api-reference/python/run",
+            "api-reference/python/agent-decorator",
+            "api-reference/python/harness-config",
+            "api-reference/python/run-context"
+          ]
         },
         {
-          "anchor": "PyPI",
-          "icon": "python",
-          "href": "https://pypi.org/project/cascadeflow/"
+          "group": "TypeScript",
+          "pages": [
+            "api-reference/typescript/core",
+            "api-reference/typescript/vercel-ai",
+            "api-reference/typescript/langchain"
+          ]
         }
       ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/catalog",
+        "examples/basic-usage",
+        "examples/budget-enforcement",
+        "examples/compliance-gating",
+        "examples/kpi-weighted-routing",
+        "examples/multi-agent",
+        "examples/enterprise-patterns"
+      ]
+    },
+    {
+      "group": "",
+      "pages": [
+        "for-coding-agents"
+      ]
+    },
+    {
+      "group": "Resources",
+      "pages": [
+        "changelog",
+        "contributing"
+      ]
     }
-  },
+  ],
   "navbar": {
     "links": [
       {
         "label": "GitHub",
         "href": "https://github.com/lemony-ai/cascadeflow"
+      },
+      {
+        "label": "PyPI",
+        "href": "https://pypi.org/project/cascadeflow/"
+      },
+      {
+        "label": "npm",
+        "href": "https://www.npmjs.com/package/@cascadeflow/core"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Get Started",
-      "href": "/get-started/quickstart"
+      "href": "/get-started/installation"
     }
   },
   "footer": {
