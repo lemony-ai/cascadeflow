@@ -627,45 +627,61 @@ console.log(`Warnings: ${validation.warnings}`);
 |---------|-------------|------|
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
 | **Preset Usage** | Use built-in presets for quick setup | [View](https://docs.cascadeflow.ai/developers/providers-and-presets) |
-| **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
-| **Reasoning Models**  | Use reasoning models (o1/o3, Claude Sonnet 4, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
 | **Streaming Text** | Stream responses from cascade agents | [View](./examples/streaming_text.py) |
 | **Cost Tracking** | Track and analyze costs across queries | [View](./examples/cost_tracking.py) |
 | **Agentic Multi-Agent** | Multi-turn tool loops & agent-as-a-tool delegation | [View](./examples/agentic_multi_agent.py) |
+| **Multi-Step Cascade** | Multi-step agent loops with tool calls | [View](./examples/multi_step_cascade.py) |
 
 </details>
 
 <details>
-<summary><b>Advanced Examples</b> - Production & customization</summary>
+<summary><b>Harness & Enforcement</b> - Budget, compliance, and agent governance</summary>
+
+| Example | Description | Link |
+|---------|-------------|------|
+| **Budget Enforcement** | Budget caps with stop actions in enforce mode | [View](./examples/enforcement/basic_enforcement.py) |
+| **User Budget Tracking** | Per-user budget enforcement and tracking | [View](./examples/user_budget_tracking.py) |
+| **Guardrails** | Safety and content guardrails | [View](./examples/guardrails_usage.py) |
+| **Rate Limiting** | Rate limiting for cascades | [View](./examples/rate_limiting_usage.py) |
+| **User Profile Usage** | User-specific routing and configurations | [View](./examples/user_profile_usage.py) |
+| **Stripe Integration** | Billing integration with budget enforcement | [View](./examples/enforcement/stripe_integration.py) |
+
+</details>
+
+<details>
+<summary><b>Framework Integrations</b> - Harness with LangChain, OpenAI Agents, CrewAI, Google ADK</summary>
+
+| Example | Description | Link |
+|---------|-------------|------|
+| **LangChain Harness** | cascadeflow harness with LangChain callback handler | [View](./examples/integrations/langchain_harness.py) |
+| **OpenAI Agents Harness** | cascadeflow harness with OpenAI Agents SDK | [View](./examples/integrations/openai_agents_harness.py) |
+| **CrewAI Harness** | cascadeflow harness with CrewAI hooks | [View](./examples/integrations/crewai_harness.py) |
+| **Google ADK Harness** | cascadeflow harness with Google ADK plugin | [View](./examples/integrations/google_adk_harness.py) |
+| **LangChain Basic** | Simple LangChain cascade setup | [View](./examples/langchain_basic_usage.py) |
+| **LangChain LCEL Pipeline** | LCEL chains with cascade routing | [View](./examples/langchain_lcel_pipeline.py) |
+| **LangGraph Multi-Agent** | LangGraph multi-agent orchestration | [View](./examples/langchain_langgraph_multi_agent.py) |
+
+</details>
+
+<details>
+<summary><b>Advanced Examples</b> - Production, providers & customization</summary>
 
 | Example | Description | Link |
 |---------|-------------|------|
 | **Production Patterns** | Best practices for production deployments | [View](./examples/production_patterns.py) |
-| **FastAPI Integration** | Integrate cascades with FastAPI | [View](./examples/fastapi_integration.py) |
+| **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
+| **Reasoning Models** | Use reasoning models (o1/o3, Claude Sonnet 4, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Streaming Tools** | Stream tool calls and responses | [View](./examples/streaming_tools.py) |
 | **Batch Processing** | Process multiple queries efficiently | [View](./examples/batch_processing.py) |
-| **Multi-Step Cascade** | Build complex multi-step cascades | [View](./examples/multi_step_cascade.py) |
+| **FastAPI Integration** | Integrate cascades with FastAPI | [View](./examples/fastapi_integration.py) |
 | **Edge Device** | Run cascades on edge devices with local models | [View](./examples/edge_device.py) |
 | **vLLM Example** | Use vLLM for local model deployment | [View](./examples/vllm_example.py) |
 | **Multi-Instance Ollama** | Run draft/verifier on separate Ollama instances | [View](./examples/multi_instance_ollama.py) |
-| **Multi-Instance vLLM** | Run draft/verifier on separate vLLM instances | [View](./examples/multi_instance_vllm.py) |
 | **Custom Cascade** | Build custom cascade strategies | [View](./examples/custom_cascade.py) |
 | **Custom Validation** | Implement custom quality validators | [View](./examples/custom_validation.py) |
-| **User Budget Tracking** | Per-user budget enforcement and tracking | [View](./examples/user_budget_tracking.py) |
-| **User Profile Usage** | User-specific routing and configurations | [View](./examples/user_profile_usage.py) |
-| **Rate Limiting** | Implement rate limiting for cascades | [View](./examples/rate_limiting_usage.py) |
-| **Guardrails** | Add safety and content guardrails | [View](./examples/guardrails_usage.py) |
-| **Cost Forecasting** | Forecast costs and detect anomalies | [View](./examples/cost_forecasting_anomaly_detection.py) |
 | **Semantic Quality Detection** | ML-based domain and quality detection | [View](./examples/semantic_quality_domain_detection.py) |
-| **Profile Database Integration** | Integrate user profiles with databases | [View](./examples/profile_database_integration.py) |
-| **LangChain Basic** | Simple LangChain cascade setup | [View](./examples/langchain_basic_usage.py) |
-| **LangChain Streaming** | Stream responses with LangChain | [View](./examples/langchain_streaming.py) |
-| **LangChain Model Discovery** | Discover and analyze LangChain models | [View](./examples/langchain_model_discovery.py) |
-| **LangChain LangSmith** | Cost tracking with LangSmith integration | [View](./examples/langchain_langsmith.py) |
-| **LangChain Cost Tracking** | Track costs with callback handlers | [View](./examples/langchain_cost_tracking.py) |
-| **LangChain LCEL Pipeline** | LCEL chains with cascade routing | [View](./examples/langchain_lcel_pipeline.py) |
-| **LangGraph Multi-Agent** | LangGraph multi-agent orchestration | [View](./examples/langchain_langgraph_multi_agent.py) |
+| **Cost Forecasting** | Forecast costs and detect anomalies | [View](./examples/cost_forecasting_anomaly_detection.py) |
 
 </details>
 
