@@ -17,7 +17,7 @@
 [![PyPI Downloads](https://static.pepy.tech/badge/cascadeflow)](https://pepy.tech/project/cascadeflow)
 [![npm Downloads](https://img.shields.io/npm/dt/@cascadeflow/n8n-nodes-cascadeflow?label=npm%20downloads&color=orange)](https://www.npmjs.com/search?q=%40cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
-[![Docs](https://img.shields.io/badge/docs-cascadeflow.dev-blue)](https://docs.cascadeflow.dev)
+[![Docs](https://img.shields.io/badge/docs-cascadeflow.ai-blue)](https://docs.cascadeflow.ai)
 [![Python Docs](https://img.shields.io/badge/docs-Python-blue)](./docs/)
 [![TypeScript Docs](https://img.shields.io/badge/docs-TypeScript-red)](./docs/)
 [![X Follow](https://img.shields.io/twitter/follow/saschabuehrle?style=social)](https://x.com/saschabuehrle)
