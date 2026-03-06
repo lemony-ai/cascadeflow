@@ -35,7 +35,7 @@
 
 ---
 
-**The self-optimizing intelligence layer for AI agents.** Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary. Learns from every agent run to continuously improve routing and cost-quality tradeoffs.
+**The in-process intelligence layer for AI agents.** Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary.
 
 cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. It accumulates insight from every model call, tool result, and quality score — the agent gets smarter the more it runs. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, and Vercel AI SDK.
 
