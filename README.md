@@ -18,8 +18,8 @@
 [![npm Downloads](https://img.shields.io/npm/dt/@cascadeflow/n8n-nodes-cascadeflow?label=npm%20downloads&color=orange)](https://www.npmjs.com/search?q=%40cascadeflow)
 [![Tests](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml/badge.svg)](https://github.com/lemony-ai/cascadeflow/actions/workflows/test.yml)
 [![Docs](https://img.shields.io/badge/docs-cascadeflow.ai-blue)](https://docs.cascadeflow.ai)
-[![Python Docs](https://img.shields.io/badge/docs-Python-blue)](./docs/)
-[![TypeScript Docs](https://img.shields.io/badge/docs-TypeScript-red)](./docs/)
+[![Python Docs](https://img.shields.io/badge/docs-Python-blue)](https://docs.cascadeflow.ai/api-reference/python/init)
+[![TypeScript Docs](https://img.shields.io/badge/docs-TypeScript-red)](https://docs.cascadeflow.ai/api-reference/typescript/core)
 [![X Follow](https://img.shields.io/twitter/follow/saschabuehrle?style=social)](https://x.com/saschabuehrle)
 [![GitHub Stars](https://img.shields.io/github/stars/lemony-ai/cascadeflow?style=flat&color=yellow&label=Stars)](https://github.com/lemony-ai/cascadeflow/stargazers)
 
