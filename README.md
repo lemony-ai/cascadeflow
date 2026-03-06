@@ -75,6 +75,7 @@ cascadeflow is a **library** and **agent harness** — an intelligent AI model c
 - **Measurable Value.** Prove impact with reproducible metrics on realistic agent workflows — better economics and latency while preserving quality thresholds.
 - **Latency Advantage.** Proxy-based optimization adds 40-60ms per call. In a 10-step agent loop, that is 400-600ms of avoidable overhead. cascadeflow runs in-process with sub-5ms overhead — critical for real-time UX, task throughput, and enterprise SLAs.
 - **Framework & Provider Neutral.** Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, Vercel AI SDK, n8n, and custom frameworks. Unified API across OpenAI, Anthropic, Groq, Ollama, vLLM, Together, and more.
+- **Agent-Aware Intelligence.** The agent learns from cascadeflow's runtime knowledge — budget state, quality scores, routing decisions, and trace history are available inside the loop. The agent can adapt its own behavior based on what cascadeflow observes, creating a feedback loop where governance informs execution and execution informs governance.
 - **Edge & Local-Hosted AI.** Handle most queries with local models (vLLM, Ollama), automatically escalate complex queries to cloud providers only when needed.
 
 > **ℹ️ Note:** SLMs (under 10B parameters) are sufficiently powerful for 60-70% of agentic AI tasks. [Research paper](https://arxiv.org/pdf/2506.02153)
