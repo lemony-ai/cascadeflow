@@ -1,5 +1,5 @@
 """
-Example: Rate Limiting with cascadeflow v0.2.1
+Example: Rate Limiting with cascadeflow
 
 This example demonstrates per-user and per-tier rate limiting
 with the sliding window algorithm.
@@ -17,7 +17,7 @@ from cascadeflow import (
 
 async def main():
     print("=" * 60)
-    print("cascadeflow v0.2.1 - Rate Limiting")
+    print("cascadeflow - Rate Limiting")
     print("=" * 60)
 
     # ========================================================================
@@ -28,6 +28,7 @@ async def main():
 
     # Create FREE tier profile
     free_profile = UserProfile.from_tier(TierLevel.FREE, user_id="free_user")
+    free_profile.preferred_models = ["gpt-4o-mini"]
     print(f"Tier: {free_profile.tier.name}")
     print(f"Hourly limit: {free_profile.get_requests_per_hour()}")
     print(f"Daily limit: {free_profile.get_requests_per_day()}")
@@ -77,6 +78,7 @@ async def main():
         custom_requests_per_hour=3,  # Only 3 requests per hour
         custom_daily_budget=0.01,  # Very low budget
     )
+    test_profile.preferred_models = ["gpt-4o-mini"]
 
     print(
         f"Custom limits: {test_profile.get_requests_per_hour()} req/hour, ${test_profile.get_daily_budget()} budget"
@@ -109,6 +111,7 @@ async def main():
     print("-" * 60)
 
     pro_profile = UserProfile.from_tier(TierLevel.PRO, user_id="pro_user")
+    pro_profile.preferred_models = ["gpt-4o-mini"]
     print(f"Tier: {pro_profile.tier.name}")
     print(f"Hourly limit: {pro_profile.get_requests_per_hour()}")
     print(f"Daily limit: {pro_profile.get_requests_per_day()}")
@@ -148,6 +151,7 @@ async def main():
         user_id="budget_user",
         custom_daily_budget=0.05,  # $0.05 daily budget
     )
+    budget_profile.preferred_models = ["gpt-4o-mini"]
 
     print(f"Daily budget: ${budget_profile.get_daily_budget()}")
 
