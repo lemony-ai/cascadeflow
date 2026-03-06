@@ -1,0 +1,99 @@
+---
+title: TypeScript API
+sidebarTitle: Overview
+description: TypeScript API reference for cascadeflow — CascadeAgent, Vercel AI middleware, and LangChain integration.
+---
+
+# TypeScript API Reference
+
+cascadeflow provides three TypeScript packages for different integration patterns.
+
+## Quick Start
+
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
+
+const result = await agent.run('Summarize this document');
+console.log(result.content);
+console.log(`Model: ${result.modelUsed}, Cost: $${result.totalCost}`);
+```
+
+## Packages
+
+| Package | Purpose | Docs |
+|---|---|---|
+| `@cascadeflow/core` | CascadeAgent with speculative execution and cost tracking | [Reference](/api-reference/typescript/core) |
+| `@cascadeflow/vercel-ai` | Vercel AI SDK middleware with streaming and tool loops | [Reference](/api-reference/typescript/vercel-ai) |
+| `@cascadeflow/langchain` | LangChain `withCascade()` wrapper and model discovery | [Reference](/api-reference/typescript/langchain) |
+
+## Install
+
+```bash
+# Core package
+npm install @cascadeflow/core
+
+# Vercel AI SDK integration
+npm install @cascadeflow/vercel-ai
+
+# LangChain integration
+npm install @cascadeflow/langchain @langchain/core @langchain/openai
+```
+
+## Core Concepts
+
+**Speculative execution** — the cheaper model (drafter) runs first. If its response passes quality validation, cascadeflow returns it without calling the expensive model. If not, the verifier model runs as fallback.
+
+**Quality validation** — configurable confidence threshold, minimum token count, and optional semantic validation determine whether a draft is accepted.
+
+**Cost tracking** — every response includes `totalCost` and `savingsPercentage` so you can measure optimization impact.
+
+## Integration Patterns
+
+### Standalone Agent
+
+Use `@cascadeflow/core` directly for full control:
+
+```typescript
+const result = await agent.run('What is TypeScript?');
+// result.modelUsed → 'gpt-4o-mini' (if draft accepted)
+// result.savingsPercentage → 94
+```
+
+### Vercel AI SDK
+
+Use `@cascadeflow/vercel-ai` for Next.js and Edge deployments:
+
+```typescript
+import { createChatHandler } from '@cascadeflow/vercel-ai';
+
+const handler = createChatHandler(agent, {
+  protocol: 'data',
+  maxSteps: 5,
+});
+```
+
+### LangChain
+
+Use `@cascadeflow/langchain` for LCEL chains and pipelines:
+
+```typescript
+import { withCascade } from '@cascadeflow/langchain';
+
+const cascade = withCascade({
+  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  verifier: new ChatAnthropic({ model: 'claude-sonnet-4' }),
+});
+
+const chain = prompt.pipe(cascade).pipe(new StringOutputParser());
+```
+
+## Runtime Support
+
+All packages work in Node.js, Browser, and Edge Functions (Vercel Edge, Cloudflare Workers).

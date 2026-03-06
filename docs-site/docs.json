@@ -117,6 +117,7 @@
           {
             "group": "Python",
             "pages": [
+              "api-reference/python/overview",
               "api-reference/python/init",
               "api-reference/python/run",
               "api-reference/python/agent-decorator",
@@ -127,6 +128,7 @@
           {
             "group": "TypeScript",
             "pages": [
+              "api-reference/typescript/overview",
               "api-reference/typescript/core",
               "api-reference/typescript/vercel-ai",
               "api-reference/typescript/langchain"
@@ -157,8 +159,8 @@
   "navbar": {
     "links": [
       {
-        "label": "Blog",
-        "href": "https://cascadeflow.ai/blog"
+        "label": "Home",
+        "href": "https://cascadeflow.ai"
       },
       {
         "label": "PyPI",

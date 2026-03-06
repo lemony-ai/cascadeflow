@@ -1,0 +1,72 @@
+---
+title: Python API
+sidebarTitle: Overview
+description: Python API reference for cascadeflow — the three-tier harness API and supporting types.
+---
+
+# Python API Reference
+
+cascadeflow exposes a three-tier API for Python. Each tier adds more control.
+
+## Quick Start
+
+```python
+import cascadeflow
+
+# Tier 1: Global activation
+cascadeflow.init(mode="observe")
+
+# Tier 2: Scoped run with constraints
+with cascadeflow.run(budget=0.50) as session:
+    result = await agent.run("Analyze this data")
+    print(session.summary())
+
+# Tier 3: Per-agent policy
+@cascadeflow.agent(budget=0.20, compliance="gdpr")
+async def my_agent(query: str):
+    return await llm.complete(query)
+```
+
+## API Surface
+
+| Function | Purpose | Docs |
+|---|---|---|
+| `cascadeflow.init()` | Activate the harness globally | [Reference](/api-reference/python/init) |
+| `cascadeflow.run()` | Create a scoped run context with constraints | [Reference](/api-reference/python/run) |
+| `@cascadeflow.agent()` | Attach per-agent policy | [Reference](/api-reference/python/agent-decorator) |
+| `HarnessConfig` | Full configuration dataclass | [Reference](/api-reference/python/harness-config) |
+| `HarnessRunContext` | Session object with `summary()` and `trace()` | [Reference](/api-reference/python/run-context) |
+
+## Install
+
+```bash
+pip install cascadeflow
+```
+
+With framework extras:
+
+```bash
+pip install "cascadeflow[langchain]"
+pip install "cascadeflow[openai-agents]"
+pip install "cascadeflow[crewai]"
+pip install "cascadeflow[google-adk]"
+```
+
+## Modes
+
+| Mode | Behavior |
+|---|---|
+| `off` | Disabled — no tracking, no enforcement |
+| `observe` | Track all calls, log what would happen, enforce nothing |
+| `enforce` | Active control — budget caps, model switching, stop actions |
+
+## Actions
+
+In enforce mode, the harness can take four actions at each decision boundary:
+
+| Action | Effect |
+|---|---|
+| `allow` | Proceed with the original model |
+| `switch_model` | Route to a different model |
+| `deny_tool` | Block a tool call |
+| `stop` | Halt the run (budget exceeded, policy violation) |
