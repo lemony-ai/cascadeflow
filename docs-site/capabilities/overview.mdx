@@ -1,0 +1,50 @@
+---
+title: Capabilities Overview
+description: The full cascadeflow surface area, organized as a concise capability map instead of scattered deep dives.
+---
+
+# Capabilities Overview
+
+The homepage and getting-started flow stay narrow on purpose. This page is the second layer: the complete capability map for teams that need to understand what cascadeflow can do.
+
+## Core Runtime Capabilities
+
+| Capability | What it gives you | Primary doc | Example or source |
+|---|---|---|---|
+| Observe mode | Zero-change runtime visibility | [/harness/modes](/harness/modes) | [python_harness_quickstart.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/python_harness_quickstart.md) |
+| Enforce mode | Runtime caps and control actions | [/harness/actions](/harness/actions) | [basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py) |
+| Budget enforcement | Per-run and per-user spend control | [/harness/budget-enforcement](/harness/budget-enforcement) | [user_budget_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/user_budget_tracking.py) |
+| Compliance gating | Model allowlists for policies like GDPR or HIPAA | [/harness/compliance](/harness/compliance) | [compliance-gating](/examples/compliance-gating) |
+| KPI weighting | Trade-offs across quality, cost, latency, and energy | [/harness/kpi-optimization](/harness/kpi-optimization) | [kpi-weighted-routing](/examples/kpi-weighted-routing) |
+| Energy tracking | Compute-intensity proxy for carbon-aware routing | [/harness/energy-tracking](/harness/energy-tracking) | [/harness/overview](/harness/overview) |
+| Decision traces | Audit trail for every runtime decision | [/harness/decision-trace](/harness/decision-trace) | [harness_telemetry_privacy.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/harness_telemetry_privacy.md) |
+
+## Cascade And Integration Capabilities
+
+| Capability | Primary doc | Example or source |
+|---|---|---|
+| Speculative model cascading | [/get-started/how-it-works](/get-started/how-it-works) | [examples/basic_usage.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/basic_usage.py) |
+| Multi-provider routing | [examples/overview](/examples/overview) | [examples/multi_provider.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/multi_provider.py) |
+| LangChain and LangGraph | [/integrations/langchain](/integrations/langchain) | [examples/integrations/langchain_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/langchain_harness.py) |
+| OpenAI Agents SDK | [/integrations/openai-agents](/integrations/openai-agents) | [examples/integrations/openai_agents_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/openai_agents_harness.py) |
+| CrewAI | [/integrations/crewai](/integrations/crewai) | [examples/integrations/crewai_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/crewai_harness.py) |
+| Google ADK | [/integrations/google-adk](/integrations/google-adk) | [examples/integrations/google_adk_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/google_adk_harness.py) |
+| Vercel AI SDK | [/integrations/vercel-ai](/integrations/vercel-ai) | [examples/vercel-ai-nextjs](https://github.com/lemony-ai/cascadeflow/tree/main/examples/vercel-ai-nextjs) |
+| n8n | [/integrations/n8n](/integrations/n8n) | [packages/integrations/n8n](https://github.com/lemony-ai/cascadeflow/tree/main/packages/integrations/n8n) |
+
+## Use This Page As The Hub
+
+<CardGroup cols={2}>
+  <Card title="Users" icon="sparkles" href="/users/overview">
+    Adoption path and rollout guidance.
+  </Card>
+  <Card title="Developers" icon="code" href="/developers/overview">
+    Package and integration selection.
+  </Card>
+  <Card title="Coding Agents" icon="robot" href="/agents/overview">
+    Canonical repo map and example references.
+  </Card>
+  <Card title="Examples" icon="books" href="/examples/overview">
+    Browse working code before implementation.
+  </Card>
+</CardGroup>

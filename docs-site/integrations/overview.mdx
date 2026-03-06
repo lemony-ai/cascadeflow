@@ -5,7 +5,9 @@ description: Matrix of all cascadeflow framework integrations with supported fea
 
 # Integrations Overview
 
-cascadeflow integrates with six agent frameworks. All integrations are opt-in — install the extra and explicitly enable.
+cascadeflow integrates with six agent frameworks, but the product direction stays the same in every case: runtime intelligence inside the agent loop, not another proxy layer outside it.
+
+All integrations are opt-in. Install the extra, enable the framework extension point, start in `observe`, then move to enforcement once you understand the live runtime behavior.
 
 ## Integration Matrix
 
@@ -51,3 +53,10 @@ npm install @cascadeflow/n8n-nodes-cascadeflow
 - **Google ADK**: Use if you're building with Google's Agent Development Kit. The plugin integrates with `Runner`.
 - **n8n**: Use if you're building no-code workflows. The community node adds cascade routing to any n8n flow.
 - **Vercel AI SDK**: Use if you're building TypeScript server-side agents. The middleware wraps AI SDK streams.
+
+## What Stays Consistent Across Frameworks
+
+- The harness sees runtime state inside the workflow, not only the request boundary
+- Budgets, traces, and policy logic remain first-class across integrations
+- The goal is governable agent behavior, not isolated cost routing
+- GitHub examples remain the secondary deep-dive layer when implementation detail is needed

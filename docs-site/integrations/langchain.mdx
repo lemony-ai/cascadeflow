@@ -5,7 +5,7 @@ description: Harness-aware callback handler for LangChain and LangGraph with bud
 
 # LangChain Integration
 
-cascadeflow integrates with LangChain through a callback handler that wraps any `BaseChatModel`. Works with LCEL chains, streaming, tool calling, structured output, and LangGraph agents.
+cascadeflow integrates with LangChain through a callback handler that wraps any `BaseChatModel`. It keeps the product direction intact inside LangChain and LangGraph: decisions happen inside agent execution, with budgets, traces, and runtime policy visible where the workflow actually runs.
 
 ## Install
 
@@ -78,6 +78,12 @@ const result = await cascade.invoke('Explain quantum computing');
 - LangSmith cost tracking metadata
 - Cost tracking callbacks
 - Domain policies with `cascadeflow_domain` metadata
+
+## Why This Integration Matters
+
+- Keeps LangChain apps framework-native instead of forcing a proxy hop
+- Makes runtime cost, latency, and trace data visible at the chain or agent level
+- Lets teams move from observability to governance without rewriting chain logic
 
 ## Cost Tracking Callback
 

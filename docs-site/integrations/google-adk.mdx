@@ -5,7 +5,7 @@ description: Plugin-based harness integration for Google Agent Development Kit w
 
 # Google ADK Integration
 
-cascadeflow integrates with Google's Agent Development Kit (ADK) through the `BasePlugin` system. Call `enable()` to get a plugin that plugs into `Runner(plugins=[...])`.
+cascadeflow integrates with Google's Agent Development Kit (ADK) through the `BasePlugin` system. Call `enable()` to get a plugin that plugs into `Runner(plugins=[...])`, keeping runtime measurement and enforcement close to the ADK execution flow instead of pushing it out to a separate proxy layer.
 
 ## Install
 
@@ -84,6 +84,12 @@ config = GoogleADKHarnessConfig(
 ## Budget Enforcement
 
 When budget is exceeded in `enforce` mode, the plugin returns an `LlmResponse` with `error_code="BUDGET_EXCEEDED"`. The ADK runner handles this as a graceful stop.
+
+## Why This Integration Matters
+
+- ADK runners can stay framework-native while gaining runtime governance
+- Budget control and traces apply at the actual execution boundary
+- The integration keeps the in-process latency advantage intact
 
 ## Limitations
 

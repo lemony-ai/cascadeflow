@@ -5,7 +5,7 @@ description: Hook-based harness integration for CrewAI with budget gating, metri
 
 # CrewAI Integration
 
-cascadeflow integrates with CrewAI through the native `llm_hooks` system. Call `enable()` to register global hooks that track all crew steps, enforce budget caps, and record decision traces.
+cascadeflow integrates with CrewAI through the native `llm_hooks` system. Call `enable()` to register global hooks that track crew execution where the real cost and control decisions happen: across agent steps inside the crew, not at the request edge.
 
 ## Install
 
@@ -71,6 +71,12 @@ config = CrewAIHarnessConfig(
 - Full decision trace across all agents in the crew
 - Fail-open mode for production safety
 - No changes to existing CrewAI agent or task definitions
+
+## Why This Integration Matters
+
+- Crew-level workflows often hide expensive multi-step loops
+- Hooks make those loops measurable and governable without rewriting crew logic
+- Decision traces help explain runtime behavior across multiple agents
 
 ## Limitations
 

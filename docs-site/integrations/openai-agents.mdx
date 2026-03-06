@@ -5,7 +5,7 @@ description: CascadeFlowModelProvider for OpenAI Agents SDK with model candidate
 
 # OpenAI Agents SDK Integration
 
-cascadeflow provides a `CascadeFlowModelProvider` that integrates with the OpenAI Agents SDK as an explicit `ModelProvider`. Supports model candidates, tool gating, and scoped budget tracking.
+cascadeflow provides a `CascadeFlowModelProvider` that integrates with the OpenAI Agents SDK as an explicit `ModelProvider`. This is a strong fit for the runtime-intelligence direction because model selection, tool gating, and budget control stay inside the agent loop where the SDK is already making decisions.
 
 ## Install
 
@@ -56,6 +56,12 @@ asyncio.run(main())
 - **Scoped runs**: Use `cascadeflow.run()` for per-task budget tracking
 - **Decision traces**: Full audit trail of model selection and tool gating decisions
 - **Fail-open**: If the harness encounters an error, execution continues with the default model
+
+## Why This Integration Matters
+
+- The model provider sits directly on a core agent decision boundary
+- Budget and tool controls become actionable, not only observable
+- Traces explain why the runtime allowed, switched, or blocked a step
 
 ## Configuration
 

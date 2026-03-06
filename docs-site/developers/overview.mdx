@@ -1,0 +1,60 @@
+---
+title: For Developers
+description: Integration choices, package map, and implementation entry points for Python and TypeScript teams.
+---
+
+# For Developers
+
+Use this section when you are wiring cascadeflow into an application, framework, or agent runtime.
+
+## Choose The Right Entry Point
+
+| You are building | Start here | Package |
+|---|---|---|
+| Python app with direct SDK calls | [/get-started/quickstart](/get-started/quickstart) | `cascadeflow` |
+| TypeScript app with direct control | [/api-reference/typescript/core](/api-reference/typescript/core) | `@cascadeflow/core` |
+| LangChain or LangGraph app | [/integrations/langchain](/integrations/langchain) | `cascadeflow[langchain]`, `@cascadeflow/langchain` |
+| OpenAI Agents SDK app | [/integrations/openai-agents](/integrations/openai-agents) | `cascadeflow[openai-agents]` |
+| CrewAI app | [/integrations/crewai](/integrations/crewai) | `cascadeflow[crewai]` |
+| Google ADK app | [/integrations/google-adk](/integrations/google-adk) | `cascadeflow[google-adk]` |
+| Vercel AI SDK app | [/integrations/vercel-ai](/integrations/vercel-ai) | `@cascadeflow/vercel-ai` |
+| n8n workflow | [/integrations/n8n](/integrations/n8n) | `@cascadeflow/n8n-nodes-cascadeflow` |
+
+## Core Concepts You Need Once
+
+- `init(mode=...)` activates the harness globally.
+- `run(...)` scopes a budgeted, traceable execution.
+- `@agent(...)` attaches policy metadata to an agent function.
+- Integrations wrap the framework extension point instead of changing your agent logic.
+
+## Recommended Build Order
+
+1. Enable `observe` mode and inspect summaries plus traces.
+2. Add a single framework integration or direct API usage path.
+3. Introduce budgets or compliance after you have real runtime data.
+4. Expand into KPI weighting, tool gating, and example-based patterns only where needed.
+
+## Fast Links
+
+<CardGroup cols={2}>
+  <Card title="Integration Matrix" icon="plug" href="/integrations/overview">
+    Compare framework support, language coverage, and integration type.
+  </Card>
+  <Card title="Python API" icon="python" href="/api-reference/python/init">
+    `init`, `run`, `@agent`, `HarnessConfig`, and `RunContext`.
+  </Card>
+  <Card title="TypeScript API" icon="typescript" href="/api-reference/typescript/core">
+    Core agent usage plus the Vercel AI and LangChain packages.
+  </Card>
+  <Card title="Examples Index" icon="books" href="/examples/overview">
+    Jump straight to a working example in GitHub.
+  </Card>
+</CardGroup>
+
+## Secondary GitHub Deep Dives
+
+- [Quickstart](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/quickstart.md)
+- [TypeScript quickstart](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/quickstart-typescript.md)
+- [Agentic Python patterns](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/agentic-python.md)
+- [Agentic TypeScript patterns](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/agentic-typescript.md)
+- [Architecture](https://github.com/lemony-ai/cascadeflow/blob/main/docs/ARCHITECTURE.md)

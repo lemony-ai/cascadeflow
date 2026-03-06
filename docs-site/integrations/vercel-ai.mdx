@@ -5,7 +5,7 @@ description: TypeScript middleware integration for Vercel AI SDK with cascade ro
 
 # Vercel AI SDK Integration
 
-cascadeflow integrates with the Vercel AI SDK as middleware, providing cascade routing for server-side AI applications with streaming support.
+cascadeflow integrates with the Vercel AI SDK as middleware, providing cascade routing for server-side AI applications with streaming support. The goal is still runtime intelligence inside the application loop: maintain streaming UX, keep tool execution server-side, and avoid a proxy hop on every model step.
 
 ## Install
 
@@ -47,6 +47,12 @@ export const POST = handler;
 - **Multi-step controls**: `maxSteps`, `forceDirect`
 - **Cascade decision stream parts** — optional metadata in the stream
 - **Request-level overrides** with allowlist + shared-secret guard
+
+## Why This Integration Matters
+
+- Preserves fast real-time UX while adding runtime control
+- Keeps governance logic close to tool loops and streaming responses
+- Avoids the compounded latency cost of external proxy mediation
 
 ## Multi-Turn Chat
 

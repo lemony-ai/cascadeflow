@@ -1,28 +1,38 @@
 ---
 title: cascadeflow
-description: Agent runtime intelligence layer — optimize cost, latency, quality, budget, compliance, and energy across AI agent workflows.
+description: Agent runtime intelligence for AI workflows. Start fast, enforce budgets and policy, and keep docs usable for users, developers, and coding agents.
 ---
 
 # cascadeflow
 
-The in-process intelligence layer for AI agents. Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary.
+The in-process intelligence layer for AI agents. Optimize cost, latency, quality, budget, compliance, and energy inside the execution loop, not at the HTTP boundary.
 
-<CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/get-started/quickstart">
-    Get running in 3 minutes with zero code changes.
+Use cascadeflow when you need runtime control, not just model routing. It is a decision system inside the agent loop: every model call, tool call, and handoff can be measured, scored, and steered in real time.
+
+## Why This Direction Matters
+
+| Strategic point | What it means in practice |
+|---|---|
+| Inside-the-loop control | Decisions happen at agent decision boundaries, not just HTTP request boundaries |
+| Multi-dimensional optimization | Cost, latency, quality, budget, compliance, and energy are managed together |
+| Business logic injection | KPI and policy intent can shape runtime behavior directly |
+| Immediate actionability | The system can `allow`, `switch_model`, `deny_tool`, or `stop` |
+| Transparent governance | Every decision is traceable, attributable, and auditable |
+| In-process latency advantage | No proxy tax on every call, which matters as multi-step agent loops compound |
+
+<CardGroup cols={3}>
+  <Card title="For Users" icon="sparkles" href="/users/overview">
+    Roll out safely, measure impact, and move from observe to enforce.
   </Card>
-  <Card title="How It Works" icon="diagram-project" href="/get-started/how-it-works">
-    Two engines: Cascade for model routing, Harness for agent intelligence.
+  <Card title="For Developers" icon="code" href="/developers/overview">
+    Choose the right package, integration path, and API surface quickly.
   </Card>
-  <Card title="Harness API" icon="shield-halved" href="/harness/overview">
-    Budget enforcement, compliance gating, KPI-weighted routing, energy tracking.
-  </Card>
-  <Card title="Integrations" icon="plug" href="/integrations/overview">
-    LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI SDK.
+  <Card title="For Coding Agents" icon="robot" href="/agents/overview">
+    Canonical facts, repo paths, examples, and implementation entry points.
   </Card>
 </CardGroup>
 
-## Install
+## Start In Minutes
 
 <CodeGroup>
 
@@ -36,7 +46,42 @@ npm install @cascadeflow/core
 
 </CodeGroup>
 
-## Quick Start
+```python
+import cascadeflow
+
+cascadeflow.init(mode="observe")
+# Existing OpenAI and Anthropic SDK calls are now tracked.
+```
+
+## Why Teams Use cascadeflow
+
+| Need | What cascadeflow adds |
+|---|---|
+| Safer production rollout | `observe` mode with zero-change tracking |
+| Runtime cost control | Per-run budgets, tool-call caps, KPI weighting |
+| Policy enforcement | Compliance-aware model gating and stop actions |
+| Agent visibility | Decision traces, summaries, and measurable session outcomes |
+| Multi-framework adoption | LangChain, OpenAI Agents, CrewAI, Google ADK, n8n, Vercel AI |
+| Enterprise viability | Governable, auditable, and operationally predictable agent behavior |
+
+## Choose Your Path
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/get-started/quickstart">
+    Install, turn on observe mode, and ship the first rollout.
+  </Card>
+  <Card title="Capabilities" icon="layer-group" href="/capabilities/overview">
+    See the full product surface without digging through the repo.
+  </Card>
+  <Card title="Developer Setup" icon="terminal" href="/developers/overview">
+    Pick Python, TypeScript, or a framework integration.
+  </Card>
+  <Card title="Examples" icon="books" href="/examples/overview">
+    Find the GitHub examples that match your use case.
+  </Card>
+</CardGroup>
+
+## Core Workflow
 
 <CodeGroup>
 
@@ -77,9 +122,7 @@ async def my_agent(query: str):
 | n8n | -- | `@cascadeflow/n8n-nodes-cascadeflow` | Community node |
 | Vercel AI SDK | -- | `@cascadeflow/vercel-ai` | Middleware |
 
-## Six Dimensions
-
-cascadeflow optimizes across six dimensions simultaneously:
+## What Gets Managed
 
 | Dimension | What it controls | Example |
 |---|---|---|
@@ -89,3 +132,7 @@ cascadeflow optimizes across six dimensions simultaneously:
 | **Budget** | Cumulative spend tracking and caps | Per-user daily limits |
 | **Compliance** | Model allowlists per regulation | GDPR: only gpt-4o, gpt-4o-mini |
 | **Energy** | Compute-intensity coefficients | Carbon-aware model selection |
+
+## Keep The Top Level Focused
+
+The docs site is optimized for decision-making and onboarding first. Deeper capability details, GitHub guides, and example repositories are still available, but they sit one layer down where they belong.

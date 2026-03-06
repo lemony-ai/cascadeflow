@@ -1,0 +1,57 @@
+---
+title: For Coding Agents
+description: Canonical facts, implementation entry points, and example references for external coding agents.
+---
+
+# For Coding Agents
+
+This page is the shortest reliable map for external agents that need to modify or integrate cascadeflow without reading the whole repo.
+
+## Canonical Product Facts
+
+- cascadeflow is an in-process intelligence layer for AI agent workflows.
+- The primary harness modes are `off`, `observe`, and `enforce`.
+- The main control surface is `init`, `run`, `@agent`, session summaries, and session traces.
+- The key runtime dimensions are cost, latency, quality, budget, compliance, and energy.
+- The main actions are `allow`, `switch_model`, `deny_tool`, and `stop`.
+
+## Preferred Entry Points
+
+| Task | Canonical doc | Primary package or path |
+|---|---|---|
+| First integration | [/get-started/quickstart](/get-started/quickstart) | `cascadeflow`, `@cascadeflow/core` |
+| Capability map | [/capabilities/overview](/capabilities/overview) | `docs-site/capabilities/overview.mdx` |
+| Python runtime APIs | [/api-reference/python/init](/api-reference/python/init) | `cascadeflow` |
+| TypeScript runtime APIs | [/api-reference/typescript/core](/api-reference/typescript/core) | `packages/core` |
+| Framework integrations | [/integrations/overview](/integrations/overview) | `cascadeflow.integrations.*`, `packages/integrations/*` |
+| Example inventory | [/examples/overview](/examples/overview) | `examples/`, `packages/core/examples/`, `packages/langchain-cascadeflow/examples/` |
+
+## Repo Map
+
+| Area | Repo location | Purpose |
+|---|---|---|
+| Mintlify docs | `docs-site/` | Public docs and onboarding |
+| Secondary GitHub docs | `docs/` | Deep implementation guides |
+| Python examples | `examples/` | End-to-end usage, integrations, enforcement, production |
+| TypeScript core examples | `packages/core/examples/` | Node, browser, streaming, tooling, production |
+| LangChain TS examples | `packages/langchain-cascadeflow/examples/` | LangChain and LangGraph patterns |
+| Machine-readable summary | `llms.txt` | Compact agent-oriented repo summary |
+
+## High-Signal Example References
+
+- Basic Python usage: [examples/basic_usage.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/basic_usage.py)
+- Budget enforcement: [examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py)
+- OpenAI Agents integration: [examples/integrations/openai_agents_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/openai_agents_harness.py)
+- LangChain harness: [examples/integrations/langchain_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/langchain_harness.py)
+- Google ADK harness: [examples/integrations/google_adk_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/google_adk_harness.py)
+- CrewAI harness: [examples/integrations/crewai_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/crewai_harness.py)
+- TypeScript core examples: [packages/core/examples/nodejs](https://github.com/lemony-ai/cascadeflow/tree/main/packages/core/examples/nodejs)
+- LangChain TypeScript examples: [packages/langchain-cascadeflow/examples](https://github.com/lemony-ai/cascadeflow/tree/main/packages/langchain-cascadeflow/examples)
+
+## Working Rules
+
+- Prefer docs-site pages for product intent and navigation.
+- Prefer `docs/` for deeper implementation detail.
+- Prefer GitHub examples before inventing new patterns.
+- Treat integrations as opt-in and framework-specific.
+- Keep edits aligned with the in-process harness direction, not a proxy-first narrative.

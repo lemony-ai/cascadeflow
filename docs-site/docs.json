@@ -18,8 +18,9 @@
         "tab": "Get Started",
         "groups": [
           {
-            "group": "Get Started",
+            "group": "Start Here",
             "pages": [
+              "index",
               "get-started/introduction",
               "get-started/quickstart",
               "get-started/installation",
@@ -36,8 +37,15 @@
         ]
       },
       {
-        "tab": "Harness",
+        "tab": "Users",
         "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "users/overview",
+              "capabilities/overview"
+            ]
+          },
           {
             "group": "Harness",
             "pages": [
@@ -54,8 +62,14 @@
         ]
       },
       {
-        "tab": "Integrations",
+        "tab": "Developers",
         "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "developers/overview"
+            ]
+          },
           {
             "group": "Integrations",
             "pages": [
@@ -67,25 +81,15 @@
               "integrations/n8n",
               "integrations/vercel-ai"
             ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
+          },
           {
-            "group": "Python",
+            "group": "API Reference",
             "pages": [
               "api-reference/python/init",
               "api-reference/python/run",
               "api-reference/python/agent-decorator",
               "api-reference/python/harness-config",
-              "api-reference/python/run-context"
-            ]
-          },
-          {
-            "group": "TypeScript",
-            "pages": [
+              "api-reference/python/run-context",
               "api-reference/typescript/core",
               "api-reference/typescript/vercel-ai",
               "api-reference/typescript/langchain"
@@ -94,10 +98,27 @@
         ]
       },
       {
+        "tab": "Agents",
+        "groups": [
+          {
+            "group": "Agent Guide",
+            "pages": [
+              "agents/overview"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Examples",
         "groups": [
           {
-            "group": "Examples",
+            "group": "Overview",
+            "pages": [
+              "examples/overview"
+            ]
+          },
+          {
+            "group": "Example Walkthroughs",
             "pages": [
               "examples/basic-usage",
               "examples/budget-enforcement",
@@ -110,31 +131,38 @@
         ]
       }
     ],
-    "anchors": [
-      {
-        "anchor": "GitHub",
-        "icon": "github",
-        "url": "https://github.com/lemony-ai/cascadeflow"
-      },
-      {
-        "anchor": "PyPI",
-        "icon": "python",
-        "url": "https://pypi.org/project/cascadeflow/"
-      }
-    ]
-  },
-  "topbarLinks": [
-    {
-      "name": "GitHub",
-      "url": "https://github.com/lemony-ai/cascadeflow"
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/lemony-ai/cascadeflow"
+        },
+        {
+          "anchor": "PyPI",
+          "icon": "python",
+          "href": "https://pypi.org/project/cascadeflow/"
+        }
+      ]
     }
-  ],
-  "topbarCtaButton": {
-    "name": "Get Started",
-    "url": "/get-started/quickstart"
   },
-  "footerSocials": {
-    "github": "https://github.com/lemony-ai/cascadeflow",
-    "x": "https://x.com/saschabuehrle"
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/lemony-ai/cascadeflow"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "/get-started/quickstart"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/lemony-ai/cascadeflow",
+      "x": "https://x.com/saschabuehrle"
+    }
   }
 }
