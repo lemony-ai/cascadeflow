@@ -64,17 +64,22 @@ npm install @cascadeflow/core
 
 cascadeflow is a **library** and **agent harness** — an intelligent AI model cascading package that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, cascadeflow automatically escalates to flagship models if needed.
 
-### Use Cases
+<details>
+<summary><b>Use Cases</b></summary>
 
-Use cascadeflow for:
-
-- **Cost Optimization.** Reduce API costs by 40-85% through intelligent model cascading and speculative execution with automatic per-query cost tracking.
-- **Cost Control and Transparency.** Built-in telemetry for query, model, and provider-level cost tracking with configurable budget limits and programmable spending caps.
-- **Low Latency & Speed Optimization**. Sub-2ms framework overhead with fast provider routing (Groq sub-50ms). Cascade simple queries to fast models while reserving expensive models for complex reasoning, achieving 2-10x latency reduction overall. (use preset `speed_optimized`)
-- **Multi-Provider Flexibility.** Unified API across **`OpenAI`, `Anthropic`, `Groq`, `Ollama`, `vLLM`, `Together`, and `Hugging Face`**, plus **17+ providers via the Vercel AI SDK** with automatic provider detection and zero vendor lock-in. Optional **`LiteLLM`** integration for 100+ additional providers, plus **`LangChain`** integration for LCEL chains and tools.
-- **Edge & Local-Hosted AI Deployment.** Use best of both worlds: handle most queries with local models (vLLM, Ollama), then automatically escalate complex queries to cloud providers only when needed.
+- **Inside-the-Loop Control.** Influence decisions at every agent step — model call, tool call, sub-agent handoff — where most cost, delay, and failure actually happen. External proxies only see request boundaries; cascadeflow sees decision boundaries.
+- **Multi-Dimensional Optimization.** Optimize across cost, latency, quality, budget, compliance/risk, and energy simultaneously — relevant to engineering, finance, security, operations, and sustainability stakeholders.
+- **Business Logic Injection.** Embed KPI weights and policy intent directly into agent behavior at runtime. Shift AI control from static prompt design to live business governance.
+- **Runtime Enforcement.** Directly steer outcomes with four actions: `allow`, `switch_model`, `deny_tool`, `stop` — based on current context and policy state. Closes the gap between analytics and execution.
+- **Auditability & Transparency.** Every runtime decision is traceable and attributable. Supports audit requirements, faster tuning cycles, and trust in regulated or high-stakes workflows.
+- **Measurable Value.** Prove impact with reproducible metrics on realistic agent workflows — better economics and latency while preserving quality thresholds.
+- **Latency Advantage.** Proxy-based optimization adds 40-60ms per call. In a 10-step agent loop, that is 400-600ms of avoidable overhead. cascadeflow runs in-process with sub-5ms overhead — critical for real-time UX, task throughput, and enterprise SLAs.
+- **Framework & Provider Neutral.** Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, Vercel AI SDK, n8n, and custom frameworks. Unified API across OpenAI, Anthropic, Groq, Ollama, vLLM, Together, and more.
+- **Edge & Local-Hosted AI.** Handle most queries with local models (vLLM, Ollama), automatically escalate complex queries to cloud providers only when needed.
 
 > **ℹ️ Note:** SLMs (under 10B parameters) are sufficiently powerful for 60-70% of agentic AI tasks. [Research paper](https://arxiv.org/pdf/2506.02153)
+
+</details>
 
 ---
 
