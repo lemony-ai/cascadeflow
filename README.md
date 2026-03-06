@@ -186,17 +186,6 @@ async def my_agent(query: str):
 
 ## Quick Start
 
-### Drop-In Gateway (Existing Apps)
-
-If you already have an app using the OpenAI or Anthropic APIs and want the fastest integration,
-run the gateway and point your existing client at it:
-
-```bash
-python -m cascadeflow.server --mode auto --port 8084
-```
-
-Docs: `docs/guides/gateway.md`
-
 ### <img src=".github/assets/CF_python_color.svg" width="24" height="24" alt="Python"/> Python
 
 ```python
@@ -388,9 +377,21 @@ result = await agent.run("What's 2+2?")
 
 📊 **Learn more:** [Cost Tracking Guide](https://docs.cascadeflow.ai/harness/budget-enforcement) | [Production Best Practices](https://docs.cascadeflow.ai/developers/production-and-deployment) | [Performance Optimization](https://docs.cascadeflow.ai/developers/tools-and-streaming)
 
+<details>
+<summary><b>Drop-In Gateway (Existing Apps)</b></summary>
+
+If you already have an app using the OpenAI or Anthropic APIs and want the fastest integration, run the gateway and point your existing client at it:
+
+```bash
+python -m cascadeflow.server --mode auto --port 8084
+```
+
+</details>
+
 ---
 
-## <img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n"/> n8n Integration
+<details>
+<summary><b><img src=".github/assets/CF_n8n_color.svg" width="24" height="24" alt="n8n" style="vertical-align: middle;"/> n8n Integration</b></summary>
 
 Use cascadeflow in n8n workflows for no-code AI automation with automatic cost optimization!
 
@@ -430,13 +431,14 @@ Use cascadeflow in n8n workflows for no-code AI automation with automatic cost o
 - 16-domain cascading for specialized model routing
 - Real-time flow visualization in Logs/Output tabs
 
-
-
 🔌 **Learn more:** [n8n Integration Guide](https://docs.cascadeflow.ai/integrations/n8n) | [n8n Package](./packages/integrations/n8n/)
+
+</details>
 
 ---
 
-## <picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src="./.github/assets/LC-logo-dark.png" width="42" alt="LangChain" style="vertical-align: middle;"></picture> LangChain Integration
+<details>
+<summary><b><picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src="./.github/assets/LC-logo-dark.png" width="42" alt="LangChain" style="vertical-align: middle;"></picture> LangChain Integration</b></summary>
 
 Use cascadeflow with LangChain for intelligent model cascading with full LCEL, streaming, and tools support!
 
@@ -603,6 +605,8 @@ console.log(`Warnings: ${validation.warnings}`);
 - ✅ Works with all LangChain features
 
 🦜 **Learn more:** [LangChain Integration Guide](https://docs.cascadeflow.ai/integrations/langchain) | [TypeScript Package](./packages/langchain-cascadeflow/) | [Python Examples](./examples/)
+
+</details>
 
 ---
 
