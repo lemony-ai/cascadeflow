@@ -29,7 +29,7 @@
 
 <br>
 
-**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](#-langchain-integration) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](./packages/integrations/vercel-ai/) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://clawhub.ai/saschabuehrle/cascadeflow) • [Full Docs](https://docs.cascadeflow.dev) • [📖 Docs](./docs/) • [💡 Examples](#examples)**
+**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](#-python) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](#-typescript) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](#-langchain-integration) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](#-n8n-integration) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](./packages/integrations/vercel-ai/) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://clawhub.ai/saschabuehrle/cascadeflow) • [<img src=".github/assets/CF_google_adk_color.svg" width="22" height="22" alt="Google ADK" style="vertical-align: middle;"/> Google ADK](https://docs.cascadeflow.ai/integrations/google-adk) • [📖 Docs](https://docs.cascadeflow.ai) • [💡 Examples](#examples)**
 
 </div>
 
@@ -259,7 +259,7 @@ print(f"Toxic: {result.is_toxic}")
 
 > **⚠️ GPT-5 Note:** GPT-5 streaming requires organization verification. Non-streaming works for all users. [Verify here](https://platform.openai.com/settings/organization/general) if needed (~15 min). Basic cascadeflow examples work without - GPT-5 is only called when needed (typically 20-30% of requests).
 
-📖 **Learn more:** [Python Documentation](./docs/README.md) | [Quickstart Guide](./docs/guides/quickstart.md) | [Providers Guide](./docs/guides/providers.md)
+📖 **Learn more:** [Python Documentation](https://docs.cascadeflow.ai/api-reference/python/overview) | [Quickstart Guide](https://docs.cascadeflow.ai/get-started/installation) | [Providers Guide](https://docs.cascadeflow.ai/developers/providers-and-presets)
 
 ### <img src=".github/assets/CF_ts_color.svg" width="24" height="24" alt="TypeScript"/> TypeScript
 
@@ -347,7 +347,7 @@ if (await checker.isAvailable()) {
 
 </details>
 
-📖 **Learn more:** [TypeScript Documentation](./packages/core/) | [Quickstart Guide](./docs/guides/quickstart-typescript.md) | [Node.js Examples](./packages/core/examples/nodejs/) | [Browser/Edge Guide](./docs/guides/browser_cascading.md)
+📖 **Learn more:** [TypeScript Documentation](https://docs.cascadeflow.ai/api-reference/typescript/overview) | [Quickstart Guide](https://docs.cascadeflow.ai/get-started/installation) | [Node.js Examples](./packages/core/examples/nodejs/)
 
 ### 🔄 Migration Example
 
@@ -380,7 +380,7 @@ result = await agent.run("What's 2+2?")
 
 > **🔥 Saved:** $0.000106 (94% reduction), 3.6x faster
 
-📊 **Learn more:** [Cost Tracking Guide](./docs/guides/cost_tracking.md) | [Production Best Practices](./docs/guides/production.md) | [Performance Optimization](./docs/guides/performance.md)
+📊 **Learn more:** [Cost Tracking Guide](https://docs.cascadeflow.ai/harness/budget-enforcement) | [Production Best Practices](https://docs.cascadeflow.ai/developers/production-and-deployment) | [Performance Optimization](https://docs.cascadeflow.ai/developers/tools-and-streaming)
 
 ---
 
@@ -426,7 +426,7 @@ Use cascadeflow in n8n workflows for no-code AI automation with automatic cost o
 
 
 
-🔌 **Learn more:** [n8n Integration Guide](./packages/integrations/n8n/) | [n8n Documentation](./docs/guides/n8n_integration.md)
+🔌 **Learn more:** [n8n Integration Guide](https://docs.cascadeflow.ai/integrations/n8n) | [n8n Package](./packages/integrations/n8n/)
 
 ---
 
@@ -596,7 +596,7 @@ console.log(`Warnings: ${validation.warnings}`);
 - ✅ Cost tracking callbacks (Python)
 - ✅ Works with all LangChain features
 
-🦜 **Learn more:** [LangChain Integration Guide](./docs/guides/langchain_integration.md) | [TypeScript Package](./packages/langchain-cascadeflow/) | [Python Examples](./examples/)
+🦜 **Learn more:** [LangChain Integration Guide](https://docs.cascadeflow.ai/integrations/langchain) | [TypeScript Package](./packages/langchain-cascadeflow/) | [Python Examples](./examples/)
 
 ---
 
@@ -612,7 +612,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | Example | Description | Link |
 |---------|-------------|------|
 | **Basic Usage** | Simple cascade setup with OpenAI models | [View](./examples/basic_usage.py) |
-| **Preset Usage** | Use built-in presets for quick setup | [View](./docs/guides/presets.md) |
+| **Preset Usage** | Use built-in presets for quick setup | [View](https://docs.cascadeflow.ai/developers/providers-and-presets) |
 | **Multi-Provider** | Mix multiple AI providers in one cascade | [View](./examples/multi_provider.py) |
 | **Reasoning Models**  | Use reasoning models (o1/o3, Claude Sonnet 4, DeepSeek-R1) | [View](./examples/reasoning_models.py) |
 | **Tool Execution** | Function calling and tool usage | [View](./examples/tool_execution.py) |
@@ -702,15 +702,15 @@ console.log(`Warnings: ${validation.warnings}`);
 
 | Guide | Description | Link |
 |-------|-------------|------|
-| **Quickstart** | Get started with cascadeflow in 5 minutes | [Read](./docs/guides/quickstart.md) |
-| **Providers Guide** | Configure and use different AI providers | [Read](./docs/guides/providers.md) |
-| **Presets Guide** | Using and creating custom presets | [Read](./docs/guides/presets.md) |
-| **Streaming Guide** | Stream responses from cascade agents | [Read](./docs/guides/streaming.md) |
-| **Tools Guide** | Function calling and tool usage | [Read](./docs/guides/tools.md) |
-| **Cost Tracking** | Track and analyze API costs | [Read](./docs/guides/cost_tracking.md) |
-| **Agentic Patterns (Python)** | Tool loops, multi-agent, agent-as-a-tool delegation | [Read](./docs/guides/agentic-python.md) |
-| **Agentic Patterns (TypeScript)** | Tool loops, multi-agent orchestration | [Read](./docs/guides/agentic-typescript.md) |
-| **Gateway Guide** | Drop-in OpenAI/Anthropic-compatible server | [Read](./docs/guides/gateway.md) |
+| **Quickstart** | Get started with cascadeflow in 5 minutes | [Read](https://docs.cascadeflow.ai/get-started/installation) |
+| **Providers Guide** | Configure and use different AI providers | [Read](https://docs.cascadeflow.ai/developers/providers-and-presets) |
+| **Presets Guide** | Using and creating custom presets | [Read](https://docs.cascadeflow.ai/api-reference/python/presets) |
+| **Streaming Guide** | Stream responses from cascade agents | [Read](https://docs.cascadeflow.ai/developers/tools-and-streaming) |
+| **Tools Guide** | Function calling and tool usage | [Read](https://docs.cascadeflow.ai/api-reference/python/tools) |
+| **Cost Tracking** | Track and analyze API costs | [Read](https://docs.cascadeflow.ai/harness/budget-enforcement) |
+| **Agentic Patterns** | Tool loops, multi-agent, agent-as-a-tool delegation | [Read](https://docs.cascadeflow.ai/get-started/agent-loop) |
+| **Agent Harness** | Budget, compliance, KPI, and energy controls | [Read](https://docs.cascadeflow.ai/get-started/agent-harness) |
+| **Rollout Guide** | Plan your production rollout | [Read](https://docs.cascadeflow.ai/get-started/rollout-guide) |
 
 </details>
 
@@ -719,25 +719,20 @@ console.log(`Warnings: ${validation.warnings}`);
 
 | Guide | Description | Link |
 |-------|-------------|------|
-| **Production Guide** | Best practices for production deployments | [Read](./docs/guides/production.md) |
-| **Performance Guide** | Optimize cascade performance and latency | [Read](./docs/guides/performance.md) |
-| **Custom Cascade** | Build custom cascade strategies | [Read](./docs/guides/custom_cascade.md) |
-| **Custom Validation** | Implement custom quality validators | [Read](./docs/guides/custom_validation.md) |
-| **Edge Device** | Deploy cascades on edge devices | [Read](./docs/guides/edge_device.md) |
-| **Browser Cascading** | Run cascades in the browser/edge | [Read](./docs/guides/browser_cascading.md) |
-| **FastAPI Integration** | Integrate with FastAPI applications | [Read](./docs/guides/fastapi.md) |
-| **LangChain Integration** | Use cascadeflow with LangChain | [Read](./docs/guides/langchain_integration.md) |
-| **n8n Integration** | Use cascadeflow in n8n workflows | [Read](./docs/guides/n8n_integration.md) |
-| **Local Providers** | Ollama & vLLM self-hosted deployment | [Read](./docs/guides/local-providers.md) |
-| **OpenClaw Provider** | OpenClaw custom provider setup | [Read](./docs/guides/openclaw_provider.md) |
-| **Enterprise Guide** | Enterprise deployments and configuration | [Read](./docs/guides/enterprise.md) |
-| **Quick Integration** | Integrate cascadeflow fast | [Read](./docs/guides/integrate_fast.md) |
-| **User Budget Tracking** | Per-user cost limits and budgets | [Read](./docs/guides/user-budget-tracking.md) |
-| **Proxy Routing** | Provider-aware proxy routing | [Read](./docs/guides/proxy.md) |
+| **Production Guide** | Best practices for production deployments | [Read](https://docs.cascadeflow.ai/developers/production-and-deployment) |
+| **Enterprise Networking** | Proxy, TLS, and network configuration | [Read](https://docs.cascadeflow.ai/developers/enterprise-networking) |
+| **Customization** | Custom cascade strategies and validators | [Read](https://docs.cascadeflow.ai/developers/customization) |
+| **Observability** | Telemetry, logging, and privacy controls | [Read](https://docs.cascadeflow.ai/developers/observability-and-privacy) |
+| **LangChain Integration** | Use cascadeflow with LangChain | [Read](https://docs.cascadeflow.ai/integrations/langchain) |
+| **OpenAI Agents SDK** | Use cascadeflow with OpenAI Agents | [Read](https://docs.cascadeflow.ai/integrations/openai-agents) |
+| **CrewAI Integration** | Use cascadeflow with CrewAI | [Read](https://docs.cascadeflow.ai/integrations/crewai) |
+| **Google ADK** | Use cascadeflow with Google ADK | [Read](https://docs.cascadeflow.ai/integrations/google-adk) |
+| **n8n Integration** | Use cascadeflow in n8n workflows | [Read](https://docs.cascadeflow.ai/integrations/n8n) |
+| **Vercel AI SDK** | Middleware for Vercel AI SDK | [Read](https://docs.cascadeflow.ai/integrations/vercel-ai) |
 
 </details>
 
-📚 **[View All Documentation →](./docs/)**
+📚 **[View All Documentation →](https://docs.cascadeflow.ai)**
 
 ---
 
@@ -834,7 +829,7 @@ pip install cascadeflow
 npm install @cascadeflow/core
 ```
 
-[Read the Docs](./docs/) • [View Python Examples](./examples/) • [View TypeScript Examples](./packages/core/examples/) • [Join Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
+[Read the Docs](https://docs.cascadeflow.ai) • [View Python Examples](./examples/) • [View TypeScript Examples](./packages/core/examples/) • [Join Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
 
 ---
 
