@@ -9,13 +9,32 @@
   },
   "logo": {
     "light": "/logo/cascadeflow-light.svg",
-    "dark": "/logo/cascadeflow-dark.svg"
+    "dark": "/logo/cascadeflow-dark.svg",
+    "href": "https://cascadeflow.ai"
   },
   "favicon": "/favicon.svg",
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "cursor", "vscode"]
+  },
   "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Website",
+          "icon": "globe",
+          "href": "https://cascadeflow.ai"
+        },
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/lemony-ai/cascadeflow"
+        }
+      ]
+    },
     "tabs": [
       {
-        "tab": "Docs",
+        "tab": "Documentation",
+        "icon": "book-open",
         "groups": [
           {
             "group": "",
@@ -82,28 +101,43 @@
             ]
           },
           {
-            "group": "API Reference",
+            "group": "Resources",
             "pages": [
-              {
-                "group": "Python",
-                "pages": [
-                  "api-reference/python/init",
-                  "api-reference/python/run",
-                  "api-reference/python/agent-decorator",
-                  "api-reference/python/harness-config",
-                  "api-reference/python/run-context"
-                ]
-              },
-              {
-                "group": "TypeScript",
-                "pages": [
-                  "api-reference/typescript/core",
-                  "api-reference/typescript/vercel-ai",
-                  "api-reference/typescript/langchain"
-                ]
-              }
+              "for-coding-agents",
+              "changelog",
+              "contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "icon": "code",
+        "groups": [
+          {
+            "group": "Python",
+            "pages": [
+              "api-reference/python/init",
+              "api-reference/python/run",
+              "api-reference/python/agent-decorator",
+              "api-reference/python/harness-config",
+              "api-reference/python/run-context"
             ]
           },
+          {
+            "group": "TypeScript",
+            "pages": [
+              "api-reference/typescript/core",
+              "api-reference/typescript/vercel-ai",
+              "api-reference/typescript/langchain"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "icon": "flask",
+        "groups": [
           {
             "group": "Examples",
             "pages": [
@@ -115,19 +149,6 @@
               "examples/multi-agent",
               "examples/enterprise-patterns"
             ]
-          },
-          {
-            "group": "",
-            "pages": [
-              "for-coding-agents"
-            ]
-          },
-          {
-            "group": "Resources",
-            "pages": [
-              "changelog",
-              "contributing"
-            ]
           }
         ]
       }
@@ -136,8 +157,8 @@
   "navbar": {
     "links": [
       {
-        "label": "GitHub",
-        "href": "https://github.com/lemony-ai/cascadeflow"
+        "label": "Blog",
+        "href": "https://cascadeflow.ai/blog"
       },
       {
         "label": "PyPI",
@@ -149,15 +170,33 @@
       }
     ],
     "primary": {
-      "type": "button",
-      "label": "Get Started",
-      "href": "/get-started/installation"
+      "type": "github",
+      "href": "https://github.com/lemony-ai/cascadeflow"
     }
   },
   "footer": {
     "socials": {
+      "website": "https://cascadeflow.ai",
       "github": "https://github.com/lemony-ai/cascadeflow",
-      "x": "https://x.com/saschabuehrle"
-    }
+      "x": "https://x.com/saschabuehrle",
+      "linkedin": "https://www.linkedin.com/company/lemony-ai"
+    },
+    "links": [
+      {
+        "header": "Packages",
+        "items": [
+          { "label": "PyPI", "href": "https://pypi.org/project/cascadeflow/" },
+          { "label": "npm", "href": "https://www.npmjs.com/package/@cascadeflow/core" }
+        ]
+      },
+      {
+        "header": "Resources",
+        "items": [
+          { "label": "Changelog", "href": "/changelog" },
+          { "label": "Contributing", "href": "/contributing" },
+          { "label": "For Coding Agents", "href": "/for-coding-agents" }
+        ]
+      }
+    ]
   }
 }
