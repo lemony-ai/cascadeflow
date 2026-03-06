@@ -1,0 +1,119 @@
+---
+title: "Quickstart: Observe Mode"
+description: Add cascadeflow to an existing project with zero code changes. Track cost, latency, and model usage across all LLM calls.
+---
+
+# Observe Mode — Zero-Change Visibility
+
+Observe mode tracks every LLM call without blocking or modifying any behavior. This is the safest way to start: no enforcement, no model switching, just metrics.
+
+## Prerequisites
+
+- cascadeflow installed ([Installation](/get-started/installation))
+- At least one provider API key set (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.)
+
+<Steps>
+
+<Step title="Add one line">
+
+Add `cascadeflow.init(mode="observe")` before any LLM calls in your application:
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="observe")
+
+# Your existing code — unchanged
+from openai import OpenAI
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "What is cascadeflow?"}],
+)
+print(response.choices[0].message.content)
+```
+
+Every call is now tracked. Nothing is blocked or changed.
+
+</Step>
+
+<Step title="See what you spend">
+
+Wrap a block with `cascadeflow.run()` to get aggregate metrics:
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="observe")
+
+with cascadeflow.run() as session:
+    # Run your agent, chain, or direct LLM calls
+    response1 = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Summarize this document"}],
+    )
+    response2 = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "Analyze the sentiment"}],
+    )
+
+    summary = session.summary()
+    print(f"Total cost:    ${summary['cost_total']:.4f}")
+    print(f"LLM calls:     {summary['steps']}")
+    print(f"Total latency: {summary['latency_total_ms']:.0f}ms")
+    print(f"Energy used:   {summary['energy_used']:.1f} units")
+```
+
+</Step>
+
+<Step title="Read the decision trace">
+
+Even in observe mode, cascadeflow records what it **would** have done:
+
+```python
+for record in session.trace():
+    print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+    print(f"  Model: {record['model']}, Cost so far: ${record['cost_total']:.4f}")
+    print(f"  Applied: {record['applied']}")  # Always False in observe mode
+```
+
+This lets you audit compliance violations, budget overruns, and routing decisions before turning on enforcement.
+
+</Step>
+
+</Steps>
+
+## TypeScript
+
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+});
+
+const result = await agent.run('What is TypeScript?');
+console.log(`Model: ${result.modelUsed}`);
+console.log(`Cost: $${result.totalCost}`);
+console.log(`Saved: ${result.savingsPercentage}%`);
+```
+
+<Tip>
+**Run this example:** [examples/basic_usage.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/basic_usage.py) | [examples/cost_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/cost_tracking.py)
+</Tip>
+
+## What You Learn in Observe Mode
+
+- How much each agent run actually costs
+- Which models are called and how often
+- Where latency accumulates across steps
+- Which calls would violate compliance policies
+- Whether budget caps would have triggered
+
+## Next Step
+
+Ready to enforce constraints? [Add budget enforcement →](/get-started/enforce)

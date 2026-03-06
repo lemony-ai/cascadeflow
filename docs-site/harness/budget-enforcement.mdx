@@ -9,7 +9,9 @@ The harness tracks cumulative cost across all LLM calls in a run and enforces bu
 
 Set a budget cap on a scoped run:
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 
 cascadeflow.init(mode="enforce")
@@ -22,6 +24,23 @@ with cascadeflow.run(budget=0.50) as session:
     print(f"Total cost: ${summary['cost_total']:.4f}")
     print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
 ```
+
+```typescript TypeScript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
+  ],
+  quality: { threshold: 0.8 },
+});
+
+const result = await agent.run('Research and summarize this topic');
+console.log(`Cost: $${result.totalCost}, Saved: ${result.savingsPercentage}%`);
+```
+
+</CodeGroup>
 
 When cumulative cost exceeds the budget:
 - In `observe` mode: the trace records `action: "stop"` with `applied: false`
@@ -79,3 +98,7 @@ with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:
 ```
 
 The harness checks all constraints at every step. The first constraint that is violated triggers the corresponding action (`stop` for budget, `deny_tool` for tool calls).
+
+<Tip>
+**Examples on GitHub:** [enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py) | [user_budget_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/user_budget_tracking.py) | [cost_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/cost_tracking.py)
+</Tip>

@@ -1,0 +1,155 @@
+---
+title: Rollout Guide
+description: Move from first install to production enforcement safely — observe, validate, enforce, tune.
+---
+
+# Rollout Guide
+
+The path from install to production follows a deliberate sequence. Do not skip observe mode. Each stage validates the next.
+
+<Steps>
+
+<Step title="Observe on real traffic">
+
+**Goal:** Baseline cost, latency, and model usage without affecting production.
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="observe")
+# Deploy. Let it run for 24-48 hours on real traffic.
+```
+
+What to look for:
+- Total cost per day/user/agent
+- Which models are called most
+- Average latency per step
+- Whether any calls would violate compliance rules
+
+```python
+with cascadeflow.run() as session:
+    await agent.run(query)
+    summary = session.summary()
+
+    # Log these to your monitoring system
+    log_metric("cascadeflow.cost", summary['cost_total'])
+    log_metric("cascadeflow.steps", summary['steps'])
+    log_metric("cascadeflow.latency", summary['latency_total_ms'])
+```
+
+</Step>
+
+<Step title="Validate policies in observe mode">
+
+**Goal:** Confirm that enforcement rules would behave correctly before enabling them.
+
+```python
+cascadeflow.init(mode="observe")
+
+with cascadeflow.run(budget=0.50, compliance="gdpr") as session:
+    await agent.run(query)
+
+    # Check what would have happened under enforcement
+    violations = [r for r in session.trace() if r['action'] in ('stop', 'switch_model', 'deny_tool')]
+    print(f"Would-be enforcement actions: {len(violations)}")
+    for v in violations:
+        print(f"  Step {v['step']}: {v['action']} — {v['reason']}")
+```
+
+If violations are unexpected, adjust budgets or policies before enforcing.
+
+</Step>
+
+<Step title="Enforce one constraint">
+
+**Goal:** Turn on enforcement for one dimension. Start generous.
+
+```python
+cascadeflow.init(mode="enforce")
+
+# Start with budget only — generous cap
+with cascadeflow.run(budget=5.00) as session:
+    await agent.run(query)
+```
+
+Monitor for a few days. Look at stop rates, cost distributions, and agent completion rates.
+
+</Step>
+
+<Step title="Tighten and expand">
+
+**Goal:** Add more constraints once the first one is validated.
+
+```python
+# Week 2: Tighter budget + tool call cap
+with cascadeflow.run(budget=1.00, max_tool_calls=10) as session:
+    await agent.run(query)
+
+# Week 3: Add compliance
+with cascadeflow.run(budget=1.00, max_tool_calls=10, compliance="gdpr") as session:
+    await agent.run(query)
+
+# Week 4: Add KPI optimization
+with cascadeflow.run(
+    budget=1.00,
+    max_tool_calls=10,
+    compliance="gdpr",
+    kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1},
+) as session:
+    await agent.run(query)
+```
+
+</Step>
+
+<Step title="Per-agent policies">
+
+**Goal:** Different agents get different constraints based on their role.
+
+```python
+@cascadeflow.agent(budget=0.10, kpi_weights={"cost": 0.9, "quality": 0.1})
+async def triage_agent(query):
+    return await llm.complete(query)
+
+@cascadeflow.agent(budget=2.00, compliance="hipaa", kpi_weights={"quality": 0.9, "cost": 0.1})
+async def medical_agent(query):
+    return await llm.complete(query)
+```
+
+</Step>
+
+</Steps>
+
+## Environment-Driven Mode
+
+Use environment variables to control the mode per environment:
+
+```python
+import os
+
+cascadeflow.init(mode=os.getenv("CASCADEFLOW_MODE", "observe"))
+```
+
+| Environment | `CASCADEFLOW_MODE` | Behavior |
+|---|---|---|
+| Development | `off` | No tracking |
+| Staging | `observe` | Track everything, enforce nothing |
+| Production | `enforce` | Active governance |
+
+## Validation Checklist
+
+Before moving to the next stage, confirm:
+
+- [ ] Observe metrics match expectations (cost, latency, model usage)
+- [ ] No unexpected compliance violations in trace
+- [ ] Budget caps are set above the 95th percentile of observed runs
+- [ ] Agent completion rates remain acceptable under enforcement
+- [ ] Decision traces are reviewed for false positives
+- [ ] Monitoring and alerting are in place for stop actions
+
+<Tip>
+**Run this example:** [examples/production_patterns.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/production_patterns.py) | [examples/user_budget_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/user_budget_tracking.py)
+</Tip>
+
+## Next Step
+
+Pick the right framework integration for your stack. [Choose your integration →](/get-started/choose-integration)

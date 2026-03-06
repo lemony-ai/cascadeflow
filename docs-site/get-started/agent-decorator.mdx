@@ -1,0 +1,111 @@
+---
+title: "Quickstart: Agent Decorator"
+description: Attach budget, compliance, and KPI policies directly to agent functions with @cascadeflow.agent().
+---
+
+# Agent Decorator — Policy Per Agent
+
+The `@cascadeflow.agent()` decorator attaches policy metadata directly to agent functions. Each agent gets its own budget, compliance rules, and KPI weights — enforced automatically at runtime.
+
+## Basic Usage
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+@cascadeflow.agent(budget=0.20)
+async def my_agent(query: str):
+    """This agent cannot spend more than $0.20."""
+    return await llm.complete(query)
+```
+
+## Add Compliance
+
+```python
+@cascadeflow.agent(budget=0.50, compliance="gdpr")
+async def eu_agent(query: str):
+    """Process EU data — only GDPR-approved models, $0.50 max."""
+    return await llm.complete(query)
+```
+
+## Add KPI Weights
+
+Encode business priorities into how the agent makes model decisions:
+
+```python
+@cascadeflow.agent(
+    budget=1.00,
+    kpi_weights={"quality": 0.8, "cost": 0.2},
+    kpi_targets={"quality": 0.9},
+)
+async def premium_agent(query: str):
+    """High-quality responses — prioritize quality over cost."""
+    return await llm.complete(query)
+```
+
+## Different Agents, Different Policies
+
+The real power shows with multiple agents — each governed independently:
+
+```python
+@cascadeflow.agent(
+    budget=0.10,
+    kpi_weights={"cost": 0.9, "quality": 0.1},
+)
+async def triage_agent(query: str):
+    """Quick classification — optimize for cost."""
+    return await llm.complete(query)
+
+@cascadeflow.agent(
+    budget=2.00,
+    compliance="hipaa",
+    kpi_weights={"quality": 0.9, "cost": 0.1},
+    kpi_targets={"quality": 0.95},
+)
+async def medical_agent(query: str):
+    """Patient data — strict compliance, high quality, higher budget."""
+    return await llm.complete(query)
+
+@cascadeflow.agent(
+    budget=0.50,
+    max_tool_calls=5,
+)
+async def research_agent(query: str):
+    """Research with tools — capped at 5 tool calls and $0.50."""
+    return await llm.complete(query)
+```
+
+## Combine with run()
+
+The decorator works alongside `cascadeflow.run()` — the run's constraints apply in addition to the decorator's:
+
+```python
+@cascadeflow.agent(budget=0.50, compliance="gdpr")
+async def my_agent(query: str):
+    return await llm.complete(query)
+
+# The run adds an outer budget cap on top of the agent's own cap
+with cascadeflow.run(budget=2.00) as session:
+    await my_agent("First query")   # Agent cap: $0.50, Run cap: $2.00
+    await my_agent("Second query")  # Agent cap: $0.50, Run cap: $2.00 minus first query
+    print(session.summary())
+```
+
+## All Decorator Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `budget` | `float` | Max USD for this agent |
+| `compliance` | `str` | `"gdpr"`, `"hipaa"`, `"pci"`, or `"strict"` |
+| `kpi_weights` | `dict` | Relative weights: `quality`, `cost`, `latency`, `energy` |
+| `kpi_targets` | `dict` | Target values per KPI dimension |
+| `max_tool_calls` | `int` | Max tool/function calls per invocation |
+
+<Tip>
+**API reference:** [@cascadeflow.agent()](/api-reference/python/agent-decorator) | **Example:** [examples/agentic_multi_agent.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/agentic_multi_agent.py)
+</Tip>
+
+## Next Step
+
+Understand how the Harness works under the hood. [Learn the Agent Harness →](/get-started/agent-harness)

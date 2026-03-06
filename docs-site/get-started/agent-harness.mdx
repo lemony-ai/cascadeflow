@@ -1,0 +1,137 @@
+---
+title: Agent Harness
+description: The runtime governance layer that tracks, scores, and enforces constraints across every agent step.
+---
+
+# Agent Harness
+
+The Harness is the core of cascadeflow's runtime intelligence. It wraps agent execution and makes a **decision at every step** — should this model call proceed, be switched, or be stopped?
+
+## What the Harness Does
+
+At every LLM call or tool execution inside an agent loop, the Harness:
+
+1. **Checks hard constraints** — budget remaining, compliance allowlist, tool call cap, latency limit, energy limit
+2. **Scores soft dimensions** — quality, cost, latency, energy weighted by KPI priorities
+3. **Decides an action** — `allow`, `switch_model`, `deny_tool`, or `stop`
+4. **Records a trace** — action, reason, model, step, cost, budget state
+
+In `observe` mode, decisions are recorded but not enforced. In `enforce` mode, they shape execution in real time.
+
+## HarnessConfig — The Full Control Surface
+
+All Harness behavior is configured through a single dataclass:
+
+```python
+from cascadeflow import HarnessConfig
+
+config = HarnessConfig(
+    mode="enforce",                     # "off" | "observe" | "enforce"
+    verbose=False,                      # Print decisions to stderr
+
+    # Hard constraints
+    budget=0.50,                        # Max USD for the run
+    max_tool_calls=10,                  # Max tool/function calls
+    max_latency_ms=5000.0,              # Max wall-clock ms per call
+    max_energy=100.0,                   # Max energy units
+
+    # Soft scoring
+    kpi_weights={                       # Relative importance (must sum to ~1.0)
+        "quality": 0.6,
+        "cost": 0.3,
+        "latency": 0.1,
+    },
+    kpi_targets={"quality": 0.9},       # Target values for KPI dimensions
+
+    # Compliance
+    compliance="gdpr",                  # "gdpr" | "hipaa" | "pci" | "strict"
+)
+```
+
+## The Three-Tier API
+
+cascadeflow offers three levels of control — use the one that fits your needs:
+
+### Tier 1: Global Init (Zero-Change)
+
+```python
+import cascadeflow
+cascadeflow.init(mode="observe")
+# All LLM calls are tracked. Nothing changes.
+```
+
+Best for: first rollout, measuring baseline costs, auditing compliance.
+
+### Tier 2: Scoped Run (Block-Level Control)
+
+```python
+cascadeflow.init(mode="enforce")
+
+with cascadeflow.run(budget=0.50, compliance="gdpr") as session:
+    result = await agent.run("Analyze EU data")
+    print(session.summary())
+```
+
+Best for: per-request budgets, scoped policy, session-level metrics.
+
+### Tier 3: Agent Decorator (Per-Agent Policy)
+
+```python
+@cascadeflow.agent(
+    budget=1.00,
+    compliance="hipaa",
+    kpi_weights={"quality": 0.8, "cost": 0.2},
+)
+async def medical_agent(query: str):
+    return await llm.complete(query)
+```
+
+Best for: multi-agent systems where each agent has different constraints.
+
+## Decision Priority
+
+When the Harness evaluates a step, it follows a strict priority order:
+
+| Priority | Check | Action if violated |
+|---|---|---|
+| 1 | Budget exhausted | `stop` |
+| 2 | Compliance allowlist | `switch_model` or `stop` |
+| 3 | Tool call cap | `deny_tool` |
+| 4 | Latency limit | `switch_model` |
+| 5 | Energy limit | `switch_model` |
+| 6 | KPI scoring | `allow` or `switch_model` |
+
+Hard constraints (budget, compliance) always take priority over soft scoring (KPI weights).
+
+## Six Dimensions at a Glance
+
+| Dimension | Hard cap | Soft scoring | Deep dive |
+|---|---|---|---|
+| **Cost** | `budget` | `kpi_weights.cost` | [Budget Enforcement](/harness/budget-enforcement) |
+| **Quality** | — | `kpi_weights.quality` | [KPI Optimization](/harness/kpi-optimization) |
+| **Latency** | `max_latency_ms` | `kpi_weights.latency` | [KPI Optimization](/harness/kpi-optimization) |
+| **Compliance** | `compliance` | — | [Compliance Gating](/harness/compliance) |
+| **Energy** | `max_energy` | `kpi_weights.energy` | [Energy Tracking](/harness/energy-tracking) |
+| **Tool calls** | `max_tool_calls` | — | [Budget Enforcement](/harness/budget-enforcement) |
+
+## Observe vs Enforce
+
+| Behavior | Observe | Enforce |
+|---|---|---|
+| Tracks cost, latency, energy | Yes | Yes |
+| Records decision trace | Yes | Yes |
+| Blocks on budget exceeded | No | Yes |
+| Switches non-compliant models | No | Yes |
+| Denies tool calls at cap | No | Yes |
+| Stops execution | No | Yes |
+| `trace()` record `applied` field | `false` | `true` |
+
+Start with `observe` to validate your policies against real traffic. Switch to `enforce` when you are confident the rules are correct.
+
+<Tip>
+**Run this example:** [examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py) | **API reference:** [HarnessConfig](/api-reference/python/harness-config)
+</Tip>
+
+## Next Step
+
+See how the Harness operates inside multi-step agent loops. [Understand the Agent Loop →](/get-started/agent-loop)

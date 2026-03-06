@@ -1,36 +1,26 @@
 ---
 title: cascadeflow
-description: Agent runtime intelligence for AI workflows. Start fast, enforce budgets and policy, and keep docs usable for users, developers, and coding agents.
+description: The agent runtime intelligence layer. Control cost, latency, quality, compliance, and energy inside every agent step.
 ---
 
-The in-process intelligence layer for AI agents. Optimize cost, latency, quality, budget, compliance, and energy inside the execution loop, not at the HTTP boundary.
+# The Agent Runtime Intelligence Layer
 
-Use cascadeflow when you need runtime control, not just model routing. It is a decision system inside the agent loop: every model call, tool call, and handoff can be measured, scored, and steered in real time.
+cascadeflow is infrastructure that sits **inside** AI agent execution and continuously optimizes outcomes across business and technical constraints in real time.
 
-## Why This Direction Matters
+This is not another model router. It is a **decision system inside the agent loop**.
 
-| Strategic point | What it means in practice |
-|---|---|
-| Inside-the-loop control | Decisions happen at agent decision boundaries, not just HTTP request boundaries |
-| Multi-dimensional optimization | Cost, latency, quality, budget, compliance, and energy are managed together |
-| Business logic injection | KPI and policy intent can shape runtime behavior directly |
-| Immediate actionability | The system can `allow`, `switch_model`, `deny_tool`, or `stop` |
-| Transparent governance | Every decision is traceable, attributable, and auditable |
-| In-process latency advantage | No proxy tax on every call, which matters as multi-step agent loops compound |
+Every model call, tool call, and sub-agent handoff can be measured, scored, and steered — where cost, delay, and failure actually happen.
 
-<CardGroup cols={3}>
-  <Card title="For Users" icon="sparkles" href="/users/overview">
-    Roll out safely, measure impact, and move from observe to enforce.
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/get-started/installation">
+    Install, observe, enforce, and ship to production in minutes.
   </Card>
-  <Card title="For Developers" icon="code" href="/developers/overview">
-    Choose the right package, integration path, and API surface quickly.
-  </Card>
-  <Card title="For Coding Agents" icon="robot" href="/agents/overview">
-    Canonical facts, repo paths, examples, and implementation entry points.
+  <Card title="Why cascadeflow" icon="lightbulb" href="/why-cascadeflow">
+    The business case for inside-the-loop agent intelligence.
   </Card>
 </CardGroup>
 
-## Start In Minutes
+## Install
 
 <CodeGroup>
 
@@ -48,58 +38,31 @@ npm install @cascadeflow/core
 import cascadeflow
 
 cascadeflow.init(mode="observe")
-# Existing OpenAI and Anthropic SDK calls are now tracked.
+# Every OpenAI and Anthropic SDK call is now tracked — zero code changes.
 ```
 
-## Why Teams Use cascadeflow
+## What Makes This Different
 
-| Need | What cascadeflow adds |
-|---|---|
-| Safer production rollout | `observe` mode with zero-change tracking |
-| Runtime cost control | Per-run budgets, tool-call caps, KPI weighting |
-| Policy enforcement | Compliance-aware model gating and stop actions |
-| Agent visibility | Decision traces, summaries, and measurable session outcomes |
-| Multi-framework adoption | LangChain, OpenAI Agents, CrewAI, Google ADK, n8n, Vercel AI |
-| Enterprise viability | Governable, auditable, and operationally predictable agent behavior |
+| | External Proxy | cascadeflow |
+|---|---|---|
+| **Where it runs** | HTTP boundary | Inside the agent loop |
+| **What it sees** | Request/response pairs | Step count, budget, tool history, quality, domain, business context |
+| **What it optimizes** | Cost | Cost + latency + quality + budget + compliance + energy |
+| **What it does** | Observes | `allow`, `switch_model`, `deny_tool`, `stop` |
+| **Latency overhead** | 40-60ms per call | <1ms in-process |
+| **In 10-step agent loop** | 400-600ms added | ~0ms added |
 
-## Choose Your Path
-
-<CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/get-started/quickstart">
-    Install, turn on observe mode, and ship the first rollout.
-  </Card>
-  <Card title="Capabilities" icon="layer-group" href="/capabilities/overview">
-    See the full product surface without digging through the repo.
-  </Card>
-  <Card title="Developer Setup" icon="terminal" href="/developers/overview">
-    Pick Python, TypeScript, or a framework integration.
-  </Card>
-  <Card title="Examples" icon="books" href="/examples/overview">
-    Find the GitHub examples that match your use case.
-  </Card>
-</CardGroup>
-
-## Why Use cascadeflow
-
-| Reason | Outcome |
-|---|---|
-| Control decisions inside the loop | Better economics and fewer failures where agent work actually happens |
-| Optimize more than cost | Balance latency, quality, budget, compliance, and energy together |
-| Turn policy into runtime behavior | Business and security intent becomes actionable, not advisory |
-| Keep latency low | In-process optimization avoids the per-call proxy penalty |
-| Prove value | Real traces and summaries make impact measurable and defensible |
-
-## Core Workflow
+## Three Lines to Govern Any Agent
 
 <CodeGroup>
 
 ```python Observe (zero-change)
 import cascadeflow
 cascadeflow.init(mode="observe")
-# All OpenAI/Anthropic SDK calls are now tracked.
+# All LLM calls tracked. No blocking, no changes.
 ```
 
-```python Scoped Run
+```python Enforce Budget
 import cascadeflow
 cascadeflow.init(mode="enforce")
 
@@ -119,18 +82,9 @@ async def my_agent(query: str):
 
 </CodeGroup>
 
-## Supported Frameworks
+## Six Dimensions, One Decision
 
-| Framework | Python | TypeScript | Integration Type |
-|---|---|---|---|
-| LangChain / LangGraph | `cascadeflow[langchain]` | `@cascadeflow/langchain` | Callback handler |
-| OpenAI Agents SDK | `cascadeflow[openai-agents]` | -- | ModelProvider |
-| CrewAI | `cascadeflow[crewai]` | -- | llm_hooks |
-| Google ADK | `cascadeflow[google-adk]` | -- | BasePlugin |
-| n8n | -- | `@cascadeflow/n8n-nodes-cascadeflow` | Community node |
-| Vercel AI SDK | -- | `@cascadeflow/vercel-ai` | Middleware |
-
-## What Gets Managed
+Every agent step is scored across six dimensions simultaneously:
 
 | Dimension | What it controls | Example |
 |---|---|---|
@@ -138,9 +92,39 @@ async def my_agent(query: str):
 | **Latency** | Wall-clock milliseconds per call | Max 2000ms per call |
 | **Quality** | Model quality priors for routing | 60% weight on quality KPI |
 | **Budget** | Cumulative spend tracking and caps | Per-user daily limits |
-| **Compliance** | Model allowlists per regulation | GDPR: only gpt-4o, gpt-4o-mini |
+| **Compliance** | Model allowlists per regulation | GDPR: only approved models |
 | **Energy** | Compute-intensity coefficients | Carbon-aware model selection |
 
-## Keep The Top Level Focused
+## Works With Every Major Framework
 
-The docs site is optimized for decision-making and onboarding first. Deeper capability details, GitHub guides, and example repositories are still available, but they sit one layer down where they belong.
+| Framework | Python | TypeScript | Type |
+|---|---|---|---|
+| LangChain / LangGraph | `cascadeflow[langchain]` | `@cascadeflow/langchain` | Callback handler |
+| OpenAI Agents SDK | `cascadeflow[openai-agents]` | — | ModelProvider |
+| CrewAI | `cascadeflow[crewai]` | — | llm_hooks |
+| Google ADK | `cascadeflow[google-adk]` | — | BasePlugin |
+| n8n | — | `@cascadeflow/n8n-nodes-cascadeflow` | Community node |
+| Vercel AI SDK | — | `@cascadeflow/vercel-ai` | Middleware |
+
+## Explore
+
+<CardGroup cols={3}>
+  <Card title="Agent Harness" icon="shield-halved" href="/get-started/agent-harness">
+    Configure budget, compliance, KPI, and energy controls.
+  </Card>
+  <Card title="Agent Loop" icon="arrows-spin" href="/get-started/agent-loop">
+    How cascadeflow operates inside multi-step agent execution.
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/catalog">
+    42+ Python and 33+ TypeScript examples on GitHub.
+  </Card>
+  <Card title="Integrations" icon="puzzle-piece" href="/integrations/overview">
+    LangChain, OpenAI Agents, CrewAI, Google ADK, n8n, Vercel AI.
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/python/init">
+    Full Python and TypeScript API documentation.
+  </Card>
+  <Card title="For Coding Agents" icon="robot" href="/for-coding-agents">
+    Canonical facts, repo map, and implementation entry points.
+  </Card>
+</CardGroup>

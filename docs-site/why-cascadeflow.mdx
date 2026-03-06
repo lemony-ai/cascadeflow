@@ -1,0 +1,133 @@
+---
+title: Why cascadeflow
+description: The business and technical case for inside-the-loop agent runtime intelligence.
+---
+
+# Why cascadeflow
+
+Most AI optimization tools sit outside the agent — at the HTTP boundary, in a proxy, or in a dashboard after the fact. cascadeflow sits **inside** the agent loop, where decisions actually happen.
+
+This is the difference between watching outcomes and controlling them.
+
+## 1. Inside-the-Loop Control Is the Core Moat
+
+cascadeflow influences decisions at every agent step: model call, tool call, sub-agent handoff. This is where most cost, delay, and failure actually happen.
+
+External proxies only see request boundaries. cascadeflow sees **decision boundaries**.
+
+```python
+# Every step inside this run is governed — not just the HTTP request
+with cascadeflow.run(budget=0.50, compliance="gdpr") as session:
+    result = await agent.run("Process EU customer data")
+    # Budget tracked across 12 tool calls, 3 model switches, 2 sub-agent handoffs
+```
+
+## 2. Multi-Dimensional Optimization Creates Enterprise-Grade Value
+
+Most tools optimize one metric — usually cost. cascadeflow optimizes across **six dimensions simultaneously**:
+
+| Dimension | What it controls | Who cares |
+|---|---|---|
+| **Cost** | USD per call, per run, per user | Engineering, Finance |
+| **Latency** | Wall-clock ms per call and total | Engineering, Product |
+| **Quality** | Model quality priors and targets | Product, QA |
+| **Compliance** | Model allowlists (GDPR, HIPAA, PCI) | Legal, Security |
+| **Energy** | Compute-intensity coefficients | Sustainability, Ops |
+| **Budget** | Cumulative spend caps and limits | Finance, Engineering |
+
+This makes cascadeflow relevant not just to engineering teams, but to finance, security, operations, and sustainability stakeholders.
+
+## 3. Business Logic Injection Turns AI from "Smart" to "Governable"
+
+Organizations can embed KPI and policy intent directly into agent behavior at runtime. This shifts AI control from static prompt design to **live business governance**.
+
+```python
+# Business intent encoded directly into agent behavior
+@cascadeflow.agent(
+    budget=1.00,
+    compliance="gdpr",
+    kpi_weights={"quality": 0.7, "cost": 0.2, "latency": 0.1},
+    kpi_targets={"quality": 0.9},
+)
+async def eu_premium_agent(query: str):
+    return await llm.complete(query)
+```
+
+## 4. Actionability Is Immediate, Not Advisory
+
+cascadeflow does not just observe and report. It can **directly steer runtime outcomes** based on current context and policy state:
+
+| Action | What it does | When it triggers |
+|---|---|---|
+| `allow` | Proceed with current model | Policy checks pass |
+| `switch_model` | Route to a different model | Quality, compliance, or KPI mismatch |
+| `deny_tool` | Block a specific tool call | Tool cap reached or risk policy |
+| `stop` | Halt execution entirely | Budget exhausted or hard constraint hit |
+
+This closes the gap between analytics and execution.
+
+## 5. Transparency De-Risks Enterprise Adoption
+
+Every runtime decision is traceable and attributable. This supports auditability, faster tuning cycles, and trust in regulated or high-stakes workflows.
+
+```python
+for record in session.trace():
+    print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+    # Step 1: allow — budget ok, compliance passed, quality 0.92
+    # Step 5: switch_model — quality below target, switching to gpt-4o
+    # Step 8: stop — budget exceeded ($0.50/$0.50)
+```
+
+## 6. Latency Compounding Is a Structural Advantage
+
+Proxy-based optimization adds 40-60ms per model or tool call from extra network hops. In agentic workflows with 10+ calls, that creates **400-600ms of avoidable overhead** per task — and much more for deeper loops.
+
+cascadeflow's in-process approach adds <1ms per call. Optimization does not come with a latency penalty.
+
+| Scenario | Proxy overhead | cascadeflow overhead |
+|---|---|---|
+| Single call | 40-60ms | <1ms |
+| 10-step agent | 400-600ms | <10ms |
+| 25-step deep loop | 1-1.5s | <25ms |
+| Real-time UX (100ms budget) | Consumes 40-60% | Consumes <1% |
+
+This is critical for real-time UX, task throughput, and enterprise SLA performance.
+
+## 7. Value Proposition Is Measurable and Defensible
+
+cascadeflow proves impact with reproducible metrics on real agent workflows:
+
+```python
+summary = session.summary()
+# {
+#   "cost_total": 0.0847,       ← actual spend
+#   "steps": 12,                ← agent steps taken
+#   "tool_calls": 8,            ← tool executions
+#   "budget_remaining": 0.4153, ← governance headroom
+#   "energy_used": 34.2,        ← compute intensity
+# }
+```
+
+Better economics and latency while preserving quality thresholds — not a trade-off, a structural improvement.
+
+## 8. Why This Can Become a Category Leader
+
+- **Framework-neutral and provider-neutral** — works with LangChain, OpenAI Agents, CrewAI, Google ADK, Vercel AI, n8n, and custom frameworks
+- **Solves a structural gap** orchestration frameworks are not built or incentivized to solve
+- **Expands from optimization into business-intelligence control** for agents
+- **In-process architecture** is fundamentally better than proxy architecture for agent workloads
+
+## Strategic Outcome
+
+cascadeflow can become the **default intelligence and governance substrate for agents**: the layer companies rely on to make agentic systems economically viable, policy-compliant, and operationally predictable at scale.
+
+## Start Now
+
+<CardGroup cols={2}>
+  <Card title="Install in 2 minutes" icon="rocket" href="/get-started/installation">
+    pip install cascadeflow — start observing immediately.
+  </Card>
+  <Card title="See the full capability surface" icon="layer-group" href="/capabilities/overview">
+    Every feature, with links to GitHub examples.
+  </Card>
+</CardGroup>

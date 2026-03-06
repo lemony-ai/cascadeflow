@@ -1,0 +1,96 @@
+---
+title: Choose Your Integration
+description: Pick the right cascadeflow integration for your framework — LangChain, OpenAI Agents, CrewAI, Google ADK, n8n, or Vercel AI.
+---
+
+# Choose Your Integration
+
+cascadeflow integrates with every major agent framework. Pick the one that matches your stack.
+
+## Quick Decision
+
+| If you use... | Install | Integration type | Guide |
+|---|---|---|---|
+| **LangChain / LangGraph** | `pip install cascadeflow[langchain]` | Callback handler | [LangChain →](/integrations/langchain) |
+| **OpenAI Agents SDK** | `pip install cascadeflow[openai-agents]` | ModelProvider | [OpenAI Agents →](/integrations/openai-agents) |
+| **CrewAI** | `pip install cascadeflow[crewai]` | llm_hooks | [CrewAI →](/integrations/crewai) |
+| **Google ADK** | `pip install cascadeflow[google-adk]` | BasePlugin | [Google ADK →](/integrations/google-adk) |
+| **Vercel AI SDK** | `npm install @cascadeflow/vercel-ai` | Middleware | [Vercel AI →](/integrations/vercel-ai) |
+| **n8n** | `npm install @cascadeflow/n8n-nodes-cascadeflow` | Community node | [n8n →](/integrations/n8n) |
+| **Direct SDK calls** | `pip install cascadeflow` | `init()` + `run()` | [Observe →](/get-started/observe) |
+| **TypeScript (no framework)** | `npm install @cascadeflow/core` | CascadeAgent | [Core →](/api-reference/typescript/core) |
+
+## By Language
+
+### Python
+
+All Python integrations share the same Harness API — `init()`, `run()`, `@agent()`. The framework integration handles the bridge:
+
+```python
+# LangChain — callback handler
+from cascadeflow.integrations.langchain import CascadeFlowHandler
+handler = CascadeFlowHandler()
+chain.invoke(query, config={"callbacks": [handler]})
+
+# OpenAI Agents — model provider
+from cascadeflow.integrations.openai_agents import CascadeFlowModelProvider
+provider = CascadeFlowModelProvider()
+
+# CrewAI — hooks
+from cascadeflow.integrations.crewai import CascadeFlowHooks
+hooks = CascadeFlowHooks()
+
+# Google ADK — plugin
+from cascadeflow.integrations.google_adk import CascadeFlowPlugin
+plugin = CascadeFlowPlugin()
+```
+
+### TypeScript
+
+```typescript
+// Core (standalone)
+import { CascadeAgent } from '@cascadeflow/core';
+
+// Vercel AI SDK (middleware)
+import { createChatHandler } from '@cascadeflow/vercel-ai';
+
+// LangChain (withCascade)
+import { withCascade } from '@cascadeflow/langchain';
+```
+
+## Which One If You Are Not Sure?
+
+<CardGroup cols={2}>
+  <Card title="Python + any framework" icon="python" href="/get-started/observe">
+    Start with `cascadeflow.init(mode="observe")`. Works with direct SDK calls. Add a framework integration later.
+  </Card>
+  <Card title="TypeScript + Next.js" icon="js" href="/integrations/vercel-ai">
+    Use `@cascadeflow/vercel-ai` for AI SDK streaming and tool execution.
+  </Card>
+  <Card title="Multi-agent orchestration" icon="diagram-project" href="/integrations/langchain">
+    LangChain/LangGraph gives you the deepest integration — callbacks, cost tracking, LangSmith.
+  </Card>
+  <Card title="No-code / Low-code" icon="wand-magic-sparkles" href="/integrations/n8n">
+    n8n community nodes for visual workflow automation.
+  </Card>
+</CardGroup>
+
+## All Integrations
+
+For a full comparison matrix including feature coverage per framework, see [Integrations Overview →](/integrations/overview)
+
+## You're Ready
+
+You've completed the Getting Started path. From here:
+
+<CardGroup cols={3}>
+  <Card title="Harness Deep Dive" icon="shield-halved" href="/harness/overview">
+    Full reference for all six dimensions.
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/catalog">
+    75+ working examples on GitHub.
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/python/init">
+    Complete Python and TypeScript APIs.
+  </Card>
+</CardGroup>
