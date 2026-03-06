@@ -1,0 +1,33 @@
+---
+title: Production And Deployment
+description: "The production-facing surfaces of cascadeflow: deployment patterns, performance, gateway usage, and operational guidance."
+---
+
+Use this page when you are moving beyond local experimentation into production architecture and rollout.
+
+## Main Concerns
+
+| Concern | Why it matters |
+|---|---|
+| Performance | The in-process design avoids the proxy penalty on deep agent loops |
+| Deployment pattern | Direct SDK usage, middleware, gateway, or local providers each fit different teams |
+| Reliability | Production rollouts need safe defaults, observability, and bounded behavior |
+| Operations | Teams need examples for APIs, telemetry, and deployment setup |
+
+## Primary Docs
+
+- [production.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/production.md)
+- [performance.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/performance.md)
+- [fastapi.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/fastapi.md)
+- [gateway.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/gateway.md)
+- [browser_cascading.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/browser_cascading.md)
+- [edge_device.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/edge_device.md)
+
+## Important Examples
+
+- [examples/production_patterns.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/production_patterns.py)
+- [examples/fastapi_integration.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/fastapi_integration.py)
+- [examples/proxy_service_basic.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/proxy_service_basic.py)
+- [examples/gateway_client_openai.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/gateway_client_openai.py)
+- [examples/edge_device.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/edge_device.py)
+- [examples/vercel-ai-nextjs](https://github.com/lemony-ai/cascadeflow/tree/main/examples/vercel-ai-nextjs)

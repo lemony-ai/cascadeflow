@@ -1,0 +1,33 @@
+---
+title: Implementation Checklist
+description: A concise checklist for external coding agents implementing or modifying cascadeflow integrations.
+---
+
+Use this checklist when an external coding agent is about to make changes in the repo or integrate cascadeflow into another codebase.
+
+## Checklist
+
+1. Confirm whether the task is direct SDK usage, framework integration, or docs work.
+2. Read the shortest canonical page first:
+   `/get-started/quickstart`, `/integrations/overview`, `/examples/overview`, or `/capabilities/overview`.
+3. Prefer an existing example before inventing a new pattern.
+4. Match the implementation to the in-process runtime-intelligence direction, not a proxy-first story.
+5. Keep `observe` as the default rollout recommendation unless the task explicitly needs enforcement.
+6. Use GitHub deep guides only when the docs-site page is not enough.
+
+## Highest-Signal Example Targets
+
+- Python basics: `examples/basic_usage.py`
+- Tool-heavy agents: `examples/tool_execution.py`
+- Multi-agent workflows: `examples/agentic_multi_agent.py`
+- Runtime enforcement: `examples/enforcement/basic_enforcement.py`
+- Framework integrations: `examples/integrations/*`
+- TypeScript runtime work: `packages/core/examples/nodejs/*`
+
+## Canonical Repo Areas
+
+- Public docs: `docs-site/`
+- Deep docs: `docs/`
+- Python examples: `examples/`
+- TypeScript examples: `packages/core/examples/`, `packages/langchain-cascadeflow/examples/`
+- Agent-readable summary: `llms.txt`

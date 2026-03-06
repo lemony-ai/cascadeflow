@@ -1,0 +1,38 @@
+---
+title: Rollout Playbook
+description: A concise rollout path for teams moving from first visibility to governed production usage.
+---
+
+Use this playbook to roll cascadeflow out without turning the first deployment into a policy project.
+
+## Recommended Rollout
+
+1. Enable `observe` mode on a real workflow.
+2. Review summaries and traces for cost, latency, tool usage, and decision patterns.
+3. Add one runtime control first, usually budget or compliance.
+4. Expand into KPI weighting and tool gating only after the baseline is understood.
+5. Move to `enforce` once the rules are stable and useful.
+
+## What To Validate Before Enforce
+
+| Check | Why it matters |
+|---|---|
+| Cost per run | Confirms economic value |
+| Tool-call count | Exposes runaway loops and operational risk |
+| Latency by step | Shows whether the workflow can meet UX or SLA goals |
+| Trace quality | Confirms decisions are understandable and actionable |
+| Model usage patterns | Shows whether high-cost models are truly necessary |
+
+## Good Early Wins
+
+- Cap a known expensive workflow
+- Add compliance guardrails to a regulated use case
+- Show latency savings versus proxy-style control
+- Produce an audit trail for one business-critical path
+
+## Related Docs
+
+- [/harness/modes](/harness/modes)
+- [/harness/budget-enforcement](/harness/budget-enforcement)
+- [/harness/decision-trace](/harness/decision-trace)
+- [/users/business-value](/users/business-value)

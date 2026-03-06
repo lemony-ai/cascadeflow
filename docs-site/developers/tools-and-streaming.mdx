@@ -1,0 +1,29 @@
+---
+title: Tools And Streaming
+description: Core patterns for tool calling, streaming, and agent loops.
+---
+
+Use this page when your workflow is interactive, tool-heavy, or multi-step.
+
+## What Matters Here
+
+| Topic | Why it matters |
+|---|---|
+| Tools | Tool loops are one of the main places budgets and runtime controls matter |
+| Streaming | Interactive UX depends on preserving low latency and clear runtime behavior |
+| Multi-step execution | Cost and failure compound across steps, not only at the first call |
+
+## Primary Docs
+
+- [tools.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/tools.md)
+- [streaming.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/streaming.md)
+- [agentic-python.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/agentic-python.md)
+- [agentic-typescript.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/agentic-typescript.md)
+
+## Important Examples
+
+- [examples/tool_execution.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/tool_execution.py)
+- [examples/streaming_text.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/streaming_text.py)
+- [examples/streaming_tools.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/streaming_tools.py)
+- [examples/agentic_multi_agent.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/agentic_multi_agent.py)
+- [packages/core/examples/nodejs/tool-calling.ts](https://github.com/lemony-ai/cascadeflow/blob/main/packages/core/examples/nodejs/tool-calling.ts)

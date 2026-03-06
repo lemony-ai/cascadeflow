@@ -1,0 +1,35 @@
+---
+title: Providers And Presets
+description: How to think about provider choice, local models, and presets without turning the docs into a provider catalog.
+---
+
+Use this page when you need to choose model providers, install the right extras, and decide whether presets or custom configs should be the starting point.
+
+## Provider Coverage
+
+| Type | Main options |
+|---|---|
+| Hosted providers | OpenAI, Anthropic, Groq, Together, Hugging Face |
+| Local or self-hosted | Ollama, vLLM |
+| Framework-mediated | Vercel AI SDK, LangChain integrations |
+
+## Practical Guidance
+
+- Start with the provider you already use in production.
+- Add a second provider when you need cost, resilience, or model specialization.
+- Use local or self-hosted providers when deployment control matters more than turnkey access.
+- Use presets for speed, then move to custom configuration only when the workload demands it.
+
+## Install Paths
+
+- [/get-started/installation](/get-started/installation)
+- [providers.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/providers.md)
+- [presets.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/presets.md)
+- [local-providers.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/local-providers.md)
+
+## Important Examples
+
+- [examples/multi_provider.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/multi_provider.py)
+- [examples/integrations/litellm_providers.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/litellm_providers.py)
+- [examples/multi_instance_ollama.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/multi_instance_ollama.py)
+- [examples/multi_instance_vllm.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/multi_instance_vllm.py)

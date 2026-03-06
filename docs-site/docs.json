@@ -45,6 +45,8 @@
             "pages": [
               "users/index",
               "users/overview",
+              "users/business-value",
+              "users/rollout-playbook",
               "capabilities/index",
               "capabilities/overview"
             ]
@@ -73,6 +75,15 @@
             "pages": [
               "developers/index",
               "developers/overview"
+            ]
+          },
+          {
+            "group": "Core Topics",
+            "pages": [
+              "developers/providers-and-presets",
+              "developers/tools-and-streaming",
+              "developers/production-and-deployment",
+              "developers/customization"
             ]
           },
           {
@@ -116,7 +127,8 @@
             "group": "Agent Guide",
             "pages": [
               "agents/index",
-              "agents/overview"
+              "agents/overview",
+              "agents/implementation-checklist"
             ]
           }
         ]
@@ -128,7 +140,8 @@
             "group": "Overview",
             "pages": [
               "examples/index",
-              "examples/overview"
+              "examples/overview",
+              "examples/catalog"
             ]
           },
           {
