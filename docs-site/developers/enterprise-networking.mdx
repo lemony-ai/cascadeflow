@@ -1,0 +1,75 @@
+---
+title: Enterprise Networking
+description: Proxy, TLS, CA bundle, and corporate-network configuration for enterprise environments.
+---
+
+Use this page when cascadeflow needs to run inside enterprise networking constraints like proxies, custom CA bundles, or corporate PKI.
+
+## Zero-Config First
+
+cascadeflow automatically detects common enterprise environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `HTTPS_PROXY`, `HTTP_PROXY` | Proxy configuration |
+| `SSL_CERT_FILE` | Custom CA certificate bundle |
+| `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE` | Alternate CA bundle paths |
+| `NO_PROXY` | Bypass rules |
+
+## Explicit HTTP Configuration
+
+For explicit control, use `HttpConfig` in Python or `httpConfig` in TypeScript.
+
+### Python
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig, HttpConfig
+
+agent = CascadeAgent(
+    models=[
+        ModelConfig(
+            name="gpt-4o",
+            provider="openai",
+            cost=0.00625,
+            http_config=HttpConfig(
+                proxy="http://proxy.corp.example.com:8080",
+                ca_cert_path="/path/to/corporate-ca.pem",
+                verify_ssl=True,
+                timeout=60.0,
+            ),
+        ),
+    ],
+)
+```
+
+### TypeScript
+
+```typescript
+import { CascadeAgent } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models: [
+    {
+      name: 'gpt-4o',
+      provider: 'openai',
+      cost: 0.00625,
+      httpConfig: {
+        proxy: 'http://proxy.corp.example.com:8080',
+        caCertPath: '/path/to/corporate-ca.pem',
+        verifySsl: true,
+        timeout: 60000,
+      },
+    },
+  ],
+});
+```
+
+## Enterprise Guidance
+
+- Prefer CA bundles over disabling SSL verification.
+- Keep proxy credentials out of source code.
+- Treat network configuration as deployment config, not app logic.
+
+## Deep Guide
+
+- [enterprise.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/enterprise.md)

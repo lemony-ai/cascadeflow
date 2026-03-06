@@ -1,0 +1,32 @@
+---
+title: Observability And Privacy
+description: How to use traces, summaries, and telemetry while keeping the rollout privacy-aware.
+---
+
+Use this page when you need runtime visibility but also need to think clearly about data exposure and auditability.
+
+## What cascadeflow Produces
+
+| Surface | Why it matters |
+|---|---|
+| Session summaries | Quick operational view of cost, steps, tools, latency, and budget |
+| Decision traces | Explain why a step was allowed, switched, denied, or stopped |
+| Framework-specific metadata | Makes traces available in the runtime systems teams already use |
+
+## Why This Matters
+
+- Transparency is part of the value proposition, not a side effect.
+- Regulated or high-stakes workflows need attributable runtime decisions.
+- Teams need traces for tuning, but they also need to be deliberate about where that data goes.
+
+## Start Here
+
+- [/harness/decision-trace](/harness/decision-trace)
+- [/harness/overview](/harness/overview)
+- [harness_telemetry_privacy.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/harness_telemetry_privacy.md)
+
+## Operational Guidance
+
+- Start in `observe` to understand the trace volume and shape.
+- Route telemetry only to systems that match your privacy requirements.
+- Use structured traces to support debugging, audits, and rollout reviews.

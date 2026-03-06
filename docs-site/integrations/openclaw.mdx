@@ -1,0 +1,32 @@
+---
+title: OpenClaw
+description: Secondary OpenClaw integration path using cascadeflow as an OpenAI-compatible provider.
+---
+
+Use this page when you want OpenClaw to route model calls through cascadeflow without rewriting OpenClaw itself.
+
+## Integration Model
+
+OpenClaw can call cascadeflow through an OpenAI-compatible interface. That makes this a secondary integration path focused on compatibility and routing, not the primary harness entry path.
+
+## Typical Flow
+
+1. Start the cascadeflow OpenAI-compatible server.
+2. Point OpenClaw at that base URL as a custom provider.
+3. Optionally pass routing hints, tenant metadata, or channel information.
+
+## Why Teams Use It
+
+- Reuse OpenClaw without invasive changes
+- Centralize provider routing through cascadeflow
+- Add channel or tenant-aware routing behavior
+
+## Deep Guide
+
+- [openclaw_provider.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/openclaw_provider.md)
+
+## Important Notes
+
+- Treat this as a secondary integration surface.
+- The main product direction remains the in-process runtime-intelligence layer.
+- Use direct integrations first when you want full harness semantics inside the workflow.

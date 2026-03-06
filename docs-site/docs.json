@@ -24,6 +24,7 @@
               "get-started/index",
               "get-started/introduction",
               "get-started/quickstart",
+              "get-started/integrate-fast",
               "get-started/installation",
               "get-started/how-it-works"
             ]
@@ -83,7 +84,9 @@
               "developers/providers-and-presets",
               "developers/tools-and-streaming",
               "developers/production-and-deployment",
-              "developers/customization"
+              "developers/customization",
+              "developers/enterprise-networking",
+              "developers/observability-and-privacy"
             ]
           },
           {
@@ -102,7 +105,8 @@
               "integrations/crewai",
               "integrations/google-adk",
               "integrations/n8n",
-              "integrations/vercel-ai"
+              "integrations/vercel-ai",
+              "integrations/openclaw"
             ]
           },
           {
