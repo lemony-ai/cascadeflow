@@ -83,14 +83,14 @@ for record in session.trace():
 
 Proxy-based optimization adds 40-60ms per model or tool call from extra network hops. In agentic workflows with 10+ calls, that creates **400-600ms of avoidable overhead** per task — and much more for deeper loops.
 
-cascadeflow's in-process approach adds <1ms per call. Optimization does not come with a latency penalty.
+cascadeflow's in-process approach adds &lt;1ms per call. Optimization does not come with a latency penalty.
 
 | Scenario | Proxy overhead | cascadeflow overhead |
 |---|---|---|
-| Single call | 40-60ms | <1ms |
-| 10-step agent | 400-600ms | <10ms |
-| 25-step deep loop | 1-1.5s | <25ms |
-| Real-time UX (100ms budget) | Consumes 40-60% | Consumes <1% |
+| Single call | 40-60ms | &lt;1ms |
+| 10-step agent | 400-600ms | &lt;10ms |
+| 25-step deep loop | 1-1.5s | &lt;25ms |
+| Real-time UX (100ms budget) | Consumes 40-60% | Consumes &lt;1% |
 
 This is critical for real-time UX, task throughput, and enterprise SLA performance.
 

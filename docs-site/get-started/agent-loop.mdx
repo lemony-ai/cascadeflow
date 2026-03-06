@@ -141,13 +141,13 @@ with cascadeflow.run(
 
 Every extra hop matters inside a loop. Proxy-based solutions add 40-60ms per call. In a 10-step agent loop, that is 400-600ms of pure overhead — latency that has nothing to do with the actual work.
 
-cascadeflow adds <1ms per step because it runs in-process:
+cascadeflow adds &lt;1ms per step because it runs in-process:
 
 | Agent loop depth | Proxy overhead | cascadeflow overhead |
 |---|---|---|
-| 5 steps | 200-300ms | <5ms |
-| 10 steps | 400-600ms | <10ms |
-| 25 steps | 1-1.5s | <25ms |
+| 5 steps | 200-300ms | &lt;5ms |
+| 10 steps | 400-600ms | &lt;10ms |
+| 25 steps | 1-1.5s | &lt;25ms |
 
 For real-time UX, task throughput, and enterprise SLA performance, this compounding matters.
 

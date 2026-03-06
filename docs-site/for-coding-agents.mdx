@@ -164,7 +164,7 @@ Start with these when implementing:
 
 - Always lowercase `cascadeflow` — never `CascadeFlow` or `Cascadeflow`
 - cascadeflow is a **library**, not a SaaS or hosted service
-- It runs **in-process**, not as a proxy — <1ms overhead per call
+- It runs **in-process**, not as a proxy — &lt;1ms overhead per call
 - Three-tier API: `init()` → `run()` → `@agent()`
 - Modes: `off` (disabled), `observe` (track only), `enforce` (active control)
 - Four actions: `allow`, `switch_model`, `deny_tool`, `stop`
