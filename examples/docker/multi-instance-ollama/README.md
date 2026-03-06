@@ -274,4 +274,4 @@ docker-compose logs
 - [Ollama Documentation](https://ollama.ai/docs)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker)
-- [Multi-Instance vLLM Example](../multi-instance-vllm/)
+- [Multi-Instance vLLM Example](../../../packages/core/examples/nodejs/multi-instance-vllm.ts)

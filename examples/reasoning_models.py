@@ -3,12 +3,12 @@ Example: Using Reasoning Models Across All Providers
 
 cascadeflow supports reasoning models from 4 providers with automatic detection:
 
-1. OpenAI (o1, o1-mini-2024-09-12, o3-mini)
+1. OpenAI (o1, o1-mini, o3-mini)
    - Chain-of-thought reasoning with hidden thinking
    - reasoning_effort parameter (low/medium/high)
    - max_completion_tokens required
 
-2. Anthropic (claude-3-7-sonnet-20250219)
+2. Anthropic (claude-sonnet-4-5)
    - Extended thinking mode (enable with thinking_budget)
    - Minimum 1024 tokens thinking budget
    - Visible reasoning in response
@@ -44,12 +44,12 @@ async def main():
         print("\nNote: o1-mini and o1 models require Tier 5 API access")
         print("      Check your tier at: https://platform.openai.com/settings/organization/limits")
         return
-    # Example 1: o1-mini-2024-09-12 (supports streaming, no tools, no system messages)
-    print("\n=== Example 1: o1-mini-2024-09-12 (original reasoning model) ===")
+    # Example 1: o1-mini (supports streaming, no tools, no system messages)
+    print("\n=== Example 1: o1-mini (original reasoning model) ===")
     agent1 = CascadeAgent(
         models=[
             ModelConfig(
-                name="o1-mini-2024-09-12",  # Auto-detected as reasoning model
+                name="o1-mini",  # Auto-detected as reasoning model
                 provider="openai",
             )
         ],
@@ -67,12 +67,12 @@ async def main():
     print(f"  Reasoning tokens: {result1.metadata.get('reasoning_tokens')}")  # Hidden reasoning
     print(f"Cost: ${result1.cost:.6f}")
 
-    # Example 2: o1-2024-12-17 (newer model with reasoning_effort)
-    print("\n=== Example 2: o1-2024-12-17 with reasoning_effort ===")
+    # Example 2: o1 (newer model with reasoning_effort)
+    print("\n=== Example 2: o1 with reasoning_effort ===")
     agent2 = CascadeAgent(
         models=[
             ModelConfig(
-                name="o1-2024-12-17",
+                name="o1",
                 provider="openai",
             )
         ],
@@ -99,7 +99,7 @@ async def main():
                 provider="openai",
             ),
             ModelConfig(
-                name="o1-mini-2024-09-12",  # Falls back to reasoning model if needed
+                name="o1-mini",  # Falls back to reasoning model if needed
                 provider="openai",
             ),
         ],
@@ -137,7 +137,7 @@ async def main():
     agent4 = CascadeAgent(
         models=[
             ModelConfig(
-                name="claude-3-7-sonnet-20250219",
+                name="claude-sonnet-4-5",
                 provider="anthropic",
             )
         ],
@@ -227,11 +227,11 @@ async def main():
                 cost=0,  # Free local inference
             ),
             ModelConfig(
-                name="o1-mini-2024-09-12",
+                name="o1-mini",
                 provider="openai",
             ),
             ModelConfig(
-                name="claude-3-7-sonnet-20250219",
+                name="claude-sonnet-4-5",
                 provider="anthropic",
             ),
         ],

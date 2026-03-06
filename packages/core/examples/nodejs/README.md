@@ -34,8 +34,8 @@ npx tsx examples/nodejs/basic-usage.ts
 | **streaming-text.ts** | Real-time streaming | ⭐⭐ Medium | 10 min | Interactive apps |
 | **tool-execution.ts** | Function calling | ⭐⭐ Medium | 15 min | Agent builders |
 | **agentic-multi-agent.ts** | Tool loops + multi-agent | ⭐⭐⭐ Advanced | 20 min | Agentic apps |
-| **cost-tracking-example.ts** | Budget management | ⭐⭐ Medium | 15 min | Cost optimization |
-| **multi-provider-example.ts** | Mix AI providers | ⭐⭐ Medium | 10 min | Multi-cloud |
+| **cost-tracking.ts** | Budget management | ⭐⭐ Medium | 15 min | Cost optimization |
+| **multi-provider.ts** | Mix AI providers | ⭐⭐ Medium | 10 min | Multi-cloud |
 | **express-integration.ts** | REST API server | ⭐⭐⭐ Advanced | 20 min | Production APIs |
 | **browser-usage.ts** | Browser integration | ⭐⭐⭐ Advanced | 25 min | Frontend apps |
 | **vercel-edge.ts** | Edge deployment | ⭐⭐⭐ Advanced | 20 min | Serverless/Edge |
@@ -50,15 +50,15 @@ npx tsx examples/nodejs/basic-usage.ts
 **I want to...**
 - **Stream responses?** → `streaming-text.ts`, `streaming-tools.ts`
 - **Use tools/functions?** → `tool-execution.ts`, `agentic-multi-agent.ts`, `streaming-tools.ts`
-- **Track costs?** → `cost-tracking-example.ts`, `user-profiles.ts`
-- **Use multiple providers?** → `multi-provider-example.ts`, `groq-provider-example.ts`, `together-example.ts`
+- **Track costs?** → `cost-tracking.ts`, `user-profiles-workflows.ts`
+- **Use multiple providers?** → `multi-provider.ts`, `router-integration.ts`, `free-models-cascade.ts`
 - **Deploy to production?** → `express-integration.ts`, `vercel-edge.ts`
 - **Use in browser?** → `browser-usage.ts`
-- **Run locally?** → `ollama-example.ts`, `hf-inference-example.ts`
+- **Run locally?** → `multi-instance-ollama.ts`, `multi-instance-vllm.ts`
 - **Use with Deno?** → `deno-example.ts`
-- **Validate quality?** → `quality-validation.ts`, `custom-validation.ts`, `multiple-validators.ts`
+- **Validate quality?** → `semantic-quality.ts`, `custom-validation.ts`, `quality-profiles.ts`
 - **Rate limit requests?** → `rate-limiting-usage.ts`
-- **Manage user tiers?** → `user-profiles.ts`
+- **Manage user tiers?** → `user-profiles-workflows.ts`
 
 ---
 
@@ -114,7 +114,7 @@ Query 6/8: Explain quantum entanglement...
 ---
 
 #### 2. Quality Validation ✅
-**File:** [`quality-validation.ts`](quality-validation.ts)
+**File:** [`semantic-quality.ts`](semantic-quality.ts)
 **Time:** 10 minutes
 **What you'll learn:**
 - How quality validation works
@@ -127,7 +127,7 @@ Query 6/8: Explain quantum entanglement...
 ---
 
 #### 3. Multiple Validators 🔍
-**File:** [`multiple-validators.ts`](multiple-validators.ts)
+**File:** [`quality-profiles.ts`](quality-profiles.ts)
 **Time:** 10 minutes
 **What you'll learn:**
 - Combine multiple validation strategies
@@ -151,7 +151,7 @@ Query 6/8: Explain quantum entanglement...
 ---
 
 #### 5. User Profiles 👤
-**File:** [`user-profiles.ts`](user-profiles.ts)
+**File:** [`user-profiles-workflows.ts`](user-profiles-workflows.ts)
 **Time:** 10 minutes
 **What you'll learn:**
 - User tier management (FREE, PRO, ENTERPRISE)
@@ -167,7 +167,7 @@ Query 6/8: Explain quantum entanglement...
 ---
 
 #### 6. Cost Tracking Example 💰
-**File:** [`cost-tracking-example.ts`](cost-tracking-example.ts)
+**File:** [`cost-tracking.ts`](cost-tracking.ts)
 **Time:** 15 minutes
 **What you'll learn:**
 - Real-time cost monitoring
@@ -284,15 +284,15 @@ messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(too
 Track costs, manage budgets, and optimize spending.
 
 #### 1. Cost Tracking Example
-**File:** [`cost-tracking-example.ts`](cost-tracking-example.ts)
+**File:** [`cost-tracking.ts`](cost-tracking.ts)
 Real-time cost monitoring with per-query tracking.
 
 #### 2. User Profiles
-**File:** [`user-profiles.ts`](user-profiles.ts)
+**File:** [`user-profiles-workflows.ts`](user-profiles-workflows.ts)
 Per-tier cost management and routing.
 
 #### 3. Multi-Provider Example
-**File:** [`multi-provider-example.ts`](multi-provider-example.ts)
+**File:** [`multi-provider.ts`](multi-provider.ts)
 Cross-provider cost comparison and optimization.
 
 **Use cases:**
@@ -504,7 +504,7 @@ Request throttling and queue management.
 ---
 
 #### 3. Multiple Validators
-**File:** [`multiple-validators.ts`](multiple-validators.ts)
+**File:** [`quality-profiles.ts`](quality-profiles.ts)
 Combine multiple validation strategies for robust quality control.
 
 </details>
@@ -515,7 +515,7 @@ Combine multiple validation strategies for robust quality control.
 Learn how to use different AI providers with cascadeflow.
 
 #### 1. Multi-Provider Example ⭐
-**File:** [`multi-provider-example.ts`](multi-provider-example.ts)
+**File:** [`multi-provider.ts`](multi-provider.ts)
 **Time:** 10 minutes
 **What you'll learn:**
 - Mix models from different providers
@@ -549,7 +549,7 @@ const agent = new CascadeAgent({
 ---
 
 #### 2. Groq Provider Example
-**File:** [`groq-provider-example.ts`](groq-provider-example.ts)
+**File:** [`free-models-cascade.ts`](free-models-cascade.ts)
 **Time:** 10 minutes
 Fast inference with Groq's LPU™ infrastructure.
 
@@ -562,21 +562,21 @@ Fast inference with Groq's LPU™ infrastructure.
 ---
 
 #### 3. HuggingFace Inference Example
-**File:** [`hf-inference-example.ts`](hf-inference-example.ts)
+**File:** [`free-models-cascade.ts`](free-models-cascade.ts)
 **Time:** 10 minutes
 Access HuggingFace hosted models.
 
 ---
 
 #### 4. Together AI Example
-**File:** [`together-example.ts`](together-example.ts)
+**File:** [`free-models-cascade.ts`](free-models-cascade.ts)
 **Time:** 10 minutes
 Open-source models via Together AI.
 
 ---
 
 #### 5. Ollama Example (Local)
-**File:** [`ollama-example.ts`](ollama-example.ts)
+**File:** [`free-models-cascade.ts`](free-models-cascade.ts)
 **Time:** 15 minutes
 Run models locally with Ollama.
 
@@ -596,7 +596,7 @@ ollama pull llama3.2:1b
 ollama pull llama3.1:8b
 
 # Run example
-npx tsx examples/nodejs/ollama-example.ts
+npx tsx examples/nodejs/free-models-cascade.ts
 ```
 
 </details>
@@ -626,8 +626,8 @@ npx tsx examples/nodejs/ollama-example.ts
 - Tool execution workflow
 
 ### Step 3: Cost Management (30 minutes)
-1. ✅ Run `cost-tracking-example.ts` - Learn cost tracking
-2. ✅ Run `user-profiles.ts` - Per-tier management
+1. ✅ Run `cost-tracking.ts` - Learn cost tracking
+2. ✅ Run `user-profiles-workflows.ts` - Per-tier management
 3. ✅ Compare costs across providers
 
 **Key concepts:**
@@ -863,8 +863,8 @@ const result: CascadeResult = await agent.run(query);
 ## 📖 Complete Documentation
 
 ### API Documentation
-- [TypeScript API Docs](../../docs/api/) - Full API reference (TypeDoc)
-- [Python API Docs](../../../../docs/api/) - Python API reference
+- [TypeScript API Docs](../../README.md) - Full API reference (TypeDoc)
+- [Python API Docs](../../../../README.md) - Python API reference
 
 ### Migration Guide
 - [Python → TypeScript Migration](../../MIGRATION.md) - Complete migration guide
@@ -1000,4 +1000,4 @@ See [CONTRIBUTING.md](../../../../CONTRIBUTING.md) for guidelines.
 
 **💰 Save 40-85% on AI costs with intelligent cascading!** 🚀
 
-[TypeScript API Docs](../../docs/api/) • [Python Examples](../../../../examples/) • [Migration Guide](../../MIGRATION.md) • [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
+[TypeScript API Docs](../../README.md) • [Python Examples](../../../../examples/) • [Migration Guide](../../MIGRATION.md) • [GitHub Discussions](https://github.com/lemony-ai/cascadeflow/discussions)
