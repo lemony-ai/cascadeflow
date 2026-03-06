@@ -1,0 +1,29 @@
+---
+title: Performance And Deployment
+description: Latency, deployment, provider flexibility, and the operational surfaces that matter in real agent systems.
+---
+
+The in-process model is a structural advantage. Proxy-based optimization typically adds around 40-60ms per model or tool call. In deeper agent loops that compounds into avoidable task latency. cascadeflow avoids that proxy tax by staying inside the runtime.
+
+## Why This Matters
+
+| Concern | Why cascadeflow helps |
+|---|---|
+| Real-time UX | lower added latency per step |
+| Throughput | less compounding delay across multi-step workflows |
+| SLA performance | more predictable runtime overhead |
+| Deployment flexibility | works across direct SDKs, frameworks, local models, and edge-style setups |
+
+## Important Docs
+
+| Topic | Primary or secondary doc |
+|---|---|
+| Architecture | [/get-started/how-it-works](/get-started/how-it-works) |
+| Performance | [docs/guides/performance.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/performance.md) |
+| Production | [docs/guides/production.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/production.md) |
+| FastAPI | [docs/guides/fastapi.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/fastapi.md) |
+| Browser and edge runtime | [docs/guides/browser_cascading.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/browser_cascading.md) |
+| Edge devices | [docs/guides/edge_device.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/edge_device.md) |
+| Local providers | [docs/guides/local-providers.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/local-providers.md) |
+| Gateway | [docs/guides/gateway.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/gateway.md) |
+| Proxy routing | [docs/guides/proxy.md](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/proxy.md) |

@@ -21,6 +21,7 @@
             "group": "Start Here",
             "pages": [
               "index",
+              "get-started/index",
               "get-started/introduction",
               "get-started/quickstart",
               "get-started/installation",
@@ -42,13 +43,16 @@
           {
             "group": "Overview",
             "pages": [
+              "users/index",
               "users/overview",
+              "capabilities/index",
               "capabilities/overview"
             ]
           },
           {
             "group": "Harness",
             "pages": [
+              "harness/index",
               "harness/overview",
               "harness/modes",
               "harness/budget-enforcement",
@@ -67,12 +71,20 @@
           {
             "group": "Overview",
             "pages": [
+              "developers/index",
               "developers/overview"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "developers/guides"
             ]
           },
           {
             "group": "Integrations",
             "pages": [
+              "integrations/index",
               "integrations/overview",
               "integrations/langchain",
               "integrations/openai-agents",
@@ -103,6 +115,7 @@
           {
             "group": "Agent Guide",
             "pages": [
+              "agents/index",
               "agents/overview"
             ]
           }
@@ -114,6 +127,7 @@
           {
             "group": "Overview",
             "pages": [
+              "examples/index",
               "examples/overview"
             ]
           },

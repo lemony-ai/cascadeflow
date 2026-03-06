@@ -3,9 +3,25 @@ title: Quickstart
 description: Get cascadeflow running in 3 minutes with zero code changes using the harness API.
 ---
 
-# Quickstart
-
 Three tiers of integration. Start with `observe`, prove value with real runs, then move to enforcement.
+
+## Why Start With cascadeflow
+
+| Advantage | Why it matters early |
+|---|---|
+| Inside-the-loop control | You measure and steer the actual agent workflow, not only the request edge |
+| Lower latency overhead | In-process runtime control avoids the proxy tax that compounds across multi-step runs |
+| Multi-dimensional optimization | You can balance cost, latency, quality, budget, compliance, and energy together |
+| Business governance | KPI and policy intent can shape runtime behavior directly |
+| Transparency | Summaries and traces make rollout and tuning defensible |
+| Measurable value | The first rollout can prove savings, latency, and policy outcomes on real traffic |
+
+## Recommended Rollout Order
+
+1. Turn on `observe` for visibility with no blocking.
+2. Inspect summaries and traces on real workloads.
+3. Add one control at a time: budget, compliance, or tool-call caps.
+4. Move to `enforce` once your guardrails are understood.
 
 ## Install
 
@@ -99,6 +115,14 @@ async def research_agent(query: str):
 | `enforce` | Yes | Yes | Budget caps, compliance gating, stop actions |
 
 Start with `observe` in production. Switch to `enforce` once you've validated the metrics.
+
+## What Good Looks Like
+
+- Agent loops stay inside budget
+- Decision traces explain runtime behavior clearly
+- Tool loops are bounded
+- Latency stays predictable because optimization is happening in-process
+- The rollout proves value beyond engineering alone: finance, security, operations, and sustainability can all see their part
 
 ## Next Steps
 
