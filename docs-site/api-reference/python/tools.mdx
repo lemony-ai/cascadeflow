@@ -1,0 +1,92 @@
+---
+title: Tools
+description: Tool calling framework — ToolConfig, ToolExecutor, and the @tool decorator for agent function calling.
+---
+
+# Tools
+
+cascadeflow provides a tool calling framework for agent loops. Define tools, execute them, and track tool call budgets.
+
+## ToolConfig
+
+Define a tool with its schema and handler function.
+
+```python
+from cascadeflow.tools import ToolConfig
+
+search_tool = ToolConfig(
+    name="search",
+    description="Search the web for information",
+    parameters={"query": {"type": "string", "description": "Search query"}},
+    handler=lambda query: f"Results for: {query}",
+)
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `str` | Tool name |
+| `description` | `str` | What the tool does (sent to the model) |
+| `parameters` | `dict` | JSON Schema for tool parameters |
+| `handler` | `Callable` | Function to execute when tool is called |
+
+## ToolExecutor
+
+Executes tool calls and returns results.
+
+```python
+from cascadeflow.tools import ToolExecutor
+
+executor = ToolExecutor(tools=[search_tool, calc_tool])
+
+result = await agent.run(
+    "Search for Python tutorials",
+    tools=[search_tool, calc_tool],
+    tool_executor=executor,
+    max_steps=10,
+)
+```
+
+## @tool Decorator
+
+Define tools using a decorator for cleaner syntax.
+
+```python
+from cascadeflow.tools import tool
+
+@tool
+def calculator(expression: str) -> str:
+    """Evaluate a math expression."""
+    return str(eval(expression))
+
+@tool
+async def web_search(query: str) -> dict:
+    """Search the web."""
+    return {"results": await fetch_results(query)}
+```
+
+## Tool Call Limits
+
+Use `max_tool_calls` in `cascadeflow.run()` to cap tool usage:
+
+```python
+with cascadeflow.run(budget=1.00, max_tool_calls=5) as session:
+    result = await agent.run(
+        "Research and calculate",
+        tools=tools,
+        tool_executor=ToolExecutor(tools=tools),
+        max_steps=15,
+    )
+    print(f"Tool calls: {session.summary()['tool_calls']}/5")
+```
+
+When the cap is reached, cascadeflow issues a `deny_tool` action — the agent continues with what it has.
+
+## ToolResult
+
+Returned by `ToolExecutor.execute()`.
+
+| Field | Type | Description |
+|---|---|---|
+| `tool_name` | `str` | Name of the tool that was called |
+| `result` | `Any` | Return value from the handler |
+| `error` | `str \| None` | Error message if execution failed |

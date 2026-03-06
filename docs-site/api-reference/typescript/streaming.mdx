@@ -1,0 +1,84 @@
+---
+title: Streaming
+description: TypeScript streaming API — StreamEvent, StreamEventType, and async iterators for real-time cascade output.
+---
+
+# Streaming
+
+`CascadeAgent` supports streaming via `streamEvents()` and `stream()` async iterators.
+
+## streamEvents()
+
+```typescript
+import { CascadeAgent, StreamEventType } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({ models: [...] });
+
+for await (const event of agent.streamEvents('Explain TypeScript')) {
+  switch (event.type) {
+    case StreamEventType.ROUTING:
+      console.log(`Routing: ${event.data.strategy}`);
+      break;
+    case StreamEventType.CHUNK:
+      process.stdout.write(event.content);
+      break;
+    case StreamEventType.DRAFT_DECISION:
+      console.log(`Draft ${event.data.accepted ? 'accepted' : 'rejected'}`);
+      break;
+    case StreamEventType.COMPLETE:
+      console.log(`\nModel: ${event.data.model}, Cost: $${event.data.cost}`);
+      break;
+  }
+}
+```
+
+## StreamEvent
+
+```typescript
+interface StreamEvent {
+  type: StreamEventType;
+  content: string;
+  data: StreamEventData;
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | `StreamEventType` | Event type |
+| `content` | `string` | Content chunk (for `CHUNK` events) |
+| `data` | `StreamEventData` | Event metadata |
+
+## StreamEventType
+
+| Value | Description |
+|---|---|
+| `ROUTING` | Routing decision made |
+| `CHUNK` | Content chunk received |
+| `DRAFT_DECISION` | Draft quality validation result |
+| `SWITCH` | Switching from drafter to verifier |
+| `COMPLETE` | Streaming complete |
+| `ERROR` | Error occurred |
+
+## StreamEventData
+
+| Field | Type | Description |
+|---|---|---|
+| `model` | `string` | Current model name |
+| `phase` | `string` | Current phase (`"draft"` or `"verify"`) |
+| `strategy` | `string` | Routing strategy used |
+| `accepted` | `boolean` | Whether draft was accepted (on `DRAFT_DECISION`) |
+| `cost` | `number` | Running cost (on `COMPLETE`) |
+
+## StreamEventsOptions
+
+Same as `RunOptions` — all parameters from `agent.run()` are accepted.
+
+```typescript
+for await (const event of agent.streamEvents('Query', {
+  maxTokens: 500,
+  temperature: 0.7,
+  systemPrompt: 'You are a helpful assistant.',
+})) {
+  // ...
+}
+```

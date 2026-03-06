@@ -121,8 +121,16 @@
               "api-reference/python/init",
               "api-reference/python/run",
               "api-reference/python/agent-decorator",
+              "api-reference/python/cascade-agent",
+              "api-reference/python/model-config",
+              "api-reference/python/cascade-result",
               "api-reference/python/harness-config",
-              "api-reference/python/run-context"
+              "api-reference/python/run-context",
+              "api-reference/python/tools",
+              "api-reference/python/streaming",
+              "api-reference/python/presets",
+              "api-reference/python/errors",
+              "api-reference/python/environment"
             ]
           },
           {
@@ -131,7 +139,9 @@
               "api-reference/typescript/overview",
               "api-reference/typescript/core",
               "api-reference/typescript/vercel-ai",
-              "api-reference/typescript/langchain"
+              "api-reference/typescript/langchain",
+              "api-reference/typescript/streaming",
+              "api-reference/typescript/configuration"
             ]
           }
         ]

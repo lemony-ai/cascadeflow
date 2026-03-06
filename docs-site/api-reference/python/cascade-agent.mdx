@@ -1,0 +1,174 @@
+---
+title: CascadeAgent
+description: The main agent class for speculative cascade execution with quality validation, tool calling, streaming, and batch processing.
+---
+
+# CascadeAgent
+
+The primary orchestrator for cascade execution. Routes queries through a model cascade — cheaper models first, falling back to more powerful models when quality validation fails.
+
+## Constructor
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+
+agent = CascadeAgent(
+    models=[
+        ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+        ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
+    ],
+    quality_config={"threshold": 0.7},
+    enable_cascade=True,
+    verbose=False,
+)
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `models` | `list[ModelConfig]` | required | Model configurations, sorted by cost |
+| `quality_config` | `QualityConfig \| dict` | `None` | Quality validation settings |
+| `enable_cascade` | `bool` | `True` | Enable speculative cascade |
+| `verbose` | `bool` | `False` | Enable verbose logging |
+| `domain_configs` | `dict[str, DomainConfig]` | `None` | Per-domain routing configs |
+| `enable_domain_detection` | `bool` | `False` | Auto-detect query domain |
+| `use_semantic_domains` | `bool` | `True` | Use ML-based domain detection |
+| `enable_tool_complexity_routing` | `bool` | `True` | Route tool calls by complexity |
+| `rule_engine` | `RuleEngine` | `None` | Custom rule engine for routing |
+| `tenant_rules` | `dict[str, Any]` | `None` | Per-tenant routing overrides |
+| `channel_models` | `dict[str, list[str]]` | `None` | Channel-to-model mapping |
+| `channel_failover` | `dict[str, str]` | `None` | Channel failover map |
+| `tool_executor` | `ToolExecutor` | `None` | Tool executor instance |
+
+## Methods
+
+### `run()`
+
+Execute a query with cascade logic and full diagnostics.
+
+```python
+result = await agent.run(
+    "Analyze this dataset",
+    max_tokens=500,
+    temperature=0.5,
+    tools=[...],
+    max_steps=10,
+)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | `str \| list[dict]` | required | Query string or message list |
+| `max_tokens` | `int` | `100` | Maximum tokens to generate |
+| `temperature` | `float` | `0.7` | Sampling temperature (0-2) |
+| `complexity_hint` | `str` | `None` | Override complexity ("simple", "moderate", "complex") |
+| `force_direct` | `bool` | `False` | Skip cascade, use best model |
+| `tools` | `list[dict]` | `None` | Tool definitions |
+| `tool_choice` | `str` | `None` | Tool selection ("auto", "none", tool name) |
+| `messages` | `list[dict]` | `None` | Multi-turn conversation history |
+| `max_steps` | `int` | `5` | Max agent loop iterations |
+| `user_tier` | `str` | `None` | User tier for routing |
+| `workflow` | `str` | `None` | Workflow profile name |
+| `domain_hint` | `str` | `None` | Override detected domain |
+| `tenant_id` | `str` | `None` | Tenant identifier |
+| `channel` | `str` | `None` | Logical channel for routing |
+
+**Returns:** [`CascadeResult`](/api-reference/python/cascade-result)
+
+### `run_streaming()`
+
+Execute with streaming output and visual feedback.
+
+```python
+result = await agent.run_streaming(
+    "Explain quantum mechanics",
+    enable_visual=True,
+)
+```
+
+Same parameters as `run()`, plus:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `enable_visual` | `bool` | `True` | Show visual streaming indicator |
+
+**Returns:** [`CascadeResult`](/api-reference/python/cascade-result)
+
+### `stream_events()`
+
+Async iterator for real-time streaming events. Use this for custom UI integration.
+
+```python
+async for event in agent.stream_events("Explain TypeScript"):
+    if event.type == StreamEventType.CHUNK:
+        print(event.content, end="")
+    elif event.type == StreamEventType.COMPLETE:
+        print(f"\nModel: {event.data.get('model')}")
+```
+
+Same parameters as `run()`.
+
+**Yields:** [`StreamEvent`](/api-reference/python/streaming) objects
+
+### `run_batch()`
+
+Process multiple queries with batch optimization.
+
+```python
+from cascadeflow import BatchConfig
+
+batch_result = await agent.run_batch(
+    ["Query 1", "Query 2", "Query 3"],
+    batch_config=BatchConfig(concurrency=3),
+    max_tokens=200,
+)
+
+print(f"Total cost: ${batch_result.total_cost:.4f}")
+print(f"Success rate: {batch_result.successful}/{len(batch_result.results)}")
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `queries` | `list[str]` | required | List of query strings |
+| `batch_config` | `BatchConfig` | `None` | Batch configuration |
+| `**run_kwargs` | | | Arguments passed to each `run()` call |
+
+**Returns:** `BatchResult` with `results`, `total_cost`, `total_time_ms`, `successful`, `failed`, `avg_cost`, `avg_latency_ms`
+
+## Class Methods
+
+### `from_env()`
+
+Create an agent by auto-detecting available providers from environment variables.
+
+```python
+agent = CascadeAgent.from_env(verbose=True)
+```
+
+### `from_profile()`
+
+Create an agent from a preset profile.
+
+```python
+agent = CascadeAgent.from_profile("cost_optimized")
+# Profiles: "cost_optimized", "balanced", "speed_optimized", "quality_optimized", "development"
+```
+
+## Configuration Methods
+
+```python
+agent.update_models([...])                    # Replace model list
+agent.update_quality_threshold(0.8)           # Update quality threshold
+agent.update_domain_config("legal", config)   # Add domain config
+agent.enable_domain_routing()                 # Enable domain detection
+agent.disable_domain_routing()                # Disable domain detection
+```
+
+## Statistics
+
+```python
+stats = agent.get_stats()
+agent.print_stats()
+config = agent.get_config_snapshot()
+```

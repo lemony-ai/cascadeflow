@@ -1,0 +1,57 @@
+---
+title: Environment Variables
+description: Environment variable reference for cascadeflow harness configuration, provider API keys, and config file paths.
+---
+
+# Environment Variables
+
+cascadeflow reads configuration from environment variables as part of its resolution chain: Code &gt; Environment Variables &gt; Config Files &gt; Defaults.
+
+## Harness Configuration
+
+| Variable | Type | Description |
+|---|---|---|
+| `CASCADEFLOW_HARNESS_MODE` | `off \| observe \| enforce` | Harness activation mode |
+| `CASCADEFLOW_HARNESS_BUDGET` | `float` | Budget limit in USD |
+| `CASCADEFLOW_HARNESS_MAX_TOOL_CALLS` | `int` | Maximum tool calls allowed |
+| `CASCADEFLOW_HARNESS_MAX_LATENCY_MS` | `float` | Maximum latency in milliseconds |
+| `CASCADEFLOW_HARNESS_COMPLIANCE` | `gdpr \| hipaa \| pci \| strict` | Compliance mode |
+| `CASCADEFLOW_CONFIG` | `path` | Path to config file |
+
+## Provider API Keys
+
+| Variable | Provider |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI |
+| `ANTHROPIC_API_KEY` | Anthropic |
+| `GROQ_API_KEY` | Groq |
+| `TOGETHER_API_KEY` | Together AI |
+| `OPENROUTER_API_KEY` | OpenRouter |
+| `HUGGINGFACE_API_KEY` | Hugging Face |
+
+## Resolution Order
+
+When `cascadeflow.init()` is called, settings resolve in this order (first wins):
+
+1. **Code** — arguments passed directly to `init()`, `run()`, or `@agent()`
+2. **Environment** — `CASCADEFLOW_HARNESS_*` variables
+3. **Config file** — path from `CASCADEFLOW_CONFIG` or default locations
+4. **Defaults** — mode=`off`, no budget, no compliance
+
+## Example
+
+```bash
+# .env
+CASCADEFLOW_HARNESS_MODE=observe
+CASCADEFLOW_HARNESS_BUDGET=1.00
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+```python
+import cascadeflow
+
+# Picks up mode="observe" and budget=1.00 from env
+report = cascadeflow.init()
+print(report.config_sources)  # Shows where each setting came from
+```

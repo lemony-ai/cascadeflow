@@ -1,0 +1,101 @@
+---
+title: CascadeResult
+description: Result dataclass from cascade execution — content, cost breakdown, quality diagnostics, timing, and tool calls.
+---
+
+# CascadeResult
+
+Returned by `CascadeAgent.run()`, `run_streaming()`, and `run_batch()`. Contains the generated response along with full cost, quality, timing, and routing diagnostics.
+
+## Usage
+
+```python
+result = await agent.run("Explain quantum computing")
+
+print(result.content)
+print(f"Model: {result.model_used}")
+print(f"Cost: ${result.total_cost:.6f}")
+print(f"Savings: {result.savings_percentage}%")
+print(f"Cascaded: {result.cascaded}, Accepted: {result.draft_accepted}")
+```
+
+## Core Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `content` | `str` | Generated response text |
+| `model_used` | `str` | Model that produced the response |
+| `total_cost` | `float` | Total cost in USD |
+| `latency_ms` | `float` | Total latency in milliseconds |
+| `complexity` | `str` | Detected complexity level |
+| `cascaded` | `bool` | Whether cascade was used |
+| `draft_accepted` | `bool` | Whether the draft passed quality validation |
+| `routing_strategy` | `str` | Routing strategy used (`"direct"` or `"cascade"`) |
+| `reason` | `str` | Explanation for the routing decision |
+
+## Tool Calling
+
+| Field | Type | Description |
+|---|---|---|
+| `tool_calls` | `list[dict] \| None` | Tool calls made during execution |
+| `has_tool_calls` | `bool` | Whether the response includes tool calls |
+
+## Quality Diagnostics
+
+| Field | Type | Description |
+|---|---|---|
+| `quality_score` | `float \| None` | Quality score (0-1) |
+| `quality_threshold` | `float \| None` | Threshold used for validation |
+| `quality_check_passed` | `bool \| None` | Whether the quality check passed |
+| `rejection_reason` | `str \| None` | Why the draft was rejected |
+
+## Response Tracking
+
+| Field | Type | Description |
+|---|---|---|
+| `draft_response` | `str \| None` | Full draft response text |
+| `verifier_response` | `str \| None` | Full verifier response text |
+| `response_length` | `int \| None` | Response character length |
+| `response_word_count` | `int \| None` | Response word count |
+
+## Timing Breakdown
+
+| Field | Type | Description |
+|---|---|---|
+| `complexity_detection_ms` | `float \| None` | Time to detect complexity |
+| `draft_generation_ms` | `float \| None` | Draft model generation time |
+| `quality_verification_ms` | `float \| None` | Quality validation time |
+| `verifier_generation_ms` | `float \| None` | Verifier model generation time |
+| `cascade_overhead_ms` | `float \| None` | Overhead from cascade (wasted if draft rejected) |
+
+## Cost Breakdown
+
+| Field | Type | Description |
+|---|---|---|
+| `draft_cost` | `float \| None` | Cost of the draft call |
+| `verifier_cost` | `float \| None` | Cost of the verifier call |
+| `cost_saved` | `float \| None` | Savings vs always using best model |
+| `savings_percentage` | `float \| None` | Savings as percentage (0-100) |
+
+## Model Information
+
+| Field | Type | Description |
+|---|---|---|
+| `draft_model` | `str \| None` | Draft model name |
+| `draft_latency_ms` | `float \| None` | Draft model latency |
+| `draft_confidence` | `float \| None` | Draft confidence score |
+| `verifier_model` | `str \| None` | Verifier model name |
+| `verifier_latency_ms` | `float \| None` | Verifier model latency |
+| `verifier_confidence` | `float \| None` | Verifier confidence score |
+
+## Methods
+
+### `to_dict()`
+
+Convert the result to a plain dictionary.
+
+```python
+data = result.to_dict()
+import json
+print(json.dumps(data, indent=2))
+```

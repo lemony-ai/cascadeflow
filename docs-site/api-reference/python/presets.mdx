@@ -1,0 +1,92 @@
+---
+title: Presets
+description: One-line agent creation with preset profiles — cost-optimized, balanced, speed, quality, and development configurations.
+---
+
+# Presets
+
+Create a `CascadeAgent` with a single function call using preset profiles that configure models, quality thresholds, and routing strategies.
+
+## Preset Functions
+
+```python
+from cascadeflow.utils.presets import (
+    get_cost_optimized_agent,
+    get_balanced_agent,
+    get_speed_optimized_agent,
+    get_quality_optimized_agent,
+    get_development_agent,
+    auto_agent,
+)
+```
+
+### Cost Optimized
+
+Maximizes savings by using the cheapest models first with aggressive cascading.
+
+```python
+agent = get_cost_optimized_agent(verbose=True)
+```
+
+### Balanced
+
+Default tradeoff between cost, quality, and speed.
+
+```python
+agent = get_balanced_agent()
+```
+
+### Speed Optimized
+
+Prioritizes low latency — prefers fast models and direct routing.
+
+```python
+agent = get_speed_optimized_agent()
+```
+
+### Quality Optimized
+
+Prioritizes response quality — higher thresholds, more willing to escalate to verifier.
+
+```python
+agent = get_quality_optimized_agent()
+```
+
+### Development
+
+Uses free/local models for development and testing.
+
+```python
+agent = get_development_agent(verbose=True)
+```
+
+### Auto Agent
+
+Create from a profile name string.
+
+```python
+agent = auto_agent("cost_optimized")
+agent = auto_agent("balanced")
+agent = auto_agent("speed_optimized")
+agent = auto_agent("quality_optimized")
+agent = auto_agent("development")
+```
+
+## From Profile
+
+`CascadeAgent.from_profile()` is the class method equivalent:
+
+```python
+from cascadeflow import CascadeAgent
+
+agent = CascadeAgent.from_profile("balanced", verbose=True)
+```
+
+## From Environment
+
+Auto-detect available providers from environment variables:
+
+```python
+agent = CascadeAgent.from_env(verbose=True)
+# Detects OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, etc.
+```

@@ -1,0 +1,79 @@
+---
+title: Streaming
+description: Streaming API — StreamEvent, StreamEventType, and async iterators for real-time response output.
+---
+
+# Streaming
+
+cascadeflow supports streaming responses via `stream_events()` for custom UI integration and `run_streaming()` for terminal output with visual feedback.
+
+## stream_events()
+
+Returns an async iterator of `StreamEvent` objects.
+
+```python
+async for event in agent.stream_events("Explain TypeScript"):
+    if event.type == StreamEventType.CHUNK:
+        print(event.content, end="", flush=True)
+    elif event.type == StreamEventType.COMPLETE:
+        print(f"\nDone — model: {event.data.get('model')}")
+```
+
+## StreamEvent
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | `StreamEventType` | Event type |
+| `content` | `str` | Content chunk (for `CHUNK` events) |
+| `data` | `dict[str, Any]` | Event metadata (model, phase, strategy, etc.) |
+
+## StreamEventType
+
+| Value | Description |
+|---|---|
+| `START` | Stream started |
+| `CHUNK` | Content chunk received |
+| `TOOL_CALL` | Tool call detected |
+| `COMPLETE` | Stream complete |
+| `ERROR` | Error occurred |
+
+## run_streaming()
+
+Higher-level method with built-in visual feedback (pulsing dot indicator).
+
+```python
+result = await agent.run_streaming(
+    "Explain quantum mechanics",
+    enable_visual=True,
+    max_tokens=500,
+)
+print(f"\nCost: ${result.total_cost:.6f}")
+```
+
+## Tool Streaming
+
+When tools are involved, cascadeflow uses a tool-aware streaming manager:
+
+```python
+async for event in agent.stream_events(
+    "Search and summarize",
+    tools=tools,
+    tool_executor=executor,
+    max_steps=5,
+):
+    if event.type == StreamEventType.TOOL_CALL:
+        print(f"Calling tool: {event.data['tool_name']}")
+    elif event.type == StreamEventType.CHUNK:
+        print(event.content, end="")
+```
+
+## ToolStreamEvent
+
+Tool-specific streaming event with additional fields.
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | `ToolStreamEventType` | Tool event type |
+| `tool_call` | `dict[str, Any]` | Tool call details |
+| `tool_result` | `Any` | Tool execution result |
+| `content` | `str` | Content chunk |

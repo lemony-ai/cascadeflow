@@ -1,0 +1,96 @@
+---
+title: ModelConfig
+description: Configuration dataclass for defining models in a cascade — provider, cost, capabilities, and routing metadata.
+---
+
+# ModelConfig
+
+Defines a model in the cascade. Models are sorted by cost — cheaper models are tried first as drafters, more expensive models serve as verifiers.
+
+## Definition
+
+```python
+from cascadeflow import ModelConfig
+
+model = ModelConfig(
+    name="gpt-4o-mini",
+    provider="openai",
+    cost=0.000375,
+    supports_tools=True,
+)
+```
+
+## Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `name` | `str` | required | Model name (e.g., `"gpt-4o-mini"`) |
+| `provider` | `str` | required | Provider name (e.g., `"openai"`, `"anthropic"`) |
+| `cost` | `float` | `0.0` | Cost per 1K tokens in USD |
+| `keywords` | `list[str]` | `[]` | Keywords for domain routing |
+| `domains` | `list[str]` | `[]` | Domain tags for routing |
+| `supports_tools` | `bool` | `False` | Whether model supports tool calling |
+| `supports_vision` | `bool` | `False` | Whether model supports vision input |
+| `max_tokens` | `int` | `2000` | Max generation tokens |
+| `latency_ms` | `float` | `100.0` | Estimated latency in milliseconds |
+| `temperature` | `float` | `0.7` | Default temperature |
+| `top_p` | `float` | `1.0` | Top-p sampling |
+| `frequency_penalty` | `float` | `0.0` | Frequency penalty |
+
+## Providers
+
+| Provider | Value | Models |
+|---|---|---|
+| OpenAI | `"openai"` | gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini |
+| Anthropic | `"anthropic"` | claude-opus-4.5, claude-sonnet-4, claude-haiku-3.5 |
+| Groq | `"groq"` | llama-3.3-70b, mixtral-8x7b |
+| Ollama | `"ollama"` | Any locally served model |
+| vLLM | `"vllm"` | Any self-hosted model |
+| OpenRouter | `"openrouter"` | Any OpenRouter model |
+| Together | `"together"` | Any Together AI model |
+
+## Examples
+
+### Two-Model Cascade
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+
+agent = CascadeAgent(models=[
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
+])
+```
+
+### Multi-Provider Cascade
+
+```python
+agent = CascadeAgent(models=[
+    ModelConfig(name="llama-3.3-70b", provider="groq", cost=0.00059),
+    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="claude-sonnet-4", provider="anthropic", cost=0.009),
+])
+```
+
+### With Domain Routing
+
+```python
+legal_model = ModelConfig(
+    name="gpt-4o",
+    provider="openai",
+    cost=0.00625,
+    domains=["legal", "compliance"],
+    keywords=["contract", "regulation", "statute"],
+)
+```
+
+### Local Model
+
+```python
+local = ModelConfig(
+    name="llama3:8b",
+    provider="ollama",
+    cost=0.0,  # Free
+    latency_ms=50.0,
+)
+```
