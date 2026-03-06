@@ -37,7 +37,7 @@
 
 **The in-process intelligence layer for AI agents.** Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary.
 
-cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. Sub-1ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, and Vercel AI SDK.
+cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, and Vercel AI SDK.
 
 ```python
 pip install cascadeflow
@@ -57,12 +57,12 @@ npm install @cascadeflow/core
 |---|---|---|
 | **Scope** | HTTP request boundary | Inside agent execution loop |
 | **Dimensions** | Cost only | Cost + quality + latency + budget + compliance + energy |
-| **Latency overhead** | 10-50ms network RTT | <1ms in-process |
+| **Latency overhead** | 10-50ms network RTT | <5ms in-process |
 | **Business logic** | None | KPI weights and targets |
 | **Enforcement** | None (observe only) | stop, deny_tool, switch_model |
 | **Auditability** | Request logs | Per-step decision traces |
 
-cascadeflow is an intelligent AI model cascading library that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, cascadeflow automatically escalates to flagship models if needed.
+cascadeflow is a **library** and **agent harness** — an intelligent AI model cascading package that dynamically selects the optimal model for each query or tool call through speculative execution. It's based on the research that 40-70% of queries don't require slow, expensive flagship models, and domain-specific smaller models often outperform large general-purpose models on specialized tasks. For the remaining queries that need advanced reasoning, cascadeflow automatically escalates to flagship models if needed.
 
 ### Use Cases
 
