@@ -152,7 +152,6 @@ async def mock_agent(mock_models, mock_tiers, mock_workflows):
 
         agent = CascadeAgent(
             models=mock_models,
-            tiers=mock_tiers,  # ✅ Pass tiers to enable tier-based filtering
             verbose=True,
         )
 
