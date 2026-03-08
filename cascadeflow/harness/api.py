@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import collections
 import inspect
 import json
 import logging
 import os
+import threading
 import time
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
@@ -75,14 +77,38 @@ class HarnessRunContext:
     model_used: Optional[str] = None
     last_action: str = "allow"
     draft_accepted: Optional[bool] = None
-    _trace: list[dict[str, Any]] = field(default_factory=list)
+    _trace: collections.deque = field(
+        default_factory=lambda: collections.deque(maxlen=1000)
+    )
     _token: Optional[Token[Optional[HarnessRunContext]]] = field(
         default=None, init=False, repr=False
     )
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.budget_max is not None and self.budget_remaining is None:
             self.budget_remaining = self.budget_max
+
+    def _increment(
+        self,
+        *,
+        cost: float = 0.0,
+        savings: float = 0.0,
+        steps: int = 0,
+        tool_calls: int = 0,
+        latency_ms: float = 0.0,
+        energy: float = 0.0,
+    ) -> None:
+        """Thread-safe counter increment."""
+        with self._lock:
+            self.cost += cost
+            self.savings += savings
+            self.step_count += steps
+            self.tool_calls += tool_calls
+            self.latency_used_ms += latency_ms
+            self.energy_used += energy
+            if self.budget_max is not None:
+                self.budget_remaining = self.budget_max - self.cost
 
     def __enter__(self) -> HarnessRunContext:
         self._token = _current_run.set(self)
@@ -185,8 +211,6 @@ class HarnessRunContext:
         if decision_mode is not None:
             entry["decision_mode"] = decision_mode
         self._trace.append(entry)
-        if len(self._trace) > _MAX_TRACE_ENTRIES:
-            self._trace = self._trace[-_MAX_TRACE_ENTRIES:]
         _emit_harness_decision(entry)
 
 

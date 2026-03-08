@@ -470,14 +470,13 @@ def _update_context(
     cost = _estimate_cost(model, prompt_tokens, completion_tokens)
     energy = _estimate_energy(model, prompt_tokens, completion_tokens)
 
-    ctx.cost += cost
-    ctx.step_count += 1
-    ctx.latency_used_ms += elapsed_ms
-    ctx.energy_used += energy
-    ctx.tool_calls += tool_call_count
-
-    if ctx.budget_max is not None:
-        ctx.budget_remaining = ctx.budget_max - ctx.cost
+    ctx._increment(
+        cost=cost,
+        steps=1,
+        latency_ms=elapsed_ms,
+        energy=energy,
+        tool_calls=tool_call_count,
+    )
 
     if applied is None:
         applied = action == "allow"
