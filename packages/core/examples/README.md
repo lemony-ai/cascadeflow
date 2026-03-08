@@ -251,7 +251,7 @@ ML-based semantic validation using embeddings.
 
 **Installation:**
 ```bash
-npm install @cascadeflow/ml @xenova/transformers
+npm install @cascadeflow/ml @huggingface/transformers
 ```
 
 **Example:**
@@ -406,7 +406,7 @@ npx tsx production-patterns.ts
 npm install @cascadeflow/core
 
 # For semantic quality example
-npm install @cascadeflow/ml @xenova/transformers
+npm install @cascadeflow/ml @huggingface/transformers
 
 # Install peer dependencies for providers you'll use
 npm install openai                    # OpenAI
@@ -568,7 +568,7 @@ npm install @cascadeflow/core
 npm install openai @anthropic-ai/sdk groq-sdk
 
 # For semantic quality
-npm install @cascadeflow/ml @xenova/transformers
+npm install @cascadeflow/ml @huggingface/transformers
 ```
 </details>
 

@@ -49,6 +49,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Operating System :: OS Independent",
@@ -58,7 +59,6 @@ dependencies = [
     "pydantic>=2.0.0",
     "httpx>=0.25.0",
     "tiktoken>=0.5.0",
-    "rich>=13.0.0",
 ]
 
 [project.scripts]
@@ -100,8 +100,14 @@ semantic = [
 # OpenClaw integration (auto-enables FastEmbed for semantic routing)
 openclaw = ["fastembed>=0.7.0"]
 
+# Rich terminal output (optional)
+rich = ["rich>=13.0.0"]
+
 # CrewAI harness integration (opt-in)
 crewai = ["crewai>=1.5.0; python_version >= '3.10'"]
+
+# LangChain integration (opt-in)
+langchain = ["langchain-core>=0.2.0"]
 
 # OpenAI Agents SDK integration (opt-in)
 openai-agents = [
@@ -145,11 +151,12 @@ all = [
     "vllm>=0.14.1; python_version >= '3.10' and python_version < '3.14'",
     "sentence-transformers>=2.2.0",
     "fastembed>=0.7.0",
+    "langchain-core>=0.2.0",
 ]
 
 [project.urls]
 Homepage = "https://lemony.ai"
-Documentation = "https://docs.cascadeflow.dev"
+Documentation = "https://docs.cascadeflow.ai"
 Repository = "https://github.com/lemony-ai/cascadeflow"
 "Bug Tracker" = "https://github.com/lemony-ai/cascadeflow/issues"
 Changelog = "https://github.com/lemony-ai/cascadeflow/releases"

@@ -119,8 +119,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--cors-allow-origin",
-        default="*",
-        help="Value for Access-Control-Allow-Origin (default: '*').",
+        default=None,
+        help="Value for Access-Control-Allow-Origin (default: disabled; set to '*' for development).",
     )
     parser.add_argument(
         "--disable-cors",
@@ -152,6 +152,17 @@ def main() -> None:
             "Add or override a virtual model mapping (repeatable). "
             "Affects GET /v1/models and mock-mode model resolution."
         ),
+    )
+    parser.add_argument(
+        "--auth-token",
+        default=None,
+        help="Require Bearer token on all endpoints except /health.",
+    )
+    parser.add_argument(
+        "--max-body-bytes",
+        type=int,
+        default=10_485_760,
+        help="Maximum request body size in bytes (default: 10485760 = 10 MB).",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
@@ -203,7 +214,7 @@ def main() -> None:
         virtual_models[alias] = target
 
     if (
-        not args.disable_cors
+        args.cors_allow_origin
         and str(args.cors_allow_origin).strip() == "*"
         and not _is_local_bind_host(str(args.host))
     ):
@@ -213,6 +224,7 @@ def main() -> None:
             flush=True,
         )
 
+    cors_origin = None if args.disable_cors else args.cors_allow_origin
     server = RoutingProxy(
         agent=agent,
         config=ProxyConfig(
@@ -220,9 +232,11 @@ def main() -> None:
             port=args.port,
             allow_streaming=not args.no_stream,
             token_cost=float(args.token_cost),
-            cors_allow_origin=None if args.disable_cors else str(args.cors_allow_origin),
+            cors_allow_origin=cors_origin,
             include_gateway_headers=not args.no_gateway_headers,
             include_gateway_metadata=bool(args.include_gateway_metadata),
+            auth_token=args.auth_token,
+            max_body_bytes=int(args.max_body_bytes),
             virtual_models=virtual_models,
         ),
     )

@@ -6,11 +6,16 @@ Gracefully falls back to keyword routing if dependencies unavailable.
 """
 
 import logging
-from typing import Optional
-
-import numpy as np
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _np():
+    """Lazy-import numpy to avoid loading it at module import time."""
+    import numpy as np
+
+    return np
 
 
 class SemanticRouter:
@@ -36,7 +41,7 @@ class SemanticRouter:
         """
         self.embedding_model_name = embedding_model
         self.model = None
-        self.model_embeddings: dict[str, np.ndarray] = {}
+        self.model_embeddings: dict[str, Any] = {}
         self._available = False
 
         try:
@@ -198,7 +203,7 @@ class SemanticRouter:
             return None
 
     @staticmethod
-    def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    def _cosine_similarity(a: Any, b: Any) -> float:
         """
         Calculate cosine similarity between two vectors.
 
@@ -212,6 +217,8 @@ class SemanticRouter:
         # Handle edge cases
         if a is None or b is None:
             return 0.0
+
+        np = _np()
 
         # Normalize vectors
         a_norm = np.linalg.norm(a)

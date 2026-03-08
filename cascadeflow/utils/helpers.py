@@ -4,16 +4,24 @@ import logging
 import os
 from typing import Optional
 
-from rich.console import Console
-from rich.logging import RichHandler
+try:
+    from rich.console import Console
+    from rich.logging import RichHandler
 
-# Global console for rich output
-console = Console()
+    _HAS_RICH = True
+except ImportError:
+    _HAS_RICH = False
+
+# Global console for rich output (None if rich not installed)
+console = Console() if _HAS_RICH else None
 
 
 def setup_logging(level: Optional[str] = None) -> None:
     """
-    Setup rich logging with color and formatting.
+    Setup logging with optional rich formatting.
+
+    If rich is installed, uses RichHandler for colored output.
+    Otherwise, falls back to stdlib StreamHandler.
 
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
@@ -26,14 +34,21 @@ def setup_logging(level: Optional[str] = None) -> None:
     if level is None:
         level = os.getenv("LOG_LEVEL", "INFO")
 
-    logging.basicConfig(
-        level=level.upper(),
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[
-            RichHandler(rich_tracebacks=True, console=console, show_time=True, show_path=False)
-        ],
-    )
+    if _HAS_RICH:
+        logging.basicConfig(
+            level=level.upper(),
+            format="%(message)s",
+            datefmt="[%X]",
+            handlers=[
+                RichHandler(rich_tracebacks=True, console=console, show_time=True, show_path=False)
+            ],
+        )
+    else:
+        logging.basicConfig(
+            level=level.upper(),
+            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
 
 
 def format_cost(cost: float) -> str:

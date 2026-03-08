@@ -64,7 +64,7 @@ export interface SemanticQualityResult {
  * not installed.
  *
  * Installation:
- *   npm install @cascadeflow/ml @xenova/transformers
+ *   npm install @cascadeflow/ml @huggingface/transformers
  *
  * The embedding model (~40MB) will auto-download on first use.
  */
@@ -137,7 +137,7 @@ export class SemanticQualityChecker {
       const err = error as { code?: string; message?: string };
       if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.message?.includes('Cannot find module')) {
         console.warn(
-          '@cascadeflow/ml not available. Install with: npm install @cascadeflow/ml @xenova/transformers'
+          '@cascadeflow/ml not available. Install with: npm install @cascadeflow/ml @huggingface/transformers'
         );
       } else {
         const message = error instanceof Error ? error.message : String(error);

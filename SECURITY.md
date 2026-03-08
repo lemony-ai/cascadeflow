@@ -6,8 +6,8 @@ We release security updates for the following versions of cascadeflow:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.7.x   | :white_check_mark: |
-| < 0.7   | :x:                |
+| 1.0.x   | :white_check_mark: |
+| < 1.0   | :x:                |
 
 We recommend always using the latest version for the best security and features.
 
@@ -351,5 +351,5 @@ Security researchers who have helped improve cascadeflow security:
 
 This security policy may be updated from time to time. Please check back regularly for updates.
 
-**Last Updated:** October 2025  
-**Version:** 1.0
+**Last Updated:** March 2026
+**Version:** 1.1

@@ -2,16 +2,12 @@
 Tier-aware routing for user tier management.
 
 This module provides tier-based model filtering and budget enforcement.
-It's OPTIONAL - only activated when users provide 'tiers' parameter.
+It's OPTIONAL - only activated when tier rules are configured via HarnessConfig.
 
 Usage:
     >>> from cascadeflow import CascadeAgent
-    >>> from cascadeflow.schema.config import DEFAULT_TIERS
     >>>
-    >>> # OPTIONAL: Enable tier routing
-    >>> agent = CascadeAgent(models=[...], tiers=DEFAULT_TIERS)
-    >>>
-    >>> # Use tier-aware routing
+    >>> # Use tier-aware routing via HarnessConfig
     >>> result = await agent.run("query", user_tier="free")
     >>>
     >>> # Or ignore tiers - works without them

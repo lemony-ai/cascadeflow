@@ -99,7 +99,7 @@ from .rules import RuleContext, RuleEngine
 # Phase 2A: Routing module imports
 # Phase 3.2: Domain detection (NEW)
 # Phase 4: Tool complexity routing (NEW - v19)
-from .schema.config import CascadeConfig, ModelConfig, UserTier, WorkflowProfile
+from .schema.config import ModelConfig
 from .schema.domain_config import DomainConfig, get_builtin_domain_config
 from .schema.exceptions import cascadeflowError
 from .schema.result import CascadeResult
@@ -208,17 +208,6 @@ class CascadeAgent:
         channel_failover: Optional[dict[str, str]] = None,
         channel_strategies: Optional[dict[str, Any]] = None,
         # ========================================================================
-        # 🔄 BACKWARDS COMPATIBILITY: v0.1.x parameters (DEPRECATED)
-        # ========================================================================
-        config: Optional[CascadeConfig] = None,  # DEPRECATED - use quality_config
-        tiers: Optional[
-            dict[str, UserTier]
-        ] = None,  # DEPRECATED - tier system being re-implemented
-        workflows: Optional[dict[str, WorkflowProfile]] = None,  # DEPRECATED - workflow system
-        enable_caching: bool = False,  # DEPRECATED - caching system being re-implemented
-        cache_size: int = 1000,  # DEPRECATED - caching system being re-implemented
-        enable_callbacks: bool = True,  # DEPRECATED - callbacks now always enabled
-        # ========================================================================
         # 🆕 v2.9: Tool Execution
         # ========================================================================
         tool_executor: Optional[Any] = None,  # ToolExecutor instance or async callable
@@ -244,13 +233,6 @@ class CascadeAgent:
             channel_failover: Optional channel->failover mapping
             channel_strategies: Optional per-channel routing strategy overrides
 
-        Deprecated Args (v0.1.x compatibility):
-            config: Old CascadeConfig (use quality_config instead)
-            tiers: User tier definitions (tier system being re-implemented)
-            workflows: Workflow profiles (workflow system being re-implemented)
-            enable_caching: Enable response caching (being re-implemented)
-            cache_size: Cache size (being re-implemented)
-            enable_callbacks: Enable callbacks (now always enabled)
         """
         if not models:
             raise cascadeflowError("At least one model is required")
@@ -276,78 +258,10 @@ class CascadeAgent:
             )
             enable_cascade = False
 
-        # ========================================================================
-        # 🔄 BACKWARDS COMPATIBILITY LAYER (v0.1.x → v2.5)
-        # ========================================================================
-
-        # Handle old 'config' parameter → quality_config mapping
-        if config is not None and quality_config is None:
-            logger.warning(
-                "⚠️  DEPRECATION WARNING: Parameter 'config' (CascadeConfig) is deprecated.\n"
-                "   Use 'quality_config' (QualityConfig) instead.\n"
-                "   This parameter will be removed in v0.3.0.\n"
-                "   Converting config to quality_config automatically..."
-            )
-            # Convert CascadeConfig to QualityConfig
-            # QualityConfig takes confidence_thresholds (dict), not single value
-            quality_config = QualityConfig.for_cascade()  # Use default cascade config
-            # Note: CascadeConfig quality_threshold ignored - uses complexity-aware
-
-        # Handle old 'tiers' parameter
-        if tiers is not None:
-            logger.warning(
-                "⚠️  DEPRECATION WARNING: Parameter 'tiers' is deprecated.\n"
-                "   The tier system is being re-implemented with TierAwareRouter.\n"
-                "   This parameter will be removed in v0.3.0.\n"
-                "   Tiers are now functional via TierAwareRouter."
-            )
-            self._legacy_tiers = tiers
-            # Initialize TierAwareRouter (OPTIONAL - only if tiers provided)
-            from .routing import TierAwareRouter
-
-            self.tier_router = TierAwareRouter(
-                tiers=tiers,
-                models=sorted(models, key=lambda m: m.cost),  # Use models before self.models is set
-                verbose=verbose,
-            )
-        else:
-            self._legacy_tiers = None
-            self.tier_router = None  # No tiers = no tier router
-
-        # Handle old 'workflows' parameter
-        if workflows is not None:
-            logger.warning(
-                "⚠️  DEPRECATION WARNING: Parameter 'workflows' is deprecated.\n"
-                "   The workflow system is being replaced with domain strategies.\n"
-                "   This parameter will be removed in v0.3.0.\n"
-                "   For now, workflow definitions are stored but not actively used."
-            )
-            self._legacy_workflows = workflows
-            # TODO: Convert to DomainCascadeStrategy when implemented
-        else:
-            self._legacy_workflows = None
-
-        # Handle old 'enable_caching' parameter
-        if enable_caching:
-            logger.warning(
-                "⚠️  DEPRECATION WARNING: Parameter 'enable_caching' is deprecated.\n"
-                "   Caching support is being re-implemented in v0.2.1.\n"
-                "   For now, caching is disabled."
-            )
-            # TODO: Re-implement ResponseCache in v0.2.1
-            self._cache_enabled = False
-            self._cache_size = cache_size
-        else:
-            self._cache_enabled = False
-            self._cache_size = cache_size
-
-        # Handle 'enable_callbacks' parameter - callbacks are now always enabled
-        if not enable_callbacks:
-            logger.warning(
-                "⚠️  DEPRECATION WARNING: Callbacks are now always enabled in v2.5.\n"
-                "   Parameter 'enable_callbacks=False' is ignored.\n"
-                "   Use callback_manager.clear() to disable specific events."
-            )
+        # Deprecated v0.1.x attributes — no longer accepted as __init__ params.
+        self._legacy_tiers = None
+        self.tier_router = None
+        self._legacy_workflows = None
 
         # Sort models by cost (cheap → expensive)
         self.models = sorted(models, key=lambda m: m.cost)
@@ -487,17 +401,6 @@ class CascadeAgent:
         # Count tool-capable models
         tool_capable_count = sum(1 for m in self.models if getattr(m, "supports_tools", False))
 
-        # Build compatibility status message
-        compat_notes = []
-        if self._legacy_tiers:
-            compat_notes.append(f"tiers={len(self._legacy_tiers)} (stored, not yet active)")
-        if self._legacy_workflows:
-            compat_notes.append(f"workflows={len(self._legacy_workflows)} (stored, not yet active)")
-        if self._cache_enabled:
-            compat_notes.append("caching=requested (not yet implemented)")
-
-        compat_status = f"\n  Legacy v0.1.x: {', '.join(compat_notes)}" if compat_notes else ""
-
         logger.info(
             f"CascadeAgent v2.5 initialized (Cost Calculator + Backwards Compatibility):\n"
             f"  Models: {len(models)} ({tool_capable_count} tool-capable)\n"
@@ -513,7 +416,6 @@ class CascadeAgent:
             f"  Interface: TerminalVisualConsumer\n"
             f"  Text Streaming: {'enabled' if self.text_streaming_manager else 'disabled'}\n"
             f"  Tool Streaming: {'enabled' if self.tool_streaming_manager else 'disabled'}"
-            f"{compat_status}"
         )
 
     # ========================================================================
@@ -1072,7 +974,7 @@ class CascadeAgent:
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
                 f"Ignoring tier parameter. To use tiers, initialize agent with: "
-                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"HarnessConfig with tier-based rules"
             )
 
         workflow_profile = None
@@ -1500,7 +1402,7 @@ class CascadeAgent:
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
                 f"Ignoring tier parameter. To use tiers, initialize agent with: "
-                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"HarnessConfig with tier-based rules"
             )
 
         workflow_profile = None
@@ -1779,7 +1681,7 @@ class CascadeAgent:
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
                 f"Ignoring tier parameter. To use tiers, initialize agent with: "
-                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"HarnessConfig with tier-based rules"
             )
 
         workflow_profile = None

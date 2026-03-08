@@ -60,5 +60,3 @@ __all__ = [
     "ProgressiveJSONParser",
     "JSONParseState",
 ]
-
-__version__ = "2.0.0"

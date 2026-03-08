@@ -4,16 +4,51 @@ cascadeflow integrations with external services.
 Provides optional integrations with:
     - LiteLLM: Cost tracking and multi-provider support
     - OpenTelemetry: Observability and metrics export
-    - Other third-party services
+    - LangChain: LangChain LLM wrapper with cascading
+    - OpenAI Agents SDK: Model provider for OpenAI Agents
+    - OpenClaw: Routing hints and gateway adapter
+    - Paygentic: Usage reporting and billing
+    - CrewAI: Harness integration for CrewAI workflows
+    - Google ADK: Plugin for Google Agent Development Kit
 
-All integrations are optional and gracefully degrade if dependencies unavailable.
+All integrations are optional and raise ``ImportError`` with an install
+hint when the required dependency is missing.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-# Try to import LiteLLM integration
+
+class _MissingIntegration:
+    """Proxy that raises ImportError with install hint on any use."""
+
+    def __init__(self, name: str, install_hint: str):
+        self._name = name
+        self._install_hint = install_hint
+
+    def _fail(self):
+        raise ImportError(
+            f"{self._name} requires additional dependencies. " f"Install with: {self._install_hint}"
+        )
+
+    def __call__(self, *args, **kwargs):
+        self._fail()
+
+    def __getattr__(self, name: str):
+        self._fail()
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return f"<MissingIntegration {self._name!r}>"
+
+
+# ═══════════════════════════════════════════════════
+# LiteLLM
+# ═══════════════════════════════════════════════════
+
 try:
     from .litellm import (
         SUPPORTED_PROVIDERS,
@@ -30,17 +65,21 @@ try:
     LITELLM_AVAILABLE = True
 except ImportError:
     LITELLM_AVAILABLE = False
-    SUPPORTED_PROVIDERS = None
-    LiteLLMCostProvider = None
-    LiteLLMBudgetTracker = None
-    cascadeflowLiteLLMCallback = None
-    setup_litellm_callbacks = None
-    get_model_cost = None
-    calculate_cost = None
-    validate_provider = None
-    get_provider_info = None
+    _litellm_missing = _MissingIntegration("LiteLLM", "pip install litellm")
+    SUPPORTED_PROVIDERS = _litellm_missing
+    LiteLLMCostProvider = _litellm_missing
+    LiteLLMBudgetTracker = _litellm_missing
+    cascadeflowLiteLLMCallback = _litellm_missing
+    setup_litellm_callbacks = _litellm_missing
+    get_model_cost = _litellm_missing
+    calculate_cost = _litellm_missing
+    validate_provider = _litellm_missing
+    get_provider_info = _litellm_missing
 
-# Try to import OpenTelemetry integration
+# ═══════════════════════════════════════════════════
+# OpenTelemetry
+# ═══════════════════════════════════════════════════
+
 try:
     from .otel import (
         OpenTelemetryExporter,
@@ -52,12 +91,18 @@ try:
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
-    OpenTelemetryExporter = None
-    MetricDimensions = None
-    cascadeflowMetrics = None
-    create_exporter_from_env = None
+    _otel_missing = _MissingIntegration(
+        "OpenTelemetry", "pip install opentelemetry-api opentelemetry-sdk"
+    )
+    OpenTelemetryExporter = _otel_missing
+    MetricDimensions = _otel_missing
+    cascadeflowMetrics = _otel_missing
+    create_exporter_from_env = _otel_missing
 
-# Try to import LangChain integration
+# ═══════════════════════════════════════════════════
+# LangChain
+# ═══════════════════════════════════════════════════
+
 try:
     from .langchain import (
         CascadeFlow,
@@ -77,20 +122,24 @@ try:
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
-    CascadeFlow = None
-    with_cascade = None
-    CascadeConfig = None
-    CascadeResult = None
-    CostMetadata = None
-    TokenUsage = None
-    calculate_quality = None
-    calculate_cost = None
-    calculate_savings = None
-    create_cost_metadata = None
-    extract_token_usage = None
-    MODEL_PRICING = None
+    _langchain_missing = _MissingIntegration("LangChain", "pip install cascadeflow[langchain]")
+    CascadeFlow = _langchain_missing
+    with_cascade = _langchain_missing
+    CascadeConfig = _langchain_missing
+    CascadeResult = _langchain_missing
+    CostMetadata = _langchain_missing
+    TokenUsage = _langchain_missing
+    calculate_quality = _langchain_missing
+    calculate_cost = _langchain_missing
+    calculate_savings = _langchain_missing
+    create_cost_metadata = _langchain_missing
+    extract_token_usage = _langchain_missing
+    MODEL_PRICING = _langchain_missing
 
-# Try to import OpenAI Agents SDK integration
+# ═══════════════════════════════════════════════════
+# OpenAI Agents SDK
+# ═══════════════════════════════════════════════════
+
 try:
     from .openai_agents import (
         OPENAI_AGENTS_SDK_AVAILABLE,
@@ -104,12 +153,18 @@ try:
 except ImportError:
     OPENAI_AGENTS_AVAILABLE = False
     OPENAI_AGENTS_SDK_AVAILABLE = False
-    CascadeFlowModelProvider = None
-    OpenAIAgentsIntegrationConfig = None
-    create_openai_agents_provider = None
-    is_openai_agents_sdk_available = None
+    _agents_missing = _MissingIntegration(
+        "OpenAI Agents SDK", "pip install cascadeflow[openai-agents]"
+    )
+    CascadeFlowModelProvider = _agents_missing
+    OpenAIAgentsIntegrationConfig = _agents_missing
+    create_openai_agents_provider = _agents_missing
+    is_openai_agents_sdk_available = _agents_missing
 
-# OpenClaw integration helpers (no external deps)
+# ═══════════════════════════════════════════════════
+# OpenClaw
+# ═══════════════════════════════════════════════════
+
 try:
     from .openclaw import (
         OpenClawRouteHint,
@@ -129,20 +184,24 @@ try:
     OPENCLAW_AVAILABLE = True
 except ImportError:
     OPENCLAW_AVAILABLE = False
-    OpenClawRouteHint = None
-    OPENCLAW_NATIVE_CATEGORIES = None
-    CATEGORY_TO_DOMAIN = None
-    extract_explicit_tags = None
-    classify_openclaw_frame = None
-    OpenClawRoutingDecision = None
-    build_routing_decision = None
-    OpenClawAdapter = None
-    OpenClawAdapterConfig = None
-    OpenClawGatewayAdapter = None
-    OpenClawOpenAIServer = None
-    OpenClawOpenAIConfig = None
+    _openclaw_missing = _MissingIntegration("OpenClaw", "pip install cascadeflow[openclaw]")
+    OpenClawRouteHint = _openclaw_missing
+    OPENCLAW_NATIVE_CATEGORIES = _openclaw_missing
+    CATEGORY_TO_DOMAIN = _openclaw_missing
+    extract_explicit_tags = _openclaw_missing
+    classify_openclaw_frame = _openclaw_missing
+    OpenClawRoutingDecision = _openclaw_missing
+    build_routing_decision = _openclaw_missing
+    OpenClawAdapter = _openclaw_missing
+    OpenClawAdapterConfig = _openclaw_missing
+    OpenClawGatewayAdapter = _openclaw_missing
+    OpenClawOpenAIServer = _openclaw_missing
+    OpenClawOpenAIConfig = _openclaw_missing
 
-# Paygentic integration helpers (no external deps beyond core httpx)
+# ═══════════════════════════════════════════════════
+# Paygentic
+# ═══════════════════════════════════════════════════
+
 try:
     from .paygentic import (
         DEFAULT_PAYGENTIC_LIVE_URL,
@@ -157,15 +216,19 @@ try:
     PAYGENTIC_AVAILABLE = True
 except ImportError:
     PAYGENTIC_AVAILABLE = False
-    DEFAULT_PAYGENTIC_LIVE_URL = None
-    DEFAULT_PAYGENTIC_SANDBOX_URL = None
-    PaygenticAPIError = None
-    PaygenticConfig = None
-    PaygenticClient = None
-    PaygenticUsageReporter = None
-    PaygenticProxyService = None
+    _paygentic_missing = _MissingIntegration("Paygentic", "pip install paygentic")
+    DEFAULT_PAYGENTIC_LIVE_URL = _paygentic_missing
+    DEFAULT_PAYGENTIC_SANDBOX_URL = _paygentic_missing
+    PaygenticAPIError = _paygentic_missing
+    PaygenticConfig = _paygentic_missing
+    PaygenticClient = _paygentic_missing
+    PaygenticUsageReporter = _paygentic_missing
+    PaygenticProxyService = _paygentic_missing
 
-# Try to import CrewAI integration
+# ═══════════════════════════════════════════════════
+# CrewAI
+# ═══════════════════════════════════════════════════
+
 try:
     from .crewai import (
         CREWAI_AVAILABLE,
@@ -178,14 +241,18 @@ try:
     )
 except ImportError:
     CREWAI_AVAILABLE = False
-    CrewAIHarnessConfig = None
-    crewai_enable = None
-    crewai_disable = None
-    crewai_is_available = None
-    crewai_is_enabled = None
-    crewai_get_config = None
+    _crewai_missing = _MissingIntegration("CrewAI", "pip install cascadeflow[crewai]")
+    CrewAIHarnessConfig = _crewai_missing
+    crewai_enable = _crewai_missing
+    crewai_disable = _crewai_missing
+    crewai_is_available = _crewai_missing
+    crewai_is_enabled = _crewai_missing
+    crewai_get_config = _crewai_missing
 
-# Try to import Google ADK integration
+# ═══════════════════════════════════════════════════
+# Google ADK
+# ═══════════════════════════════════════════════════
+
 try:
     from .google_adk import (
         GOOGLE_ADK_AVAILABLE,
@@ -199,13 +266,19 @@ try:
     )
 except ImportError:
     GOOGLE_ADK_AVAILABLE = False
-    GoogleADKHarnessConfig = None
-    CascadeFlowADKPlugin = None
-    google_adk_enable = None
-    google_adk_disable = None
-    google_adk_is_available = None
-    google_adk_is_enabled = None
-    google_adk_get_config = None
+    _adk_missing = _MissingIntegration("Google ADK", "pip install cascadeflow[google-adk]")
+    GoogleADKHarnessConfig = _adk_missing
+    CascadeFlowADKPlugin = _adk_missing
+    google_adk_enable = _adk_missing
+    google_adk_disable = _adk_missing
+    google_adk_is_available = _adk_missing
+    google_adk_is_enabled = _adk_missing
+    google_adk_get_config = _adk_missing
+
+
+# ═══════════════════════════════════════════════════
+# Exports & Capabilities
+# ═══════════════════════════════════════════════════
 
 __all__ = []
 
@@ -252,23 +325,23 @@ if LANGCHAIN_AVAILABLE:
         ]
     )
 
-    if OPENCLAW_AVAILABLE:
-        __all__.extend(
-            [
-                "OpenClawRouteHint",
-                "OPENCLAW_NATIVE_CATEGORIES",
-                "CATEGORY_TO_DOMAIN",
-                "extract_explicit_tags",
-                "classify_openclaw_frame",
-                "OpenClawRoutingDecision",
-                "build_routing_decision",
-                "OpenClawAdapter",
-                "OpenClawAdapterConfig",
-                "OpenClawGatewayAdapter",
-                "OpenClawOpenAIServer",
-                "OpenClawOpenAIConfig",
-            ]
-        )
+if OPENCLAW_AVAILABLE:
+    __all__.extend(
+        [
+            "OpenClawRouteHint",
+            "OPENCLAW_NATIVE_CATEGORIES",
+            "CATEGORY_TO_DOMAIN",
+            "extract_explicit_tags",
+            "classify_openclaw_frame",
+            "OpenClawRoutingDecision",
+            "build_routing_decision",
+            "OpenClawAdapter",
+            "OpenClawAdapterConfig",
+            "OpenClawGatewayAdapter",
+            "OpenClawOpenAIServer",
+            "OpenClawOpenAIConfig",
+        ]
+    )
 
 if OPENAI_AGENTS_AVAILABLE:
     __all__.extend(

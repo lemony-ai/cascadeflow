@@ -203,7 +203,6 @@ __all__ = [
     "TaskType",  # Task type enum (GENERAL, CLASSIFICATION)
 ]
 
-__version__ = "0.6.0"  # Phase 4 (Multi-Step Cascading)
 
 # ═══════════════════════════════════════════════════
 # Quick Reference Guide

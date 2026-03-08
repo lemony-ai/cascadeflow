@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import collections
 import inspect
 import json
 import logging
 import os
+import threading
 import time
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
@@ -75,14 +77,36 @@ class HarnessRunContext:
     model_used: Optional[str] = None
     last_action: str = "allow"
     draft_accepted: Optional[bool] = None
-    _trace: list[dict[str, Any]] = field(default_factory=list)
+    _trace: collections.deque = field(default_factory=lambda: collections.deque(maxlen=1000))
     _token: Optional[Token[Optional[HarnessRunContext]]] = field(
         default=None, init=False, repr=False
     )
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.budget_max is not None and self.budget_remaining is None:
             self.budget_remaining = self.budget_max
+
+    def _increment(
+        self,
+        *,
+        cost: float = 0.0,
+        savings: float = 0.0,
+        steps: int = 0,
+        tool_calls: int = 0,
+        latency_ms: float = 0.0,
+        energy: float = 0.0,
+    ) -> None:
+        """Thread-safe counter increment."""
+        with self._lock:
+            self.cost += cost
+            self.savings += savings
+            self.step_count += steps
+            self.tool_calls += tool_calls
+            self.latency_used_ms += latency_ms
+            self.energy_used += energy
+            if self.budget_max is not None:
+                self.budget_remaining = self.budget_max - self.cost
 
     def __enter__(self) -> HarnessRunContext:
         self._token = _current_run.set(self)
@@ -161,32 +185,31 @@ class HarnessRunContext:
             _sanitize_trace_value(model, max_length=_MAX_MODEL_LEN) if model is not None else None
         )
 
-        self.last_action = safe_action
-        self.model_used = safe_model
-        entry: dict[str, Any] = {
-            "action": safe_action,
-            "reason": safe_reason,
-            "model": safe_model,
-            "run_id": self.run_id,
-            "mode": self.mode,
-            "step": self.step_count,
-            "timestamp_ms": time.time() * 1000,
-            "tool_calls_total": self.tool_calls,
-            "cost_total": self.cost,
-            "latency_used_ms": self.latency_used_ms,
-            "energy_used": self.energy_used,
-            "budget_state": {
-                "max": self.budget_max,
-                "remaining": self.budget_remaining,
-            },
-        }
-        if applied is not None:
-            entry["applied"] = applied
-        if decision_mode is not None:
-            entry["decision_mode"] = decision_mode
-        self._trace.append(entry)
-        if len(self._trace) > _MAX_TRACE_ENTRIES:
-            self._trace = self._trace[-_MAX_TRACE_ENTRIES:]
+        with self._lock:
+            self.last_action = safe_action
+            self.model_used = safe_model
+            entry: dict[str, Any] = {
+                "action": safe_action,
+                "reason": safe_reason,
+                "model": safe_model,
+                "run_id": self.run_id,
+                "mode": self.mode,
+                "step": self.step_count,
+                "timestamp_ms": time.time() * 1000,
+                "tool_calls_total": self.tool_calls,
+                "cost_total": self.cost,
+                "latency_used_ms": self.latency_used_ms,
+                "energy_used": self.energy_used,
+                "budget_state": {
+                    "max": self.budget_max,
+                    "remaining": self.budget_remaining,
+                },
+            }
+            if applied is not None:
+                entry["applied"] = applied
+            if decision_mode is not None:
+                entry["decision_mode"] = decision_mode
+            self._trace.append(entry)
         _emit_harness_decision(entry)
 
 
@@ -483,9 +506,16 @@ def init(
     callback_manager: Any | object = _UNSET,
 ) -> HarnessInitReport:
     """
-    Initialize global harness settings.
+    Initialize global harness settings and instrument detected SDKs.
 
-    This is a scaffold API for V2 work and intentionally performs no request patching yet.
+    Reads configuration from (in priority order): explicit keyword arguments,
+    environment variables (``CASCADEFLOW_HARNESS_*``), config file
+    (``cascadeflow.yaml`` / ``cascadeflow.json``), and built-in defaults.
+
+    When ``mode`` is ``"observe"`` or ``"enforce"``, patches the OpenAI and
+    Anthropic Python SDKs (if installed) so that every ``chat.completions.create``
+    / ``messages.create`` call is intercepted for cost tracking, budget
+    enforcement, compliance gating, and decision tracing.
     """
 
     global _harness_config

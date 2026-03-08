@@ -904,7 +904,7 @@ if (await checker.isAvailable()) {
 
 **Installation:**
 ```bash
-npm install @cascadeflow/ml @xenova/transformers
+npm install @cascadeflow/ml @huggingface/transformers
 ```
 
 ---

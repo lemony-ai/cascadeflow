@@ -39,11 +39,11 @@
 
 cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. It accumulates insight from every model call, tool result, and quality score — the agent gets smarter the more it runs. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, and Vercel AI SDK.
 
-```python
+```bash
 pip install cascadeflow
 ```
 
-```tsx
+```bash
 npm install @cascadeflow/core
 ```
 
@@ -289,7 +289,7 @@ For advanced quality validation, enable ML-based semantic similarity checking to
 **Step 1:** Install the optional ML packages:
 
 ```bash
-npm install @cascadeflow/ml @xenova/transformers
+npm install @cascadeflow/ml @huggingface/transformers
 ```
 
 **Step 2:** Enable semantic validation in your cascade:
