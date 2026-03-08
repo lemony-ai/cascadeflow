@@ -68,7 +68,7 @@ export class UnifiedEmbeddingService {
 
     try {
       // Dynamic import to support optional dependency
-      const { pipeline } = await import('@xenova/transformers');
+      const { pipeline } = await import('@huggingface/transformers');
 
       console.log(`Loading embedding model: ${this.modelName}`);
       this.pipeline = await pipeline('feature-extraction', this.modelName);
@@ -77,7 +77,7 @@ export class UnifiedEmbeddingService {
     } catch (error: any) {
       if (error?.code === 'MODULE_NOT_FOUND') {
         console.warn(
-          'Transformers.js not available. Install with: npm install @xenova/transformers'
+          'Transformers.js not available. Install with: npm install @huggingface/transformers'
         );
       } else {
         console.error(`Failed to initialize embedding service: ${error?.message}`);

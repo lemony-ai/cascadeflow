@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout code
@@ -134,7 +134,7 @@ jobs:
           pnpm --filter @cascadeflow/core build
 
       - name: Run TypeScript tests
-        run: pnpm --filter @cascadeflow/core test || echo "No tests defined yet"
+        run: pnpm --filter @cascadeflow/core test
 
       - name: Upload coverage
         if: always()

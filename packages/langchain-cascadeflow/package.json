@@ -48,8 +48,8 @@
     "typescript"
   ],
   "dependencies": {
-    "@cascadeflow/core": "workspace:^",
-    "@cascadeflow/ml": "workspace:^",
+    "@cascadeflow/core": "workspace:*",
+    "@cascadeflow/ml": "workspace:*",
     "@langchain/anthropic": "^1.3.13",
     "@langchain/google-genai": "^1.0.3"
   },

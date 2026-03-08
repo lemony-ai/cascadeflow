@@ -49,17 +49,16 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Operating System :: OS Independent",
-    "License :: OSI Approved :: MIT License",
 ]
 
 dependencies = [
     "pydantic>=2.0.0",
     "httpx>=0.25.0",
     "tiktoken>=0.5.0",
-    "rich>=13.0.0",
 ]
 
 [project.scripts]
@@ -100,6 +99,9 @@ semantic = [
 
 # OpenClaw integration (auto-enables FastEmbed for semantic routing)
 openclaw = ["fastembed>=0.7.0"]
+
+# Rich terminal output (optional)
+rich = ["rich>=13.0.0"]
 
 # CrewAI harness integration (opt-in)
 crewai = ["crewai>=1.5.0; python_version >= '3.10'"]
