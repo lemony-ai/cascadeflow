@@ -775,6 +775,37 @@ class ComplexityDetector:
         r"\w+\s*\((?:string|number|boolean|array|object|integer|float)",
     ]
 
+    # Long-context QA detection markers (v15)
+    CONTEXT_MARKERS = [
+        r"\bdocument\s*:",
+        r"\bcontext\s*:",
+        r"\btext\s*:",
+        r"\bpassage\s*:",
+        r"\barticle\s*:",
+        r"\bcontent\s*:",
+        r"\bgiven\s+(?:the\s+)?(?:following|above|below)\s+(?:text|document|passage|context)",
+        r"\bread\s+(?:the\s+)?(?:following|above|below)",
+        r"\bbased\s+on\s+(?:the\s+)?(?:following|above|text|document|passage|context)",
+        r"^(?:document|context|passage|text|article)\b",
+        r"\[document\]",
+        r"\[context\]",
+        r"\[passage\]",
+    ]
+
+    QUESTION_MARKERS = [
+        r"\bquestion\s*:",
+        r"\bquery\s*:",
+        r"\bask\s*:",
+        r"\banswer\s+(?:the\s+)?(?:following|this)\s+question",
+        r"\bwhat\s+(?:is|are|was|were|does|do|did)\b",
+        r"\bwho\s+(?:is|are|was|were)\b",
+        r"\bwhen\s+(?:is|was|did|does)\b",
+        r"\bwhere\s+(?:is|was|did|does)\b",
+        r"\bhow\s+(?:many|much|does|did|is|are)\b",
+        r"\bwhich\s+(?:of|one)\b",
+        r"\?\s*$",
+    ]
+
     def __init__(self):
         self.stats = {
             "total_detected": 0,
@@ -796,6 +827,67 @@ class ComplexityDetector:
 
         # Compile LaTeX patterns
         self.compiled_latex_patterns = [re.compile(p) for p in self.LATEX_MATH_PATTERNS]
+
+        # Pre-compile all regex patterns used in detect() and helpers
+        self._compiled_trivial = [re.compile(p) for p in self.TRIVIAL_PATTERNS]
+        self._compiled_code = [re.compile(p) for p in self.CODE_PATTERNS]
+
+        # Conditional/requirement word patterns
+        self._compiled_conditionals = re.compile(
+            r"\b(?:if|when|unless|provided|assuming|given\s+that)\b"
+        )
+        self._compiled_requirements = re.compile(
+            r"\b(?:must|should|need\s+to|required|ensure|guarantee)\b"
+        )
+
+        # Keyword boundary patterns (for long-prompt word-boundary matching)
+        self._compiled_simple_kw = [
+            re.compile(rf"\b{re.escape(kw)}\b") for kw in self.SIMPLE_KEYWORDS
+        ]
+        self._compiled_moderate_kw = [
+            re.compile(rf"\b{re.escape(kw)}\b") for kw in self.MODERATE_KEYWORDS
+        ]
+        self._compiled_hard_kw = [
+            re.compile(rf"\b{re.escape(kw)}\b") for kw in self.HARD_KEYWORDS
+        ]
+        self._compiled_expert_kw = [
+            re.compile(rf"\b{re.escape(kw)}\b") for kw in self.EXPERT_KEYWORDS
+        ]
+
+        # Complexity signal patterns
+        self._compiled_signals = {
+            cat: [re.compile(p) for p in patterns]
+            for cat, patterns in self.COMPLEXITY_SIGNALS.items()
+        }
+
+        # Function call indicator patterns
+        self._compiled_func_call = [
+            re.compile(p, re.IGNORECASE) for p in self.FUNCTION_CALL_INDICATORS
+        ]
+
+        # Trivial concept boundary patterns
+        self._compiled_trivial_concepts = [
+            re.compile(rf"\b{re.escape(c)}\b") for c in self.TRIVIAL_CONCEPTS
+        ]
+
+        # Multi-word/hyphenated technical term patterns
+        self._compiled_multi_terms = []
+        for term in self.all_technical_terms:
+            if " " in term or "-" in term:
+                self._compiled_multi_terms.append(
+                    (term, re.compile(r"\b" + re.escape(term) + r"\b"))
+                )
+
+        # Long-context QA markers
+        self._compiled_context_markers = [
+            re.compile(p, re.IGNORECASE | re.MULTILINE) for p in self.CONTEXT_MARKERS
+        ]
+        self._compiled_question_markers = [
+            re.compile(p, re.IGNORECASE | re.MULTILINE) for p in self.QUESTION_MARKERS
+        ]
+        self._compiled_question_words = re.compile(
+            r"\b(?:what|who|when|where|how|which|why)\b"
+        )
 
     def detect(
         self, query: str, context: Optional[dict] = None, return_metadata: bool = False
@@ -843,8 +935,8 @@ class ComplexityDetector:
         }
 
         # 1. Check trivial patterns first
-        for pattern in self.TRIVIAL_PATTERNS:
-            if re.search(pattern, query_lower):
+        for pattern in self._compiled_trivial:
+            if pattern.search(query_lower):
                 self.stats["by_complexity"][QueryComplexity.TRIVIAL] += 1
                 if return_metadata:
                     return QueryComplexity.TRIVIAL, 0.95, metadata
@@ -888,7 +980,7 @@ class ComplexityDetector:
         )
 
         # 6. Detect code patterns
-        has_code = any(re.search(p, query) for p in self.CODE_PATTERNS)
+        has_code = any(p.search(query) for p in self._compiled_code)
         metadata["has_code"] = has_code
 
         # 7. Length and structure analysis
@@ -896,14 +988,8 @@ class ComplexityDetector:
 
         has_multiple_questions = query.count("?") > 1
         # Use word boundary matching to avoid false positives like "if" in "different"
-        has_conditionals = any(
-            re.search(rf"\b{re.escape(w)}\b", query_lower)
-            for w in ["if", "when", "unless", "provided", "assuming", "given that"]
-        )
-        has_requirements = any(
-            re.search(rf"\b{re.escape(w)}\b", query_lower)
-            for w in ["must", "should", "need to", "required", "ensure", "guarantee"]
-        )
+        has_conditionals = bool(self._compiled_conditionals.search(query_lower))
+        has_requirements = bool(self._compiled_requirements.search(query_lower))
         has_multiple_parts = any(sep in query for sep in [";", "\n", "1.", "2."])
 
         structure_score = sum(
@@ -918,20 +1004,10 @@ class ComplexityDetector:
         # For long prompts (> 200 words), use word boundary matching to avoid
         # false positives like "build" matching "building" in stories
         if word_count > 200:
-            simple_matches = sum(
-                1 for kw in self.SIMPLE_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
-            )
-            moderate_matches = sum(
-                1
-                for kw in self.MODERATE_KEYWORDS
-                if re.search(rf"\b{re.escape(kw)}\b", query_lower)
-            )
-            hard_matches = sum(
-                1 for kw in self.HARD_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
-            )
-            expert_matches = sum(
-                1 for kw in self.EXPERT_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", query_lower)
-            )
+            simple_matches = sum(1 for p in self._compiled_simple_kw if p.search(query_lower))
+            moderate_matches = sum(1 for p in self._compiled_moderate_kw if p.search(query_lower))
+            hard_matches = sum(1 for p in self._compiled_hard_kw if p.search(query_lower))
+            expert_matches = sum(1 for p in self._compiled_expert_kw if p.search(query_lower))
         else:
             # For short prompts, use faster substring matching (original behavior)
             simple_matches = sum(1 for kw in self.SIMPLE_KEYWORDS if kw in query_lower)
@@ -960,9 +1036,9 @@ class ComplexityDetector:
         # hard or expert tasks (proofs, derivations, synthesis, etc.)
         signal_boost = 0.0
         matched_signals = {}
-        for signal_category, patterns in self.COMPLEXITY_SIGNALS.items():
-            for pattern in patterns:
-                if re.search(pattern, query_lower):
+        for signal_category, compiled_patterns in self._compiled_signals.items():
+            for pattern in compiled_patterns:
+                if pattern.search(query_lower):
                     matched_signals[signal_category] = True
                     break
 
@@ -1187,26 +1263,23 @@ class ComplexityDetector:
         }
 
         # Multi-word terms (check first, more specific)
-        for term in self.all_technical_terms:
-            if " " in term or "-" in term:  # Multi-word or hyphenated
-                # Use word boundaries for multi-word terms
-                pattern = r"\b" + re.escape(term) + r"\b"
-                if re.search(pattern, query_lower):
-                    found_terms.append(term)
+        for term, compiled_pat in self._compiled_multi_terms:
+            if compiled_pat.search(query_lower):
+                found_terms.append(term)
 
-                    # Assign to domain
-                    if term in self.PHYSICS_TERMS:
-                        domain_scores["physics"] += 1.0
-                    if term in self.MATHEMATICS_TERMS:
-                        domain_scores["mathematics"] += 1.0
-                    if term in self.CS_TERMS:
-                        domain_scores["computer_science"] += 1.0
-                    if term in self.ENGINEERING_TERMS:
-                        domain_scores["engineering"] += 1.0
-                    if term in self.CHEMISTRY_TERMS:
-                        domain_scores["chemistry"] += 1.0
-                    if term in self.BIOLOGY_TERMS:
-                        domain_scores["biology"] += 1.0
+                # Assign to domain
+                if term in self.PHYSICS_TERMS:
+                    domain_scores["physics"] += 1.0
+                if term in self.MATHEMATICS_TERMS:
+                    domain_scores["mathematics"] += 1.0
+                if term in self.CS_TERMS:
+                    domain_scores["computer_science"] += 1.0
+                if term in self.ENGINEERING_TERMS:
+                    domain_scores["engineering"] += 1.0
+                if term in self.CHEMISTRY_TERMS:
+                    domain_scores["chemistry"] += 1.0
+                if term in self.BIOLOGY_TERMS:
+                    domain_scores["biology"] += 1.0
 
         # Single-word terms
         words_in_query = set(query_lower.split())
@@ -1371,9 +1444,8 @@ class ComplexityDetector:
         """
         trivial_count = 0
 
-        for concept in self.TRIVIAL_CONCEPTS:
-            pattern = r"\b" + re.escape(concept) + r"\b"
-            if re.search(pattern, query_lower):
+        for pattern in self._compiled_trivial_concepts:
+            if pattern.search(query_lower):
                 trivial_count += 1
 
         word_count = len(query_lower.split())
@@ -1415,8 +1487,8 @@ class ComplexityDetector:
 
         # Count how many indicators match
         matches = 0
-        for pattern in self.FUNCTION_CALL_INDICATORS:
-            if re.search(pattern, query_lower, re.IGNORECASE):
+        for pattern in self._compiled_func_call:
+            if pattern.search(query_lower):
                 matches += 1
                 # Early exit if we have strong confidence
                 if matches >= 2:
@@ -1457,50 +1529,18 @@ class ComplexityDetector:
         if word_count < 200:
             return False
 
-        # Document/context markers that indicate a retrieval task
-        context_markers = [
-            r"\bdocument\s*:",
-            r"\bcontext\s*:",
-            r"\btext\s*:",
-            r"\bpassage\s*:",
-            r"\barticle\s*:",
-            r"\bcontent\s*:",
-            r"\bgiven\s+(?:the\s+)?(?:following|above|below)\s+(?:text|document|passage|context)",
-            r"\bread\s+(?:the\s+)?(?:following|above|below)",
-            r"\bbased\s+on\s+(?:the\s+)?(?:following|above|text|document|passage|context)",
-            r"^(?:document|context|passage|text|article)\b",
-            r"\[document\]",
-            r"\[context\]",
-            r"\[passage\]",
-        ]
-
-        # Question markers that indicate the actual task
-        question_markers = [
-            r"\bquestion\s*:",
-            r"\bquery\s*:",
-            r"\bask\s*:",
-            r"\banswer\s+(?:the\s+)?(?:following|this)\s+question",
-            r"\bwhat\s+(?:is|are|was|were|does|do|did)\b",
-            r"\bwho\s+(?:is|are|was|were)\b",
-            r"\bwhen\s+(?:is|was|did|does)\b",
-            r"\bwhere\s+(?:is|was|did|does)\b",
-            r"\bhow\s+(?:many|much|does|did|is|are)\b",
-            r"\bwhich\s+(?:of|one)\b",
-            r"\?\s*$",  # Ends with a question mark
-        ]
-
         # Count matches for both types
         context_matches = 0
         question_matches = 0
 
-        for pattern in context_markers:
-            if re.search(pattern, query_lower, re.IGNORECASE | re.MULTILINE):
+        for pattern in self._compiled_context_markers:
+            if pattern.search(query_lower):
                 context_matches += 1
                 if context_matches >= 2:
                     break  # Early exit
 
-        for pattern in question_markers:
-            if re.search(pattern, query_lower, re.IGNORECASE | re.MULTILINE):
+        for pattern in self._compiled_question_markers:
+            if pattern.search(query_lower):
                 question_matches += 1
                 if question_matches >= 1:
                     break  # Only need one question marker
@@ -1515,7 +1555,7 @@ class ComplexityDetector:
         if word_count >= 500:
             # Check if there's a question in the last 100 characters
             last_100 = query_lower[-100:] if len(query_lower) > 100 else query_lower
-            if "?" in last_100 or re.search(r"\b(?:what|who|when|where|how|which|why)\b", last_100):
+            if "?" in last_100 or self._compiled_question_words.search(last_100):
                 return True
 
         return False
