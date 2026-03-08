@@ -52,6 +52,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
 ]
 
 dependencies = [
@@ -149,7 +150,7 @@ all = [
 
 [project.urls]
 Homepage = "https://lemony.ai"
-Documentation = "https://docs.cascadeflow.dev"
+Documentation = "https://docs.cascadeflow.ai"
 Repository = "https://github.com/lemony-ai/cascadeflow"
 "Bug Tracker" = "https://github.com/lemony-ai/cascadeflow/issues"
 Changelog = "https://github.com/lemony-ai/cascadeflow/releases"

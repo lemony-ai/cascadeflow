@@ -483,9 +483,16 @@ def init(
     callback_manager: Any | object = _UNSET,
 ) -> HarnessInitReport:
     """
-    Initialize global harness settings.
+    Initialize global harness settings and instrument detected SDKs.
 
-    This is a scaffold API for V2 work and intentionally performs no request patching yet.
+    Reads configuration from (in priority order): explicit keyword arguments,
+    environment variables (``CASCADEFLOW_HARNESS_*``), config file
+    (``cascadeflow.yaml`` / ``cascadeflow.json``), and built-in defaults.
+
+    When ``mode`` is ``"observe"`` or ``"enforce"``, patches the OpenAI and
+    Anthropic Python SDKs (if installed) so that every ``chat.completions.create``
+    / ``messages.create`` call is intercepted for cost tracking, budget
+    enforcement, compliance gating, and decision tracing.
     """
 
     global _harness_config

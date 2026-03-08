@@ -21,7 +21,7 @@ Integrations: LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI S
 """
 
 __version__ = "1.0.0"
-__author__ = "Sascha Buehrle"
+__author__ = "Lemony Inc."
 __license__ = "MIT"
 
 # ==================== CORE CONFIGURATION ====================

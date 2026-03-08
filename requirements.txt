@@ -1,4 +1,4 @@
-# CascadeFlow Production Requirements
+# cascadeflow Production Requirements
 # Minimal core dependencies only - provider SDKs are optional extras
 
 # ============================================================================
