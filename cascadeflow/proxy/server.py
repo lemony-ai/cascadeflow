@@ -68,9 +68,11 @@ class ProxyConfig:
     port: int = 0
     allow_streaming: bool = True
     token_cost: float = 0.00001
-    cors_allow_origin: str | None = "*"
+    cors_allow_origin: str | None = None
     include_gateway_headers: bool = True
     include_gateway_metadata: bool = False
+    auth_token: str | None = None
+    max_body_bytes: int = 10_485_760  # 10 MB
     virtual_models: dict[str, str] = field(
         default_factory=lambda: {
             "cascadeflow-auto": "cascadeflow-auto-resolved",
@@ -611,6 +613,20 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 return None
         return domain
 
+    def _check_auth(self, proxy: RoutingProxy) -> bool:
+        """Check Bearer token if auth_token is configured. Returns True if OK."""
+        token = proxy.config.auth_token
+        if not token:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth == f"Bearer {token}":
+            return True
+        self.send_response(401)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+        return False
+
     def do_OPTIONS(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
         self._set_gateway_context(proxy, api="gateway", endpoint="options")
@@ -628,6 +644,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if path == "/health":
             self._set_gateway_context(proxy, api="gateway", endpoint="health")
             return self._send_json({"status": "ok"})
+
+        if not self._check_auth(proxy):
+            return
 
         if normalized == "/stats":
             self._set_gateway_context(proxy, api="gateway", endpoint="stats")
@@ -653,8 +672,23 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         proxy: RoutingProxy = self.server.proxy  # type: ignore[attr-defined]
+        if not self._check_auth(proxy):
+            return
         normalized = self._normalize_api_path()
         length = int(self.headers.get("Content-Length", "0"))
+        if length > proxy.config.max_body_bytes:
+            self.send_response(413)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "error": f"Request body too large ({length} bytes). "
+                        f"Maximum: {proxy.config.max_body_bytes} bytes."
+                    }
+                ).encode("utf-8")
+            )
+            return
         raw_body = self.rfile.read(length) if length else b""
         try:
             payload = json.loads(raw_body.decode("utf-8") or "{}")
