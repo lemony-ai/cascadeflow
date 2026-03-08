@@ -289,7 +289,7 @@ For advanced quality validation, enable ML-based semantic similarity checking to
 **Step 1:** Install the optional ML packages:
 
 ```bash
-npm install @cascadeflow/ml @xenova/transformers
+npm install @cascadeflow/ml @huggingface/transformers
 ```
 
 **Step 2:** Enable semantic validation in your cascade:

@@ -14,8 +14,8 @@ httpx>=0.25.0
 # Token counting and cost estimation
 tiktoken>=0.5.0
 
-# Terminal output and logging
-rich>=13.0.0
+# Optional: Rich terminal output (pip install cascadeflow[rich])
+# rich>=13.0.0
 
 
 # ============================================================================

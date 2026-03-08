@@ -974,7 +974,7 @@ class CascadeAgent:
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
                 f"Ignoring tier parameter. To use tiers, initialize agent with: "
-                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"HarnessConfig with tier-based rules"
             )
 
         workflow_profile = None
@@ -1402,7 +1402,7 @@ class CascadeAgent:
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
                 f"Ignoring tier parameter. To use tiers, initialize agent with: "
-                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"HarnessConfig with tier-based rules"
             )
 
         workflow_profile = None
@@ -1681,7 +1681,7 @@ class CascadeAgent:
             logger.warning(
                 f"user_tier='{user_tier}' specified but no tiers configured. "
                 f"Ignoring tier parameter. To use tiers, initialize agent with: "
-                f"CascadeAgent(models=[...], tiers=DEFAULT_TIERS)"
+                f"HarnessConfig with tier-based rules"
             )
 
         workflow_profile = None

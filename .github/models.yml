@@ -47,7 +47,7 @@ ml_models:
 
     installation:
       python: "pip install fastembed"
-      typescript: "npm install @xenova/transformers"
+      typescript: "npm install @huggingface/transformers"
 
 # Heuristic Models (No ML Required)
 heuristic_models:

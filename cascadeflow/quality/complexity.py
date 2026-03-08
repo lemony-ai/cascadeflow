@@ -847,9 +847,7 @@ class ComplexityDetector:
         self._compiled_moderate_kw = [
             re.compile(rf"\b{re.escape(kw)}\b") for kw in self.MODERATE_KEYWORDS
         ]
-        self._compiled_hard_kw = [
-            re.compile(rf"\b{re.escape(kw)}\b") for kw in self.HARD_KEYWORDS
-        ]
+        self._compiled_hard_kw = [re.compile(rf"\b{re.escape(kw)}\b") for kw in self.HARD_KEYWORDS]
         self._compiled_expert_kw = [
             re.compile(rf"\b{re.escape(kw)}\b") for kw in self.EXPERT_KEYWORDS
         ]
@@ -885,9 +883,7 @@ class ComplexityDetector:
         self._compiled_question_markers = [
             re.compile(p, re.IGNORECASE | re.MULTILINE) for p in self.QUESTION_MARKERS
         ]
-        self._compiled_question_words = re.compile(
-            r"\b(?:what|who|when|where|how|which|why)\b"
-        )
+        self._compiled_question_words = re.compile(r"\b(?:what|who|when|where|how|which|why)\b")
 
     def detect(
         self, query: str, context: Optional[dict] = None, return_metadata: bool = False

@@ -29,8 +29,7 @@ class _MissingIntegration:
 
     def _fail(self):
         raise ImportError(
-            f"{self._name} requires additional dependencies. "
-            f"Install with: {self._install_hint}"
+            f"{self._name} requires additional dependencies. " f"Install with: {self._install_hint}"
         )
 
     def __call__(self, *args, **kwargs):
@@ -38,6 +37,9 @@ class _MissingIntegration:
 
     def __getattr__(self, name: str):
         self._fail()
+
+    def __bool__(self):
+        return False
 
     def __repr__(self):
         return f"<MissingIntegration {self._name!r}>"
@@ -120,9 +122,7 @@ try:
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
-    _langchain_missing = _MissingIntegration(
-        "LangChain", 'pip install cascadeflow[langchain]'
-    )
+    _langchain_missing = _MissingIntegration("LangChain", "pip install cascadeflow[langchain]")
     CascadeFlow = _langchain_missing
     with_cascade = _langchain_missing
     CascadeConfig = _langchain_missing
@@ -154,7 +154,7 @@ except ImportError:
     OPENAI_AGENTS_AVAILABLE = False
     OPENAI_AGENTS_SDK_AVAILABLE = False
     _agents_missing = _MissingIntegration(
-        "OpenAI Agents SDK", 'pip install cascadeflow[openai-agents]'
+        "OpenAI Agents SDK", "pip install cascadeflow[openai-agents]"
     )
     CascadeFlowModelProvider = _agents_missing
     OpenAIAgentsIntegrationConfig = _agents_missing
@@ -184,9 +184,7 @@ try:
     OPENCLAW_AVAILABLE = True
 except ImportError:
     OPENCLAW_AVAILABLE = False
-    _openclaw_missing = _MissingIntegration(
-        "OpenClaw", 'pip install cascadeflow[openclaw]'
-    )
+    _openclaw_missing = _MissingIntegration("OpenClaw", "pip install cascadeflow[openclaw]")
     OpenClawRouteHint = _openclaw_missing
     OPENCLAW_NATIVE_CATEGORIES = _openclaw_missing
     CATEGORY_TO_DOMAIN = _openclaw_missing
@@ -218,9 +216,7 @@ try:
     PAYGENTIC_AVAILABLE = True
 except ImportError:
     PAYGENTIC_AVAILABLE = False
-    _paygentic_missing = _MissingIntegration(
-        "Paygentic", "pip install paygentic"
-    )
+    _paygentic_missing = _MissingIntegration("Paygentic", "pip install paygentic")
     DEFAULT_PAYGENTIC_LIVE_URL = _paygentic_missing
     DEFAULT_PAYGENTIC_SANDBOX_URL = _paygentic_missing
     PaygenticAPIError = _paygentic_missing
@@ -245,9 +241,7 @@ try:
     )
 except ImportError:
     CREWAI_AVAILABLE = False
-    _crewai_missing = _MissingIntegration(
-        "CrewAI", 'pip install cascadeflow[crewai]'
-    )
+    _crewai_missing = _MissingIntegration("CrewAI", "pip install cascadeflow[crewai]")
     CrewAIHarnessConfig = _crewai_missing
     crewai_enable = _crewai_missing
     crewai_disable = _crewai_missing
@@ -272,9 +266,7 @@ try:
     )
 except ImportError:
     GOOGLE_ADK_AVAILABLE = False
-    _adk_missing = _MissingIntegration(
-        "Google ADK", 'pip install cascadeflow[google-adk]'
-    )
+    _adk_missing = _MissingIntegration("Google ADK", "pip install cascadeflow[google-adk]")
     GoogleADKHarnessConfig = _adk_missing
     CascadeFlowADKPlugin = _adk_missing
     google_adk_enable = _adk_missing

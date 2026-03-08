@@ -77,9 +77,7 @@ class HarnessRunContext:
     model_used: Optional[str] = None
     last_action: str = "allow"
     draft_accepted: Optional[bool] = None
-    _trace: collections.deque = field(
-        default_factory=lambda: collections.deque(maxlen=1000)
-    )
+    _trace: collections.deque = field(default_factory=lambda: collections.deque(maxlen=1000))
     _token: Optional[Token[Optional[HarnessRunContext]]] = field(
         default=None, init=False, repr=False
     )
@@ -187,30 +185,31 @@ class HarnessRunContext:
             _sanitize_trace_value(model, max_length=_MAX_MODEL_LEN) if model is not None else None
         )
 
-        self.last_action = safe_action
-        self.model_used = safe_model
-        entry: dict[str, Any] = {
-            "action": safe_action,
-            "reason": safe_reason,
-            "model": safe_model,
-            "run_id": self.run_id,
-            "mode": self.mode,
-            "step": self.step_count,
-            "timestamp_ms": time.time() * 1000,
-            "tool_calls_total": self.tool_calls,
-            "cost_total": self.cost,
-            "latency_used_ms": self.latency_used_ms,
-            "energy_used": self.energy_used,
-            "budget_state": {
-                "max": self.budget_max,
-                "remaining": self.budget_remaining,
-            },
-        }
-        if applied is not None:
-            entry["applied"] = applied
-        if decision_mode is not None:
-            entry["decision_mode"] = decision_mode
-        self._trace.append(entry)
+        with self._lock:
+            self.last_action = safe_action
+            self.model_used = safe_model
+            entry: dict[str, Any] = {
+                "action": safe_action,
+                "reason": safe_reason,
+                "model": safe_model,
+                "run_id": self.run_id,
+                "mode": self.mode,
+                "step": self.step_count,
+                "timestamp_ms": time.time() * 1000,
+                "tool_calls_total": self.tool_calls,
+                "cost_total": self.cost,
+                "latency_used_ms": self.latency_used_ms,
+                "energy_used": self.energy_used,
+                "budget_state": {
+                    "max": self.budget_max,
+                    "remaining": self.budget_remaining,
+                },
+            }
+            if applied is not None:
+                entry["applied"] = applied
+            if decision_mode is not None:
+                entry["decision_mode"] = decision_mode
+            self._trace.append(entry)
         _emit_harness_decision(entry)
 
 

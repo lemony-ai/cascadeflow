@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import inspect
 import json
 import os
@@ -619,7 +620,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if not token:
             return True
         auth = self.headers.get("Authorization", "")
-        if auth == f"Bearer {token}":
+        expected = f"Bearer {token}"
+        if hmac.compare_digest(auth, expected):
             return True
         self.send_response(401)
         self.send_header("Content-Type", "application/json")

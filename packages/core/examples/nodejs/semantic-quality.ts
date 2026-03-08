@@ -15,11 +15,11 @@
  * Requirements:
  *     - @cascadeflow/core
  *     - @cascadeflow/ml (for embeddings)
- *     - @xenova/transformers (ONNX runtime for embeddings)
+ *     - @huggingface/transformers (ONNX runtime for embeddings)
  *     - OpenAI API key
  *
  * Setup:
- *     npm install @cascadeflow/core @cascadeflow/ml @xenova/transformers
+ *     npm install @cascadeflow/core @cascadeflow/ml @huggingface/transformers
  *     export OPENAI_API_KEY="your-key-here"
  *     npx tsx semantic-quality.ts
  *
@@ -79,7 +79,7 @@ async function main() {
     console.log('❌ ML dependencies not available!');
     console.log();
     console.log('To use semantic validation, install:');
-    console.log('   npm install @cascadeflow/ml @xenova/transformers');
+    console.log('   npm install @cascadeflow/ml @huggingface/transformers');
     console.log();
     console.log('The BGE-small-en-v1.5 model (~40MB) will auto-download on first use.');
     console.log();

@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Lazy imports** — `import cascadeflow` no longer eagerly loads all providers, numpy, or heavyweight submodules. Import time reduced from ~1900ms to <200ms.
+- **Lazy imports** — `import cascadeflow` no longer eagerly loads all providers, numpy, or heavyweight submodules. Import time reduced from ~1900ms to ~20ms via PEP 562 lazy loading.
 - **`__all__` reduced** — From 127 to ~20 essential public symbols. Non-essential exports remain accessible but are not star-exported.
 - **`rich` moved to optional** — No longer a core dependency; falls back to stdlib logging when not installed. Install with `pip install cascadeflow[rich]`.
 - **Integration import errors** — Failed optional integration imports now return proxy objects that raise `ImportError` with install hints on use, instead of silently returning `None`.

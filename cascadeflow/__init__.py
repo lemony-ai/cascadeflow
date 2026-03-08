@@ -46,8 +46,10 @@ class _LazyModule(types.ModuleType):
         if not self.__loaded:
             import importlib
 
+            alias = self.__name__
             real = importlib.import_module(self.__real_name)
             self.__dict__.update(real.__dict__)
+            self.__name__ = alias  # preserve alias name after dict merge
             self.__loaded = True
 
     def __getattr__(self, name: str):
@@ -55,9 +57,7 @@ class _LazyModule(types.ModuleType):
         try:
             return self.__dict__[name]
         except KeyError:
-            raise AttributeError(
-                f"module {self.__name__!r} has no attribute {name!r}"
-            ) from None
+            raise AttributeError(f"module {self.__name__!r} has no attribute {name!r}") from None
 
 
 # Register backward-compat aliases (lazy — no import happens here).
