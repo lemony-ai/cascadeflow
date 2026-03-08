@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/core",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "cascadeflow TypeScript library - Smart AI model cascading for cost optimization",
   "author": {
     "name": "Lemony Inc.",
@@ -58,7 +58,7 @@
     "edge-functions"
   ],
   "dependencies": {
-    "@cascadeflow/ml": "^1.0.1"
+    "@cascadeflow/ml": "^1.1.0"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": "^0.30.0",

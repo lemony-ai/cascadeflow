@@ -1,6 +1,6 @@
 {
   "name": "@cascadeflow/n8n-nodes-cascadeflow",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "n8n node for cascadeflow - Smart AI model cascading with 40-85% cost savings",
   "keywords": [
     "n8n-community-node-package",
@@ -45,7 +45,7 @@
     ]
   },
   "devDependencies": {
-    "@cascadeflow/core": "^1.0.1",
+    "@cascadeflow/core": "^1.1.0",
     "@types/node": "^20.10.0",
     "@typescript-eslint/parser": "^6.0.0",
     "esbuild": "^0.24.0",
