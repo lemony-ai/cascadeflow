@@ -21,7 +21,6 @@ from .examples import example_calculator, example_get_weather
 from .executor import ToolExecutor
 from .result import ToolResult
 
-__version__ = "0.1.0"
 
 __all__ = [
     # Core classes

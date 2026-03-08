@@ -172,7 +172,6 @@ __all__ = [
     "check_semantic_quality",
 ]
 
-__version__ = "0.5.0"  # Phase 3 (Semantic Quality)
 
 # ============================================================================
 # QUICK VALIDATION TEST

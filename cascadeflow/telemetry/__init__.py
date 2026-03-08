@@ -185,9 +185,7 @@ if ANOMALY_AVAILABLE:
 # VERSION INFO
 # ============================================================================
 
-__version__ = "2.5.0"  # Bumped for Phase 2.3 features
 __author__ = "cascadeflow Team"
-__updated__ = "2025-10-20"
 
 # Telemetry module capabilities
 TELEMETRY_CAPABILITIES = {
@@ -214,9 +212,10 @@ def get_telemetry_info():
         >>> info = get_telemetry_info()
         >>> print(f"Cost tracking available: {info['cost_tracking']}")
     """
+    import cascadeflow
+
     return {
-        "version": __version__,
+        "version": cascadeflow.__version__,
         "components": __all__,
         "capabilities": TELEMETRY_CAPABILITIES,
-        "updated": __updated__,
     }

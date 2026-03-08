@@ -57,5 +57,3 @@ __all__ = [
     "TerminalVisualConsumer",
     "SilentConsumer",
 ]
-
-__version__ = "2.2.0"

@@ -24,220 +24,59 @@ __version__ = "1.0.0"
 __author__ = "Lemony Inc."
 __license__ = "MIT"
 
-# ==================== CORE CONFIGURATION ====================
+# ==================== LAZY BACKWARD-COMPAT ALIASES ====================
+# Old import paths (e.g. ``from cascadeflow.exceptions import ...``) are
+# supported via sys.modules aliases.  We use a lightweight proxy so that
+# the target submodule is only imported on first attribute access, keeping
+# ``import cascadeflow`` fast.
 
 import sys
+import types
 
-# Visual feedback for streaming (Phase 3)
-from cascadeflow.interface.visual_consumer import (
-    SilentConsumer,  # NEW: Silent consumer (no visual)
-    TerminalVisualConsumer,  # NEW: Terminal consumer with visual feedback
-    VisualIndicator,  # NEW: Visual indicator (pulsing dot)
-)
 
-# Complexity detection
-from cascadeflow.quality.complexity import ComplexityDetector, QueryComplexity
+class _LazyModule(types.ModuleType):
+    """Module proxy that defers import until first attribute access."""
 
-# Callbacks for monitoring
-from cascadeflow.telemetry.callbacks import CallbackData, CallbackEvent, CallbackManager
+    def __init__(self, alias_name: str, real_name: str):
+        super().__init__(alias_name)
+        self.__real_name = real_name
+        self.__loaded = False
 
-# ==================== BACKWARD COMPATIBILITY (MUST BE EARLY) ====================
-# Set up backward compatibility BEFORE importing agent/providers
-# This allows old imports like: from cascadeflow.exceptions import ...
-from . import core, schema
+    def _load(self):
+        if not self.__loaded:
+            import importlib
 
-sys.modules["cascadeflow.exceptions"] = schema.exceptions
-sys.modules["cascadeflow.result"] = schema.result
-sys.modules["cascadeflow.config"] = schema.config
-sys.modules["cascadeflow.core.config"] = schema.config  # Also support cascadeflow.core.config
-sys.modules["cascadeflow.execution"] = core.execution
-sys.modules["cascadeflow.speculative"] = core.cascade  # Old name
-sys.modules["cascadeflow.cascade"] = core.cascade  # New name (optional)
+            real = importlib.import_module(self.__real_name)
+            self.__dict__.update(real.__dict__)
+            self.__loaded = True
 
-from .agent import CascadeAgent
+    def __getattr__(self, name: str):
+        self._load()
+        try:
+            return self.__dict__[name]
+        except KeyError:
+            raise AttributeError(
+                f"module {self.__name__!r} has no attribute {name!r}"
+            ) from None
 
-# MVP Speculative cascades with quality validation
-from .core.cascade import (
-    SpeculativeCascade,  # Legacy wrapper (for compatibility)
-    SpeculativeResult,  # Result object
-    WholeResponseCascade,  # NEW: MVP whole-response cascade
-)
 
-# Execution planning with domain detection
-from .core.execution import (
-    DomainDetector,
-    ExecutionPlan,
-    ExecutionStrategy,
-    LatencyAwareExecutionPlanner,
-    ModelScorer,
-)
-from .providers import PROVIDER_REGISTRY, BaseProvider, ModelResponse
+# Register backward-compat aliases (lazy — no import happens here).
+_COMPAT_ALIASES = {
+    "cascadeflow.exceptions": "cascadeflow.schema.exceptions",
+    "cascadeflow.result": "cascadeflow.schema.result",
+    "cascadeflow.config": "cascadeflow.schema.config",
+    "cascadeflow.core.config": "cascadeflow.schema.config",
+    "cascadeflow.execution": "cascadeflow.core.execution",
+    "cascadeflow.speculative": "cascadeflow.core.cascade",
+    "cascadeflow.cascade": "cascadeflow.core.cascade",
+}
+for _alias, _real in _COMPAT_ALIASES.items():
+    sys.modules[_alias] = _LazyModule(_alias, _real)
 
-# Quality validation (NEW in MVP)
-from .quality import (
-    AdaptiveThreshold,  # Adaptive threshold learning
-    ComparativeValidator,  # Optional comparative validation
-    QualityConfig,  # Quality configuration profiles
-    QualityValidator,  # Quality validation logic
-    ValidationResult,  # Validation result object
-)
+# ==================== EAGER IMPORTS ====================
+# Only the harness API is loaded eagerly — it uses only stdlib imports.
 
-# Original config classes
-from .schema.config import (
-    DEFAULT_TIERS,
-    EXAMPLE_WORKFLOWS,
-    CascadeConfig,
-    LatencyProfile,
-    ModelConfig,
-    OptimizationWeights,
-    UserTier,
-    WorkflowProfile,
-)
-
-# Domain configuration (v0.7.0)
-from .schema.domain_config import (
-    DomainConfig,
-    DomainValidationMethod,
-    BUILTIN_DOMAIN_CONFIGS,
-    create_domain_config,
-    get_builtin_domain_config,
-    DOMAIN_CODE,
-    DOMAIN_GENERAL,
-    DOMAIN_DATA,
-    DOMAIN_MEDICAL,
-    DOMAIN_LEGAL,
-    DOMAIN_MATH,
-    DOMAIN_STRUCTURED,
-)
-
-# Rule engine (v2.8)
-from .rules import (
-    RuleContext,
-    RuleDecision,
-    RuleEngine,
-)
-
-# Model registry (v0.7.0)
-from .schema.model_registry import (
-    ModelRegistry,
-    ModelRegistryEntry,
-    get_model,
-    has_model,
-    get_default_registry,
-)
-from .schema.exceptions import (
-    BudgetExceededError,
-    cascadeflowError,
-    ConfigError,
-    ModelError,
-    ProviderError,
-    QualityThresholdError,
-    RateLimitError,
-    RoutingError,
-    ValidationError,
-)
-from .schema.result import CascadeResult
-
-# Streaming support (Phase 2)
-from .streaming import (
-    StreamEvent,  # NEW: Event dataclass for streaming
-    StreamEventType,  # NEW: Event types for streaming
-    StreamManager,
-)
-
-# Utilities (now in utils/)
-# Smart presets for easy setup (now in utils/)
-# Response caching (now in utils/)
-from .utils import (
-    ResponseCache,
-    estimate_tokens,
-    format_cost,
-    setup_logging,
-)
-
-# NEW: Presets 2.0 - One-line agent initialization (WEEK 3 - Milestone 3.1)
-from .utils.presets import (
-    auto_agent,
-    get_balanced_agent,
-    get_cost_optimized_agent,
-    get_development_agent,
-    get_quality_optimized_agent,
-    get_speed_optimized_agent,
-)
-
-# NEW: Batch Processing (v0.2.1 - Milestone 1)
-from .core.batch_config import BatchConfig, BatchStrategy
-from .core.batch import BatchResult, BatchProcessingError
-
-# NEW: User Profile System (v0.2.1 - Milestone 3)
-from .profiles import (
-    TierConfig,
-    TierLevel,
-    TIER_PRESETS,
-    UserProfile,
-    UserProfileManager,
-)
-
-# NEW: Rate Limiting (v0.2.1 - Milestone 4)
-from .limits import (
-    RateLimiter,
-    RateLimitState,
-)
-
-# NEW: Guardrails (v0.2.1 - Milestone 5)
-from .guardrails import (
-    ContentModerator,
-    ModerationResult,
-    PIIDetector,
-    PIIMatch,
-    GuardrailsManager,
-    GuardrailViolation,
-)
-
-# NEW: Config File Loading (v0.7.0 - Architecture Alignment)
-from .config_loader import (
-    load_config,
-    load_agent,
-    load_default_agent,
-    create_agent_from_config,
-    find_config,
-    parse_model_config,
-    parse_domain_config,
-    EXAMPLE_YAML_CONFIG,
-    EXAMPLE_JSON_CONFIG,
-)
-
-# NEW: Resilience (v0.8.0 - Circuit Breaker)
-from .resilience import (
-    CircuitBreaker,
-    CircuitBreakerConfig,
-    CircuitBreakerRegistry,
-    CircuitState,
-    get_circuit_breaker,
-)
-
-# NEW: Dynamic Configuration (v0.8.0 - Runtime Config Updates)
-from .dynamic_config import (
-    ConfigManager,
-    ConfigChangeEvent,
-    ConfigSection,
-    ConfigWatcher,
-)
-
-# NEW: Tool Risk Classification (v0.8.0 - OSS-3 gap)
-from .routing import (
-    ToolRiskLevel,
-    ToolRiskClassification,
-    ToolRiskClassifier,
-    get_tool_risk_routing,
-)
-
-# NEW: Harness API scaffold (V2 core branch)
-# NOTE: harness.agent is NOT re-exported here — it would shadow the
-# cascadeflow.agent *module* and break dotted-path resolution
-# (e.g. patch("cascadeflow.agent.PROVIDER_REGISTRY")).
-# Use ``from cascadeflow.harness import agent`` instead.
-from .harness import (
+from .harness import (  # noqa: E402
     HarnessConfig,
     HarnessInitReport,
     HarnessRunContext,
@@ -251,176 +90,194 @@ from .harness import (
     set_harness_callback_manager,
 )
 
-# ==================== MAIN AGENT & RESULT ====================
+# ==================== LAZY IMPORTS (PEP 562) ====================
+# Everything else is loaded on first access to keep ``import cascadeflow`` fast.
+
+_LAZY_IMPORTS: dict[str, tuple[str, str]] = {
+    # Agent & result
+    "CascadeAgent": (".agent", "CascadeAgent"),
+    "CascadeResult": (".schema.result", "CascadeResult"),
+    # Providers
+    "BaseProvider": (".providers", "BaseProvider"),
+    "ModelResponse": (".providers", "ModelResponse"),
+    "PROVIDER_REGISTRY": (".providers", "PROVIDER_REGISTRY"),
+    # Schema — config
+    "ModelConfig": (".schema.config", "ModelConfig"),
+    "CascadeConfig": (".schema.config", "CascadeConfig"),
+    "UserTier": (".schema.config", "UserTier"),
+    "WorkflowProfile": (".schema.config", "WorkflowProfile"),
+    "LatencyProfile": (".schema.config", "LatencyProfile"),
+    "OptimizationWeights": (".schema.config", "OptimizationWeights"),
+    "DEFAULT_TIERS": (".schema.config", "DEFAULT_TIERS"),
+    "EXAMPLE_WORKFLOWS": (".schema.config", "EXAMPLE_WORKFLOWS"),
+    # Schema — domain config
+    "DomainConfig": (".schema.domain_config", "DomainConfig"),
+    "DomainValidationMethod": (".schema.domain_config", "DomainValidationMethod"),
+    "BUILTIN_DOMAIN_CONFIGS": (".schema.domain_config", "BUILTIN_DOMAIN_CONFIGS"),
+    "create_domain_config": (".schema.domain_config", "create_domain_config"),
+    "get_builtin_domain_config": (".schema.domain_config", "get_builtin_domain_config"),
+    "DOMAIN_CODE": (".schema.domain_config", "DOMAIN_CODE"),
+    "DOMAIN_GENERAL": (".schema.domain_config", "DOMAIN_GENERAL"),
+    "DOMAIN_DATA": (".schema.domain_config", "DOMAIN_DATA"),
+    "DOMAIN_MEDICAL": (".schema.domain_config", "DOMAIN_MEDICAL"),
+    "DOMAIN_LEGAL": (".schema.domain_config", "DOMAIN_LEGAL"),
+    "DOMAIN_MATH": (".schema.domain_config", "DOMAIN_MATH"),
+    "DOMAIN_STRUCTURED": (".schema.domain_config", "DOMAIN_STRUCTURED"),
+    # Schema — model registry
+    "ModelRegistry": (".schema.model_registry", "ModelRegistry"),
+    "ModelRegistryEntry": (".schema.model_registry", "ModelRegistryEntry"),
+    "get_model": (".schema.model_registry", "get_model"),
+    "has_model": (".schema.model_registry", "has_model"),
+    "get_default_registry": (".schema.model_registry", "get_default_registry"),
+    # Schema — exceptions
+    "cascadeflowError": (".schema.exceptions", "cascadeflowError"),
+    "ConfigError": (".schema.exceptions", "ConfigError"),
+    "ProviderError": (".schema.exceptions", "ProviderError"),
+    "ModelError": (".schema.exceptions", "ModelError"),
+    "BudgetExceededError": (".schema.exceptions", "BudgetExceededError"),
+    "RateLimitError": (".schema.exceptions", "RateLimitError"),
+    "QualityThresholdError": (".schema.exceptions", "QualityThresholdError"),
+    "RoutingError": (".schema.exceptions", "RoutingError"),
+    "ValidationError": (".schema.exceptions", "ValidationError"),
+    # Core — cascade
+    "WholeResponseCascade": (".core.cascade", "WholeResponseCascade"),
+    "SpeculativeCascade": (".core.cascade", "SpeculativeCascade"),
+    "SpeculativeResult": (".core.cascade", "SpeculativeResult"),
+    # Core — execution
+    "DomainDetector": (".core.execution", "DomainDetector"),
+    "ExecutionPlan": (".core.execution", "ExecutionPlan"),
+    "ExecutionStrategy": (".core.execution", "ExecutionStrategy"),
+    "LatencyAwareExecutionPlanner": (".core.execution", "LatencyAwareExecutionPlanner"),
+    "ModelScorer": (".core.execution", "ModelScorer"),
+    # Core — batch
+    "BatchConfig": (".core.batch_config", "BatchConfig"),
+    "BatchStrategy": (".core.batch_config", "BatchStrategy"),
+    "BatchResult": (".core.batch", "BatchResult"),
+    "BatchProcessingError": (".core.batch", "BatchProcessingError"),
+    # Quality
+    "ComplexityDetector": (".quality.complexity", "ComplexityDetector"),
+    "QueryComplexity": (".quality.complexity", "QueryComplexity"),
+    "QualityConfig": (".quality", "QualityConfig"),
+    "QualityValidator": (".quality", "QualityValidator"),
+    "ValidationResult": (".quality", "ValidationResult"),
+    "ComparativeValidator": (".quality", "ComparativeValidator"),
+    "AdaptiveThreshold": (".quality", "AdaptiveThreshold"),
+    # Streaming
+    "StreamManager": (".streaming", "StreamManager"),
+    "StreamEventType": (".streaming", "StreamEventType"),
+    "StreamEvent": (".streaming", "StreamEvent"),
+    # Interface
+    "VisualIndicator": (".interface.visual_consumer", "VisualIndicator"),
+    "TerminalVisualConsumer": (".interface.visual_consumer", "TerminalVisualConsumer"),
+    "SilentConsumer": (".interface.visual_consumer", "SilentConsumer"),
+    # Telemetry
+    "CallbackManager": (".telemetry.callbacks", "CallbackManager"),
+    "CallbackEvent": (".telemetry.callbacks", "CallbackEvent"),
+    "CallbackData": (".telemetry.callbacks", "CallbackData"),
+    # Utils
+    "ResponseCache": (".utils", "ResponseCache"),
+    "estimate_tokens": (".utils", "estimate_tokens"),
+    "format_cost": (".utils", "format_cost"),
+    "setup_logging": (".utils", "setup_logging"),
+    # Presets
+    "auto_agent": (".utils.presets", "auto_agent"),
+    "get_balanced_agent": (".utils.presets", "get_balanced_agent"),
+    "get_cost_optimized_agent": (".utils.presets", "get_cost_optimized_agent"),
+    "get_development_agent": (".utils.presets", "get_development_agent"),
+    "get_quality_optimized_agent": (".utils.presets", "get_quality_optimized_agent"),
+    "get_speed_optimized_agent": (".utils.presets", "get_speed_optimized_agent"),
+    # Profiles
+    "TierConfig": (".profiles", "TierConfig"),
+    "TierLevel": (".profiles", "TierLevel"),
+    "TIER_PRESETS": (".profiles", "TIER_PRESETS"),
+    "UserProfile": (".profiles", "UserProfile"),
+    "UserProfileManager": (".profiles", "UserProfileManager"),
+    # Rate limiting
+    "RateLimiter": (".limits", "RateLimiter"),
+    "RateLimitState": (".limits", "RateLimitState"),
+    # Guardrails
+    "ContentModerator": (".guardrails", "ContentModerator"),
+    "ModerationResult": (".guardrails", "ModerationResult"),
+    "PIIDetector": (".guardrails", "PIIDetector"),
+    "PIIMatch": (".guardrails", "PIIMatch"),
+    "GuardrailsManager": (".guardrails", "GuardrailsManager"),
+    "GuardrailViolation": (".guardrails", "GuardrailViolation"),
+    # Config loader
+    "load_config": (".config_loader", "load_config"),
+    "load_agent": (".config_loader", "load_agent"),
+    "load_default_agent": (".config_loader", "load_default_agent"),
+    "create_agent_from_config": (".config_loader", "create_agent_from_config"),
+    "find_config": (".config_loader", "find_config"),
+    "parse_model_config": (".config_loader", "parse_model_config"),
+    "parse_domain_config": (".config_loader", "parse_domain_config"),
+    "EXAMPLE_YAML_CONFIG": (".config_loader", "EXAMPLE_YAML_CONFIG"),
+    "EXAMPLE_JSON_CONFIG": (".config_loader", "EXAMPLE_JSON_CONFIG"),
+    # Resilience
+    "CircuitBreaker": (".resilience", "CircuitBreaker"),
+    "CircuitBreakerConfig": (".resilience", "CircuitBreakerConfig"),
+    "CircuitBreakerRegistry": (".resilience", "CircuitBreakerRegistry"),
+    "CircuitState": (".resilience", "CircuitState"),
+    "get_circuit_breaker": (".resilience", "get_circuit_breaker"),
+    # Dynamic config
+    "ConfigManager": (".dynamic_config", "ConfigManager"),
+    "ConfigChangeEvent": (".dynamic_config", "ConfigChangeEvent"),
+    "ConfigSection": (".dynamic_config", "ConfigSection"),
+    "ConfigWatcher": (".dynamic_config", "ConfigWatcher"),
+    # Rules
+    "RuleContext": (".rules", "RuleContext"),
+    "RuleDecision": (".rules", "RuleDecision"),
+    "RuleEngine": (".rules", "RuleEngine"),
+    # Tool risk
+    "ToolRiskLevel": (".routing", "ToolRiskLevel"),
+    "ToolRiskClassification": (".routing", "ToolRiskClassification"),
+    "ToolRiskClassifier": (".routing", "ToolRiskClassifier"),
+    "get_tool_risk_routing": (".routing", "get_tool_risk_routing"),
+}
 
 
-# ==================== INTELLIGENCE LAYER ====================
+def __getattr__(name: str):
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        import importlib
+
+        module = importlib.import_module(module_path, __package__)
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-# ==================== SUPPORTING FEATURES ====================
-
-
-# ==================== PROVIDERS ====================
-
-
-# ==================== UTILITIES ====================
-
-
-# ==================== EXCEPTIONS ====================
+def __dir__():
+    return list(__all__) + list(_LAZY_IMPORTS)
 
 
 # ==================== EXPORTS ====================
+# Reduced to essential public API symbols. All lazy-loaded symbols
+# remain accessible via attribute access but are not star-exported.
 
 __all__ = [
-    # Version info
+    # Version
     "__version__",
-    "__author__",
-    "__license__",
-    # ===== CORE CONFIGURATION =====
-    "ModelConfig",
-    "CascadeConfig",
-    "UserTier",
-    "WorkflowProfile",
-    "LatencyProfile",
-    "OptimizationWeights",
-    "DEFAULT_TIERS",
-    "EXAMPLE_WORKFLOWS",
-    # ===== DOMAIN CONFIGURATION (v0.7.0) =====
-    "DomainConfig",
-    "DomainValidationMethod",
-    "BUILTIN_DOMAIN_CONFIGS",
-    "create_domain_config",
-    "get_builtin_domain_config",
-    "DOMAIN_CODE",
-    "DOMAIN_GENERAL",
-    "DOMAIN_DATA",
-    "DOMAIN_MEDICAL",
-    "DOMAIN_LEGAL",
-    "DOMAIN_MATH",
-    "DOMAIN_STRUCTURED",
-    # ===== MODEL REGISTRY (v0.7.0) =====
-    "ModelRegistry",
-    "ModelRegistryEntry",
-    "get_model",
-    "has_model",
-    "get_default_registry",
-    # ===== MAIN AGENT & RESULT =====
-    "CascadeAgent",
-    "CascadeResult",
-    # ===== INTELLIGENCE LAYER =====
-    # Complexity detection
-    "ComplexityDetector",
-    "QueryComplexity",
-    # Execution planning
-    "DomainDetector",
-    "ModelScorer",
-    "LatencyAwareExecutionPlanner",
-    "ExecutionStrategy",
-    "ExecutionPlan",
-    # MVP Speculative cascades
-    "WholeResponseCascade",  # NEW: MVP cascade
-    "SpeculativeCascade",  # Legacy wrapper
-    "SpeculativeResult",
-    # Quality validation (NEW)
-    "QualityConfig",  # NEW
-    "QualityValidator",  # NEW
-    "ValidationResult",  # NEW
-    "ComparativeValidator",  # NEW
-    "AdaptiveThreshold",  # NEW
-    # ===== SUPPORTING FEATURES =====
-    "CallbackManager",
-    "CallbackEvent",
-    "CallbackData",
-    "ResponseCache",
-    "StreamManager",
-    "StreamEventType",  # NEW: Phase 2
-    "StreamEvent",  # NEW: Phase 2
-    "VisualIndicator",  # NEW: Phase 3
-    "TerminalVisualConsumer",  # NEW: Phase 3
-    "SilentConsumer",  # NEW: Phase 3
-    # Presets 2.0 (WEEK 3 - Milestone 3.1)
-    "get_cost_optimized_agent",  # NEW: v0.2.0 - One-line cost optimized setup
-    "get_balanced_agent",  # NEW: v0.2.0 - One-line balanced setup
-    "get_speed_optimized_agent",  # NEW: v0.2.0 - One-line speed optimized setup
-    "get_quality_optimized_agent",  # NEW: v0.2.0 - One-line quality optimized setup
-    "get_development_agent",  # NEW: v0.2.0 - One-line development setup
-    "auto_agent",  # NEW: v0.2.0 - Helper to select preset by name
-    # Batch Processing (v0.2.1 - Milestone 1)
-    "BatchConfig",  # NEW: v0.2.1 - Batch configuration
-    "BatchStrategy",  # NEW: v0.2.1 - Batch strategy enum
-    "BatchResult",  # NEW: v0.2.1 - Batch result with statistics
-    "BatchProcessingError",  # NEW: v0.2.1 - Batch processing exception
-    # User Profile System (v0.2.1 - Milestone 3)
-    "TierConfig",  # NEW: v0.2.1 - Tier configuration
-    "TierLevel",  # NEW: v0.2.1 - Tier level enum (FREE, STARTER, PRO, BUSINESS, ENTERPRISE)
-    "TIER_PRESETS",  # NEW: v0.2.1 - Predefined tier configurations
-    "UserProfile",  # NEW: v0.2.1 - Multi-dimensional user profile
-    "UserProfileManager",  # NEW: v0.2.1 - Profile manager for scaling
-    # Rate Limiting (v0.2.1 - Milestone 4)
-    "RateLimiter",  # NEW: v0.2.1 - Sliding window rate limiter
-    "RateLimitState",  # NEW: v0.2.1 - Rate limit state tracking
-    "RateLimitError",  # NEW: v0.2.1 - Rate limit exception
-    # Guardrails (v0.2.1 - Milestone 5)
-    "ContentModerator",  # NEW: v0.2.1 - Content moderation
-    "ModerationResult",  # NEW: v0.2.1 - Moderation result
-    "PIIDetector",  # NEW: v0.2.1 - PII detection
-    "PIIMatch",  # NEW: v0.2.1 - PII match
-    "GuardrailsManager",  # NEW: v0.2.1 - Centralized guardrails
-    "GuardrailViolation",  # NEW: v0.2.1 - Guardrail violation exception
-    # Config File Loading (v0.7.0 - Architecture Alignment)
-    "load_config",  # NEW: v0.7.0 - Load YAML/JSON config
-    "load_agent",  # NEW: v0.7.0 - Load config and create agent
-    "load_default_agent",  # NEW: v0.7.0 - Load from default locations
-    "create_agent_from_config",  # NEW: v0.7.0 - Create agent from config dict
-    "find_config",  # NEW: v0.7.0 - Find config in standard locations
-    "parse_model_config",  # NEW: v0.7.0 - Parse model config dict
-    "parse_domain_config",  # NEW: v0.7.0 - Parse domain config dict
-    "EXAMPLE_YAML_CONFIG",  # NEW: v0.7.0 - Example YAML config string
-    "EXAMPLE_JSON_CONFIG",  # NEW: v0.7.0 - Example JSON config string
-    # ===== RESILIENCE (v0.8.0) =====
-    "CircuitBreaker",  # NEW: v0.8.0 - Circuit breaker pattern
-    "CircuitBreakerConfig",  # NEW: v0.8.0 - Circuit breaker configuration
-    "CircuitBreakerRegistry",  # NEW: v0.8.0 - Per-provider circuit tracking
-    "CircuitState",  # NEW: v0.8.0 - Circuit state enum
-    "get_circuit_breaker",  # NEW: v0.8.0 - Get circuit breaker for provider
-    # ===== DYNAMIC CONFIG (v0.8.0) =====
-    "ConfigManager",  # NEW: v0.8.0 - Runtime config management
-    "ConfigChangeEvent",  # NEW: v0.8.0 - Config change event
-    "ConfigSection",  # NEW: v0.8.0 - Config section enum
-    "ConfigWatcher",  # NEW: v0.8.0 - File watcher for auto-reload
-    # ===== TOOL RISK (v0.8.0 - OSS-3 gap) =====
-    "ToolRiskLevel",  # NEW: v0.8.0 - Tool risk level enum
-    "ToolRiskClassification",  # NEW: v0.8.0 - Classification result
-    "ToolRiskClassifier",  # NEW: v0.8.0 - Tool risk classifier
-    "get_tool_risk_routing",  # NEW: v0.8.0 - Routing by risk level
-    # ===== HARNESS API (V2 scaffold) =====
-    "HarnessConfig",
-    "HarnessInitReport",
-    "HarnessRunContext",
+    # Harness API (primary surface)
     "init",
-    "reset",
     "run",
+    "reset",
+    "HarnessConfig",
+    "HarnessRunContext",
+    "HarnessInitReport",
     "harness_agent",
     "get_harness_config",
     "get_current_run",
-    "get_harness_callback_manager",
-    "set_harness_callback_manager",
-    # ===== PROVIDERS =====
-    "ModelResponse",
+    # Agent & config
+    "CascadeAgent",
+    "ModelConfig",
+    "CascadeConfig",
+    "CascadeResult",
+    # Providers
     "BaseProvider",
+    "ModelResponse",
     "PROVIDER_REGISTRY",
-    # ===== UTILITIES =====
-    "setup_logging",
-    "format_cost",
-    "estimate_tokens",
-    # ===== EXCEPTIONS =====
+    # Exceptions
     "cascadeflowError",
-    "ConfigError",
-    "ProviderError",
-    "ModelError",
     "BudgetExceededError",
-    "RateLimitError",
-    "QualityThresholdError",
-    "RoutingError",
-    "ValidationError",
 ]
