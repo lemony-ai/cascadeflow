@@ -20,7 +20,7 @@ Key APIs:
 Integrations: LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI SDK
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Lemony Inc."
 __license__ = "MIT"
 
