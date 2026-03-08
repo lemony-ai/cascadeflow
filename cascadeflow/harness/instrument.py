@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -47,6 +48,7 @@ logger = logging.getLogger("cascadeflow.harness.instrument")
 # Module-level state for idempotent patch/unpatch
 # ---------------------------------------------------------------------------
 
+_patch_lock = threading.Lock()
 _openai_patched: bool = False
 _original_sync_create: Any = None
 _original_async_create: Any = None
@@ -1170,116 +1172,120 @@ def patch_openai() -> bool:
     """Patch the OpenAI Python client for harness instrumentation.
 
     Returns ``True`` if patching succeeded, ``False`` if openai is not
-    installed.  Idempotent: safe to call multiple times.
+    installed.  Idempotent and thread-safe.
     """
     global _openai_patched, _original_sync_create, _original_async_create
 
-    if _openai_patched:
-        logger.debug("openai already patched, skipping")
+    with _patch_lock:
+        if _openai_patched:
+            logger.debug("openai already patched, skipping")
+            return True
+
+        try:
+            from openai.resources.chat.completions import AsyncCompletions, Completions
+        except ImportError:
+            logger.debug("openai package not available, skipping instrumentation")
+            return False
+
+        _original_sync_create = Completions.create
+        _original_async_create = AsyncCompletions.create
+
+        Completions.create = _make_patched_create(_original_sync_create)  # type: ignore[assignment]
+        AsyncCompletions.create = _make_patched_async_create(  # type: ignore[assignment]
+            _original_async_create,
+        )
+
+        _openai_patched = True
+        logger.info("openai client instrumented (sync + async)")
         return True
-
-    try:
-        from openai.resources.chat.completions import AsyncCompletions, Completions
-    except ImportError:
-        logger.debug("openai package not available, skipping instrumentation")
-        return False
-
-    _original_sync_create = Completions.create
-    _original_async_create = AsyncCompletions.create
-
-    Completions.create = _make_patched_create(_original_sync_create)  # type: ignore[assignment]
-    AsyncCompletions.create = _make_patched_async_create(  # type: ignore[assignment]
-        _original_async_create,
-    )
-
-    _openai_patched = True
-    logger.info("openai client instrumented (sync + async)")
-    return True
 
 
 def patch_anthropic() -> bool:
     """Patch the Anthropic Python client for harness instrumentation.
 
     Returns ``True`` if patching succeeded, ``False`` if anthropic is not
-    installed. Idempotent: safe to call multiple times.
+    installed.  Idempotent and thread-safe.
     """
     global _anthropic_patched, _original_anthropic_sync_create, _original_anthropic_async_create
 
-    if _anthropic_patched:
-        logger.debug("anthropic already patched, skipping")
+    with _patch_lock:
+        if _anthropic_patched:
+            logger.debug("anthropic already patched, skipping")
+            return True
+
+        try:
+            from anthropic.resources.messages import AsyncMessages, Messages
+        except ImportError:
+            logger.debug("anthropic package not available, skipping instrumentation")
+            return False
+
+        _original_anthropic_sync_create = Messages.create
+        _original_anthropic_async_create = AsyncMessages.create
+
+        Messages.create = _make_patched_anthropic_create(_original_anthropic_sync_create)  # type: ignore[assignment]
+        AsyncMessages.create = _make_patched_anthropic_async_create(  # type: ignore[assignment]
+            _original_anthropic_async_create,
+        )
+
+        _anthropic_patched = True
+        logger.info("anthropic client instrumented (sync + async)")
         return True
-
-    try:
-        from anthropic.resources.messages import AsyncMessages, Messages
-    except ImportError:
-        logger.debug("anthropic package not available, skipping instrumentation")
-        return False
-
-    _original_anthropic_sync_create = Messages.create
-    _original_anthropic_async_create = AsyncMessages.create
-
-    Messages.create = _make_patched_anthropic_create(_original_anthropic_sync_create)  # type: ignore[assignment]
-    AsyncMessages.create = _make_patched_anthropic_async_create(  # type: ignore[assignment]
-        _original_anthropic_async_create,
-    )
-
-    _anthropic_patched = True
-    logger.info("anthropic client instrumented (sync + async)")
-    return True
 
 
 def unpatch_openai() -> None:
     """Restore original OpenAI client methods.
 
-    Safe to call even if not patched.  Used by ``reset()`` and tests.
+    Safe to call even if not patched.  Thread-safe.
     """
     global _openai_patched, _original_sync_create, _original_async_create
 
-    if not _openai_patched:
-        return
+    with _patch_lock:
+        if not _openai_patched:
+            return
 
-    try:
-        from openai.resources.chat.completions import AsyncCompletions, Completions
-    except ImportError:
+        try:
+            from openai.resources.chat.completions import AsyncCompletions, Completions
+        except ImportError:
+            _openai_patched = False
+            return
+
+        if _original_sync_create is not None:
+            Completions.create = _original_sync_create  # type: ignore[assignment]
+        if _original_async_create is not None:
+            AsyncCompletions.create = _original_async_create  # type: ignore[assignment]
+
+        _original_sync_create = None
+        _original_async_create = None
         _openai_patched = False
-        return
-
-    if _original_sync_create is not None:
-        Completions.create = _original_sync_create  # type: ignore[assignment]
-    if _original_async_create is not None:
-        AsyncCompletions.create = _original_async_create  # type: ignore[assignment]
-
-    _original_sync_create = None
-    _original_async_create = None
-    _openai_patched = False
-    logger.info("openai client unpatched")
+        logger.info("openai client unpatched")
 
 
 def unpatch_anthropic() -> None:
     """Restore original Anthropic client methods.
 
-    Safe to call even if not patched. Used by ``reset()`` and tests.
+    Safe to call even if not patched.  Thread-safe.
     """
     global _anthropic_patched, _original_anthropic_sync_create, _original_anthropic_async_create
 
-    if not _anthropic_patched:
-        return
+    with _patch_lock:
+        if not _anthropic_patched:
+            return
 
-    try:
-        from anthropic.resources.messages import AsyncMessages, Messages
-    except ImportError:
+        try:
+            from anthropic.resources.messages import AsyncMessages, Messages
+        except ImportError:
+            _anthropic_patched = False
+            return
+
+        if _original_anthropic_sync_create is not None:
+            Messages.create = _original_anthropic_sync_create  # type: ignore[assignment]
+        if _original_anthropic_async_create is not None:
+            AsyncMessages.create = _original_anthropic_async_create  # type: ignore[assignment]
+
+        _original_anthropic_sync_create = None
+        _original_anthropic_async_create = None
         _anthropic_patched = False
-        return
-
-    if _original_anthropic_sync_create is not None:
-        Messages.create = _original_anthropic_sync_create  # type: ignore[assignment]
-    if _original_anthropic_async_create is not None:
-        AsyncMessages.create = _original_anthropic_async_create  # type: ignore[assignment]
-
-    _original_anthropic_sync_create = None
-    _original_anthropic_async_create = None
-    _anthropic_patched = False
-    logger.info("anthropic client unpatched")
+        logger.info("anthropic client unpatched")
 
 
 def is_openai_patched() -> bool:
