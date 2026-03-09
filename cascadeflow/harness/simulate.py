@@ -26,7 +26,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 logger = logging.getLogger(__name__)
 
@@ -181,10 +181,10 @@ def simulate(
             try:
                 domain_result = detector.detect(query)
                 if isinstance(domain_result, tuple):
-                    domain_str = str(domain_result[0])
+                    domain_str = getattr(domain_result[0], "value", str(domain_result[0]))
                     domain_conf = float(domain_result[1]) if len(domain_result) > 1 else 0.0
                 elif hasattr(domain_result, "domain"):
-                    domain_str = str(domain_result.domain)
+                    domain_str = getattr(domain_result.domain, "value", str(domain_result.domain))
                     domain_conf = getattr(domain_result, "confidence", 0.0)
             except Exception:
                 pass
@@ -230,7 +230,11 @@ def simulate(
 
 
 def _load_queries(queries: Union[list[str], str, Path]) -> list[str]:
-    """Load queries from a list, file path, or JSONL file."""
+    """Load queries from a list, file path, or JSONL file.
+
+    Supports plain text files, JSONL with ``{"query": "..."}`` entries,
+    and session trace files exported by ``HarnessRunContext.save()``.
+    """
     if isinstance(queries, list):
         return queries
 
@@ -247,7 +251,13 @@ def _load_queries(queries: Union[list[str], str, Path]) -> list[str]:
             try:
                 data = json.loads(line)
                 if isinstance(data, dict) and "query" in data:
-                    result.append(data["query"])
+                    value = data["query"]
+                    if isinstance(value, str):
+                        result.append(value)
+                    else:
+                        logger.warning(
+                            "Skipping non-string query value: %s", type(value).__name__
+                        )
                 elif isinstance(data, str):
                     result.append(data)
             except json.JSONDecodeError:

@@ -204,3 +204,33 @@ class TestSimulate:
         )
         assert result.total_queries == 1
         assert result.per_query[0].domain == "general"
+
+    def test_simulate_from_session_save(self, tmp_path):
+        """End-to-end: record with query -> save -> load -> simulate."""
+        models = self._make_models()
+        ctx = HarnessRunContext(mode="observe")
+        ctx._increment(cost=0.01, steps=1, latency_ms=50.0)
+        ctx.record("allow", "observe", model="gpt-4o-mini", query="What is Python?")
+        ctx._increment(cost=0.05, steps=1, latency_ms=200.0)
+        ctx.record("allow", "observe", model="gpt-4o", query="Prove the Riemann hypothesis")
+
+        path = ctx.save(tmp_path / "session.jsonl")
+        result = simulate(queries=path, models=models)
+
+        assert result.total_queries == 2
+        assert result.projected_cost > 0
+        assert len(result.per_query) == 2
+        assert result.per_query[0].query == "What is Python?"
+        assert result.per_query[1].query.startswith("Prove the Riemann")
+
+    def test_simulate_rejects_non_string_query(self, tmp_path):
+        """Non-string query values in JSONL are skipped, not crashed on."""
+        models = self._make_models()
+        jsonl_path = tmp_path / "bad_queries.jsonl"
+        with open(jsonl_path, "w") as f:
+            f.write(json.dumps({"query": "valid query"}) + "\n")
+            f.write(json.dumps({"query": {"nested": "dict"}}) + "\n")
+            f.write(json.dumps({"query": "another valid"}) + "\n")
+
+        result = simulate(queries=jsonl_path, models=models)
+        assert result.total_queries == 2
