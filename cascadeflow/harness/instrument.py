@@ -417,10 +417,12 @@ def _resolve_pre_call_decision(
 
     if mode == "enforce":
         if action == "stop":
+            query = _extract_last_user_message(kwargs)
             ctx.record(
                 action="stop",
                 reason=reason,
                 model=model,
+                query=query,
                 applied=True,
                 decision_mode=mode,
             )
@@ -465,6 +467,7 @@ def _update_context(
     action_model: str | None = None,
     applied: bool | None = None,
     decision_mode: str | None = None,
+    query: str | None = None,
 ) -> None:
     """Update a HarnessRunContext with call metrics."""
     cost = _estimate_cost(model, prompt_tokens, completion_tokens)
@@ -488,6 +491,7 @@ def _update_context(
             action="allow",
             reason=ctx.mode,
             model=model,
+            query=query,
             applied=applied,
             decision_mode=decision_mode,
         )
@@ -497,6 +501,7 @@ def _update_context(
         action=action,
         reason=action_reason or ctx.mode,
         model=action_model or model,
+        query=query,
         applied=applied,
         decision_mode=decision_mode,
     )
@@ -520,6 +525,7 @@ class _InstrumentedStreamBase:
         "_pre_model",
         "_pre_applied",
         "_decision_mode",
+        "_query",
         "_usage",
         "_tool_call_count",
         "_finalized",
@@ -536,6 +542,7 @@ class _InstrumentedStreamBase:
         pre_model: str | None = None,
         pre_applied: bool = True,
         decision_mode: str = "observe",
+        query: str | None = None,
     ) -> None:
         self._stream = stream
         self._ctx = ctx
@@ -546,6 +553,7 @@ class _InstrumentedStreamBase:
         self._pre_model = pre_model or model
         self._pre_applied = pre_applied
         self._decision_mode = decision_mode
+        self._query = query
         self._usage: Any = None
         self._tool_call_count: int = 0
         self._finalized: bool = False
@@ -603,6 +611,7 @@ class _InstrumentedStreamBase:
             action_model=self._pre_model,
             applied=self._pre_applied,
             decision_mode=self._decision_mode,
+            query=self._query,
         )
 
 
@@ -853,6 +862,27 @@ class _CallInterceptionState:
     pre_applied: bool
     is_stream: bool
     start_time: float
+    query: str | None = None
+
+
+def _extract_last_user_message(kwargs: dict[str, Any]) -> str | None:
+    """Extract the last user message text from API call kwargs."""
+    messages = kwargs.get("messages")
+    if not messages:
+        return None
+    for msg in reversed(messages):
+        if not isinstance(msg, dict):
+            continue
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content")
+        if isinstance(content, str):
+            return content[:500]
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    return str(part.get("text", ""))[:500]
+    return None
 
 
 def _prepare_call_interception(
@@ -878,6 +908,8 @@ def _prepare_call_interception(
     is_stream: bool = bool(kwargs.get("stream", False))
     kwargs = _ensure_stream_usage(kwargs)
 
+    query = _extract_last_user_message(kwargs)
+
     return _CallInterceptionState(
         kwargs=kwargs,
         model=model,
@@ -887,6 +919,7 @@ def _prepare_call_interception(
         pre_applied=pre_applied,
         is_stream=is_stream,
         start_time=time.monotonic(),
+        query=query,
     )
 
 
@@ -909,6 +942,7 @@ def _finalize_interception(
             state.pre_model,
             state.pre_applied,
             mode,
+            state.query,
         )
 
     if (not state.is_stream) and ctx:
@@ -927,6 +961,7 @@ def _finalize_interception(
             action_model=state.pre_model,
             applied=state.pre_applied,
             decision_mode=mode,
+            query=state.query,
         )
     else:
         logger.debug(
@@ -1041,6 +1076,7 @@ def _make_patched_anthropic_create(original_fn: Any) -> Any:
             )
 
         is_stream = bool(kwargs.get("stream", False))
+        query = _extract_last_user_message(kwargs)
         start_time = time.monotonic()
         response = original_fn(self, *args, **kwargs)
 
@@ -1063,6 +1099,7 @@ def _make_patched_anthropic_create(original_fn: Any) -> Any:
                 pre_model,
                 pre_applied,
                 mode,
+                query,
             )
 
         elapsed_ms = (time.monotonic() - start_time) * 1000
@@ -1080,6 +1117,7 @@ def _make_patched_anthropic_create(original_fn: Any) -> Any:
             action_model=pre_model,
             applied=pre_applied,
             decision_mode=mode,
+            query=query,
         )
         return response
 
@@ -1117,6 +1155,7 @@ def _make_patched_anthropic_async_create(original_fn: Any) -> Any:
             )
 
         is_stream = bool(kwargs.get("stream", False))
+        query = _extract_last_user_message(kwargs)
         start_time = time.monotonic()
         response = await original_fn(self, *args, **kwargs)
 
@@ -1139,6 +1178,7 @@ def _make_patched_anthropic_async_create(original_fn: Any) -> Any:
                 pre_model,
                 pre_applied,
                 mode,
+                query,
             )
 
         elapsed_ms = (time.monotonic() - start_time) * 1000
@@ -1156,6 +1196,7 @@ def _make_patched_anthropic_async_create(original_fn: Any) -> Any:
             action_model=pre_model,
             applied=pre_applied,
             decision_mode=mode,
+            query=query,
         )
         return response
 
