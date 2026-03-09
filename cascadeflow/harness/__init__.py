@@ -22,14 +22,18 @@ from .api import (
     run,
     set_harness_callback_manager,
 )
+from .simulate import SimulationEntry, SimulationResult, simulate
 
 __all__ = [
     "HarnessConfig",
     "HarnessInitReport",
     "HarnessRunContext",
+    "SimulationEntry",
+    "SimulationResult",
     "init",
     "run",
     "agent",
+    "simulate",
     "get_current_run",
     "get_harness_callback_manager",
     "get_harness_config",

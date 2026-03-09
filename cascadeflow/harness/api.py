@@ -167,12 +167,73 @@ class HarnessRunContext:
             self.budget_remaining,
         )
 
+    def save(self, path: str | Path) -> Path:
+        """
+        Export session trace and summary to a JSONL file for offline analysis.
+
+        Each line is a JSON object. The first line contains the session summary
+        (run_id, config, totals). Subsequent lines are individual trace entries.
+
+        Args:
+            path: File path to write. Parent directories are created if needed.
+
+        Returns:
+            The resolved Path where the file was written.
+        """
+        dest = Path(path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with open(dest, "w") as f:
+            header = {
+                "_type": "session",
+                "run_id": self.run_id,
+                "mode": self.mode,
+                "started_at_ms": self.started_at_ms,
+                "ended_at_ms": self.ended_at_ms,
+                "duration_ms": self.duration_ms,
+                "summary": self.summary(),
+            }
+            f.write(json.dumps(header) + "\n")
+            for entry in self._trace:
+                row = {"_type": "trace", **entry}
+                f.write(json.dumps(row) + "\n")
+        logger.info("session saved to %s (%d trace entries)", dest, len(self._trace))
+        return dest
+
+    @staticmethod
+    def load(path: str | Path) -> dict[str, Any]:
+        """
+        Load a saved session file.
+
+        Returns:
+            Dict with "session" (header/summary) and "traces" (list of entries).
+        """
+        p = Path(path)
+        if not p.exists():
+            raise FileNotFoundError(f"Session file not found: {p}")
+
+        session_header: Optional[dict[str, Any]] = None
+        traces: list[dict[str, Any]] = []
+        with open(p) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                data = json.loads(line)
+                if data.get("_type") == "session":
+                    session_header = data
+                elif data.get("_type") == "trace":
+                    traces.append(data)
+                else:
+                    traces.append(data)
+        return {"session": session_header, "traces": traces}
+
     def record(
         self,
         action: str,
         reason: str,
         model: Optional[str] = None,
         *,
+        query: Optional[str] = None,
         applied: Optional[bool] = None,
         decision_mode: Optional[str] = None,
     ) -> None:
@@ -205,6 +266,10 @@ class HarnessRunContext:
                     "remaining": self.budget_remaining,
                 },
             }
+            if query is not None:
+                safe_query = _sanitize_trace_value(query, max_length=500)
+                if safe_query:
+                    entry["query"] = safe_query
             if applied is not None:
                 entry["applied"] = applied
             if decision_mode is not None:

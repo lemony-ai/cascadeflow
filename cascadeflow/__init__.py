@@ -227,6 +227,10 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "RuleContext": (".rules", "RuleContext"),
     "RuleDecision": (".rules", "RuleDecision"),
     "RuleEngine": (".rules", "RuleEngine"),
+    # Simulation
+    "simulate": (".harness.simulate", "simulate"),
+    "SimulationResult": (".harness.simulate", "SimulationResult"),
+    "SimulationEntry": (".harness.simulate", "SimulationEntry"),
     # Tool risk
     "ToolRiskLevel": (".routing", "ToolRiskLevel"),
     "ToolRiskClassification": (".routing", "ToolRiskClassification"),
@@ -262,6 +266,9 @@ __all__ = [
     "init",
     "run",
     "reset",
+    "simulate",
+    "SimulationResult",
+    "SimulationEntry",
     "HarnessConfig",
     "HarnessRunContext",
     "HarnessInitReport",
