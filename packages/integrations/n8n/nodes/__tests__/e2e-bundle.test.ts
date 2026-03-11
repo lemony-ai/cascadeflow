@@ -46,14 +46,12 @@ describe('Bundle integrity', () => {
   });
 
   it('LmChatCascadeFlow bundle exports expected classes', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require(lmChatBundle);
     expect(mod.LmChatCascadeFlow).toBeDefined();
     expect(mod.CascadeChatModel).toBeDefined();
   });
 
   it('CascadeFlowAgent bundle exports expected classes', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require(agentBundle);
     expect(mod.CascadeFlowAgent).toBeDefined();
     expect(mod.CascadeFlowAgentExecutor).toBeDefined();
