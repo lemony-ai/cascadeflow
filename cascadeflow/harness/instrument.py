@@ -692,6 +692,7 @@ class _InstrumentedAnthropicStreamBase:
         "_pre_model",
         "_pre_applied",
         "_decision_mode",
+        "_query",
         "_input_tokens",
         "_output_tokens",
         "_tool_call_count",
@@ -709,6 +710,7 @@ class _InstrumentedAnthropicStreamBase:
         pre_model: str | None = None,
         pre_applied: bool = True,
         decision_mode: str = "observe",
+        query: str | None = None,
     ) -> None:
         self._stream = stream
         self._ctx = ctx
@@ -719,6 +721,7 @@ class _InstrumentedAnthropicStreamBase:
         self._pre_model = pre_model or model
         self._pre_applied = pre_applied
         self._decision_mode = decision_mode
+        self._query = query
         self._input_tokens: int = 0
         self._output_tokens: int = 0
         self._tool_call_count: int = 0
@@ -780,6 +783,7 @@ class _InstrumentedAnthropicStreamBase:
             action_model=self._pre_model,
             applied=self._pre_applied,
             decision_mode=self._decision_mode,
+            query=self._query,
         )
 
 
