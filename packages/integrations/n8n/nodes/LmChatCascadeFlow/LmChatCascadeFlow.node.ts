@@ -7,24 +7,38 @@ import type {
 
 import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
-import { BaseMessage } from '@langchain/core/messages';
-import { ChatResult, ChatGeneration, ChatGenerationChunk } from '@langchain/core/outputs';
-
 import {
-  DEFAULT_COMPLEXITY_THRESHOLDS,
-  DOMAIN_DESCRIPTIONS,
-  DOMAIN_DISPLAY_NAMES,
-  DOMAIN_UI_CONFIGS,
-  DOMAINS,
-  type ComplexityThresholds,
-  type DomainType,
-  getEnabledDomains,
-} from './config';
-import { buildCascadeMetadata } from './cascade-metadata';
-import { estimateCost as harnessEstimateCost } from '../harness/pricing';
-import type { HarnessRunContext } from '../harness/harness';
+  BaseChatModel,
+  supplyModel,
+  type ChatModelConfig,
+  type GenerateResult,
+  type Message,
+  type StreamChunk,
+} from '@n8n/ai-node-sdk';
+
+type BaseMessage = any;
+type CallbackManagerForLLMRun = any;
+type ChatGeneration = any;
+type ChatResult = { generations: Array<{ text: string; message: any }> };
+
+type ConnectedModel = {
+  invoke: (messages: any, options?: any) => Promise<any>;
+  stream?: (messages: any, options?: any) => Promise<any> | AsyncIterable<any>;
+  _llmType?: () => string;
+  modelName?: string;
+  model?: string;
+};
+
+class ChatGenerationChunk {
+  text: string;
+  message: any;
+
+  constructor(init: any) {
+    this.text = String(init?.text ?? '');
+    this.message = init?.message;
+    Object.assign(this, init);
+  }
+}
 
 // Keep logs disabled in runtime bundle to satisfy n8n scan constraints.
 const debugLog = (..._args: unknown[]): void => {};
@@ -40,6 +54,20 @@ const PreRouter: any = null;
 const DomainRouter: any = null;
 const ToolCascadeValidator: any = null;
 
+import {
+  DEFAULT_COMPLEXITY_THRESHOLDS,
+  DOMAIN_DESCRIPTIONS,
+  DOMAIN_DISPLAY_NAMES,
+  DOMAIN_UI_CONFIGS,
+  DOMAINS,
+  type ComplexityThresholds,
+  type DomainType,
+  getEnabledDomains,
+} from './config';
+import { buildCascadeMetadata } from './cascade-metadata';
+import { estimateCost as harnessEstimateCost } from '../harness/pricing';
+import type { HarnessRunContext } from '../harness/harness';
+
 // =============================================================================
 // Domain configuration for each enabled domain
 // =============================================================================
@@ -47,7 +75,7 @@ interface DomainConfig {
   enabled: boolean;
   threshold: number;
   temperature: number;
-  model?: BaseChatModel;
+  model?: ConnectedModel;
 }
 
 /**
@@ -55,17 +83,17 @@ interface DomainConfig {
  * and implements intelligent domain-aware cascading logic with cost tracking
  */
 export class CascadeChatModel extends BaseChatModel {
-  private drafterModelGetter: () => Promise<BaseChatModel>;
-  private drafterModel?: BaseChatModel;
-  verifierModelGetter: () => Promise<BaseChatModel>;
+  private drafterModelGetter: () => Promise<ConnectedModel>;
+  private drafterModel?: ConnectedModel;
+  verifierModelGetter: () => Promise<ConnectedModel>;
   qualityThreshold: number;
   confidenceThresholds?: ComplexityThresholds;
   useComplexityThresholds: boolean;
   useComplexityRouting: boolean;
 
   // Domain-specific models and configurations
-  private domainModels: Map<DomainType, BaseChatModel | undefined> = new Map();
-  private domainModelGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map();
+  private domainModels: Map<DomainType, ConnectedModel | undefined> = new Map();
+  private domainModelGetters: Map<DomainType, () => Promise<ConnectedModel | undefined>> = new Map();
   private domainConfigs: Map<DomainType, DomainConfig> = new Map();
   private enabledDomains: DomainType[] = [];
 
@@ -78,7 +106,7 @@ export class CascadeChatModel extends BaseChatModel {
   private domainCounts: Map<DomainType, number> = new Map();
 
   // Lazy-loaded verifier
-  private verifierModel?: BaseChatModel;
+  private verifierModel?: ConnectedModel;
 
   // Quality validator with CASCADE config (optional)
   private qualityValidator: any;
@@ -100,8 +128,8 @@ export class CascadeChatModel extends BaseChatModel {
   private toolCascadeValidator: any;
 
   // Domain-specific verifiers
-  private domainVerifiers: Map<DomainType, BaseChatModel | undefined> = new Map();
-  private domainVerifierGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map();
+  private domainVerifiers: Map<DomainType, ConnectedModel | undefined> = new Map();
+  private domainVerifierGetters: Map<DomainType, () => Promise<ConnectedModel | undefined>> = new Map();
 
   // Harness context (set by agent node)
   private harnessCtx: HarnessRunContext | null = null;
@@ -110,7 +138,7 @@ export class CascadeChatModel extends BaseChatModel {
     this.harnessCtx = ctx;
   }
 
-  private recordHarnessCall(message: BaseMessage, model: BaseChatModel, elapsedMs: number): void {
+  private recordHarnessCall(message: BaseMessage, model: ConnectedModel, elapsedMs: number): void {
     if (!this.harnessCtx) return;
     const responseMetadata = (message as any).response_metadata || {};
     const tokenUsage = responseMetadata.tokenUsage || responseMetadata.usage || {};
@@ -127,8 +155,8 @@ export class CascadeChatModel extends BaseChatModel {
   }
 
   constructor(
-    drafterModelGetter: () => Promise<BaseChatModel>,
-    verifierModelGetter: () => Promise<BaseChatModel>,
+    drafterModelGetter: () => Promise<ConnectedModel>,
+    verifierModelGetter: () => Promise<ConnectedModel>,
     qualityThreshold: number = 0.7,
     useSemanticValidation: boolean = true,
     useAlignmentScoring: boolean = true,
@@ -136,13 +164,13 @@ export class CascadeChatModel extends BaseChatModel {
     useComplexityThresholds: boolean = true,
     useDomainRouting: boolean = false,
     enabledDomains: DomainType[] = [],
-    domainModelGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map(),
+    domainModelGetters: Map<DomainType, () => Promise<ConnectedModel | undefined>> = new Map(),
     domainConfigs: Map<DomainType, DomainConfig> = new Map(),
     confidenceThresholds?: ComplexityThresholds,
     enableToolCallValidation: boolean = false,
-    domainVerifierGetters: Map<DomainType, () => Promise<BaseChatModel | undefined>> = new Map(),
+    domainVerifierGetters: Map<DomainType, () => Promise<ConnectedModel | undefined>> = new Map(),
   ) {
-    super({});
+    super('cascadeflow', 'cascadeflow-n8n', {});
     this.drafterModelGetter = drafterModelGetter;
     this.verifierModelGetter = verifierModelGetter;
     this.qualityThreshold = qualityThreshold;
@@ -244,7 +272,7 @@ export class CascadeChatModel extends BaseChatModel {
     }
   }
 
-  async getVerifierModel(): Promise<BaseChatModel> {
+  async getVerifierModel(): Promise<ConnectedModel> {
     if (!this.verifierModel) {
       debugLog('   🔄 Loading verifier model from TOP port (labeled "Verifier")...');
       this.verifierModel = await this.verifierModelGetter();
@@ -255,21 +283,37 @@ export class CascadeChatModel extends BaseChatModel {
   }
 
   /**
+   * LangChain-compatible call path used by the agent executor.
+   */
+  async invoke(messages: BaseMessage[], options: ChatModelConfig = {}): Promise<BaseMessage> {
+    const result = await this._generate(messages, options, undefined);
+    const generation = result.generations?.[0] as any;
+    const message = generation?.message;
+    if (message) {
+      return message as BaseMessage;
+    }
+    return {
+      role: 'ai',
+      content: generation?.text ?? '',
+      _getType: () => 'ai',
+    } as BaseMessage;
+  }
+
+  /**
    * Agent helper: force a direct verifier call (bypasses cascade logic) while still
    * attaching the same `response_metadata` fields as the standard flows.
    */
   async invokeVerifierDirect(
     messages: BaseMessage[],
-    options: this['ParsedCallOptions'],
-    runManager?: CallbackManagerForLLMRun
+    options?: ChatModelConfig,
   ): Promise<BaseMessage> {
     const verifierModel = await this.getVerifierModel();
     const verifierInfo = this.getModelInfo(verifierModel);
 
-    await runManager?.handleText(`⚡ Agent route: using verifier directly (${verifierInfo})\n`);
+    debugLog(`⚡ Agent route: using verifier directly (${verifierInfo})`);
 
     const start = Date.now();
-    const verifierMessage = await verifierModel.invoke(messages, options);
+    const verifierMessage = await verifierModel.invoke(messages, options ?? {});
     const latency = Date.now() - start;
 
     const verifierCost = await this.calculateMessageCost(verifierMessage, verifierModel);
@@ -297,16 +341,16 @@ export class CascadeChatModel extends BaseChatModel {
         domain: null,
         costs: costBreakdown,
         baselineCost: verifierCost,
-      })
+      }),
     );
 
-    return verifierMessage;
+    return verifierMessage as BaseMessage;
   }
 
   /**
    * Lazy-load drafter model (so n8n highlights it only when actually used).
    */
-  private async getDrafterModel(): Promise<BaseChatModel> {
+  private async getDrafterModel(): Promise<ConnectedModel> {
     if (!this.drafterModel) {
       this.drafterModel = await this.drafterModelGetter();
     }
@@ -317,7 +361,7 @@ export class CascadeChatModel extends BaseChatModel {
    * Get a connected domain-specific model (lazy-loaded).
    * Returns undefined if no domain model is connected.
    */
-  private async getDomainModel(domain: DomainType): Promise<BaseChatModel | undefined> {
+  private async getDomainModel(domain: DomainType): Promise<ConnectedModel | undefined> {
     const existingModel = this.domainModels.get(domain);
     if (existingModel) {
       return existingModel;
@@ -344,7 +388,7 @@ export class CascadeChatModel extends BaseChatModel {
   /**
    * Get a connected domain-specific verifier model (lazy-loaded).
    */
-  private async getDomainVerifier(domain: DomainType): Promise<BaseChatModel | undefined> {
+  private async getDomainVerifier(domain: DomainType): Promise<ConnectedModel | undefined> {
     const existingModel = this.domainVerifiers.get(domain);
     if (existingModel) {
       return existingModel;
@@ -371,7 +415,7 @@ export class CascadeChatModel extends BaseChatModel {
   /**
    * Helper to get model info string (type and name)
    */
-  private getModelInfo(model: BaseChatModel): string {
+  private getModelInfo(model: ConnectedModel): string {
     const type = typeof model._llmType === 'function' ? model._llmType() : 'unknown';
     const modelName = (model as any).modelName || (model as any).model || 'unknown';
     return `${type} (${modelName})`;
@@ -439,7 +483,7 @@ export class CascadeChatModel extends BaseChatModel {
    */
   private async estimateAlternateModelCost(
     message: BaseMessage,
-    model?: BaseChatModel
+    model?: ConnectedModel
   ): Promise<number | undefined> {
     if (!model) {
       return undefined;
@@ -578,7 +622,7 @@ export class CascadeChatModel extends BaseChatModel {
    */
   private async calculateMessageCost(
     message: BaseMessage,
-    model: BaseChatModel
+    model: ConnectedModel
   ): Promise<number> {
     const responseMetadata = (message as any).response_metadata || {};
     const tokenUsage = responseMetadata.tokenUsage || responseMetadata.usage || {};
@@ -638,13 +682,179 @@ export class CascadeChatModel extends BaseChatModel {
     return { passed, confidence, score: confidence, reason };
   }
 
+  private toModelInput(messages: Message[]): BaseMessage[] {
+    const toText = (message: Message): string => {
+      const parts = message.content
+        .map((block: any) => {
+          if (block?.type === 'text' || block?.type === 'reasoning') return String(block.text ?? '');
+          if (block?.type === 'tool-result') return JSON.stringify(block.result ?? '');
+          return '';
+        })
+        .filter(Boolean);
+      return parts.join("\n");
+    };
+
+    return messages.map((message) => {
+      const role = message.role === 'user' ? 'human' : message.role;
+      const toolCalls = message.content
+        .filter((block: any) => block?.type === 'tool-call')
+        .map((block: any) => ({
+          id: block.toolCallId || `tool_${Date.now()}`,
+          function: {
+            name: String(block.toolName || 'tool'),
+            arguments: typeof block.input === 'string' ? block.input : JSON.stringify(block.input ?? {}),
+          },
+        }));
+
+      const base: any = {
+        role,
+        content: toText(message),
+      };
+
+      if (toolCalls.length > 0) {
+        base.tool_calls = toolCalls;
+      }
+
+      if (message.role === 'tool') {
+        const toolResult = message.content.find((block: any) => block?.type === 'tool-result') as any;
+        if (toolResult?.toolCallId) {
+          base.tool_call_id = toolResult.toolCallId;
+        }
+      }
+
+      return base;
+    });
+  }
+
+  private messageText(message: Message): string {
+    return message.content
+      .map((block: any) => {
+        if (block?.type === 'text' || block?.type === 'reasoning') return String(block.text ?? '');
+        if (block?.type === 'tool-result') return JSON.stringify(block.result ?? '');
+        return '';
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  private toSdkMessage(rawMessage: any): Message {
+    const type = typeof rawMessage?._getType === 'function' ? rawMessage._getType() : rawMessage?.role;
+    const roleMap: Record<string, Message['role']> = {
+      human: 'user',
+      user: 'user',
+      ai: 'assistant',
+      assistant: 'assistant',
+      system: 'system',
+      tool: 'tool',
+    };
+
+    const role = roleMap[String(type || 'assistant')] ?? 'assistant';
+    const contentBlocks: any[] = [];
+
+    const content = rawMessage?.content;
+    if (typeof content === 'string') {
+      if (content.length > 0) contentBlocks.push({ type: 'text', text: content });
+    } else if (Array.isArray(content)) {
+      for (const block of content) {
+        if (typeof block === 'string') {
+          contentBlocks.push({ type: 'text', text: block });
+        } else if (block?.type === 'text' && typeof block.text === 'string') {
+          contentBlocks.push({ type: 'text', text: block.text });
+        }
+      }
+    }
+
+    const additionalKwargs = rawMessage?.additional_kwargs || {};
+    const responseMetadata = rawMessage?.response_metadata || {};
+    const rawToolCalls = additionalKwargs.tool_calls || responseMetadata.tool_calls || [];
+    if (Array.isArray(rawToolCalls)) {
+      for (const toolCall of rawToolCalls) {
+        const toolName = toolCall?.function?.name ?? toolCall?.name;
+        if (!toolName) continue;
+        const input = toolCall?.function?.arguments ?? toolCall?.arguments ?? '{}';
+        contentBlocks.push({
+          type: 'tool-call',
+          toolCallId: toolCall?.id,
+          toolName: String(toolName),
+          input: typeof input === 'string' ? input : JSON.stringify(input),
+        });
+      }
+    }
+
+    if (contentBlocks.length === 0) {
+      contentBlocks.push({ type: 'text', text: '' });
+    }
+
+    return {
+      role,
+      content: contentBlocks,
+      id: rawMessage?.id,
+      name: rawMessage?.name,
+    };
+  }
+
+  private extractUsage(rawMessage: any): GenerateResult['usage'] {
+    const responseMetadata = rawMessage?.response_metadata || {};
+    const usage = responseMetadata.tokenUsage || responseMetadata.usage || {};
+    const promptTokens = Number(usage.promptTokens ?? usage.prompt_tokens ?? 0);
+    const completionTokens = Number(usage.completionTokens ?? usage.completion_tokens ?? 0);
+    return {
+      promptTokens,
+      completionTokens,
+      totalTokens: Number(usage.totalTokens ?? usage.total_tokens ?? (promptTokens + completionTokens)),
+    };
+  }
+
+  private toGenerateResult(chatResult: ChatResult): GenerateResult {
+    const generation = chatResult.generations?.[0] as any;
+    const rawMessage = generation?.message || { content: generation?.text || '' };
+    return {
+      finishReason: 'stop',
+      message: this.toSdkMessage(rawMessage),
+      usage: this.extractUsage(rawMessage),
+      providerMetadata: rawMessage?.response_metadata || {},
+      rawResponse: rawMessage,
+    };
+  }
+
+  async generate(messages: Message[], config?: ChatModelConfig): Promise<GenerateResult> {
+    const inputMessages = this.toModelInput(messages);
+    const chatResult = await this._generate(inputMessages, config ?? {}, undefined);
+    return this.toGenerateResult(chatResult);
+  }
+
+  async *stream(messages: Message[], config?: ChatModelConfig): AsyncIterable<StreamChunk> {
+    const result = await this.generate(messages, config);
+
+    for (const block of result.message.content) {
+      if (block.type === 'text' || block.type === 'reasoning') {
+        if (block.text) {
+          yield { type: 'text-delta', delta: block.text };
+        }
+      } else if (block.type === 'tool-call') {
+        yield {
+          type: 'tool-call-delta',
+          id: block.toolCallId,
+          name: block.toolName,
+          argumentsDelta: String(block.input ?? ''),
+        };
+      }
+    }
+
+    yield {
+      type: 'finish',
+      finishReason: result.finishReason ?? 'stop',
+      usage: result.usage,
+    };
+  }
+
   _llmType(): string {
     return 'cascade';
   }
 
   async _generate(
     messages: BaseMessage[],
-    options: this['ParsedCallOptions'],
+    options: ChatModelConfig,
     runManager?: CallbackManagerForLLMRun
   ): Promise<ChatResult> {
     try {
@@ -652,7 +862,7 @@ export class CascadeChatModel extends BaseChatModel {
 
       // Step 1: Detect domain if domain routing is enabled
       let detectedDomain: DomainType | null = null;
-      let domainModel: BaseChatModel | null = null;
+      let domainModel: ConnectedModel | null = null;
 
       if (this.enabledDomains.length > 0) {
         detectedDomain = await this.detectDomain(queryText);
@@ -1016,7 +1226,7 @@ export class CascadeChatModel extends BaseChatModel {
       }
 
       // Step 8: Otherwise, escalate to verifier (domain-specific if available)
-      let escalationVerifier: BaseChatModel;
+      let escalationVerifier: ConnectedModel;
       let escalationVerifierLabel = 'verifier';
 
       if (detectedDomain) {
@@ -1181,7 +1391,7 @@ export class CascadeChatModel extends BaseChatModel {
    */
   async *_streamResponseChunks(
     messages: BaseMessage[],
-    options: this['ParsedCallOptions'],
+    options: ChatModelConfig,
     runManager?: CallbackManagerForLLMRun
   ): AsyncGenerator<ChatGenerationChunk> {
     try {
@@ -1190,7 +1400,7 @@ export class CascadeChatModel extends BaseChatModel {
       // Detect domain for streaming
       let detectedDomain: DomainType | null = null;
       let complexity: string | undefined;
-      let modelToUse: BaseChatModel | null = null;
+      let modelToUse: ConnectedModel | null = null;
       let usingDomainModel = false;
 
       if (this.enabledDomains.length > 0) {
@@ -1223,7 +1433,11 @@ export class CascadeChatModel extends BaseChatModel {
       let fullDrafterContent = '';
       let lastChunk: ChatGenerationChunk | null = null;
 
-      const drafterStream = await modelToUse.stream(messages, options);
+      const drafterStream = modelToUse.stream
+        ? await modelToUse.stream(messages, options)
+        : (async function* () {
+            yield await modelToUse.invoke(messages, options);
+          })();
 
       for await (const chunk of drafterStream) {
         fullDrafterContent += chunk.content;
@@ -1290,7 +1504,11 @@ export class CascadeChatModel extends BaseChatModel {
       await runManager?.handleText(`🔄 Streaming verifier response from ${verifierInfo}...\n`);
 
       const verifierStartTime = Date.now();
-      const verifierStream = await verifierModel.stream(messages, options);
+      const verifierStream = verifierModel.stream
+        ? await verifierModel.stream(messages, options)
+        : (async function* () {
+            yield await verifierModel.invoke(messages, options);
+          })();
 
       this.verifierCount++;
 
@@ -1311,7 +1529,11 @@ export class CascadeChatModel extends BaseChatModel {
       debugLog(`❌ Streaming: Drafter error, using verifier fallback`);
 
       const verifierModel = await this.getVerifierModel();
-      const verifierStream = await verifierModel.stream(messages, options);
+      const verifierStream = verifierModel.stream
+        ? await verifierModel.stream(messages, options)
+        : (async function* () {
+            yield await verifierModel.invoke(messages, options);
+          })();
 
       this.verifierCount++;
 
@@ -1698,8 +1920,8 @@ export class LmChatCascadeFlow implements INodeType {
     // built-in AI Agent node pattern (getChatModel in ToolsAgent/common.ts).
     const allModelData = await this.getInputConnectionData('ai_languageModel' as any, 0);
     const allModels = Array.isArray(allModelData)
-      ? ([...allModelData].reverse() as BaseChatModel[])
-      : [allModelData as BaseChatModel];
+      ? ([...allModelData].reverse() as ConnectedModel[])
+      : [allModelData as ConnectedModel];
 
     // Port order after reverse: 0=Verifier, 1=Drafter, 2+=domain models/verifiers
     const resolvedVerifier = allModels[0];
@@ -1721,19 +1943,19 @@ export class LmChatCascadeFlow implements INodeType {
     const drafterModelGetter = async () => resolvedDrafter;
 
     // Domain models and domain verifiers occupy indices 2+ in slot definition order
-    const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
-    const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
+    const domainModelGetters = new Map<DomainType, () => Promise<ConnectedModel | undefined>>();
+    const domainVerifierGetters = new Map<DomainType, () => Promise<ConnectedModel | undefined>>();
 
     const enableDomainVerifiers = this.getNodeParameter('enableDomainVerifiers', 0, false) as boolean;
     let nextModelIndex = 2; // After Verifier (0) and Drafter (1)
     for (const { domain } of DOMAIN_UI_CONFIGS) {
       if (!enabledDomains.includes(domain)) continue;
 
-      const model = allModels[nextModelIndex++] as BaseChatModel | undefined;
+      const model = allModels[nextModelIndex++] as ConnectedModel | undefined;
       domainModelGetters.set(domain, async () => model || undefined);
 
       if (enableDomainVerifiers) {
-        const verifierModel = allModels[nextModelIndex++] as BaseChatModel | undefined;
+        const verifierModel = allModels[nextModelIndex++] as ConnectedModel | undefined;
         domainVerifierGetters.set(domain, async () => verifierModel || undefined);
       }
     }
@@ -1775,8 +1997,6 @@ export class LmChatCascadeFlow implements INodeType {
       domainVerifierGetters,
     );
 
-    return {
-      response: cascadeModel,
-    };
+    return supplyModel(this, cascadeModel);
   }
 }

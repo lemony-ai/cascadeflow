@@ -29,7 +29,7 @@
     "lint": "eslint \"nodes/**/*.ts\" \"credentials/**/*.ts\" package.json",
     "lintfix": "eslint \"nodes/**/*.ts\" \"credentials/**/*.ts\" package.json --fix",
     "prepublishOnly": "npm run build && npm run lint",
-    "prepack": "npm run build"
+    "prepack": "pnpm -w --filter @cascadeflow/core build && npm run build"
   },
   "files": [
     "dist"
@@ -45,6 +45,7 @@
     ]
   },
   "devDependencies": {
+    "@cascadeflow/core": "^1.1.0",
     "@types/node": "^20.10.0",
     "@typescript-eslint/parser": "^6.0.0",
     "esbuild": "^0.24.0",
@@ -63,6 +64,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.0"
+    "@n8n/ai-node-sdk": "^0.4.0"
   }
 }

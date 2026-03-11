@@ -7,9 +7,10 @@ import type {
 
 import { NodeOperationError } from 'n8n-workflow';
 
-import type { BaseMessage } from '@langchain/core/messages';
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { Message } from '@n8n/ai-node-sdk';
+
+// Keep logs disabled in runtime bundle to satisfy n8n scan constraints.
+const debugLog = (..._args: unknown[]): void => {};
 
 import { CascadeChatModel } from '../LmChatCascadeFlow/LmChatCascadeFlow.node';
 import {
@@ -23,14 +24,146 @@ import {
 } from '../LmChatCascadeFlow/config';
 import { HarnessRunContext, type HarnessConfig, type HarnessMode, type KpiWeights } from '../harness';
 
-// Keep logs disabled in runtime bundle to satisfy n8n scan constraints.
-const debugLog = (..._args: unknown[]): void => {};
-
-// Tool cascade validation from core is disabled in this package build;
-// the agent falls back to local validation behavior.
-const ToolCascadeValidator: any = null;
+// Tool cascade validator - optional import
+let ToolCascadeValidator: any;
+try {
+  const cascadeCore = require('@cascadeflow/core');
+  ToolCascadeValidator = cascadeCore.ToolCascadeValidator;
+} catch {
+  // @cascadeflow/core not available
+}
 
 type ToolRoutingMode = 'cascade' | 'verifier';
+
+type BaseMessageRole = 'human' | 'system' | 'ai' | 'tool';
+
+type BaseMessage = {
+  role: BaseMessageRole;
+  content: string;
+  id?: string;
+  name?: string;
+  tool_call_id?: string;
+  additional_kwargs?: Record<string, any>;
+  response_metadata?: Record<string, any>;
+  _getType: () => BaseMessageRole;
+};
+
+type ConnectedModel = {
+  invoke: (messages: BaseMessage[], options?: any) => Promise<any>;
+  stream?: (messages: BaseMessage[], options?: any) => Promise<any> | AsyncIterable<any>;
+  _llmType?: () => string;
+  modelName?: string;
+  model?: string;
+};
+
+function normalizeRole(rawRole: unknown): BaseMessageRole {
+  const role = String(rawRole ?? '').toLowerCase();
+  if (role == 'system') return 'system';
+  if (role == 'assistant' || role == 'ai') return 'ai';
+  if (role == 'tool') return 'tool';
+  return 'human';
+}
+
+function stringifyContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item: any) => {
+        if (typeof item === 'string') return item;
+        if (item?.type === 'text' || item?.type === 'reasoning') return String(item.text ?? '');
+        if (item?.type === 'tool-result') return JSON.stringify(item.result ?? '');
+        if (typeof item?.text === 'string') return item.text;
+        return '';
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (content == null) return '';
+  try {
+    return JSON.stringify(content);
+  } catch {
+    return String(content);
+  }
+}
+
+function makeBaseMessage(
+  role: unknown,
+  content: unknown,
+  extras: Partial<Omit<BaseMessage, 'role' | 'content' | '_getType'>> = {},
+): BaseMessage {
+  const normalizedRole = normalizeRole(role);
+  return {
+    role: normalizedRole,
+    content: stringifyContent(content),
+    _getType: () => normalizedRole,
+    ...extras,
+  };
+}
+
+function makeHumanMessage(content: unknown): BaseMessage {
+  return makeBaseMessage('human', content);
+}
+
+function makeSystemMessage(content: unknown): BaseMessage {
+  return makeBaseMessage('system', content);
+}
+
+function makeAIMessage(content: unknown, extras: Partial<BaseMessage> = {}): BaseMessage {
+  return makeBaseMessage('ai', content, extras);
+}
+
+function makeToolMessage(content: unknown, toolCallId: string): BaseMessage {
+  return makeBaseMessage('tool', content, { tool_call_id: toolCallId });
+}
+
+function coerceToBaseMessage(value: any): BaseMessage {
+  if (value && typeof value === 'object' && 'content' in value) {
+    const role = typeof value._getType === 'function' ? value._getType() : value.role ?? value.type;
+    const toolCallId = value.tool_call_id ?? value.toolCallId ?? value.id;
+    return makeBaseMessage(role, value.content ?? value.text ?? '', {
+      id: value.id,
+      name: value.name,
+      tool_call_id: toolCallId ? String(toolCallId) : undefined,
+      additional_kwargs: value.additional_kwargs,
+      response_metadata: value.response_metadata,
+    });
+  }
+
+  if (typeof value === 'string') {
+    return makeHumanMessage(value);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return makeHumanMessage(JSON.stringify(value ?? null));
+  }
+
+  const role = value.role ?? value.type;
+  const content = value.content ?? value.text ?? '';
+
+  if (normalizeRole(role) === 'system') {
+    return makeSystemMessage(content);
+  }
+
+  if (normalizeRole(role) === 'ai') {
+    return makeAIMessage(content, {
+      id: value.id,
+      name: value.name,
+      additional_kwargs: value.additional_kwargs,
+      response_metadata: value.response_metadata,
+    });
+  }
+
+  if (normalizeRole(role) === 'tool') {
+    const toolCallId = value.tool_call_id ?? value.toolCallId ?? value.tool_callId ?? value.id ?? 'tool';
+    return makeToolMessage(content, String(toolCallId));
+  }
+
+  return makeHumanMessage(content);
+}
+
+function messageText(message: any): string {
+  return stringifyContent(message?.content ?? '');
+}
 
 export interface ToolRoutingRule {
   toolName: string;
@@ -93,62 +226,14 @@ export class CascadeFlowAgentExecutor {
   }
 
   private normalizeMessages(input: any): BaseMessage[] {
-    const isBaseMessage = (value: any): value is BaseMessage => {
-      return (
-        value &&
-        typeof value === 'object' &&
-        typeof value._getType === 'function' &&
-        'content' in value
-      );
-    };
-
-    const coerceMessage = (value: any): BaseMessage => {
-      if (isBaseMessage(value)) {
-        return value;
-      }
-
-      if (typeof value === 'string') {
-        return new HumanMessage(value);
-      }
-
-      if (!value || typeof value !== 'object') {
-        return new HumanMessage(JSON.stringify(value ?? null));
-      }
-
-      const role = (value.role ?? value.type ?? '').toString().toLowerCase();
-      const content = value.content ?? value.text ?? '';
-
-      if (role === 'system') {
-        return new SystemMessage(content);
-      }
-      if (role === 'assistant' || role === 'ai') {
-        return new AIMessage(content);
-      }
-      if (role === 'tool') {
-        const toolCallId =
-          value.tool_call_id ??
-          value.toolCallId ??
-          value.tool_callId ??
-          value.id ??
-          'tool';
-        return new ToolMessage({
-          content: typeof content === 'string' ? content : JSON.stringify(content),
-          tool_call_id: String(toolCallId),
-        });
-      }
-
-      // Default: treat as user/human.
-      return new HumanMessage(content);
-    };
-
-    const normalizeList = (values: any[]): BaseMessage[] => values.map(coerceMessage);
+    const normalizeList = (values: any[]): BaseMessage[] => values.map(coerceToBaseMessage);
 
     if (Array.isArray(input)) {
       return normalizeList(input);
     }
 
     if (typeof input === 'string') {
-      return [new HumanMessage(input)];
+      return [makeHumanMessage(input)];
     }
 
     if (input?.messages && Array.isArray(input.messages)) {
@@ -158,16 +243,16 @@ export class CascadeFlowAgentExecutor {
     if (input?.chatHistory && Array.isArray(input.chatHistory)) {
       const history = normalizeList(input.chatHistory);
       if (typeof input.input === 'string') {
-        return [...history, new HumanMessage(input.input)];
+        return [...history, makeHumanMessage(input.input)];
       }
       return history;
     }
 
     if (typeof input?.input === 'string') {
-      return [new HumanMessage(input.input)];
+      return [makeHumanMessage(input.input)];
     }
 
-    return [new HumanMessage(JSON.stringify(input ?? null))];
+    return [makeHumanMessage(JSON.stringify(input ?? null))];
   }
 
   private extractToolCalls(message: BaseMessage): ToolCallInfo[] {
@@ -300,11 +385,11 @@ export class CascadeFlowAgentExecutor {
       // Harness enforce-mode pre-checks
       if (this.harnessCtx?.config.mode === 'enforce') {
         if (this.harnessCtx.isBudgetExhausted()) {
-          finalMessage = new AIMessage(`[Harness] Budget exhausted ($${this.harnessCtx.cost.toFixed(4)} of $${this.harnessCtx.config.budgetMax?.toFixed(4)} max). Agent stopped.`);
+          finalMessage = makeAIMessage(`[Harness] Budget exhausted ($${this.harnessCtx.cost.toFixed(4)} of $${this.harnessCtx.config.budgetMax?.toFixed(4)} max). Agent stopped.`);
           break;
         }
         if (this.harnessCtx.isToolCapReached()) {
-          finalMessage = new AIMessage(`[Harness] Tool call cap reached (${this.harnessCtx.toolCalls} of ${this.harnessCtx.config.toolCallsMax} max). Agent stopped.`);
+          finalMessage = makeAIMessage(`[Harness] Tool call cap reached (${this.harnessCtx.toolCalls} of ${this.harnessCtx.config.toolCallsMax} max). Agent stopped.`);
           break;
         }
       }
@@ -341,10 +426,7 @@ export class CascadeFlowAgentExecutor {
         for (const call of verifierToolCalls) {
           const toolResult = await this.executeTool(call);
           currentMessages.push(
-            new ToolMessage({
-              content: toolResult,
-              tool_call_id: call.id,
-            })
+            makeToolMessage(toolResult, call.id)
           );
         }
         iterations += 1;
@@ -357,10 +439,7 @@ export class CascadeFlowAgentExecutor {
       for (const call of toolCalls) {
         const toolResult = await this.executeTool(call);
         currentMessages.push(
-          new ToolMessage({
-            content: toolResult,
-            tool_call_id: call.id,
-          })
+          makeToolMessage(toolResult, call.id)
         );
       }
 
@@ -381,7 +460,7 @@ export class CascadeFlowAgentExecutor {
     }
 
     if (!finalMessage) {
-      finalMessage = new AIMessage('Agent did not produce a final response.');
+      finalMessage = makeAIMessage('Agent did not produce a final response.');
     }
 
     if (!(finalMessage as any).response_metadata) {
@@ -394,7 +473,7 @@ export class CascadeFlowAgentExecutor {
     };
 
     return {
-      output: finalMessage.content.toString(),
+      output: messageText(finalMessage),
       message: finalMessage,
       trace,
       harness: this.harnessCtx?.summary() ?? null,
@@ -410,7 +489,7 @@ export class CascadeFlowAgentExecutor {
       return;
     }
 
-    const stream = await this.cascadeModel.stream(messages, options);
+    const stream = (this.cascadeModel as any)._streamResponse(messages, options ?? {}, undefined);
     for await (const chunk of stream) {
       yield chunk;
     }
@@ -962,8 +1041,8 @@ export class CascadeFlowAgent implements INodeType {
     // Reversed slot order due to internal unshift, so we reverse back.
     const allModelData = await this.getInputConnectionData('ai_languageModel' as any, 0);
     const allModels = Array.isArray(allModelData)
-      ? ([...allModelData].reverse() as BaseChatModel[])
-      : [allModelData as BaseChatModel];
+      ? ([...allModelData].reverse() as ConnectedModel[])
+      : [allModelData as ConnectedModel];
 
     // Port order after reverse: 0=Verifier, 1=Drafter, 2+=domain models/verifiers
     const resolvedVerifier = allModels[0];
@@ -993,19 +1072,19 @@ export class CascadeFlowAgent implements INodeType {
     const tools = (Array.isArray(toolsData) ? toolsData : toolsData ? [toolsData] : []) as ToolLike[];
 
     // Domain models and domain verifiers occupy indices 2+ in slot definition order
-    const domainModelGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
-    const domainVerifierGetters = new Map<DomainType, () => Promise<BaseChatModel | undefined>>();
+    const domainModelGetters = new Map<DomainType, () => Promise<ConnectedModel | undefined>>();
+    const domainVerifierGetters = new Map<DomainType, () => Promise<ConnectedModel | undefined>>();
 
     const enableDomainVerifiers = this.getNodeParameter('enableDomainVerifiers', 0, false) as boolean;
     let nextModelIndex = 2; // After Verifier (0) and Drafter (1)
     for (const { domain } of DOMAIN_UI_CONFIGS) {
       if (!enabledDomains.includes(domain)) continue;
 
-      const model = allModels[nextModelIndex++] as BaseChatModel | undefined;
+      const model = allModels[nextModelIndex++] as ConnectedModel | undefined;
       domainModelGetters.set(domain, async () => model || undefined);
 
       if (enableDomainVerifiers) {
-        const verifierModel = allModels[nextModelIndex++] as BaseChatModel | undefined;
+        const verifierModel = allModels[nextModelIndex++] as ConnectedModel | undefined;
         domainVerifierGetters.set(domain, async () => verifierModel || undefined);
       }
     }
@@ -1053,7 +1132,7 @@ export class CascadeFlowAgent implements INodeType {
       // Build message array
       const messages: BaseMessage[] = [];
       if (systemMessage) {
-        messages.push(new SystemMessage(systemMessage));
+        messages.push(makeSystemMessage(systemMessage));
       }
 
       // Load chat history from memory
@@ -1062,7 +1141,7 @@ export class CascadeFlowAgent implements INodeType {
         messages.push(...memoryMessages);
       }
 
-      messages.push(new HumanMessage(text));
+      messages.push(makeHumanMessage(text));
 
       // Run the agent
       const result = await agentExecutor.invoke(messages);

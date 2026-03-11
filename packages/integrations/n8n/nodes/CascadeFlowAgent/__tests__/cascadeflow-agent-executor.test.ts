@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIMessage, SystemMessage } from '@langchain/core/messages';
-
 import { CascadeFlowAgentExecutor } from '../CascadeFlowAgent.node';
+
+const aiMessage = (content: string, extras: Record<string, any> = {}) => ({
+  role: 'ai',
+  content,
+  _getType: () => 'ai',
+  ...extras,
+});
 
 describe('CascadeFlowAgentExecutor', () => {
   it('normalizes plain role/content objects and preserves system prompts', async () => {
@@ -11,11 +16,11 @@ describe('CascadeFlowAgentExecutor', () => {
     const cascadeModel = {
       invoke: async (messages: any[]) => {
         captured = messages;
-        return new AIMessage('ok');
+        return aiMessage('ok');
       },
-      invokeVerifierDirect: async () => new AIMessage('verifier'),
+      invokeVerifierDirect: async () => aiMessage('verifier'),
       stream: async function* () {
-        yield new AIMessage('stream');
+        yield aiMessage('stream');
       },
     } as any;
 
@@ -28,8 +33,9 @@ describe('CascadeFlowAgentExecutor', () => {
     });
 
     expect(captured).toHaveLength(2);
-    expect(captured[0]).toBeInstanceOf(SystemMessage);
+    expect(captured[0].role).toBe('system');
     expect(captured[0].content).toBe('You are a helpful assistant.');
+    expect(captured[1].role).toBe('human');
     expect(captured[1].content).toBe('Hello');
   });
 
@@ -44,22 +50,22 @@ describe('CascadeFlowAgentExecutor', () => {
       invoke: async () => {
         call += 1;
         if (call === 1) {
-          const msg = new AIMessage('calling tool');
-          (msg as any).additional_kwargs = {
-            tool_calls: [
-              {
-                id: 't1',
-                function: { name: 'echo', arguments: JSON.stringify({ a: 1 }) },
-              },
-            ],
-          };
-          return msg;
+          return aiMessage('calling tool', {
+            additional_kwargs: {
+              tool_calls: [
+                {
+                  id: 't1',
+                  function: { name: 'echo', arguments: JSON.stringify({ a: 1 }) },
+                },
+              ],
+            },
+          });
         }
-        return new AIMessage('done');
+        return aiMessage('done');
       },
-      invokeVerifierDirect: async () => new AIMessage('verifier'),
+      invokeVerifierDirect: async () => aiMessage('verifier'),
       stream: async function* () {
-        yield new AIMessage('stream');
+        yield aiMessage('stream');
       },
     } as any;
 
@@ -79,24 +85,23 @@ describe('CascadeFlowAgentExecutor', () => {
 
     let verifierCalled = 0;
     const cascadeModel = {
-      invoke: async () => {
-        const msg = new AIMessage('calling tool');
-        (msg as any).additional_kwargs = {
-          tool_calls: [
-            {
-              id: 't1',
-              function: { name: 'echo', arguments: JSON.stringify({ a: 1 }) },
-            },
-          ],
-        };
-        return msg;
-      },
+      invoke: async () =>
+        aiMessage('calling tool', {
+          additional_kwargs: {
+            tool_calls: [
+              {
+                id: 't1',
+                function: { name: 'echo', arguments: JSON.stringify({ a: 1 }) },
+              },
+            ],
+          },
+        }),
       invokeVerifierDirect: async () => {
         verifierCalled += 1;
-        return new AIMessage('verifier');
+        return aiMessage('verifier');
       },
       stream: async function* () {
-        yield new AIMessage('stream');
+        yield aiMessage('stream');
       },
     } as any;
 
@@ -104,7 +109,7 @@ describe('CascadeFlowAgentExecutor', () => {
       cascadeModel,
       [tool as any],
       [{ toolName: 'echo', routing: 'verifier' }],
-      3
+      3,
     );
     const result = await exec.invoke('hi');
 
@@ -112,4 +117,3 @@ describe('CascadeFlowAgentExecutor', () => {
     expect(result.output).toBe('verifier');
   });
 });
-

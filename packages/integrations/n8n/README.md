@@ -35,8 +35,6 @@ Both nodes share the same cascade engine: try a cheap drafter first, validate qu
 
 Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
 
-> Note: The package is installable today for self-hosted/community-node setups. n8n verified Cloud listing is in progress.
-
 ### Community Nodes (Recommended)
 
 1. Go to **Settings** > **Community Nodes**
