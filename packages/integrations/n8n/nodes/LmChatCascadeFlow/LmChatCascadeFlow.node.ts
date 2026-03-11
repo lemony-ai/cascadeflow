@@ -34,6 +34,7 @@ let ComplexityDetector: any;
 let PreRouter: any;
 let DomainRouter: any;
 let ToolCascadeValidator: any;
+let RoutingStrategy: any;
 
 try {
   const cascadeCore = require('@cascadeflow/core');
@@ -44,6 +45,7 @@ try {
   PreRouter = cascadeCore.PreRouter;
   DomainRouter = cascadeCore.DomainRouter;
   ToolCascadeValidator = cascadeCore.ToolCascadeValidator;
+  RoutingStrategy = cascadeCore.RoutingStrategy;
 } catch (e) {
   // @cascadeflow/core not available - use simple validation and estimates
   console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
@@ -217,6 +219,23 @@ export class CascadeChatModel extends BaseChatModel {
       }
     } else {
       this.complexityDetector = null;
+    }
+
+    // Initialize pre-router for complexity-based direct routing
+    if (useComplexityRouting && PreRouter && this.complexityDetector) {
+      try {
+        this.preRouter = new PreRouter({
+          complexityDetector: this.complexityDetector,
+          enableCascade: true,
+          cascadeComplexities: ['trivial', 'simple', 'moderate'],
+        });
+        console.log('🛤️  CascadeFlow pre-router initialized');
+      } catch (e) {
+        console.warn('⚠️  Pre-router initialization failed');
+        this.preRouter = null;
+      }
+    } else {
+      this.preRouter = null;
     }
 
     // Initialize domain router if domain routing is enabled
@@ -674,11 +693,32 @@ export class CascadeChatModel extends BaseChatModel {
         }
       }
 
-      // Step 2: Detect query complexity
+      // Step 2: Route via PreRouter (complexity + domain context)
       let complexity: string | undefined;
       let shouldSkipDrafter = false;
 
-      if (this.complexityDetector) {
+      if (this.preRouter) {
+        const routingContext: Record<string, any> = {};
+        if (detectedDomain) {
+          routingContext.detectedDomain = detectedDomain;
+          const domainConf = this.domainConfigs.get(detectedDomain);
+          if (domainConf) {
+            routingContext.domainConfig = domainConf;
+          }
+        }
+        const decision = await this.preRouter.route(queryText, routingContext);
+        complexity = decision.metadata?.complexity;
+        shouldSkipDrafter = decision.strategy !== RoutingStrategy.CASCADE;
+
+        if (shouldSkipDrafter) {
+          await runManager?.handleText(`🛤️  PreRouter: ${decision.strategy} (${decision.reason})\n`);
+          console.log(`🛤️  PreRouter: ${decision.strategy} — ${decision.reason}`);
+        } else {
+          await runManager?.handleText(`🛤️  PreRouter: cascade (${complexity})\n`);
+          console.log(`🛤️  PreRouter: cascade — complexity=${complexity}`);
+        }
+      } else if (this.complexityDetector) {
+        // Fallback: manual complexity check (same as previous behavior)
         const complexityResult = await this.detectComplexity(queryText);
         complexity = complexityResult.level;
 
@@ -737,6 +777,7 @@ export class CascadeChatModel extends BaseChatModel {
           flow: 'direct_verifier',
           complexity,
           domain: detectedDomain,
+          router: this.preRouter ? 'pre-router' : 'complexity',
           latency_ms: verifierLatency,
           cost_usd: verifierCost,
           model_used: 'verifier',
