@@ -26,28 +26,19 @@ import { buildCascadeMetadata } from './cascade-metadata';
 import { estimateCost as harnessEstimateCost } from '../harness/pricing';
 import type { HarnessRunContext } from '../harness/harness';
 
-// Quality validation, cost tracking, and routing - optional import
-let QualityValidator: any;
-let CASCADE_QUALITY_CONFIG: any;
-let CostCalculator: any;
-let ComplexityDetector: any;
-let PreRouter: any;
-let DomainRouter: any;
-let ToolCascadeValidator: any;
+// Keep logs disabled in runtime bundle to satisfy n8n scan constraints.
+const debugLog = (..._args: unknown[]): void => {};
 
-try {
-  const cascadeCore = require('@cascadeflow/core');
-  QualityValidator = cascadeCore.QualityValidator;
-  CASCADE_QUALITY_CONFIG = cascadeCore.CASCADE_QUALITY_CONFIG;
-  CostCalculator = cascadeCore.CostCalculator;
-  ComplexityDetector = cascadeCore.ComplexityDetector;
-  PreRouter = cascadeCore.PreRouter;
-  DomainRouter = cascadeCore.DomainRouter;
-  ToolCascadeValidator = cascadeCore.ToolCascadeValidator;
-} catch (e) {
-  // @cascadeflow/core not available - use simple validation and estimates
-  console.warn('⚠️  @cascadeflow/core not available, using fallbacks');
-}
+// Quality validation, cost tracking, and routing adapters are intentionally
+// disabled in the n8n package runtime. The node falls back to built-in
+// heuristics defined in this package.
+const QualityValidator: any = null;
+const CASCADE_QUALITY_CONFIG: any = null;
+const CostCalculator: any = null;
+const ComplexityDetector: any = null;
+const PreRouter: any = null;
+const DomainRouter: any = null;
+const ToolCascadeValidator: any = null;
 
 // =============================================================================
 // Domain configuration for each enabled domain
@@ -178,15 +169,15 @@ export class CascadeChatModel extends BaseChatModel {
           useAlignmentScoring,
           semanticThreshold: 0.5,
         });
-        console.log('✅ CascadeFlow quality validator initialized');
+        debugLog('✅ CascadeFlow quality validator initialized');
         if (useSemanticValidation) {
-          console.log('   📊 Semantic validation enabled (requires @cascadeflow/ml)');
+          debugLog('   📊 Semantic validation enabled (requires @cascadeflow/ml)');
         }
         if (useAlignmentScoring) {
-          console.log('   🎯 Alignment scoring enabled');
+          debugLog('   🎯 Alignment scoring enabled');
         }
       } catch (e) {
-        console.warn('⚠️  Quality validator initialization failed, using simple check');
+        debugLog('⚠️  Quality validator initialization failed, using simple check');
         this.qualityValidator = null;
       }
     } else {
@@ -197,9 +188,9 @@ export class CascadeChatModel extends BaseChatModel {
     if (CostCalculator) {
       try {
         this.costCalculator = new CostCalculator();
-        console.log('💰 CascadeFlow cost calculator initialized');
+        debugLog('💰 CascadeFlow cost calculator initialized');
       } catch (e) {
-        console.warn('⚠️  Cost calculator initialization failed, using estimates');
+        debugLog('⚠️  Cost calculator initialization failed, using estimates');
         this.costCalculator = null;
       }
     } else {
@@ -210,9 +201,9 @@ export class CascadeChatModel extends BaseChatModel {
     if ((useComplexityRouting || useComplexityThresholds) && ComplexityDetector) {
       try {
         this.complexityDetector = new ComplexityDetector();
-        console.log('🧠 CascadeFlow complexity detector initialized');
+        debugLog('🧠 CascadeFlow complexity detector initialized');
       } catch (e) {
-        console.warn('⚠️  Complexity detector initialization failed');
+        debugLog('⚠️  Complexity detector initialization failed');
         this.complexityDetector = null;
       }
     } else {
@@ -223,9 +214,9 @@ export class CascadeChatModel extends BaseChatModel {
     if (useDomainRouting && DomainRouter && enabledDomains.length > 0) {
       try {
         this.domainDetector = new DomainRouter();
-        console.log(`🎯 CascadeFlow domain routing enabled for: ${enabledDomains.join(', ')}`);
+        debugLog(`🎯 CascadeFlow domain routing enabled for: ${enabledDomains.join(', ')}`);
       } catch (e) {
-        console.warn('⚠️  Domain router initialization failed');
+        debugLog('⚠️  Domain router initialization failed');
         this.domainDetector = null;
       }
     } else {
@@ -237,9 +228,9 @@ export class CascadeChatModel extends BaseChatModel {
     if (enableToolCallValidation && ToolCascadeValidator) {
       try {
         this.toolCascadeValidator = new ToolCascadeValidator();
-        console.log('🔧 CascadeFlow tool call validation enabled');
+        debugLog('🔧 CascadeFlow tool call validation enabled');
       } catch (e) {
-        console.warn('⚠️  Tool cascade validator initialization failed');
+        debugLog('⚠️  Tool cascade validator initialization failed');
         this.toolCascadeValidator = null;
       }
     } else {
@@ -255,10 +246,10 @@ export class CascadeChatModel extends BaseChatModel {
 
   async getVerifierModel(): Promise<BaseChatModel> {
     if (!this.verifierModel) {
-      console.log('   🔄 Loading verifier model from TOP port (labeled "Verifier")...');
+      debugLog('   🔄 Loading verifier model from TOP port (labeled "Verifier")...');
       this.verifierModel = await this.verifierModelGetter();
       const verifierInfo = this.getModelInfo(this.verifierModel);
-      console.log(`   ✓ Verifier model loaded: ${verifierInfo}`);
+      debugLog(`   ✓ Verifier model loaded: ${verifierInfo}`);
     }
     return this.verifierModel;
   }
@@ -413,7 +404,7 @@ export class CascadeChatModel extends BaseChatModel {
         };
       }
     } catch (e) {
-      console.warn('Complexity detection failed, using normal flow');
+      debugLog('Complexity detection failed, using normal flow');
     }
 
     return {};
@@ -483,11 +474,11 @@ export class CascadeChatModel extends BaseChatModel {
     try {
       const result = await this.domainDetector.detect(queryText);
       if (result && result.domain && this.enabledDomains.includes(result.domain)) {
-        console.log(`🎯 Domain detected: ${result.domain} (confidence: ${result.confidence?.toFixed(2) || 'N/A'})`);
+        debugLog(`🎯 Domain detected: ${result.domain} (confidence: ${result.confidence?.toFixed(2) || 'N/A'})`);
         return result.domain;
       }
     } catch (e) {
-      console.warn('Domain detection failed, using default routing');
+      debugLog('Domain detection failed, using default routing');
     }
     return null;
   }
@@ -577,7 +568,7 @@ export class CascadeChatModel extends BaseChatModel {
         errors: result.errors || [],
       };
     } catch (e) {
-      console.warn('⚠️  Tool call validation failed:', e);
+      debugLog('⚠️  Tool call validation failed:', e);
       return null;
     }
   }
@@ -606,7 +597,7 @@ export class CascadeChatModel extends BaseChatModel {
         });
         return cost;
       } catch (e) {
-        console.warn(`Cost calculation failed for ${modelName}, using estimate`);
+        debugLog(`Cost calculation failed for ${modelName}, using estimate`);
       }
     }
 
@@ -686,10 +677,10 @@ export class CascadeChatModel extends BaseChatModel {
           if (complexity === 'hard' || complexity === 'expert') {
             shouldSkipDrafter = true;
             await runManager?.handleText(`🧠 Complexity: ${complexity} → Routing directly to verifier (skip drafter)\n`);
-            console.log(`🧠 Complexity: ${complexity} → Direct verifier route`);
+            debugLog(`🧠 Complexity: ${complexity} → Direct verifier route`);
           } else {
             await runManager?.handleText(`🧠 Complexity: ${complexity} → Trying drafter first\n`);
-            console.log(`🧠 Complexity: ${complexity} → Drafter route`);
+            debugLog(`🧠 Complexity: ${complexity} → Drafter route`);
           }
         }
       }
@@ -728,7 +719,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
         await runManager?.handleText(flowLog);
-        console.log(flowLog);
+        debugLog(flowLog);
 
         if (!verifierMessage.response_metadata) {
           (verifierMessage as any).response_metadata = {};
@@ -765,7 +756,7 @@ export class CascadeChatModel extends BaseChatModel {
       const modelInfo = this.getModelInfo(modelToUse);
 
       await runManager?.handleText(`🎯 CascadeFlow: Trying ${modelType} model: ${modelInfo}\n`);
-      console.log(`🎯 CascadeFlow: Trying ${modelType} model: ${modelInfo}`);
+      debugLog(`🎯 CascadeFlow: Trying ${modelType} model: ${modelInfo}`);
 
       const drafterStartTime = Date.now();
       const drafterMessage = await modelToUse.invoke(messages, options);
@@ -789,7 +780,7 @@ export class CascadeChatModel extends BaseChatModel {
         if (toolValidation && !toolValidation.valid) {
           const validationLog = `   🔧 Tool calls detected (${toolCallsCount}) - validation FAILED (score: ${toolValidation.score.toFixed(2)})\n   Errors: ${toolValidation.errors.join(', ')}\n   Escalating to verifier for tool calls...\n`;
           await runManager?.handleText(validationLog);
-          console.log(validationLog);
+          debugLog(validationLog);
 
           // Escalate to verifier for tool call generation
           const verifierModel = await this.getVerifierModel();
@@ -818,7 +809,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
           await runManager?.handleText(flowLog);
-          console.log(flowLog);
+          debugLog(flowLog);
 
           if (!verifierMessage.response_metadata) {
             (verifierMessage as any).response_metadata = {};
@@ -863,7 +854,7 @@ export class CascadeChatModel extends BaseChatModel {
           : ' - bypassing quality check';
         const toolLog = `   🔧 Tool calls detected (${toolCallsCount})${validationNote}\n`;
         await runManager?.handleText(toolLog);
-        console.log(toolLog);
+        debugLog(toolLog);
 
         const flowLog = `
 ┌──────────────────────────────────────────┐
@@ -878,7 +869,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
         await runManager?.handleText(flowLog);
-        console.log(flowLog);
+        debugLog(flowLog);
 
         if (!drafterMessage.response_metadata) {
           (drafterMessage as any).response_metadata = {};
@@ -941,24 +932,24 @@ export class CascadeChatModel extends BaseChatModel {
           );
           const qualityLog = `   📊 Quality validation: confidence=${validationResult.confidence.toFixed(2)}, threshold=${effectiveThreshold}, method=${validationResult.method}${complexity ? `, complexity=${complexity}` : ''}\n`;
           await runManager?.handleText(qualityLog);
-          console.log(qualityLog);
+          debugLog(qualityLog);
 
           if (validationResult.details?.alignmentScore) {
             const alignmentLog = `   🎯 Alignment: ${validationResult.details.alignmentScore.toFixed(2)}\n`;
             await runManager?.handleText(alignmentLog);
-            console.log(alignmentLog);
+            debugLog(alignmentLog);
           }
         } catch (e) {
           const errorLog = `   ⚠️  Quality validator error, using simple check: ${e}\n`;
           await runManager?.handleText(errorLog);
-          console.warn(errorLog);
+          debugLog(errorLog);
           validationResult = this.simpleQualityCheck(responseText, effectiveThreshold);
         }
       } else {
         validationResult = this.simpleQualityCheck(responseText, effectiveThreshold);
         const simpleLog = `   📊 Simple quality check: confidence=${validationResult.confidence.toFixed(2)}\n`;
         await runManager?.handleText(simpleLog);
-        console.log(simpleLog);
+        debugLog(simpleLog);
       }
 
       // Step 7: If quality is sufficient, return response
@@ -991,7 +982,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
         await runManager?.handleText(flowLog);
-        console.log(flowLog);
+        debugLog(flowLog);
 
         if (!drafterMessage.response_metadata) {
           (drafterMessage as any).response_metadata = {};
@@ -1053,7 +1044,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
       await runManager?.handleText(escalateLog);
-      console.log(escalateLog);
+      debugLog(escalateLog);
 
       const verifierStartTime = Date.now();
       const verifierModel = escalationVerifier;
@@ -1080,7 +1071,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
       await runManager?.handleText(completionLog);
-      console.log(completionLog);
+      debugLog(completionLog);
 
       if (!verifierMessage.response_metadata) {
         (verifierMessage as any).response_metadata = {};
@@ -1133,7 +1124,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
       await runManager?.handleText(errorLog);
-      console.log(errorLog);
+      debugLog(errorLog);
 
       const verifierModel = await this.getVerifierModel();
       const verifierInfo = this.getModelInfo(verifierModel);
@@ -1149,7 +1140,7 @@ export class CascadeChatModel extends BaseChatModel {
 `;
 
       await runManager?.handleText(fallbackCompleteLog);
-      console.log(fallbackCompleteLog);
+      debugLog(fallbackCompleteLog);
 
       if (!verifierMessage.response_metadata) {
         (verifierMessage as any).response_metadata = {};
@@ -1226,7 +1217,7 @@ export class CascadeChatModel extends BaseChatModel {
         usingDomainModel && detectedDomain ? `domain:${detectedDomain}` : 'drafter';
 
       await runManager?.handleText(`🎯 CascadeFlow (Streaming): Trying ${modelType} model: ${modelInfo}\n`);
-      console.log(`🎯 CascadeFlow (Streaming): Trying ${modelType} model: ${modelInfo}`);
+      debugLog(`🎯 CascadeFlow (Streaming): Trying ${modelType} model: ${modelInfo}`);
 
       const drafterStartTime = Date.now();
       let fullDrafterContent = '';
@@ -1255,7 +1246,7 @@ export class CascadeChatModel extends BaseChatModel {
         const toolCallsCount = this.getToolCallsCount(lastChunk.message);
         const toolLog = `\n🔧 Tool calls detected (${toolCallsCount}) - cascade complete\n`;
         await runManager?.handleText(toolLog);
-        console.log(toolLog);
+        debugLog(toolLog);
         return;
       }
 
@@ -1286,12 +1277,12 @@ export class CascadeChatModel extends BaseChatModel {
 
       if (validationResult.passed) {
         await runManager?.handleText(`✅ Quality check passed - cascade complete (${modelType} accepted)\n`);
-        console.log(`✅ Streaming: ${modelType} accepted (${drafterLatency}ms)`);
+        debugLog(`✅ Streaming: ${modelType} accepted (${drafterLatency}ms)`);
         return;
       }
 
       await runManager?.handleText(`\n⚠️  Quality check failed - escalating to verifier...\n`);
-      console.log(`⚠️  Streaming: Escalating to verifier (confidence ${validationResult.confidence.toFixed(2)} < ${effectiveThreshold})`);
+      debugLog(`⚠️  Streaming: Escalating to verifier (confidence ${validationResult.confidence.toFixed(2)} < ${effectiveThreshold})`);
 
       const verifierModel = await this.getVerifierModel();
       const verifierInfo = this.getModelInfo(verifierModel);
@@ -1312,12 +1303,12 @@ export class CascadeChatModel extends BaseChatModel {
 
       const verifierLatency = Date.now() - verifierStartTime;
       await runManager?.handleText(`\n✅ Verifier streaming complete (${verifierLatency}ms)\n`);
-      console.log(`✅ Streaming: Verifier complete (${verifierLatency}ms)`);
+      debugLog(`✅ Streaming: Verifier complete (${verifierLatency}ms)`);
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       await runManager?.handleText(`\n❌ Drafter error - falling back to verifier: ${errorMsg}\n`);
-      console.log(`❌ Streaming: Drafter error, using verifier fallback`);
+      debugLog(`❌ Streaming: Drafter error, using verifier fallback`);
 
       const verifierModel = await this.getVerifierModel();
       const verifierStream = await verifierModel.stream(messages, options);
@@ -1747,23 +1738,23 @@ export class LmChatCascadeFlow implements INodeType {
       }
     }
 
-    console.log('🚀 CascadeFlow v2 initialized');
-    console.log(`   PORT MAPPING:`);
-    console.log(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: resolved`);
-    console.log(`   └─ BOTTOM port (labeled "Drafter") → DRAFTER model: resolved`);
-    console.log(`   Quality threshold: ${qualityThreshold}`);
-    console.log(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
-    console.log(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
-    console.log(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
-    console.log(`   Complexity thresholds: ${useComplexityThresholds ? 'enabled' : 'disabled'}`);
-    console.log(`   Tool call validation: ${enableToolCallValidation ? 'enabled' : 'disabled'}`);
-    console.log(`   Domain routing: ${enableDomainRouting ? 'enabled' : 'disabled'}`);
+    debugLog('🚀 CascadeFlow v2 initialized');
+    debugLog(`   PORT MAPPING:`);
+    debugLog(`   ├─ TOP port (labeled "Verifier") → VERIFIER model: resolved`);
+    debugLog(`   └─ BOTTOM port (labeled "Drafter") → DRAFTER model: resolved`);
+    debugLog(`   Quality threshold: ${qualityThreshold}`);
+    debugLog(`   Semantic validation: ${useSemanticValidation ? 'enabled' : 'disabled'}`);
+    debugLog(`   Alignment scoring: ${useAlignmentScoring ? 'enabled' : 'disabled'}`);
+    debugLog(`   Complexity routing: ${useComplexityRouting ? 'enabled' : 'disabled'}`);
+    debugLog(`   Complexity thresholds: ${useComplexityThresholds ? 'enabled' : 'disabled'}`);
+    debugLog(`   Tool call validation: ${enableToolCallValidation ? 'enabled' : 'disabled'}`);
+    debugLog(`   Domain routing: ${enableDomainRouting ? 'enabled' : 'disabled'}`);
     if (enabledDomains.length > 0) {
-      console.log(`   Enabled domains: ${enabledDomains.join(', ')}`);
-      console.log(`   Domain verifiers: ${enableDomainVerifiers ? 'enabled' : 'disabled'}`);
+      debugLog(`   Enabled domains: ${enabledDomains.join(', ')}`);
+      debugLog(`   Domain verifiers: ${enableDomainVerifiers ? 'enabled' : 'disabled'}`);
     }
     if (useComplexityThresholds && confidenceThresholds) {
-      console.log(`   Thresholds: ${JSON.stringify(confidenceThresholds)}`);
+      debugLog(`   Thresholds: ${JSON.stringify(confidenceThresholds)}`);
     }
 
     // Create and return the cascade model

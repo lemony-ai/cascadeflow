@@ -1,11 +1,14 @@
 import { build } from 'esbuild';
-import { cpSync, mkdirSync } from 'fs';
+import { cpSync, mkdirSync, rmSync } from 'fs';
 import { glob } from 'glob';
 
 // Find all .ts entry points (excluding tests)
 const entryPoints = glob.sync('{nodes,credentials}/**/*.ts', {
 	ignore: ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'],
 });
+
+// Ensure stale artifacts (e.g. old compiled tests) are never published.
+rmSync('dist', { recursive: true, force: true });
 
 await build({
 	entryPoints,
@@ -20,8 +23,6 @@ await build({
 		'n8n-workflow',
 		'@langchain/core',
 		'@langchain/core/*',
-		// Dynamic import in @cascadeflow/core, never used in n8n
-		'@cascadeflow/ml',
 	],
 });
 
@@ -31,5 +32,3 @@ for (const svg of glob.sync('nodes/**/*.svg')) {
 	mkdirSync(dest.replace(/\/[^/]+$/, ''), { recursive: true });
 	cpSync(svg, dest);
 }
-
-console.log('Build complete — @cascadeflow/core bundled inline');

@@ -23,14 +23,12 @@ import {
 } from '../LmChatCascadeFlow/config';
 import { HarnessRunContext, type HarnessConfig, type HarnessMode, type KpiWeights } from '../harness';
 
-// Tool cascade validator - optional import
-let ToolCascadeValidator: any;
-try {
-  const cascadeCore = require('@cascadeflow/core');
-  ToolCascadeValidator = cascadeCore.ToolCascadeValidator;
-} catch (e) {
-  // @cascadeflow/core not available
-}
+// Keep logs disabled in runtime bundle to satisfy n8n scan constraints.
+const debugLog = (..._args: unknown[]): void => {};
+
+// Tool cascade validation from core is disabled in this package build;
+// the agent falls back to local validation behavior.
+const ToolCascadeValidator: any = null;
 
 type ToolRoutingMode = 'cascade' | 'verifier';
 
@@ -323,7 +321,7 @@ export class CascadeFlowAgentExecutor {
       // Validate tool calls if enabled
       const validation = this.validateToolCalls(toolCalls);
       if (validation && !validation.valid) {
-        console.log(`🔧 Agent tool call validation failed (score: ${validation.score.toFixed(2)}), escalating to verifier`);
+        debugLog(`🔧 Agent tool call validation failed (score: ${validation.score.toFixed(2)}), escalating to verifier`);
         const verifierMessage = await this.cascadeModel.invokeVerifierDirect(currentMessages, options);
         const verifierToolCalls = this.extractToolCalls(verifierMessage);
         trace.push({
