@@ -434,7 +434,13 @@ Make sure you've connected an AI Chat Model to the **Verifier** input port.
 
 ## Version History
 
-### v1.0.0 (Latest)
+### v1.3.0 (Latest)
+
+- **n8n AI SDK migration**: Uses `@n8n/ai-node-sdk` + `supplyModel(...)` for Cloud-compatible model supply
+- **Scanner-safe packaging**: Clean `dist` build, no stale test artifacts, and no bundled optional core runtime
+- **Real streaming path**: `stream()` now routes through the internal streaming cascade path instead of post-hoc chunk emission
+
+### v1.0.0
 
 - **CascadeFlow Agent → standalone node**: Converted from `supplyData()` sub-node to `execute()` node with main in/out
 - **Memory support**: Added `ai_memory` input for conversation history (Window Buffer Memory, etc.)

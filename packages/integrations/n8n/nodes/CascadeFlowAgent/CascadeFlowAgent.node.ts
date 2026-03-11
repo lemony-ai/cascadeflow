@@ -24,14 +24,8 @@ import {
 } from '../LmChatCascadeFlow/config';
 import { HarnessRunContext, type HarnessConfig, type HarnessMode, type KpiWeights } from '../harness';
 
-// Tool cascade validator - optional import
-let ToolCascadeValidator: any;
-try {
-  const cascadeCore = require('@cascadeflow/core');
-  ToolCascadeValidator = cascadeCore.ToolCascadeValidator;
-} catch {
-  // @cascadeflow/core not available
-}
+// Tool cascade validation adapter is intentionally disabled in the n8n package runtime.
+const ToolCascadeValidator: any = null;
 
 type ToolRoutingMode = 'cascade' | 'verifier';
 
@@ -489,7 +483,7 @@ export class CascadeFlowAgentExecutor {
       return;
     }
 
-    const stream = (this.cascadeModel as any)._streamResponse(messages, options ?? {}, undefined);
+    const stream = (this.cascadeModel as any)._streamResponseChunks(messages, options ?? {}, undefined);
     for await (const chunk of stream) {
       yield chunk;
     }

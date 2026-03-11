@@ -824,28 +824,40 @@ export class CascadeChatModel extends BaseChatModel {
   }
 
   async *stream(messages: Message[], config?: ChatModelConfig): AsyncIterable<StreamChunk> {
-    const result = await this.generate(messages, config);
+    const inputMessages = this.toModelInput(messages);
+    const seenToolCallIds = new Set<string>();
 
-    for (const block of result.message.content) {
-      if (block.type === 'text' || block.type === 'reasoning') {
-        if (block.text) {
-          yield { type: 'text-delta', delta: block.text };
+    for await (const chunk of this._streamResponseChunks(inputMessages, config ?? {}, undefined)) {
+      const chunkText = String((chunk as any)?.text ?? '');
+      if (chunkText.length > 0) {
+        yield { type: 'text-delta', delta: chunkText };
+      }
+
+      const rawMessage = (chunk as any)?.message;
+      const additionalKwargs = rawMessage?.additional_kwargs || {};
+      const responseMetadata = rawMessage?.response_metadata || {};
+      const rawToolCalls = additionalKwargs.tool_calls || responseMetadata.tool_calls || [];
+
+      if (Array.isArray(rawToolCalls)) {
+        for (const toolCall of rawToolCalls) {
+          const id = String(toolCall?.id ?? '');
+          if (!id || seenToolCallIds.has(id)) continue;
+          seenToolCallIds.add(id);
+
+          const toolName = toolCall?.function?.name ?? toolCall?.name;
+          const input = toolCall?.function?.arguments ?? toolCall?.arguments ?? '{}';
+
+          yield {
+            type: 'tool-call-delta',
+            id,
+            name: toolName ? String(toolName) : undefined,
+            argumentsDelta: typeof input === 'string' ? input : JSON.stringify(input),
+          };
         }
-      } else if (block.type === 'tool-call') {
-        yield {
-          type: 'tool-call-delta',
-          id: block.toolCallId,
-          name: block.toolName,
-          argumentsDelta: String(block.input ?? ''),
-        };
       }
     }
 
-    yield {
-      type: 'finish',
-      finishReason: result.finishReason ?? 'stop',
-      usage: result.usage,
-    };
+    yield { type: 'finish', finishReason: 'stop' };
   }
 
   _llmType(): string {
