@@ -1294,6 +1294,39 @@ def _build_openai_response(model: str, result) -> dict[str, Any]:
 __all__ = ["OpenClawOpenAIServer", "OpenClawOpenAIConfig"]
 
 
+def _format_harness_summary(config: Any) -> str:
+    parts = [f"mode={config.mode}"]
+    if config.budget is not None:
+        parts.append(f"budget={config.budget}")
+    if config.max_tool_calls is not None:
+        parts.append(f"max_tool_calls={config.max_tool_calls}")
+    if config.max_latency_ms is not None:
+        parts.append(f"max_latency_ms={config.max_latency_ms}")
+    if config.max_energy is not None:
+        parts.append(f"max_energy={config.max_energy}")
+    if config.compliance:
+        parts.append(f"compliance={config.compliance}")
+    return " ".join(parts)
+
+
+def _configure_harness(args: Any) -> None:
+    from cascadeflow.harness import get_harness_config, init
+
+    harness_kwargs = {
+        "mode": args.harness_mode,
+        "budget": args.harness_budget,
+        "max_tool_calls": args.harness_max_tool_calls,
+        "max_latency_ms": args.harness_max_latency_ms,
+        "max_energy": args.harness_max_energy,
+        "compliance": args.harness_compliance,
+    }
+    init(**harness_kwargs)
+
+    resolved = get_harness_config()
+    if resolved.mode != "off" or any(value is not None for value in harness_kwargs.values()):
+        print(f"Harness {_format_harness_summary(resolved)}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="OpenClaw OpenAI-compatible server")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
@@ -1362,12 +1395,49 @@ def main() -> None:
         default=None,
         help="Directory to serve static files from (e.g. install.sh).",
     )
+    parser.add_argument(
+        "--harness-mode",
+        choices=["off", "observe", "enforce"],
+        default=None,
+        help="Optional harness mode override (off|observe|enforce).",
+    )
+    parser.add_argument(
+        "--harness-budget",
+        type=float,
+        default=None,
+        help="Optional harness budget cap in USD.",
+    )
+    parser.add_argument(
+        "--harness-max-tool-calls",
+        type=int,
+        default=None,
+        help="Optional harness cap for tool calls per run.",
+    )
+    parser.add_argument(
+        "--harness-max-latency-ms",
+        type=float,
+        default=None,
+        help="Optional harness latency cap in milliseconds.",
+    )
+    parser.add_argument(
+        "--harness-max-energy",
+        type=float,
+        default=None,
+        help="Optional harness energy cap (normalized units).",
+    )
+    parser.add_argument(
+        "--harness-compliance",
+        choices=["gdpr", "hipaa", "pci", "strict"],
+        default=None,
+        help="Optional harness compliance policy.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
+    _configure_harness(args)
 
     if args.config:
         from cascadeflow.config_loader import load_agent

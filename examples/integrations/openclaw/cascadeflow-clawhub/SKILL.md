@@ -74,6 +74,25 @@ python3 -m cascadeflow.integrations.openclaw.openai_server \
   --stats-auth-token local-stats-token
 ```
 
+Optional harness activation (runtime in-loop policy controls):
+```bash
+# Observe first (recommended): log decisions, no blocking
+python3 -m cascadeflow.integrations.openclaw.openai_server \
+  --host 127.0.0.1 --port 8084 \
+  --config examples/configs/anthropic-only.yaml \
+  --harness-mode observe
+
+# Enforce mode with limits
+python3 -m cascadeflow.integrations.openclaw.openai_server \
+  --host 127.0.0.1 --port 8084 \
+  --config examples/configs/anthropic-only.yaml \
+  --harness-mode enforce \
+  --harness-budget 1.0 \
+  --harness-max-tool-calls 12 \
+  --harness-max-latency-ms 3500 \
+  --harness-compliance strict
+```
+
 4. Configure OpenClaw provider:
 - `baseUrl`: `http://<cascadeflow-host>:8084/v1` (local default: `http://127.0.0.1:8084/v1`)
 - If remote: `http://<server-ip>:8084/v1` or `https://<domain>/v1` (TLS/reverse proxy)

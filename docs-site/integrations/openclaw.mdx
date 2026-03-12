@@ -14,6 +14,24 @@ OpenClaw can call cascadeflow through an OpenAI-compatible interface. That makes
 1. Start the cascadeflow OpenAI-compatible server.
 2. Point OpenClaw at that base URL as a custom provider.
 3. Optionally pass routing hints, tenant metadata, or channel information.
+4. Optionally enable harness mode for in-loop runtime policy decisions.
+
+## Optional Harness Toggle
+
+OpenClaw integration stays compatibility-first, but you can opt into harness behavior
+at server startup:
+
+- `--harness-mode off` (default)
+- `--harness-mode observe` (recommended first step)
+- `--harness-mode enforce` (active controls with budgets/limits)
+
+Example:
+
+```bash
+python -m cascadeflow.integrations.openclaw.openai_server \
+  --port 8084 \
+  --harness-mode observe
+```
 
 ## Why Teams Use It
 
