@@ -68,11 +68,15 @@ print_result("GPT-4o-mini (draft) -> GPT-4o", result_a)
 print_result("Llama-3.1-8b (draft) -> GPT-4o", result_b)
 
 diff = result_b.compare(result_a)
-print(f"\nSwitching to Llama-3.1-8b saves ${-diff['cost_change']:.6f} ({-diff['cost_change_pct']:.1f}%)")
+print(
+    f"\nSwitching to Llama-3.1-8b saves ${-diff['cost_change']:.6f} ({-diff['cost_change_pct']:.1f}%)"
+)
 
 # Per-query breakdown
 print("\n\nPer-query breakdown (config B, threshold=0.7):")
 print(f"{'Query':<50} {'Complexity':<10} {'Model':<20} {'Cost':<10}")
 print("-" * 90)
 for entry in result_b.per_query:
-    print(f"{entry.query:<50} {entry.complexity:<10} {entry.projected_model:<20} ${entry.projected_cost:.6f}")
+    print(
+        f"{entry.query:<50} {entry.complexity:<10} {entry.projected_model:<20} ${entry.projected_cost:.6f}"
+    )

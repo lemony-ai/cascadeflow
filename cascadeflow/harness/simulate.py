@@ -79,9 +79,7 @@ class SimulationResult:
         return {
             "cost_change": round(cost_diff, 6),
             "cost_change_pct": round(cost_pct, 2),
-            "escalation_rate_change": round(
-                self.escalation_rate - other.escalation_rate, 4
-            ),
+            "escalation_rate_change": round(self.escalation_rate - other.escalation_rate, 4),
             "this": self.summary(),
             "other": other.summary(),
         }
@@ -173,7 +171,9 @@ def simulate(
             complexity_enum = complexity_result[0]
         else:
             complexity_enum = complexity_result
-        complexity_str = complexity_enum.value if hasattr(complexity_enum, "value") else str(complexity_enum)
+        complexity_str = (
+            complexity_enum.value if hasattr(complexity_enum, "value") else str(complexity_enum)
+        )
 
         domain_str = "general"
         domain_conf = 0.0
@@ -255,9 +255,7 @@ def _load_queries(queries: Union[list[str], str, Path]) -> list[str]:
                     if isinstance(value, str):
                         result.append(value)
                     else:
-                        logger.warning(
-                            "Skipping non-string query value: %s", type(value).__name__
-                        )
+                        logger.warning("Skipping non-string query value: %s", type(value).__name__)
                 elif isinstance(data, str):
                     result.append(data)
             except json.JSONDecodeError:
