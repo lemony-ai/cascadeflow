@@ -15,6 +15,40 @@ Common options:
 - `--config /path/to/cascadeflow.yaml` (override models + channels via config file)
 - `--no-classifier` to disable the OpenClaw pre-router classifier
 - `--no-stream` to disable streaming responses
+- `--harness-mode off|observe|enforce` to control in-loop harness policy behavior
+- `--harness-budget`, `--harness-max-tool-calls`, `--harness-max-latency-ms`, `--harness-compliance` for optional limits
+
+## 1b) Optional: enable in-loop harness controls
+
+`--harness-mode` is opt-in. Use it when you want runtime policy actions inside the
+Cascadeflow execution loop for OpenClaw traffic.
+
+- `off`: compatibility mode only (default)
+- `observe`: log and trace decisions without blocking
+- `enforce`: apply actions (for example switch model, deny tool, stop)
+
+Start in observe mode (recommended):
+
+```bash
+python -m cascadeflow.integrations.openclaw.openai_server \
+  --port 8084 \
+  --harness-mode observe
+```
+
+Move to enforce mode with limits:
+
+```bash
+python -m cascadeflow.integrations.openclaw.openai_server \
+  --port 8084 \
+  --harness-mode enforce \
+  --harness-budget 1.0 \
+  --harness-max-tool-calls 12 \
+  --harness-max-latency-ms 3500 \
+  --harness-compliance strict
+```
+
+On startup, the server prints the resolved harness settings so you can verify the
+active mode immediately.
 
 ## 2) Configure OpenClaw custom provider
 
