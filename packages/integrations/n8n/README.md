@@ -434,7 +434,14 @@ Make sure you've connected an AI Chat Model to the **Verifier** input port.
 
 ## Version History
 
-### v1.0.0 (Latest)
+### v1.3.0 (Latest)
+
+- **PreRouter integration**: Complexity-based routing now uses `PreRouter` with structured `RoutingDecision` (strategy, confidence, metadata) instead of hardcoded branching
+- **Domain-aware routing context**: PreRouter receives detected domain and domain config for richer routing decisions
+- **Router metadata**: `direct_verifier` responses include `router: 'pre-router' | 'complexity'` in cascade metadata
+- **Moved `@langchain/core` to peerDependencies**: Avoids duplicate installs since n8n provides it at runtime
+
+### v1.0.0
 
 - **CascadeFlow Agent → standalone node**: Converted from `supplyData()` sub-node to `execute()` node with main in/out
 - **Memory support**: Added `ai_memory` input for conversation history (Window Buffer Memory, etc.)
