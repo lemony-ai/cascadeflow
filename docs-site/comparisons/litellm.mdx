@@ -1,0 +1,257 @@
+---
+title: "cascadeflow vs LiteLLM"
+sidebarTitle: "vs LiteLLM"
+description: "cascadeflow is an in-process runtime intelligence layer for agent execution with 6-dimensional governance. LiteLLM is a reverse proxy that normalizes APIs across 100+ LLM providers."
+---
+
+## Quick Comparison
+
+| Feature | cascadeflow | LiteLLM |
+|---------|------------|---------|
+| **Architecture** | In-process library | Reverse proxy (separate service) |
+| **Deployment** | `pip install cascadeflow` | Standalone server or library |
+| **Latency overhead** | <5ms | 10-50ms (HTTP RTT) |
+| **Optimization dimensions** | 6 (cost, latency, quality, budget, compliance, energy) | 1 (cost-based routing) |
+| **Quality validation** | 5+ validators built-in | None |
+| **Enforcement actions** | allow / switch / deny / stop | None |
+| **Tool gating** | Yes (per-tool policies) | No |
+| **Budget enforcement** | Real-time tracking | Token-level only |
+| **Custom policies** | Full support | Limited |
+| **Provider support** | Any provider via adapters | 100+ providers normalized |
+| **Rate limiting** | Yes | Yes |
+| **Fallback handling** | Runtime-aware | Static config |
+
+## Architecture: Process Model vs Network Boundary
+
+LiteLLM operates as a **reverse proxy** sitting between your application and LLM providers. Every request goes through HTTP:
+
+```
+Your App → HTTP → LiteLLM Server → HTTP → Provider API
+           ↓
+        10-50ms latency
+```
+
+cascadeflow is an **in-process library** living inside your execution loop:
+
+```
+Your App
+  ├─ Agent execution
+  └─ cascadeflow (in-process, <5ms overhead)
+      ├─ Validators
+      ├─ Enforcement
+      └─ Provider calls
+```
+
+This difference affects:
+- **Latency**: cascadeflow adds <5ms; LiteLLM adds network round-trip time
+- **Visibility**: cascadeflow sees tool calls, agent state, execution context; LiteLLM sees only API calls
+- **Coupling**: cascadeflow is tightly integrated; LiteLLM is loosely coupled
+
+## Optimization Dimensions
+
+**LiteLLM focuses on cost-based routing**. You can configure providers and automatic fallback when one fails:
+
+```python
+# LiteLLM: cost-focused
+litellm.completion(
+    model="claude-3-sonnet",
+    fallbacks=["gpt-4-turbo", "gpt-3.5-turbo"],
+)
+```
+
+**cascadeflow optimizes across 6 dimensions simultaneously**:
+
+```python
+from cascadeflow import Harness, Policy
+
+policy = Policy(
+    cost_limit=0.50,
+    latency_sla=2000,
+    quality_threshold=0.85,
+    energy_budget=50,
+    compliance_rules=["pii_never_logs"],
+)
+
+harness = Harness(
+    agents=[draft_agent, verify_agent],
+    policy=policy,
+    dimensions=["cost", "latency", "quality", "budget", "compliance", "energy"]
+)
+```
+
+## Quality Validation & Enforcement
+
+**LiteLLM has no built-in validation or enforcement**. It normalizes APIs but doesn't inspect outputs or enforce policies.
+
+**cascadeflow includes semantic validation and runtime enforcement**:
+
+```python
+from cascadeflow.validators import PII, Factuality, Consistency, Latency, Budget
+
+validators = [
+    PII(block_sensitive_data=True),
+    Factuality(min_confidence=0.8),
+    Consistency(tolerance=0.05),
+    Latency(max_ms=2000),
+    Budget(max_tokens=500),
+]
+
+harness = Harness(
+    agents=[draft, verify],
+    validators=validators,
+    enforcement=["allow", "switch", "deny", "stop"]
+)
+```
+
+## Use Cases
+
+### Use LiteLLM When You Need:
+- Unified API across 100+ providers
+- Provider abstraction (swap providers without code changes)
+- Rate limiting and retry logic at the API level
+- Standalone gateway for multiple applications
+- Simple fallback chains based on cost or availability
+
+### Use cascadeflow When You Need:
+- Runtime governance inside agent loops
+- Quality optimization before decisions cascade
+- Budget enforcement across multi-step executions
+- Compliance policies (data handling, audit trails)
+- Tool-level access control
+- Energy-aware routing
+
+## Complementary Architecture
+
+cascadeflow can sit on top of LiteLLM:
+
+```
+┌─────────────────────────────────────┐
+│     Your Agent Application          │
+├─────────────────────────────────────┤
+│  cascadeflow Harness                │
+│  - Validators                       │
+│  - Policy enforcement               │
+│  - Multi-dimensional optimization   │
+├─────────────────────────────────────┤
+│  LiteLLM Provider Normalization      │
+│  - 100+ providers                   │
+│  - Cost-based routing               │
+│  - Rate limiting                    │
+└─────────────────────────────────────┘
+```
+
+## Code Examples
+
+### Python: cascadeflow + LiteLLM
+
+```python
+import litellm
+from cascadeflow import Harness, Policy, Agent
+from cascadeflow.validators import PII, Quality, Budget
+
+class DraftAgent(Agent):
+    async def run(self, query: str) -> str:
+        response = litellm.completion(
+            model="claude-3-sonnet",
+            messages=[{"role": "user", "content": query}],
+        )
+        return response.choices[0].message.content
+
+class VerifyAgent(Agent):
+    async def run(self, query: str, draft: str) -> str:
+        response = litellm.completion(
+            model="gpt-4-turbo",
+            messages=[{"role": "user", "content": f"Verify: {draft}"}],
+        )
+        return response.choices[0].message.content
+
+policy = Policy(
+    cost_limit=1.00,
+    latency_sla=3000,
+    quality_threshold=0.85,
+    compliance_rules=["no_pii_in_logs"],
+)
+
+validators = [
+    PII(block_sensitive_data=True),
+    Quality(min_score=0.85),
+    Budget(max_tokens=1000),
+]
+
+harness = Harness(
+    agents=[DraftAgent(), VerifyAgent()],
+    policy=policy,
+    validators=validators,
+    enforcement=["allow", "switch", "deny"],
+)
+
+result = await harness.run(query="Analyze this dataset")
+print(f"Cost: ${result.cost:.2f}, Quality: {result.quality:.1%}, Time: {result.latency_ms}ms")
+```
+
+### TypeScript: cascadeflow + LiteLLM
+
+```typescript
+import { Harness, Policy, Agent } from "@cascadeflow/core";
+import { PII, Quality, Budget } from "@cascadeflow/validators";
+
+class DraftAgent extends Agent {
+  async run(query: string): Promise<string> {
+    const response = await litellm.completion({
+      model: "claude-3-sonnet",
+      messages: [{ role: "user", content: query }],
+    });
+    return response.choices[0].message.content;
+  }
+}
+
+class VerifyAgent extends Agent {
+  async run(query: string, draft: string): Promise<string> {
+    const response = await litellm.completion({
+      model: "gpt-4-turbo",
+      messages: [{ role: "user", content: `Verify: ${draft}` }],
+    });
+    return response.choices[0].message.content;
+  }
+}
+
+const policy = new Policy({
+  costLimit: 1.0,
+  latencySla: 3000,
+  qualityThreshold: 0.85,
+  complianceRules: ["no_pii_in_logs"],
+});
+
+const validators = [
+  new PII({ blockSensitiveData: true }),
+  new Quality({ minScore: 0.85 }),
+  new Budget({ maxTokens: 1000 }),
+];
+
+const harness = new Harness({
+  agents: [new DraftAgent(), new VerifyAgent()],
+  policy,
+  validators,
+  enforcement: ["allow", "switch", "deny"],
+  dimensions: ["cost", "latency", "quality", "budget", "compliance", "energy"],
+});
+
+const result = await harness.run({ query: "Analyze this dataset" });
+console.log(`Cost: $${result.cost.toFixed(2)}, Quality: ${(result.quality * 100).toFixed(1)}%, Time: ${result.latencyMs}ms`);
+```
+
+## Latency Comparison
+
+For latency-critical applications (sub-100ms response times):
+
+- Single-turn question: cascadeflow ~5ms overhead, LiteLLM ~20ms
+- Agent with 5 turns: cascadeflow ~25ms total, LiteLLM ~100ms total
+
+cascadeflow's in-process model wins for real-time scenarios.
+
+## Related
+
+- [cascadeflow Documentation](https://cascadeflow.dev)
+- [LiteLLM Documentation](https://docs.litellm.ai)
+- [Comparison: cascadeflow vs Portkey](/comparisons/portkey)
+- [Comparison: cascadeflow vs OpenRouter](/comparisons/openrouter)
