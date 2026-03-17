@@ -1,0 +1,230 @@
+---
+title: "cascadeflow vs LiteLLM"
+sidebarTitle: "vs LiteLLM"
+description: "cascadeflow is an in-process runtime intelligence layer for agent execution with 6-dimensional governance. LiteLLM is a multi-model abstraction layer (SDK + proxy) that normalizes APIs across 100+ LLM providers."
+---
+
+## Quick Comparison
+
+| Feature | cascadeflow | LiteLLM |
+|---------|------------|---------|
+| **Architecture** | In-process library | Reverse proxy (separate service) |
+| **Deployment** | `pip install cascadeflow` | Standalone server or library |
+| **Latency overhead** | Typically &lt;5ms | Typically 10-50ms (HTTP RTT) |
+| **Optimization dimensions** | 6 (cost, latency, quality, budget, compliance, energy) | 1 (cost-based routing) |
+| **Quality validation** | 5+ validators built-in | None |
+| **Enforcement actions** | allow / switch / deny / stop | None |
+| **Tool gating** | Yes (per-tool policies) | No |
+| **Budget enforcement** | Real-time multi-dimensional tracking | Spend tracking per request |
+| **Custom policies** | Full support | Limited |
+| **Provider support** | Any provider via adapters | 100+ providers normalized |
+| **Rate limiting** | Yes | Yes |
+| **Fallback handling** | Runtime-aware | Static config |
+
+## Architecture: Process Model vs Network Boundary
+
+LiteLLM offers two modes: a **Python SDK** for direct integration and a **reverse proxy** for standalone gateway use. In proxy mode, every request goes through HTTP:
+
+```
+Your App → HTTP → LiteLLM Server → HTTP → Provider API
+           ↓
+        Typically 10-50ms latency
+```
+
+In SDK mode, LiteLLM runs as a library with lower latency overhead.
+
+cascadeflow is an **in-process library** living inside your execution loop:
+
+```
+Your App
+  ├─ Agent execution
+  └─ cascadeflow (in-process, typically <5ms overhead)
+      ├─ Validators
+      ├─ Enforcement
+      └─ Provider calls
+```
+
+This difference affects:
+- **Latency**: cascadeflow typically adds &lt;5ms; LiteLLM adds network round-trip time
+- **Visibility**: cascadeflow sees tool calls, agent state, execution context; LiteLLM sees only API calls
+- **Coupling**: cascadeflow is tightly integrated; LiteLLM is loosely coupled
+
+## Optimization Dimensions
+
+**LiteLLM focuses on cost-based routing**. You can configure providers and automatic fallback when one fails:
+
+```python
+# LiteLLM: cost-focused
+litellm.completion(
+    model="claude-3-sonnet",
+    fallbacks=["gpt-4-turbo", "gpt-3.5-turbo"],
+)
+```
+
+**cascadeflow optimizes across 6 dimensions simultaneously**:
+
+```python
+import cascadeflow
+
+# Initialize cascadeflow with enforce mode
+cascadeflow.init(mode="enforce")
+
+# Define agents with budget and compliance requirements
+@cascadeflow.agent(budget=0.50, compliance="pii_audit", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85})
+async def draft_agent(query: str):
+    # Draft implementation
+    pass
+
+@cascadeflow.agent(budget=0.50, compliance="pii_audit")
+async def verify_agent(query: str):
+    # Verify implementation
+    pass
+
+# Use with session for real-time tracking
+with cascadeflow.run(budget=0.50, compliance="pii_audit", max_tool_calls=10) as session:
+    result = await draft_agent("query")
+    summary = session.summary()
+    # summary has: cost_total, steps, budget_remaining, latency_total_ms, energy_used
+```
+
+## Quality Validation & Enforcement
+
+**LiteLLM handles cost routing and rate limiting** but doesn't include semantic validation or policy enforcement integrated into the request lifecycle. **cascadeflow adds in-process governance** with semantic validation and enforcement actions tied directly to agent execution context.
+
+**cascadeflow includes semantic validation and runtime enforcement**:
+
+```python
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+# Validation happens within agent execution context
+@cascadeflow.agent(budget=0.50, compliance="pii_audit")
+async def validated_agent(query: str):
+    # cascadeflow tracks cost, enforces budget limits,
+    # and records decisions in the session trace
+    result = await llm.complete(query)
+    return result
+
+# Enforcement actions (allow, switch, deny, stop) are applied automatically
+# based on policy violations detected during execution
+with cascadeflow.run(budget=0.50, compliance="pii_audit", max_tool_calls=5) as session:
+    result = await validated_agent("query")
+    trace = session.trace()
+    # trace shows each step and enforcement action taken
+```
+
+## Use Cases
+
+### Use LiteLLM When You Need:
+- Unified API across 100+ providers
+- Provider abstraction (swap providers without code changes)
+- Rate limiting and retry logic at the API level
+- Standalone gateway for multiple applications
+- Simple fallback chains based on cost or availability
+
+### Use cascadeflow When You Need:
+- Runtime governance inside agent loops
+- Quality optimization before decisions cascade
+- Budget enforcement across multi-step executions
+- Compliance policies (data handling, audit trails)
+- Tool-level access control
+- Energy-aware routing
+
+## Complementary Architecture
+
+cascadeflow can sit on top of LiteLLM:
+
+```
+┌─────────────────────────────────────┐
+│     Your Agent Application          │
+├─────────────────────────────────────┤
+│  cascadeflow Harness                │
+│  - Validators                       │
+│  - Policy enforcement               │
+│  - Multi-dimensional optimization   │
+├─────────────────────────────────────┤
+│  LiteLLM Provider Normalization      │
+│  - 100+ providers                   │
+│  - Cost-based routing               │
+│  - Rate limiting                    │
+└─────────────────────────────────────┘
+```
+
+## Code Examples
+
+### Python: cascadeflow + LiteLLM
+
+```python
+import litellm
+import cascadeflow
+
+cascadeflow.init(mode="enforce")
+
+@cascadeflow.agent(budget=0.50, compliance="no_pii_logs", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85})
+async def draft_agent(query: str) -> str:
+    response = litellm.completion(
+        model="claude-3-sonnet",
+        messages=[{"role": "user", "content": query}],
+    )
+    return response.choices[0].message.content
+
+@cascadeflow.agent(budget=0.50, compliance="no_pii_logs", kpi_targets={"quality": 0.85})
+async def verify_agent(query: str, draft: str) -> str:
+    response = litellm.completion(
+        model="gpt-4-turbo",
+        messages=[{"role": "user", "content": f"Verify: {draft}"}],
+    )
+    return response.choices[0].message.content
+
+# Run with scoped session for governance
+with cascadeflow.run(budget=1.00, compliance="no_pii_logs", max_tool_calls=10) as session:
+    draft_result = await draft_agent("Analyze this dataset")
+    verify_result = await verify_agent("Analyze this dataset", draft_result)
+
+    summary = session.summary()
+    # summary provides: cost_total, steps, budget_remaining, latency_total_ms, energy_used
+    print(f"Cost: ${summary['cost_total']:.2f}, Steps: {summary['steps']}, Time: {summary['latency_total_ms']}ms")
+
+    # View trace for enforcement actions taken
+    for record in session.trace():
+        print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+```
+
+### TypeScript: cascadeflow + LiteLLM
+
+```typescript
+import { init, run } from '@cascadeflow/core';
+
+// Initialize with enforcement mode
+init({ mode: 'enforce', budget: 1.0, compliance: 'no_pii_logs' });
+
+// Run with scoped session for governance
+const result = await run({ budget: 0.50 }, async (ctx) => {
+  const draftResponse = await litellm.completion({
+    model: 'claude-3-sonnet',
+    messages: [{ role: 'user', content: 'Analyze this dataset' }],
+  });
+
+  const verifyResponse = await litellm.completion({
+    model: 'gpt-4-turbo',
+    messages: [{ role: 'user', content: `Verify: ${draftResponse.choices[0].message.content}` }],
+  });
+
+  return verifyResponse.choices[0].message.content;
+});
+```
+
+## Latency Comparison
+
+For latency-critical applications (sub-100ms response times):
+
+- Single-turn question: cascadeflow approximately 5ms overhead, LiteLLM approximately 20ms
+- Agent with 5 turns: cascadeflow approximately 25ms total, LiteLLM approximately 100ms total
+
+cascadeflow's in-process model wins for real-time scenarios.
+
+## Related
+
+- [cascadeflow Documentation](https://docs.cascadeflow.ai)
+- [LiteLLM Documentation](https://docs.litellm.ai)
