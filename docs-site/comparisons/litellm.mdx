@@ -81,7 +81,7 @@ async def verify_agent(query: str):
     pass
 
 # Use with session for real-time tracking
-with cascadeflow.run(budget=0.50, compliance="pii_audit") as session:
+with cascadeflow.run(budget=0.50, compliance="pii_audit", max_tool_calls=10) as session:
     result = await draft_agent("query")
     summary = session.summary()
     # summary has: cost_total, steps, budget_remaining, latency_total_ms, energy_used
@@ -99,20 +99,16 @@ import cascadeflow
 cascadeflow.init(mode="enforce")
 
 # Validation happens within agent execution context
-@cascadeflow.agent(budget=0.50, compliance="pii_audit", max_tool_calls=5)
+@cascadeflow.agent(budget=0.50, compliance="pii_audit")
 async def validated_agent(query: str):
-    # Within this agent, cascadeflow automatically:
-    # - Blocks PII in outputs
-    # - Validates factuality at min_confidence=0.8
-    # - Checks consistency with tolerance=0.05
-    # - Enforces latency_sla=2000ms
-    # - Tracks tokens within budget of 500
+    # cascadeflow tracks cost, enforces budget limits,
+    # and records decisions in the session trace
     result = await llm.complete(query)
     return result
 
 # Enforcement actions (allow, switch, deny, stop) are applied automatically
 # based on policy violations detected during execution
-with cascadeflow.run(budget=0.50, compliance="pii_audit") as session:
+with cascadeflow.run(budget=0.50, compliance="pii_audit", max_tool_calls=5) as session:
     result = await validated_agent("query")
     trace = session.trace()
     # trace shows each step and enforcement action taken
@@ -165,7 +161,7 @@ import cascadeflow
 
 cascadeflow.init(mode="enforce")
 
-@cascadeflow.agent(budget=0.50, compliance="no_pii_logs", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85}, max_tool_calls=5)
+@cascadeflow.agent(budget=0.50, compliance="no_pii_logs", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85})
 async def draft_agent(query: str) -> str:
     response = litellm.completion(
         model="claude-3-sonnet",
@@ -182,7 +178,7 @@ async def verify_agent(query: str, draft: str) -> str:
     return response.choices[0].message.content
 
 # Run with scoped session for governance
-with cascadeflow.run(budget=1.00, compliance="no_pii_logs") as session:
+with cascadeflow.run(budget=1.00, compliance="no_pii_logs", max_tool_calls=10) as session:
     draft_result = await draft_agent("Analyze this dataset")
     verify_result = await verify_agent("Analyze this dataset", draft_result)
 
@@ -198,24 +194,25 @@ with cascadeflow.run(budget=1.00, compliance="no_pii_logs") as session:
 ### TypeScript: cascadeflow + LiteLLM
 
 ```typescript
-import { CascadeAgent } from '@cascadeflow/core';
+import { init, run } from '@cascadeflow/core';
 
-const agent = new CascadeAgent({
-  models: [
-    { name: 'gpt-4-turbo', provider: 'openai', cost: 0.00625 },
-    { name: 'gpt-3.5-turbo', provider: 'openai', cost: 0.0005 },
-    { name: 'claude-3-sonnet', provider: 'anthropic', cost: 0.003 },
-  ],
-  quality: { threshold: 0.85, useSemanticValidation: true },
-  budget: { costLimit: 1.0, latencySLA: 3000 },
-  compliance: { rules: ['no_pii_in_logs'] },
+// Initialize with enforcement mode
+init({ mode: 'enforce', budget: 1.0, compliance: 'no_pii_logs' });
+
+// Run with scoped session for governance
+const result = await run({ budget: 0.50 }, async (ctx) => {
+  const draftResponse = await litellm.completion({
+    model: 'claude-3-sonnet',
+    messages: [{ role: 'user', content: 'Analyze this dataset' }],
+  });
+
+  const verifyResponse = await litellm.completion({
+    model: 'gpt-4-turbo',
+    messages: [{ role: 'user', content: `Verify: ${draftResponse.choices[0].message.content}` }],
+  });
+
+  return verifyResponse.choices[0].message.content;
 });
-
-const draftResult = await agent.run('Analyze this dataset');
-const verifyResult = await agent.run(`Verify: ${draftResult.output}`);
-
-console.log(`Draft Model: ${draftResult.modelUsed}, Cost: $${draftResult.totalCost.toFixed(2)}`);
-console.log(`Verify Model: ${verifyResult.modelUsed}, Quality: ${(draftResult.quality * 100).toFixed(1)}%`);
 ```
 
 ## Latency Comparison
@@ -229,7 +226,5 @@ cascadeflow's in-process model wins for real-time scenarios.
 
 ## Related
 
-- [cascadeflow Documentation](https://cascadeflow.ai)
+- [cascadeflow Documentation](https://docs.cascadeflow.ai)
 - [LiteLLM Documentation](https://docs.litellm.ai)
-- [Comparison: cascadeflow vs Portkey](/comparisons/portkey)
-- [Comparison: cascadeflow vs OpenRouter](/comparisons/openrouter)
