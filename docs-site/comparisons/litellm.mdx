@@ -10,7 +10,7 @@ description: "cascadeflow is an in-process runtime intelligence layer for agent 
 |---------|------------|---------|
 | **Architecture** | In-process library | Reverse proxy (separate service) |
 | **Deployment** | `pip install cascadeflow` | Standalone server or library |
-| **Latency overhead** | Typically <5ms | Typically 10-50ms (HTTP RTT) |
+| **Latency overhead** | Typically &lt;5ms | Typically 10-50ms (HTTP RTT) |
 | **Optimization dimensions** | 6 (cost, latency, quality, budget, compliance, energy) | 1 (cost-based routing) |
 | **Quality validation** | 5+ validators built-in | None |
 | **Enforcement actions** | allow / switch / deny / stop | None |
@@ -45,7 +45,7 @@ Your App
 ```
 
 This difference affects:
-- **Latency**: cascadeflow typically adds <5ms; LiteLLM adds network round-trip time
+- **Latency**: cascadeflow typically adds &lt;5ms; LiteLLM adds network round-trip time
 - **Visibility**: cascadeflow sees tool calls, agent state, execution context; LiteLLM sees only API calls
 - **Coupling**: cascadeflow is tightly integrated; LiteLLM is loosely coupled
 
