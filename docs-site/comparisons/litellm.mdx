@@ -70,18 +70,18 @@ import cascadeflow
 cascadeflow.init(mode="enforce")
 
 # Define agents with budget and compliance requirements
-@cascadeflow.agent(budget=0.50, compliance="pii_audit", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85})
+@cascadeflow.agent(budget=0.50, compliance="gdpr", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85})
 async def draft_agent(query: str):
     # Draft implementation
     pass
 
-@cascadeflow.agent(budget=0.50, compliance="pii_audit")
+@cascadeflow.agent(budget=0.50, compliance="gdpr")
 async def verify_agent(query: str):
     # Verify implementation
     pass
 
 # Use with session for real-time tracking
-with cascadeflow.run(budget=0.50, compliance="pii_audit", max_tool_calls=10) as session:
+with cascadeflow.run(budget=0.50, compliance="gdpr", max_tool_calls=10) as session:
     result = await draft_agent("query")
     summary = session.summary()
     # summary has: cost_total, steps, budget_remaining, latency_total_ms, energy_used
@@ -99,7 +99,7 @@ import cascadeflow
 cascadeflow.init(mode="enforce")
 
 # Validation happens within agent execution context
-@cascadeflow.agent(budget=0.50, compliance="pii_audit")
+@cascadeflow.agent(budget=0.50, compliance="gdpr")
 async def validated_agent(query: str):
     # cascadeflow tracks cost, enforces budget limits,
     # and records decisions in the session trace
@@ -108,7 +108,7 @@ async def validated_agent(query: str):
 
 # Enforcement actions (allow, switch, deny, stop) are applied automatically
 # based on policy violations detected during execution
-with cascadeflow.run(budget=0.50, compliance="pii_audit", max_tool_calls=5) as session:
+with cascadeflow.run(budget=0.50, compliance="gdpr", max_tool_calls=5) as session:
     result = await validated_agent("query")
     trace = session.trace()
     # trace shows each step and enforcement action taken
@@ -161,7 +161,7 @@ import cascadeflow
 
 cascadeflow.init(mode="enforce")
 
-@cascadeflow.agent(budget=0.50, compliance="no_pii_logs", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85})
+@cascadeflow.agent(budget=0.50, compliance="gdpr", kpi_weights={"quality": 0.8, "cost": 0.2}, kpi_targets={"quality": 0.85})
 async def draft_agent(query: str) -> str:
     response = litellm.completion(
         model="claude-3-sonnet",
@@ -169,7 +169,7 @@ async def draft_agent(query: str) -> str:
     )
     return response.choices[0].message.content
 
-@cascadeflow.agent(budget=0.50, compliance="no_pii_logs", kpi_targets={"quality": 0.85})
+@cascadeflow.agent(budget=0.50, compliance="gdpr", kpi_targets={"quality": 0.85})
 async def verify_agent(query: str, draft: str) -> str:
     response = litellm.completion(
         model="gpt-4-turbo",
@@ -178,7 +178,7 @@ async def verify_agent(query: str, draft: str) -> str:
     return response.choices[0].message.content
 
 # Run with scoped session for governance
-with cascadeflow.run(budget=1.00, compliance="no_pii_logs", max_tool_calls=10) as session:
+with cascadeflow.run(budget=1.00, compliance="gdpr", max_tool_calls=10) as session:
     draft_result = await draft_agent("Analyze this dataset")
     verify_result = await verify_agent("Analyze this dataset", draft_result)
 
@@ -197,7 +197,7 @@ with cascadeflow.run(budget=1.00, compliance="no_pii_logs", max_tool_calls=10) a
 import { init, run } from '@cascadeflow/core';
 
 // Initialize with enforcement mode
-init({ mode: 'enforce', budget: 1.0, compliance: 'no_pii_logs' });
+init({ mode: 'enforce', budget: 1.0, compliance: 'gdpr' });
 
 // Run with scoped session for governance
 const result = await run({ budget: 0.50 }, async (ctx) => {
