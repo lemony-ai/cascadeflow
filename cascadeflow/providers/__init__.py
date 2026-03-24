@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 _LAZY_PROVIDERS: dict[str, str] = {
     "AnthropicProvider": ".anthropic",
     "DeepSeekProvider": ".deepseek",
+    "GeminiProvider": ".gemini",
     "GroqProvider": ".groq",
     "HuggingFaceProvider": ".huggingface",
     "OllamaProvider": ".ollama",
@@ -65,6 +66,7 @@ def _build_provider_registry() -> dict:
         "TogetherProvider": "together",
         "OpenRouterProvider": "openrouter",
         "DeepSeekProvider": "deepseek",
+        "GeminiProvider": "gemini",
     }
     for cls_name, module_path in _LAZY_PROVIDERS.items():
         module = importlib.import_module(module_path, __package__)

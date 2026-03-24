@@ -97,6 +97,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     # Agent & result
     "CascadeAgent": (".agent", "CascadeAgent"),
     "CascadeResult": (".schema.result", "CascadeResult"),
+    "agent": (".agent", None),
     # Providers
     "BaseProvider": (".providers", "BaseProvider"),
     "ModelResponse": (".providers", "ModelResponse"),
@@ -245,7 +246,10 @@ def __getattr__(name: str):
         import importlib
 
         module = importlib.import_module(module_path, __package__)
-        value = getattr(module, attr_name)
+        if attr_name is None:
+            value = module
+        else:
+            value = getattr(module, attr_name)
         globals()[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
