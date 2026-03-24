@@ -76,17 +76,19 @@ for _alias, _real in _COMPAT_ALIASES.items():
 # ==================== EAGER IMPORTS ====================
 # Only the harness API is loaded eagerly — it uses only stdlib imports.
 
-from .harness import (  # noqa: E402
+from .harness import (
     HarnessConfig,
     HarnessInitReport,
     HarnessRunContext,
+)
+from .harness import agent as harness_agent  # noqa: E402
+from .harness import (
+    get_current_run,
+    get_harness_callback_manager,
+    get_harness_config,
     init,
     reset,
     run,
-    agent as harness_agent,
-    get_harness_config,
-    get_current_run,
-    get_harness_callback_manager,
     set_harness_callback_manager,
 )
 
@@ -97,6 +99,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     # Agent & result
     "CascadeAgent": (".agent", "CascadeAgent"),
     "CascadeResult": (".schema.result", "CascadeResult"),
+    "agent": (".agent", None),
     # Providers
     "BaseProvider": (".providers", "BaseProvider"),
     "ModelResponse": (".providers", "ModelResponse"),
@@ -245,7 +248,10 @@ def __getattr__(name: str):
         import importlib
 
         module = importlib.import_module(module_path, __package__)
-        value = getattr(module, attr_name)
+        if attr_name is None:
+            value = module
+        else:
+            value = getattr(module, attr_name)
         globals()[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
