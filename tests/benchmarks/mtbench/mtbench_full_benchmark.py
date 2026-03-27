@@ -42,6 +42,7 @@ from typing import Any, Optional
 
 # CascadeFlow imports
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 # =============================================================================
 # CONSTANTS
@@ -881,8 +882,10 @@ class MTBenchFullBenchmark:
         """
         expected_domain = CATEGORY_TO_DOMAIN.get(category, "general")
 
-        # Determine verifier provider
-        verifier_provider = "anthropic" if "claude" in self.verifier_model else "openai"
+        drafter_provider = resolve_model_provider(self.drafter_model)
+        verifier_provider = resolve_model_provider(self.verifier_model)
+        drafter_cost = resolve_model_cost(self.drafter_model, 0.00015)
+        verifier_cost = resolve_model_cost(self.verifier_model, 0.005)
 
         # Domain-specific thresholds (learned from GSM8K benchmark)
         # Creative domains need lower threshold due to alignment scorer limitations
@@ -913,13 +916,13 @@ class MTBenchFullBenchmark:
             models=[
                 ModelConfig(
                     name=self.drafter_model,
-                    provider="openai",
-                    cost=0.00015,  # $0.15 per 1M tokens (gpt-4o-mini)
+                    provider=drafter_provider,
+                    cost=drafter_cost,
                 ),
                 ModelConfig(
                     name=self.verifier_model,
                     provider=verifier_provider,
-                    cost=0.005,  # $5.00 per 1M tokens (claude-opus-4-5 input)
+                    cost=verifier_cost,
                 ),
             ],
             enable_domain_detection=True,
@@ -1421,20 +1424,29 @@ async def main():
     parser.add_argument("--full", action="store_true", help="Run all 80 questions")
     parser.add_argument("--category", type=str, help="Run specific category only")
     parser.add_argument("--max", type=int, help="Maximum questions to run")
-    parser.add_argument("--drafter", type=str, default="gpt-4o-mini", help="Drafter model")
+    default_drafter, default_verifier = resolve_model_pair(
+        "gpt-4o-mini", "claude-opus-4-5-20251101"
+    )
+    parser.add_argument("--drafter", type=str, default=default_drafter, help="Drafter model")
     parser.add_argument(
         "--verifier",
         type=str,
-        default="claude-opus-4-5-20251101",
+        default=default_verifier,
         help="Verifier model (default: Claude Opus 4.5)",
     )
     parser.add_argument("--output", type=str, default="mtbench_results", help="Output directory")
     args = parser.parse_args()
 
-    # Check API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY not set")
-        return
+    drafter_provider = resolve_model_provider(args.drafter)
+    verifier_provider = resolve_model_provider(args.verifier)
+    if drafter_provider == "openai" or verifier_provider == "openai":
+        if not os.getenv("OPENAI_API_KEY"):
+            print("Error: OPENAI_API_KEY not set")
+            return
+    if drafter_provider == "anthropic" or verifier_provider == "anthropic":
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            print("Error: ANTHROPIC_API_KEY not set")
+            return
 
     benchmark = MTBenchFullBenchmark(
         drafter_model=args.drafter,

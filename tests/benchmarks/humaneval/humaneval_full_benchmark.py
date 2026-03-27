@@ -30,6 +30,7 @@ from urllib.request import urlopen
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from cascadeflow import CascadeAgent, DomainConfig, ModelConfig
+from tests.benchmarks.utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 # HumanEval dataset URL
 HUMANEVAL_URL = "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl.gz"
@@ -263,10 +264,23 @@ Important:
         original_prompt = problem["prompt"]
 
         # Create CascadeFlow agent with code domain config
+        drafter_provider = resolve_model_provider(self.drafter_model)
+        verifier_provider = resolve_model_provider(self.verifier_model)
+        drafter_cost = resolve_model_cost(self.drafter_model, 0.00015)
+        verifier_cost = resolve_model_cost(self.verifier_model, 0.015)
+
         agent = CascadeAgent(
             models=[
-                ModelConfig(name=self.drafter_model, provider="openai", cost=0.00015),
-                ModelConfig(name=self.verifier_model, provider="anthropic", cost=0.015),
+                ModelConfig(
+                    name=self.drafter_model,
+                    provider=drafter_provider,
+                    cost=drafter_cost,
+                ),
+                ModelConfig(
+                    name=self.verifier_model,
+                    provider=verifier_provider,
+                    cost=verifier_cost,
+                ),
             ],
             enable_domain_detection=True,
             use_semantic_domains=True,
@@ -431,10 +445,11 @@ async def main():
     parser = argparse.ArgumentParser(description="HumanEval Benchmark for CascadeFlow")
     parser.add_argument("--sample", type=int, help="Run on N problems (default: all)")
     parser.add_argument("--full", action="store_true", help="Run all 164 problems")
-    parser.add_argument("--drafter", type=str, default="gpt-4o-mini", help="Drafter model")
-    parser.add_argument(
-        "--verifier", type=str, default="claude-opus-4-5-20251101", help="Verifier model"
+    default_drafter, default_verifier = resolve_model_pair(
+        "gpt-4o-mini", "claude-opus-4-5-20251101"
     )
+    parser.add_argument("--drafter", type=str, default=default_drafter, help="Drafter model")
+    parser.add_argument("--verifier", type=str, default=default_verifier, help="Verifier model")
     parser.add_argument("--threshold", type=float, default=0.50, help="Quality threshold")
 
     args = parser.parse_args()

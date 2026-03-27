@@ -17,8 +17,11 @@ import re
 import time
 from typing import Any, Optional
 
+from cascadeflow import CascadeAgent, ModelConfig
+
 from ..base import Benchmark, BenchmarkResult, BenchmarkSummary
 from ..benchmark_config import BenchmarkConfig, BenchmarkMode
+from ..utils import resolve_model_cost, resolve_model_pair, resolve_model_provider
 
 
 class MMLUCategory:
@@ -601,9 +604,6 @@ class MMLUBenchmark(Benchmark):
         Returns:
             Cascade result dict
         """
-        # Import here to avoid circular imports
-        from cascadeflow import CascadeAgent, ModelConfig
-
         # Get question data from results lookup
         question_data = None
         for qid, qdata in self.load_dataset():
@@ -617,26 +617,23 @@ class MMLUBenchmark(Benchmark):
         # Format question with choices
         formatted_question = self._format_question(question_data)
 
-        def _provider_for(model_name: str) -> str:
-            # Keep benchmark configs simple: infer provider from model prefix.
-            if model_name.startswith("claude-"):
-                return "anthropic"
-            if model_name.startswith("gpt-") or model_name.startswith("o"):
-                return "openai"
-            return "openai"
+        # Create agent with config
+        drafter_provider = resolve_model_provider(self.drafter_model)
+        verifier_provider = resolve_model_provider(self.verifier_model)
+        drafter_cost = resolve_model_cost(self.drafter_model, 0.00015)
+        verifier_cost = resolve_model_cost(self.verifier_model, 0.0025)
 
-        # Create agent with current CascadeAgent API.
         agent = CascadeAgent(
             models=[
                 ModelConfig(
                     name=self.drafter_model,
-                    provider=_provider_for(self.drafter_model),
-                    cost=0.0,
+                    provider=drafter_provider,
+                    cost=drafter_cost,
                 ),
                 ModelConfig(
                     name=self.verifier_model,
-                    provider=_provider_for(self.verifier_model),
-                    cost=0.0,
+                    provider=verifier_provider,
+                    cost=verifier_cost,
                 ),
             ],
             quality={"threshold": self.quality_threshold},
@@ -656,12 +653,19 @@ class MMLUBenchmark(Benchmark):
             "model_used": "drafter" if accepted else "verifier",
             "accepted": accepted,
             "quality_score": float(result.quality_score or 0.0),
+            "routing_strategy": result.routing_strategy,
             "drafter_cost": float(result.draft_cost or 0.0),
             "verifier_cost": float(result.verifier_cost or 0.0),
             "total_cost": float(result.total_cost or 0.0),
             "cost_saved": result.cost_saved,
             "baseline_cost": result.baseline_cost,
             "latency_ms": latency_ms,
+            "cascadeflow_latency_ms": (
+                (result.complexity_detection_ms or 0)
+                + (result.metadata.get("domain_detection_ms", 0) if result.metadata else 0)
+                + (result.metadata.get("tool_complexity_analysis_ms", 0) if result.metadata else 0)
+                + (result.quality_verification_ms or 0)
+            ),
             "tokens_input": int(result.metadata.get("prompt_tokens", 0) or 0),
             "tokens_output": int(result.metadata.get("completion_tokens", 0) or 0),
         }

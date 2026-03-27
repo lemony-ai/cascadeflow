@@ -12,6 +12,7 @@ Professional benchmarks to validate CascadeFlow performance across real-world us
 6. **TruthfulQA** - Factual correctness (sampled)
 7. **Tool Calling** - Structured tool selection correctness (single + multi-turn)
 8. **BFCL Agentic** - Agentic/multi-turn tool-calling patterns (dependencies, chaining)
+9. **ToolCalls Real-World** - Tool routing with multi-turn context
 
 #### Metrics
 
@@ -20,6 +21,7 @@ Each benchmark measures:
 - **Quality maintenance** (accuracy/pass rate)
 - **Latency** improvements
 - **Escalation rates** (drafter acceptance %)
+- **Direct routing** counts and **cascade overhead** latency
 
 #### Running Benchmarks
 
