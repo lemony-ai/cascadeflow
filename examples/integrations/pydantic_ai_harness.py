@@ -58,7 +58,7 @@ async def main() -> None:
         # Inspect cascade decision
         cascade_result = cascade.get_last_cascade_result()
         if cascade_result:
-            print(f"\n=== Cascade Decision ===")
+            print("\n=== Cascade Decision ===")
             print(f"Model used: {cascade_result['model_used']}")
             print(f"Drafter accepted: {cascade_result['accepted']}")
             print(f"Drafter quality: {cascade_result['drafter_quality']:.2f}")
@@ -67,13 +67,13 @@ async def main() -> None:
             print(f"Total cost: ${cascade_result['total_cost']:.6f}")
             print(f"Savings: {cascade_result['savings_percentage']:.1f}%")
 
-        print(f"\n=== Harness Metrics ===")
+        print("\n=== Harness Metrics ===")
         print(f"Cost: ${session.cost:.6f}")
         print(f"Remaining budget: {session.budget_remaining}")
         print(f"Steps: {session.step_count}")
         print(f"Energy: {session.energy_used:.1f}")
         print(f"Latency: {session.latency_used_ms:.0f}ms")
-        print(f"\n=== Decision Trace ===")
+        print("\n=== Decision Trace ===")
         for event in session.trace():
             print(event)
 

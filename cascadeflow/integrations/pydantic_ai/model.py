@@ -22,7 +22,6 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import asynccontextmanager
-from importlib.util import find_spec
 from typing import Any, Optional
 
 from cascadeflow.harness.pricing import estimate_cost

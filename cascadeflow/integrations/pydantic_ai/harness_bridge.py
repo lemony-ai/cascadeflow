@@ -7,7 +7,6 @@ HarnessRunContext.  Also enforces budget gates in enforce mode.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from cascadeflow.harness import get_current_run
 from cascadeflow.harness.pricing import estimate_cost, estimate_energy
