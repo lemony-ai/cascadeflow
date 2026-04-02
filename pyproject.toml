@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cascadeflow"
-version = "1.1.0"
+version = "1.2.0"
 description = "Agent runtime intelligence layer — optimize cost, latency, quality, budget, compliance, and energy across AI agent workflows."
 readme = "README.md"
 requires-python = ">=3.9"
