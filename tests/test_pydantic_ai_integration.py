@@ -345,9 +345,7 @@ async def test_drafter_accepted_when_quality_high():
     drafter = FakeDrafterModel(_high_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.5, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.5, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     result = await model.request(messages=_make_messages())
@@ -371,9 +369,7 @@ async def test_escalates_to_verifier_when_quality_low():
     drafter = FakeDrafterModel(_low_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.7, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.7, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     result = await model.request(messages=_make_messages())
@@ -427,9 +423,7 @@ async def test_trivial_query_uses_cascade():
     drafter = FakeDrafterModel(_high_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.5, enable_pre_router=True
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.5, enable_pre_router=True)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     messages = _make_messages("Hello, how are you?")
@@ -593,9 +587,7 @@ async def test_low_risk_tool_accepted():
     drafter = FakeDrafterModel(drafter_resp)
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.3, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.3, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     messages = _make_messages("Search for recent news about AI.")
@@ -617,9 +609,7 @@ async def test_cost_metadata_on_drafter_accepted():
     drafter = FakeDrafterModel(_high_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.3, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.3, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     await model.request(messages=_make_messages())
@@ -636,9 +626,7 @@ async def test_cost_metadata_on_verifier_used():
     drafter = FakeDrafterModel(_low_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.7, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.7, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     await model.request(messages=_make_messages())
@@ -655,9 +643,7 @@ async def test_cascade_result_stored():
     drafter = FakeDrafterModel(_high_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.3, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.3, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     assert model.get_last_cascade_result() is None
@@ -707,9 +693,7 @@ async def test_cost_metadata_type_populated():
     drafter = FakeDrafterModel(_high_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.3, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.3, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     await model.request(messages=_make_messages())
@@ -735,9 +719,7 @@ async def test_harness_metrics_updated():
     drafter = FakeDrafterModel(_high_quality_response("gpt-4o-mini"))
     verifier = FakeVerifierModel(_high_quality_response("gpt-4o"))
 
-    config = CascadeFlowPydanticAIConfig(
-        quality_threshold=0.3, enable_pre_router=False
-    )
+    config = CascadeFlowPydanticAIConfig(quality_threshold=0.3, enable_pre_router=False)
     model = CascadeFlowModel(drafter, verifier, config=config)
 
     with run(budget=5.0) as ctx:
@@ -1200,7 +1182,9 @@ class TestRealPydanticAICompat:
             enable_pre_router=False,
         )
         messages = [ModelRequest(parts=[UserPromptPart(content="Hello")])]
-        result = await model.request(messages=messages, model_settings=None, model_request_parameters=None)
+        result = await model.request(
+            messages=messages, model_settings=None, model_request_parameters=None
+        )
         assert isinstance(result, _RealModelResponse)
         assert result.usage.input_tokens > 0
         assert result.usage.output_tokens > 0
@@ -1214,7 +1198,9 @@ class TestRealPydanticAICompat:
             enable_pre_router=False,
         )
         messages = [ModelRequest(parts=[UserPromptPart(content="Explain quantum entanglement")])]
-        result = await model.request(messages=messages, model_settings=None, model_request_parameters=None)
+        result = await model.request(
+            messages=messages, model_settings=None, model_request_parameters=None
+        )
         cascade = model.get_last_cascade_result()
         assert cascade["model_used"] == "verifier"
         assert cascade["accepted"] is False
@@ -1256,7 +1242,9 @@ class TestRealPydanticAICompat:
 
         with run(budget=10.0) as ctx:
             messages = [ModelRequest(parts=[UserPromptPart(content="Hello")])]
-            await model.request(messages=messages, model_settings=None, model_request_parameters=None)
+            await model.request(
+                messages=messages, model_settings=None, model_request_parameters=None
+            )
             assert ctx.step_count >= 1
             assert ctx.cost > 0
             assert ctx.energy_used > 0

@@ -87,14 +87,8 @@ def record_metrics(
         reason = "pydantic_ai_stream_step" if is_stream else "pydantic_ai_step"
         ctx.record(action, reason, model_name)
 
-        if (
-            ctx.mode == "enforce"
-            and ctx.budget_remaining is not None
-            and ctx.budget_remaining <= 0
-        ):
-            logger.info(
-                "pydantic-ai step exhausted budget; next step will be blocked"
-            )
+        if ctx.mode == "enforce" and ctx.budget_remaining is not None and ctx.budget_remaining <= 0:
+            logger.info("pydantic-ai step exhausted budget; next step will be blocked")
     except Exception:
         if not fail_open:
             raise

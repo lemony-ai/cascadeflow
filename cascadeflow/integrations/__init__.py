@@ -293,9 +293,7 @@ try:
     )
 except ImportError:
     PYDANTIC_AI_AVAILABLE = False
-    _pydantic_ai_missing = _MissingIntegration(
-        "PydanticAI", "pip install cascadeflow[pydantic-ai]"
-    )
+    _pydantic_ai_missing = _MissingIntegration("PydanticAI", "pip install cascadeflow[pydantic-ai]")
     PydanticAICascadeFlowModel = _pydantic_ai_missing
     CascadeFlowPydanticAIConfig = _pydantic_ai_missing
     PydanticAICascadeResult = _pydantic_ai_missing

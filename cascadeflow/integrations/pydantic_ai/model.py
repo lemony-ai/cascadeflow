@@ -244,9 +244,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
             try:
                 from cascadeflow.quality.complexity import QueryComplexity
 
-                cascade_qc = [
-                    QueryComplexity(c) for c in self._config.cascade_complexities
-                ]
+                cascade_qc = [QueryComplexity(c) for c in self._config.cascade_complexities]
                 self._pre_router = PreRouter(cascade_complexities=cascade_qc)
             except Exception:
                 logger.debug("Failed to initialise PreRouter (non-fatal)")
@@ -290,14 +288,10 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
     # ── Resolved model names ──────────────────────────────────────────
 
     def _drafter_model_name(self) -> str:
-        return _normalize_model_name(
-            getattr(self._drafter, "model_name", "drafter")
-        )
+        return _normalize_model_name(getattr(self._drafter, "model_name", "drafter"))
 
     def _verifier_model_name(self) -> str:
-        return _normalize_model_name(
-            getattr(self._verifier, "model_name", "verifier")
-        )
+        return _normalize_model_name(getattr(self._verifier, "model_name", "verifier"))
 
     # ── request() — full cascade ──────────────────────────────────────
 
@@ -321,9 +315,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
         complexity: Optional[str] = None
         if self._complexity_detector:
             try:
-                detected, _, _ = self._complexity_detector.detect(
-                    query_text, return_metadata=True
-                )
+                detected, _, _ = self._complexity_detector.detect(query_text, return_metadata=True)
                 complexity = detected.value
             except Exception:
                 pass
@@ -363,17 +355,13 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
             )
 
         # Step 5: call drafter
-        drafter_args = self._build_call_args(
-            messages, model_settings, model_request_parameters
-        )
+        drafter_args = self._build_call_args(messages, model_settings, model_request_parameters)
         drafter_response = await self._drafter.request(**drafter_args)
 
         drafter_elapsed_ms = (time.monotonic() - started_at) * 1000.0
 
         # Step 6: quality check
-        drafter_text = _extract_text_from_parts(
-            getattr(drafter_response, "parts", [])
-        )
+        drafter_text = _extract_text_from_parts(getattr(drafter_response, "parts", []))
         try:
             quality = score_response(drafter_text, query_text, complexity)
         except Exception:
@@ -384,9 +372,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
 
         # Step 7: tool risk check
         force_verifier_tool = False
-        tool_calls = _extract_tool_calls_from_parts(
-            getattr(drafter_response, "parts", [])
-        )
+        tool_calls = _extract_tool_calls_from_parts(getattr(drafter_response, "parts", []))
         if tool_calls and TOOL_RISK_AVAILABLE:
             try:
                 risk_result = get_tool_risk_routing(tool_calls)
@@ -400,9 +386,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
         force_verifier_domain = bool(policy and policy.get("force_verifier"))
 
         accepted = (
-            quality >= effective_threshold
-            and not force_verifier_tool
-            and not force_verifier_domain
+            quality >= effective_threshold and not force_verifier_tool and not force_verifier_domain
         )
 
         drafter_input, drafter_output = _extract_usage(drafter_response)
@@ -425,9 +409,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
 
             # Calculate savings
             verifier_model = self._verifier_model_name()
-            verifier_cost_estimate = estimate_cost(
-                verifier_model, drafter_input, drafter_output
-            )
+            verifier_cost_estimate = estimate_cost(verifier_model, drafter_input, drafter_output)
             savings = _calculate_savings(drafter_cost, verifier_cost_estimate)
 
             self._last_cascade_result = CascadeResult(
@@ -460,18 +442,14 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
             return drafter_response
 
         # ── Escalate to verifier ──────────────────────────────────────
-        verifier_args = self._build_call_args(
-            messages, model_settings, model_request_parameters
-        )
+        verifier_args = self._build_call_args(messages, model_settings, model_request_parameters)
         verifier_response = await self._verifier.request(**verifier_args)
 
         total_elapsed_ms = (time.monotonic() - started_at) * 1000.0
 
         verifier_input, verifier_output = _extract_usage(verifier_response)
         verifier_model = self._verifier_model_name()
-        verifier_cost = estimate_cost(
-            verifier_model, verifier_input, verifier_output
-        )
+        verifier_cost = estimate_cost(verifier_model, verifier_input, verifier_output)
 
         # Record metrics for both models
         if self._config.enable_cost_tracking:
@@ -489,17 +467,13 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
                 verifier_output,
                 total_elapsed_ms - drafter_elapsed_ms,
                 tool_calls_count=len(
-                    _extract_tool_calls_from_parts(
-                        getattr(verifier_response, "parts", [])
-                    )
+                    _extract_tool_calls_from_parts(getattr(verifier_response, "parts", []))
                 ),
                 fail_open=self._config.fail_open,
             )
 
         self._last_cascade_result = CascadeResult(
-            content=_extract_text_from_parts(
-                getattr(verifier_response, "parts", [])
-            ),
+            content=_extract_text_from_parts(getattr(verifier_response, "parts", [])),
             model_used="verifier",
             accepted=False,
             drafter_quality=quality,
@@ -558,9 +532,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
         complexity: Optional[str] = None
         if self._complexity_detector:
             try:
-                detected, _, _ = self._complexity_detector.detect(
-                    query_text, return_metadata=True
-                )
+                detected, _, _ = self._complexity_detector.detect(query_text, return_metadata=True)
                 complexity = detected.value
             except Exception:
                 pass
@@ -581,9 +553,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
         if policy and policy.get("direct_to_verifier"):
             skip_drafter = True
 
-        call_args = self._build_call_args(
-            messages, model_settings, model_request_parameters
-        )
+        call_args = self._build_call_args(messages, model_settings, model_request_parameters)
 
         if skip_drafter:
             # Stream verifier directly
@@ -636,9 +606,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
         drafter_response = await self._drafter.request(**call_args)
         drafter_elapsed_ms = (time.monotonic() - started_at) * 1000.0
 
-        drafter_text = _extract_text_from_parts(
-            getattr(drafter_response, "parts", [])
-        )
+        drafter_text = _extract_text_from_parts(getattr(drafter_response, "parts", []))
         drafter_input, drafter_output = _extract_usage(drafter_response)
         drafter_model = self._drafter_model_name()
         drafter_cost = estimate_cost(drafter_model, drafter_input, drafter_output)
@@ -653,9 +621,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
 
         # Tool risk check
         force_verifier_tool = False
-        tool_calls = _extract_tool_calls_from_parts(
-            getattr(drafter_response, "parts", [])
-        )
+        tool_calls = _extract_tool_calls_from_parts(getattr(drafter_response, "parts", []))
         if tool_calls and TOOL_RISK_AVAILABLE:
             try:
                 risk_result = get_tool_risk_routing(tool_calls)
@@ -668,9 +634,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
         force_verifier_domain = bool(policy and policy.get("force_verifier"))
 
         accepted = (
-            quality >= effective_threshold
-            and not force_verifier_tool
-            and not force_verifier_domain
+            quality >= effective_threshold and not force_verifier_tool and not force_verifier_domain
         )
 
         if accepted:
@@ -695,9 +659,7 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
                 )
 
             verifier_model = self._verifier_model_name()
-            verifier_cost_estimate = estimate_cost(
-                verifier_model, drafter_input, drafter_output
-            )
+            verifier_cost_estimate = estimate_cost(verifier_model, drafter_input, drafter_output)
             savings = _calculate_savings(drafter_cost, verifier_cost_estimate)
 
             self._last_cascade_result = CascadeResult(
@@ -809,17 +771,13 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
         reason: str = "direct",
     ) -> Any:
         """Call verifier directly (skipping drafter)."""
-        verifier_args = self._build_call_args(
-            messages, model_settings, model_request_parameters
-        )
+        verifier_args = self._build_call_args(messages, model_settings, model_request_parameters)
         verifier_response = await self._verifier.request(**verifier_args)
 
         total_elapsed_ms = (time.monotonic() - started_at) * 1000.0
         verifier_input, verifier_output = _extract_usage(verifier_response)
         verifier_model = self._verifier_model_name()
-        verifier_cost = estimate_cost(
-            verifier_model, verifier_input, verifier_output
-        )
+        verifier_cost = estimate_cost(verifier_model, verifier_input, verifier_output)
 
         if self._config.enable_cost_tracking:
             record_metrics(
@@ -828,17 +786,13 @@ class CascadeFlowModel(_PydanticAIModel):  # type: ignore[misc]
                 verifier_output,
                 total_elapsed_ms,
                 tool_calls_count=len(
-                    _extract_tool_calls_from_parts(
-                        getattr(verifier_response, "parts", [])
-                    )
+                    _extract_tool_calls_from_parts(getattr(verifier_response, "parts", []))
                 ),
                 fail_open=self._config.fail_open,
             )
 
         self._last_cascade_result = CascadeResult(
-            content=_extract_text_from_parts(
-                getattr(verifier_response, "parts", [])
-            ),
+            content=_extract_text_from_parts(getattr(verifier_response, "parts", [])),
             model_used="verifier",
             accepted=False,
             drafter_quality=0.0,
@@ -950,9 +904,7 @@ class _CascadeFlowStreamedResponse:
         # Accumulate text for quality scoring
         if isinstance(chunk, str):
             self.collected_text += chunk
-        elif hasattr(chunk, "content") and isinstance(
-            getattr(chunk, "content", None), str
-        ):
+        elif hasattr(chunk, "content") and isinstance(getattr(chunk, "content", None), str):
             self.collected_text += chunk.content
         # Track usage if available on the chunk/event
         usage = getattr(chunk, "usage", None)

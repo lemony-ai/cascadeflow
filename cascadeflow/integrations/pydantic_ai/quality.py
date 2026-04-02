@@ -44,9 +44,7 @@ def score_response(
     if QUALITY_VALIDATOR_AVAILABLE:
         try:
             validator = QualityValidator()
-            result = validator.validate(
-                text, query, confidence=0.5, complexity=complexity
-            )
+            result = validator.validate(text, query, confidence=0.5, complexity=complexity)
             return result.final_confidence
         except Exception:
             logger.debug("Core QualityValidator failed, falling back to heuristic")

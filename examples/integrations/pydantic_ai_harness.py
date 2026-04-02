@@ -22,8 +22,7 @@ async def main() -> None:
         from pydantic_ai.models.openai import OpenAIModel
     except ImportError as exc:
         raise SystemExit(
-            "PydanticAI is not installed. "
-            'Install with: pip install "cascadeflow[pydantic-ai]"'
+            "PydanticAI is not installed. " 'Install with: pip install "cascadeflow[pydantic-ai]"'
         ) from exc
 
     from cascadeflow import init, run
@@ -40,7 +39,7 @@ async def main() -> None:
         drafter,
         verifier,
         quality_threshold=0.7,
-        enable_pre_router=True,   # Hard queries skip drafter
+        enable_pre_router=True,  # Hard queries skip drafter
         enable_budget_gate=True,  # Enforce harness budget
         domain_policies={
             "medical": {"direct_to_verifier": True},
