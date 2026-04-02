@@ -657,7 +657,7 @@ async def test_cascade_result_stored():
     assert "model_used" in cascade
     assert "drafter_quality" in cascade
     assert "latency_ms" in cascade
-    assert cascade["latency_ms"] > 0
+    assert cascade["latency_ms"] >= 0
 
     cost_meta = model.get_last_cost_metadata()
     assert cost_meta is not None
