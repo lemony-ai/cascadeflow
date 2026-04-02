@@ -29,7 +29,7 @@
 
 <br>
 
-**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](https://docs.cascadeflow.ai/api-reference/python/overview) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](https://docs.cascadeflow.ai/api-reference/typescript/overview) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](https://docs.cascadeflow.ai/integrations/langchain) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](https://docs.cascadeflow.ai/integrations/n8n) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](https://docs.cascadeflow.ai/integrations/vercel-ai) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://docs.cascadeflow.ai/integrations/openclaw) • [<img src=".github/assets/CF_google_adk_color.svg" width="22" height="22" alt="Google ADK" style="vertical-align: middle;"/> Google ADK](https://docs.cascadeflow.ai/integrations/google-adk) • [📖&nbsp;Docs](https://docs.cascadeflow.ai) • [💡&nbsp;Examples](#examples)**
+**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](https://docs.cascadeflow.ai/api-reference/python/overview) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](https://docs.cascadeflow.ai/api-reference/typescript/overview) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](https://docs.cascadeflow.ai/integrations/langchain) • [OpenAI Agents](https://docs.cascadeflow.ai/integrations/openai-agents) • [CrewAI](https://docs.cascadeflow.ai/integrations/crewai) • [PydanticAI](https://docs.cascadeflow.ai/integrations/pydantic-ai) • [<img src=".github/assets/CF_google_adk_color.svg" width="22" height="22" alt="Google ADK" style="vertical-align: middle;"/> Google ADK](https://docs.cascadeflow.ai/integrations/google-adk) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](https://docs.cascadeflow.ai/integrations/n8n) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](https://docs.cascadeflow.ai/integrations/vercel-ai) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://docs.cascadeflow.ai/integrations/openclaw) • [📖&nbsp;Docs](https://docs.cascadeflow.ai) • [💡&nbsp;Examples](#examples)**
 
 </div>
 
@@ -37,7 +37,7 @@
 
 **The in-process intelligence layer for AI agents.** Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary.
 
-cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. It accumulates insight from every model call, tool result, and quality score — the agent gets smarter the more it runs. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, and Vercel AI SDK.
+cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. It accumulates insight from every model call, tool result, and quality score — the agent gets smarter the more it runs. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, n8n, and Vercel AI SDK.
 
 ```bash
 pip install cascadeflow
@@ -74,7 +74,7 @@ cascadeflow is a **library** and **agent harness** — an intelligent AI model c
 - **Auditability & Transparency.** Every runtime decision is traceable and attributable. Supports audit requirements, faster tuning cycles, and trust in regulated or high-stakes workflows.
 - **Measurable Value.** Prove impact with reproducible metrics on realistic agent workflows — better economics and latency while preserving quality thresholds.
 - **Latency Advantage.** Proxy-based optimization adds 40-60ms per call. In a 10-step agent loop, that is 400-600ms of avoidable overhead. cascadeflow runs in-process with sub-5ms overhead — critical for real-time UX, task throughput, and enterprise SLAs.
-- **Framework & Provider Neutral.** Works with LangChain, OpenAI Agents SDK, CrewAI, Google ADK, Vercel AI SDK, n8n, and custom frameworks. Unified API across OpenAI, Anthropic, Groq, Ollama, vLLM, Together, and more.
+- **Framework & Provider Neutral.** Works with LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, Vercel AI SDK, n8n, and custom frameworks. Unified API across OpenAI, Anthropic, Groq, Ollama, vLLM, Together, and more.
 - **Self-Improving Agent Intelligence.** Because cascadeflow runs inside the agent loop, it accumulates deep insight into every model call, tool result, quality score, and routing decision over time. This enables cascadeflow to learn which models perform best for which tasks, adapt routing strategies, and continuously improve cost-quality tradeoffs — without manual tuning. The agent gets smarter the more it runs.
 - **Edge & Local-Hosted AI.** Handle most queries with local models (vLLM, Ollama), automatically escalate complex queries to cloud providers only when needed.
 
@@ -650,13 +650,14 @@ console.log(`Warnings: ${validation.warnings}`);
 </details>
 
 <details>
-<summary><b>Framework Integrations</b> - Harness with LangChain, OpenAI Agents, CrewAI, Google ADK</summary>
+<summary><b>Framework Integrations</b> - Harness with LangChain, OpenAI Agents, CrewAI, PydanticAI, Google ADK</summary>
 
 | Example | Description | Link |
 |---------|-------------|------|
 | **LangChain Harness** | cascadeflow harness with LangChain callback handler | [View](./examples/integrations/langchain_harness.py) |
 | **OpenAI Agents Harness** | cascadeflow harness with OpenAI Agents SDK | [View](./examples/integrations/openai_agents_harness.py) |
 | **CrewAI Harness** | cascadeflow harness with CrewAI hooks | [View](./examples/integrations/crewai_harness.py) |
+| **PydanticAI Harness** | cascadeflow cascade Model with PydanticAI agents | [View](./examples/integrations/pydantic_ai_harness.py) |
 | **Google ADK Harness** | cascadeflow harness with Google ADK plugin | [View](./examples/integrations/google_adk_harness.py) |
 | **LangChain Basic** | Simple LangChain cascade setup | [View](./examples/langchain_basic_usage.py) |
 | **LangChain LCEL Pipeline** | LCEL chains with cascade routing | [View](./examples/langchain_lcel_pipeline.py) |
@@ -756,6 +757,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | **LangChain Integration** | Use cascadeflow with LangChain | [Read](https://docs.cascadeflow.ai/integrations/langchain) |
 | **OpenAI Agents SDK** | Use cascadeflow with OpenAI Agents | [Read](https://docs.cascadeflow.ai/integrations/openai-agents) |
 | **CrewAI Integration** | Use cascadeflow with CrewAI | [Read](https://docs.cascadeflow.ai/integrations/crewai) |
+| **PydanticAI Integration** | Cascade Model for PydanticAI agents | [Read](https://docs.cascadeflow.ai/integrations/pydantic-ai) |
 | **Google ADK** | Use cascadeflow with Google ADK | [Read](https://docs.cascadeflow.ai/integrations/google-adk) |
 | **n8n Integration** | Use cascadeflow in n8n workflows | [Read](https://docs.cascadeflow.ai/integrations/n8n) |
 | **Vercel AI SDK** | Middleware for Vercel AI SDK | [Read](https://docs.cascadeflow.ai/integrations/vercel-ai) |

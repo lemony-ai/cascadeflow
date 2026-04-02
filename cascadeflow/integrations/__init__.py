@@ -10,6 +10,7 @@ Provides optional integrations with:
     - Paygentic: Usage reporting and billing
     - CrewAI: Harness integration for CrewAI workflows
     - Google ADK: Plugin for Google Agent Development Kit
+    - PydanticAI: Full cascade Model for PydanticAI agents
 
 All integrations are optional and raise ``ImportError`` with an install
 hint when the required dependency is missing.
@@ -275,6 +276,34 @@ except ImportError:
     google_adk_is_enabled = _adk_missing
     google_adk_get_config = _adk_missing
 
+# ═══════════════════════════════════════════════════
+# PydanticAI
+# ═══════════════════════════════════════════════════
+
+try:
+    from .pydantic_ai import (
+        PYDANTIC_AI_AVAILABLE,
+        CascadeFlowModel as PydanticAICascadeFlowModel,
+        CascadeFlowPydanticAIConfig,
+        CascadeResult as PydanticAICascadeResult,
+        CostMetadata as PydanticAICostMetadata,
+        DomainPolicy as PydanticAIDomainPolicy,
+        create_cascade_model as pydantic_ai_create_cascade_model,
+        is_pydantic_ai_available,
+    )
+except ImportError:
+    PYDANTIC_AI_AVAILABLE = False
+    _pydantic_ai_missing = _MissingIntegration(
+        "PydanticAI", "pip install cascadeflow[pydantic-ai]"
+    )
+    PydanticAICascadeFlowModel = _pydantic_ai_missing
+    CascadeFlowPydanticAIConfig = _pydantic_ai_missing
+    PydanticAICascadeResult = _pydantic_ai_missing
+    PydanticAICostMetadata = _pydantic_ai_missing
+    PydanticAIDomainPolicy = _pydantic_ai_missing
+    pydantic_ai_create_cascade_model = _pydantic_ai_missing
+    is_pydantic_ai_available = _pydantic_ai_missing
+
 
 # ═══════════════════════════════════════════════════
 # Exports & Capabilities
@@ -394,6 +423,20 @@ if GOOGLE_ADK_AVAILABLE:
         ]
     )
 
+if PYDANTIC_AI_AVAILABLE:
+    __all__.extend(
+        [
+            "PYDANTIC_AI_AVAILABLE",
+            "PydanticAICascadeFlowModel",
+            "CascadeFlowPydanticAIConfig",
+            "PydanticAICascadeResult",
+            "PydanticAICostMetadata",
+            "PydanticAIDomainPolicy",
+            "pydantic_ai_create_cascade_model",
+            "is_pydantic_ai_available",
+        ]
+    )
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
@@ -404,6 +447,7 @@ INTEGRATION_CAPABILITIES = {
     "paygentic": PAYGENTIC_AVAILABLE,
     "crewai": CREWAI_AVAILABLE,
     "google_adk": GOOGLE_ADK_AVAILABLE,
+    "pydantic_ai": PYDANTIC_AI_AVAILABLE,
 }
 
 
@@ -430,4 +474,5 @@ def get_integration_info():
         "paygentic_available": PAYGENTIC_AVAILABLE,
         "crewai_available": CREWAI_AVAILABLE,
         "google_adk_available": GOOGLE_ADK_AVAILABLE,
+        "pydantic_ai_available": PYDANTIC_AI_AVAILABLE,
     }

@@ -118,6 +118,9 @@ openai-agents = [
 # Google ADK integration (opt-in, requires Python 3.10+)
 google-adk = ["google-adk>=1.0.0; python_version >= '3.10'"]
 
+# PydanticAI integration (opt-in)
+pydantic-ai = ["pydantic-ai>=0.1.0; python_version >= '3.10'"]
+
 # Development tools (includes rich for terminal output)
 dev = [
     "pytest>=7.4.0",

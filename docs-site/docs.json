@@ -84,6 +84,7 @@
               "integrations/openai-agents",
               "integrations/crewai",
               "integrations/google-adk",
+              "integrations/pydantic-ai",
               "integrations/vercel-ai",
               "integrations/n8n",
               "integrations/openclaw"

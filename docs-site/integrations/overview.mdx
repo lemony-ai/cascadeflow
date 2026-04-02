@@ -3,7 +3,7 @@ title: Integrations Overview
 description: Matrix of all cascadeflow framework integrations with supported features, languages, and integration patterns.
 ---
 
-cascadeflow integrates with six agent frameworks, but the product direction stays the same in every case: runtime intelligence inside the agent loop, not another proxy layer outside it.
+cascadeflow integrates with seven agent frameworks, but the product direction stays the same in every case: runtime intelligence inside the agent loop, not another proxy layer outside it.
 
 All integrations are opt-in. Install the extra, enable the framework extension point, start in `observe`, then move to enforcement once you understand the live runtime behavior.
 
@@ -15,6 +15,7 @@ All integrations are opt-in. Install the extra, enable the framework extension p
 | [OpenAI Agents SDK](/integrations/openai-agents) | Python | `cascadeflow[openai-agents]` | ModelProvider | Yes | Yes | Yes |
 | [CrewAI](/integrations/crewai) | Python | `cascadeflow[crewai]` | llm_hooks | Yes | No | Yes |
 | [Google ADK](/integrations/google-adk) | Python | `cascadeflow[google-adk]` | BasePlugin | Yes | No | Yes |
+| [PydanticAI](/integrations/pydantic-ai) | Python | `cascadeflow[pydantic-ai]` | Cascade Model | Yes | Yes | Yes |
 | [n8n](/integrations/n8n) | TypeScript | `@cascadeflow/n8n-nodes-cascadeflow` | Community node | Yes | Yes | Yes |
 | [Vercel AI SDK](/integrations/vercel-ai) | TypeScript | `@cascadeflow/vercel-ai` | Middleware | Yes | No | Yes |
 
@@ -33,6 +34,7 @@ from cascadeflow.integrations.langchain import get_harness_callback
 from cascadeflow.integrations.openai_agents import CascadeFlowModelProvider
 from cascadeflow.integrations.crewai import enable as enable_crewai
 from cascadeflow.integrations.google_adk import enable as enable_adk
+from cascadeflow.integrations.pydantic_ai import create_cascade_model
 ```
 
 ### TypeScript
@@ -49,6 +51,7 @@ npm install @cascadeflow/n8n-nodes-cascadeflow
 - **OpenAI Agents SDK**: Use if you're building with OpenAI's Agents SDK. The `ModelProvider` supports model candidates and tool gating.
 - **CrewAI**: Use if you're building multi-agent crews. The `llm_hooks` integration tracks all crew steps.
 - **Google ADK**: Use if you're building with Google's Agent Development Kit. The plugin integrates with `Runner`.
+- **PydanticAI**: Use if you're building with PydanticAI agents. The cascade `Model` performs drafter→verifier routing with quality gating and tool risk.
 - **n8n**: Use if you're building no-code workflows. The community node adds cascade routing to any n8n flow.
 - **Vercel AI SDK**: Use if you're building TypeScript server-side agents. The middleware wraps AI SDK streams.
 
