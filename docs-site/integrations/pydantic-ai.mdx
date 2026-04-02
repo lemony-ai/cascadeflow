@@ -1,0 +1,146 @@
+---
+title: PydanticAI
+description: Full cascade Model for PydanticAI agents with speculative drafter→verifier routing, quality gating, and budget enforcement.
+---
+
+cascadeflow integrates with PydanticAI as a drop-in `Model`. Unlike the harness-only integrations, the PydanticAI integration is a **full cascade model**: a cheap drafter runs first, its response is quality-gated, and only escalates to a powerful verifier when needed. This keeps intelligent cost routing inside the agent loop where PydanticAI already makes model decisions.
+
+## Install
+
+```bash
+pip install "cascadeflow[pydantic-ai]"
+```
+
+Requires Python 3.10+.
+
+## Quick Start
+
+```python
+import asyncio
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from cascadeflow.integrations.pydantic_ai import create_cascade_model
+
+import cascadeflow
+
+cascadeflow.init(mode="observe")
+
+# Wrap two models in a cascade
+drafter = OpenAIModel("gpt-4o-mini")
+verifier = OpenAIModel("gpt-4o")
+cascade = create_cascade_model(drafter, verifier, quality_threshold=0.7)
+
+agent = Agent(model=cascade)
+
+async def main():
+    with cascadeflow.run(budget=0.50) as session:
+        result = await agent.run("Explain quantum computing")
+        print(result.output)
+        print(session.summary())
+
+asyncio.run(main())
+```
+
+The drafter tries first. If its response quality is above the threshold, it's returned directly — saving the cost of calling the verifier.
+
+## How the Cascade Works
+
+```
+User Query → Agent(model=CascadeFlowModel)
+                    │
+              ┌─────▼──────────────────────────┐
+              │ 1. Detect query complexity      │
+              │ 2. Pre-route (hard → verifier)  │
+              │ 3. Check domain policy          │
+              │ 4. Call drafter                 │
+              │ 5. Quality-gate the response    │
+              │ 6. Check tool risk              │
+              │ 7. Accept drafter or escalate   │
+              │ 8. Record cost / energy / trace │
+              └─────┬──────────────────────────┘
+                    │
+              ModelResponse (drafter or verifier)
+```
+
+## Configuration
+
+```python
+from cascadeflow.integrations.pydantic_ai import (
+    CascadeFlowModel,
+    CascadeFlowPydanticAIConfig,
+)
+
+config = CascadeFlowPydanticAIConfig(
+    quality_threshold=0.7,       # Accept drafter above this score
+    enable_pre_router=True,      # Route hard queries directly to verifier
+    enable_budget_gate=True,     # Enforce harness budget caps
+    enable_cost_tracking=True,   # Record metrics on HarnessRunContext
+    fail_open=True,              # Continue on internal errors
+    domain_policies={            # Per-domain overrides
+        "medical": {"direct_to_verifier": True},
+        "legal": {"quality_threshold": 0.95},
+        "finance": {"force_verifier": True},
+    },
+)
+
+model = CascadeFlowModel(drafter, verifier, config=config)
+```
+
+## Domain Policies
+
+Domain policies override cascade behavior for specific topics detected in the query:
+
+| Policy | Effect |
+|---|---|
+| `direct_to_verifier: True` | Skip drafter entirely — verifier handles the full request |
+| `force_verifier: True` | Drafter runs (for cost baseline) but always escalates |
+| `quality_threshold: 0.95` | Override the default threshold for this domain |
+
+## Features
+
+- **Full cascade Model** — drop-in replacement for any PydanticAI `Model`, not just a callback
+- **Speculative cascading** — drafter runs first; verifier only called when quality is insufficient
+- **Complexity pre-routing** — hard/expert queries skip the drafter entirely
+- **Tool risk gating** — high-risk tool calls (e.g. `delete_all`) force verifier escalation
+- **Domain policies** — per-domain quality thresholds and routing overrides
+- **Harness integration** — cost, latency, energy, and budget enforcement via `cascadeflow.run()`
+- **Fail-open** — internal errors never break the agent; cascade degrades gracefully
+- **Streaming** — `request_stream()` supported with quality gating
+
+## Cascade Result
+
+After every call, inspect what happened:
+
+```python
+cascade = model.get_last_cascade_result()
+print(cascade["model_used"])        # "drafter" or "verifier"
+print(cascade["accepted"])          # True if drafter was good enough
+print(cascade["drafter_quality"])   # Quality score 0-1
+print(cascade["total_cost"])        # USD cost
+print(cascade["savings_percentage"])# % saved vs always-verifier
+```
+
+## Session Metrics
+
+When running inside `cascadeflow.run()`, the harness tracks:
+- `cost_total`: cumulative USD spent (drafter + verifier)
+- `budget_remaining`: USD left in the budget
+- `step_count`: number of LLM calls (1 if drafter accepted, 2 if escalated)
+- `energy_used`: total energy units
+- `latency_used_ms`: total latency
+
+## Why This Integration Matters
+
+- The cascade sits at the model boundary — the exact place where cost decisions happen
+- PydanticAI agents get automatic cost optimization without changing agent logic
+- Quality gating ensures cheaper models are only used when they produce good-enough responses
+- Budget enforcement, traces, and domain policies all apply inside the agent loop
+
+## Limitations
+
+- Streaming uses a non-streaming drafter call for quality gating, then streams the accepted response
+- Tool risk classification uses name-based heuristics, not schema analysis
+
+<Tip>
+**Example on GitHub:** [integrations/pydantic_ai_harness.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/integrations/pydantic_ai_harness.py)
+</Tip>
