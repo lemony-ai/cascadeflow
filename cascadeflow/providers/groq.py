@@ -102,7 +102,8 @@ class GroqProvider(BaseProvider):
 
         Args:
             api_key: Groq API key. If None, reads from GROQ_API_KEY env var.
-            base_url: Custom base URL for API requests. If None, falls back to
+            base_url: Custom base URL for API requests. If None, reads from
+                GROQ_BASE_URL env var, then falls back to
                 https://api.groq.com/openai/v1. Useful for compatible proxies.
             retry_config: Custom retry configuration (optional). If None, uses defaults:
                 - max_attempts: 3
@@ -135,7 +136,7 @@ class GroqProvider(BaseProvider):
             )
 
         # Initialize HTTP client with enterprise HTTP config
-        self.base_url = base_url or "https://api.groq.com/openai/v1"
+        self.base_url = base_url or os.getenv("GROQ_BASE_URL") or "https://api.groq.com/openai/v1"
 
         # Get httpx kwargs from http_config (includes verify, proxy, timeout)
         httpx_kwargs = self.http_config.get_httpx_kwargs()

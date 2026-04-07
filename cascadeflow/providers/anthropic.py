@@ -182,7 +182,8 @@ class AnthropicProvider(BaseProvider):
 
         Args:
             api_key: Anthropic API key. If None, reads from ANTHROPIC_API_KEY env var.
-            base_url: Custom base URL for API requests. If None, falls back to
+            base_url: Custom base URL for API requests. If None, reads from
+                ANTHROPIC_BASE_URL env var, then falls back to
                 https://api.anthropic.com/v1. Useful for compatible proxies.
             retry_config: Custom retry configuration (optional). If None, uses defaults:
                 - max_attempts: 3
@@ -219,7 +220,9 @@ class AnthropicProvider(BaseProvider):
             )
 
         # Initialize HTTP client with the loaded API key and HTTP config
-        self.base_url = base_url or "https://api.anthropic.com/v1"
+        self.base_url = (
+            base_url or os.getenv("ANTHROPIC_BASE_URL") or "https://api.anthropic.com/v1"
+        )
         self.api_version = "2023-06-01"
 
         # Get httpx kwargs from http_config (includes verify, proxy, timeout)

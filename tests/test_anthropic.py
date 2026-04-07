@@ -151,6 +151,30 @@ class TestAnthropicProvider:
         provider = AnthropicProvider(api_key="sk-ant-test")
         assert provider.base_url == "https://api.anthropic.com/v1"
 
+    def test_base_url_from_env(self):
+        """Test base_url falls back to ANTHROPIC_BASE_URL env var."""
+        with patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "sk-ant-test",
+                "ANTHROPIC_BASE_URL": "https://my-proxy.example.com/v1",
+            },
+        ):
+            provider = AnthropicProvider()
+            assert provider.base_url == "https://my-proxy.example.com/v1"
+
+    def test_explicit_base_url_overrides_env(self):
+        """Test explicit base_url takes priority over env var."""
+        with patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "sk-ant-test",
+                "ANTHROPIC_BASE_URL": "https://env-proxy.com/v1",
+            },
+        ):
+            provider = AnthropicProvider(base_url="https://explicit-proxy.com/v1")
+            assert provider.base_url == "https://explicit-proxy.com/v1"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

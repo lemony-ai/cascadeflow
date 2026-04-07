@@ -188,6 +188,24 @@ class TestGroqProvider:
         provider = GroqProvider(api_key="gsk_test")
         assert provider.base_url == "https://api.groq.com/openai/v1"
 
+    def test_base_url_from_env(self):
+        """Test base_url falls back to GROQ_BASE_URL env var."""
+        with patch.dict(
+            os.environ,
+            {"GROQ_API_KEY": "gsk_test", "GROQ_BASE_URL": "https://my-proxy.example.com/v1"},
+        ):
+            provider = GroqProvider()
+            assert provider.base_url == "https://my-proxy.example.com/v1"
+
+    def test_explicit_base_url_overrides_env(self):
+        """Test explicit base_url takes priority over env var."""
+        with patch.dict(
+            os.environ,
+            {"GROQ_API_KEY": "gsk_test", "GROQ_BASE_URL": "https://env-proxy.com/v1"},
+        ):
+            provider = GroqProvider(base_url="https://explicit-proxy.com/v1")
+            assert provider.base_url == "https://explicit-proxy.com/v1"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

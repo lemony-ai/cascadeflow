@@ -4,6 +4,7 @@ from unittest.mock import patch
 from cascadeflow.config_loader import (
     _resolve_env_vars,
     create_agent_from_config,
+    load_config,
     parse_channel_failover,
     parse_channel_models,
     parse_channel_strategies,
@@ -125,3 +126,59 @@ def test_resolve_env_vars_no_pattern():
     """Test that strings without env patterns pass through unchanged."""
     assert _resolve_env_vars("just a normal string") == "just a normal string"
     assert _resolve_env_vars("sk-my-api-key") == "sk-my-api-key"
+
+
+# ==================== Integration: load_config with env var resolution ====================
+
+
+def test_load_config_resolves_env_vars_yaml(tmp_path):
+    """Integration test: load_config() resolves ${env:VAR} in a YAML file."""
+    yaml_file = tmp_path / "test_config.yaml"
+    yaml_file.write_text(
+        "models:\n"
+        "  - name: gpt-4o\n"
+        "    provider: openai\n"
+        "    cost: 0.0025\n"
+        '    api_key: "${env:TEST_OPENAI_KEY}"\n'
+        '    base_url: "${env:TEST_BASE_URL}/v1"\n'
+    )
+
+    with patch.dict(
+        os.environ, {"TEST_OPENAI_KEY": "sk-yaml-resolved", "TEST_BASE_URL": "https://proxy.test"}
+    ):
+        config = load_config(yaml_file)
+
+    assert config["models"][0]["api_key"] == "sk-yaml-resolved"
+    assert config["models"][0]["base_url"] == "https://proxy.test/v1"
+    assert config["models"][0]["name"] == "gpt-4o"
+
+
+def test_load_config_resolves_env_vars_json(tmp_path):
+    """Integration test: load_config() resolves ${env:VAR} in a JSON file."""
+    json_file = tmp_path / "test_config.json"
+    json_file.write_text(
+        '{"models": [{"name": "test", "provider": "openai", '
+        '"api_key": "${env:TEST_JSON_KEY}", "cost": 0.01}]}'
+    )
+
+    with patch.dict(os.environ, {"TEST_JSON_KEY": "sk-json-resolved"}):
+        config = load_config(json_file)
+
+    assert config["models"][0]["api_key"] == "sk-json-resolved"
+
+
+def test_load_config_missing_env_var_survives(tmp_path):
+    """Integration test: missing env vars don't crash load_config()."""
+    yaml_file = tmp_path / "test_config.yaml"
+    yaml_file.write_text(
+        "models:\n"
+        "  - name: test\n"
+        "    provider: openai\n"
+        "    cost: 0.01\n"
+        '    api_key: "${env:TOTALLY_MISSING_VAR}"\n'
+    )
+
+    with patch.dict(os.environ, {}, clear=True):
+        config = load_config(yaml_file)
+
+    assert config["models"][0]["api_key"] == "${env:TOTALLY_MISSING_VAR}"
