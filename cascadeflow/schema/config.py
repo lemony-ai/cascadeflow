@@ -296,6 +296,8 @@ class UserTier(BaseModel):
         ... )
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str = Field(..., description="Tier name")
 
     # ===== LATENCY CONFIGURATION =====
@@ -419,12 +421,6 @@ class UserTier(BaseModel):
             "quality_threshold": self.quality_threshold,
         }
 
-    class Config:
-        """Pydantic config."""
-
-        arbitrary_types_allowed = True
-
-
 # ==================== NEW: Workflow Profile ====================
 
 
@@ -440,6 +436,8 @@ class WorkflowProfile(BaseModel):
         ...     description="Quick drafts"
         ... )
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str = Field(..., description="Workflow name")
 
@@ -469,12 +467,6 @@ class WorkflowProfile(BaseModel):
     # ===== METADATA =====
     description: Optional[str] = Field(None, description="Workflow description")
     metadata: dict[str, Any] = Field(default_factory=dict)
-
-    class Config:
-        """Pydantic config."""
-
-        arbitrary_types_allowed = True
-
 
 # ==================== DEFAULT TIERS ====================
 
