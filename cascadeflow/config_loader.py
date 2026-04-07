@@ -44,13 +44,40 @@ Usage:
 """
 
 import json
+import logging
+import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from .schema import DomainConfig, DomainValidationMethod, ModelConfig
 
+logger = logging.getLogger(__name__)
+
+_ENV_PATTERN = re.compile(r"\$\{env:([^}]+)\}")
+
 if TYPE_CHECKING:
     from .agent import CascadeAgent
+
+
+def _resolve_env_vars(obj: Any) -> Any:
+    """Recursively resolve ${env:VAR} patterns in config values."""
+    if isinstance(obj, str):
+
+        def _replace(m: re.Match) -> str:
+            var_name = m.group(1)
+            value = os.environ.get(var_name)
+            if value is None:
+                logger.warning("Environment variable %s not set, leaving as-is", var_name)
+                return m.group(0)
+            return value
+
+        return _ENV_PATTERN.sub(_replace, obj)
+    elif isinstance(obj, dict):
+        return {k: _resolve_env_vars(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_resolve_env_vars(item) for item in obj]
+    return obj
 
 
 def load_yaml(path: Union[str, Path]) -> dict[str, Any]:
@@ -106,11 +133,13 @@ def load_config(path: Union[str, Path], file_format: Optional[str] = None) -> di
             )
 
     if file_format == "yaml":
-        return load_yaml(path)
+        config = load_yaml(path)
     elif file_format == "json":
-        return load_json(path)
+        config = load_json(path)
     else:
         raise ValueError(f"Unknown format: {file_format}. Use 'yaml' or 'json'.")
+
+    return _resolve_env_vars(config)
 
 
 def parse_model_config(config: dict[str, Any]) -> ModelConfig:

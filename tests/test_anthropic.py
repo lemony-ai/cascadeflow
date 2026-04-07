@@ -139,6 +139,18 @@ class TestAnthropicProvider:
         # Uses blended pricing
         assert 0.0005 < cost < 0.0010  # Approximately $0.00075/1K tokens
 
+    def test_custom_base_url(self):
+        """Test initialization with custom base_url."""
+        provider = AnthropicProvider(
+            api_key="sk-ant-test", base_url="https://my-proxy.example.com/v1"
+        )
+        assert provider.base_url == "https://my-proxy.example.com/v1"
+
+    def test_default_base_url(self):
+        """Test default base_url when none provided."""
+        provider = AnthropicProvider(api_key="sk-ant-test")
+        assert provider.base_url == "https://api.anthropic.com/v1"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

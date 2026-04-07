@@ -201,6 +201,7 @@ class OpenAIProvider(BaseProvider):
     def __init__(
         self,
         api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
         http_config: Optional[HttpConfig] = None,
     ):
@@ -209,6 +210,9 @@ class OpenAIProvider(BaseProvider):
 
         Args:
             api_key: OpenAI API key. If None, reads from OPENAI_API_KEY env var.
+            base_url: Custom base URL for API requests. If None, reads from
+                OPENAI_BASE_URL env var, then falls back to https://api.openai.com/v1.
+                Useful for OpenAI-compatible proxies (e.g., OpenRouter, LiteLLM).
             retry_config: Custom retry configuration (optional). If None, uses defaults:
                 - max_attempts: 3
                 - initial_delay: 1.0s
@@ -232,6 +236,11 @@ class OpenAIProvider(BaseProvider):
             provider = OpenAIProvider(
                 http_config=HttpConfig(proxy="http://proxy.corp.com:8080")
             )
+
+            # With custom base URL (e.g., OpenRouter)
+            provider = OpenAIProvider(
+                base_url="https://openrouter.ai/api/v1"
+            )
         """
         # Call parent init to load API key, check logprobs support, setup retry, and http_config
         super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
@@ -244,7 +253,7 @@ class OpenAIProvider(BaseProvider):
             )
 
         # Initialize HTTP client with the loaded API key and HTTP config
-        self.base_url = "https://api.openai.com/v1"
+        self.base_url = base_url or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
 
         # Get httpx kwargs from http_config (includes verify, proxy, timeout)
         httpx_kwargs = self.http_config.get_httpx_kwargs()

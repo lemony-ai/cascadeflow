@@ -1,4 +1,8 @@
+import os
+from unittest.mock import patch
+
 from cascadeflow.config_loader import (
+    _resolve_env_vars,
     create_agent_from_config,
     parse_channel_failover,
     parse_channel_models,
@@ -58,3 +62,66 @@ def test_create_agent_from_config_includes_channels():
     assert agent.rule_engine.channel_models["cron"] == ["gpt-4o-mini"]
     assert agent.rule_engine.channel_failover["voice"] == "heartbeat"
     assert agent.rule_engine.channel_strategies["heartbeat"] == "direct_cheap"
+
+
+# ==================== Environment Variable Resolution Tests ====================
+
+
+def test_resolve_env_vars_simple_string():
+    """Test resolving a single env var in a string."""
+    with patch.dict(os.environ, {"MY_API_KEY": "sk-resolved-key"}):
+        result = _resolve_env_vars("${env:MY_API_KEY}")
+        assert result == "sk-resolved-key"
+
+
+def test_resolve_env_vars_in_dict():
+    """Test resolving env vars in a nested dict."""
+    with patch.dict(os.environ, {"OPENAI_KEY": "sk-openai-123"}):
+        config = {"api_key": "${env:OPENAI_KEY}", "name": "gpt-4o"}
+        result = _resolve_env_vars(config)
+        assert result["api_key"] == "sk-openai-123"
+        assert result["name"] == "gpt-4o"
+
+
+def test_resolve_env_vars_in_list():
+    """Test resolving env vars in a list."""
+    with patch.dict(os.environ, {"KEY_A": "val-a", "KEY_B": "val-b"}):
+        result = _resolve_env_vars(["${env:KEY_A}", "${env:KEY_B}", "literal"])
+        assert result == ["val-a", "val-b", "literal"]
+
+
+def test_resolve_env_vars_nested():
+    """Test resolving env vars in deeply nested structures."""
+    with patch.dict(os.environ, {"SECRET": "s3cr3t"}):
+        config = {"models": [{"name": "test", "api_key": "${env:SECRET}"}]}
+        result = _resolve_env_vars(config)
+        assert result["models"][0]["api_key"] == "s3cr3t"
+        assert result["models"][0]["name"] == "test"
+
+
+def test_resolve_env_vars_missing_var_left_as_is():
+    """Test that missing env vars are left as-is with a warning."""
+    with patch.dict(os.environ, {}, clear=True):
+        result = _resolve_env_vars("${env:NONEXISTENT_VAR}")
+        assert result == "${env:NONEXISTENT_VAR}"
+
+
+def test_resolve_env_vars_partial_string():
+    """Test resolving env var embedded in a larger string."""
+    with patch.dict(os.environ, {"HOST": "localhost", "PORT": "8080"}):
+        result = _resolve_env_vars("http://${env:HOST}:${env:PORT}/v1")
+        assert result == "http://localhost:8080/v1"
+
+
+def test_resolve_env_vars_non_string_passthrough():
+    """Test that non-string values pass through unchanged."""
+    assert _resolve_env_vars(42) == 42
+    assert _resolve_env_vars(3.14) == 3.14
+    assert _resolve_env_vars(True) is True
+    assert _resolve_env_vars(None) is None
+
+
+def test_resolve_env_vars_no_pattern():
+    """Test that strings without env patterns pass through unchanged."""
+    assert _resolve_env_vars("just a normal string") == "just a normal string"
+    assert _resolve_env_vars("sk-my-api-key") == "sk-my-api-key"

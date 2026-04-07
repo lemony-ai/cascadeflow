@@ -201,6 +201,34 @@ class TestOpenAIProvider:
 
         assert converted == []
 
+    def test_custom_base_url(self):
+        """Test initialization with custom base_url."""
+        provider = OpenAIProvider(api_key="sk-test", base_url="https://openrouter.ai/api/v1")
+        assert provider.base_url == "https://openrouter.ai/api/v1"
+
+    def test_default_base_url(self):
+        """Test default base_url when none provided."""
+        provider = OpenAIProvider(api_key="sk-test")
+        assert provider.base_url == "https://api.openai.com/v1"
+
+    def test_base_url_from_env(self):
+        """Test base_url falls back to OPENAI_BASE_URL env var."""
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "sk-test", "OPENAI_BASE_URL": "https://my-proxy.example.com/v1"},
+        ):
+            provider = OpenAIProvider()
+            assert provider.base_url == "https://my-proxy.example.com/v1"
+
+    def test_explicit_base_url_overrides_env(self):
+        """Test explicit base_url takes priority over env var."""
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "sk-test", "OPENAI_BASE_URL": "https://env-proxy.com/v1"},
+        ):
+            provider = OpenAIProvider(base_url="https://explicit-proxy.com/v1")
+            assert provider.base_url == "https://explicit-proxy.com/v1"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

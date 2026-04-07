@@ -173,6 +173,7 @@ class AnthropicProvider(BaseProvider):
     def __init__(
         self,
         api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
         http_config: Optional[HttpConfig] = None,
     ):
@@ -181,6 +182,8 @@ class AnthropicProvider(BaseProvider):
 
         Args:
             api_key: Anthropic API key. If None, reads from ANTHROPIC_API_KEY env var.
+            base_url: Custom base URL for API requests. If None, falls back to
+                https://api.anthropic.com/v1. Useful for compatible proxies.
             retry_config: Custom retry configuration (optional). If None, uses defaults:
                 - max_attempts: 3
                 - initial_delay: 1.0s
@@ -216,7 +219,7 @@ class AnthropicProvider(BaseProvider):
             )
 
         # Initialize HTTP client with the loaded API key and HTTP config
-        self.base_url = "https://api.anthropic.com/v1"
+        self.base_url = base_url or "https://api.anthropic.com/v1"
         self.api_version = "2023-06-01"
 
         # Get httpx kwargs from http_config (includes verify, proxy, timeout)

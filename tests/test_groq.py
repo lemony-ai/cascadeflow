@@ -178,6 +178,16 @@ class TestGroqProvider:
         assert confidence >= 0.0
         assert isinstance(confidence, float)
 
+    def test_custom_base_url(self):
+        """Test initialization with custom base_url."""
+        provider = GroqProvider(api_key="gsk_test", base_url="https://my-proxy.example.com/v1")
+        assert provider.base_url == "https://my-proxy.example.com/v1"
+
+    def test_default_base_url(self):
+        """Test default base_url when none provided."""
+        provider = GroqProvider(api_key="gsk_test")
+        assert provider.base_url == "https://api.groq.com/openai/v1"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

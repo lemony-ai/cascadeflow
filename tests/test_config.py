@@ -232,5 +232,62 @@ class TestConfigIntegration:
             assert 0.99 <= total <= 1.01, f"{tier_name} weights don't sum to 1.0"
 
 
+class TestProviderValidation:
+    """Test provider validation in ModelConfig."""
+
+    def test_openrouter_provider_accepted(self):
+        """OpenRouter should be accepted as a valid provider."""
+        from cascadeflow.schema.config import ModelConfig
+
+        model = ModelConfig(name="deepseek/deepseek-r1", provider="openrouter", cost=0.55)
+        assert model.provider == "openrouter"
+
+    def test_deepseek_provider_accepted(self):
+        """DeepSeek should be accepted as a valid provider."""
+        from cascadeflow.schema.config import ModelConfig
+
+        model = ModelConfig(name="deepseek-chat", provider="deepseek", cost=0.14)
+        assert model.provider == "deepseek"
+
+    def test_openrouter_case_insensitive(self):
+        """Provider validation should be case-insensitive."""
+        from cascadeflow.schema.config import ModelConfig
+
+        model = ModelConfig(name="test", provider="OpenRouter", cost=0.01)
+        assert model.provider == "openrouter"
+
+    def test_deepseek_case_insensitive(self):
+        """Provider validation should be case-insensitive."""
+        from cascadeflow.schema.config import ModelConfig
+
+        model = ModelConfig(name="test", provider="DeepSeek", cost=0.01)
+        assert model.provider == "deepseek"
+
+    def test_invalid_provider_rejected(self):
+        """Invalid providers should still be rejected."""
+        from cascadeflow.schema.config import ModelConfig
+
+        with pytest.raises(ValueError, match="Provider must be one of"):
+            ModelConfig(name="test", provider="invalid_provider", cost=0.01)
+
+    def test_all_existing_providers_still_valid(self):
+        """Ensure all existing providers are still accepted after the change."""
+        from cascadeflow.schema.config import ModelConfig
+
+        for provider in [
+            "openai",
+            "anthropic",
+            "groq",
+            "ollama",
+            "huggingface",
+            "together",
+            "vllm",
+            "replicate",
+            "custom",
+        ]:
+            model = ModelConfig(name="test", provider=provider, cost=0.01)
+            assert model.provider == provider
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

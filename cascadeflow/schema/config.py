@@ -117,6 +117,8 @@ class ModelConfig(BaseModel):
             "together",
             "vllm",
             "replicate",
+            "openrouter",
+            "deepseek",
             "custom",
         ]
         if v not in allowed:
