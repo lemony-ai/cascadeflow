@@ -287,6 +287,7 @@ class TestToolCallParsing:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestToolCallingIntegration:
     """Integration tests with real OpenAI API calls."""
 
@@ -477,6 +478,7 @@ class TestToolCallingIntegration:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestMultiTurnToolConversations:
     """Test complete multi-turn conversations with tool calling."""
 
@@ -606,6 +608,7 @@ class TestMultiTurnToolConversations:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestToolCallingErrors:
     """Test error handling in tool calling."""
 
@@ -658,6 +661,7 @@ class TestToolCallingErrors:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestToolCallingPerformance:
     """Test performance characteristics of tool calling."""
 

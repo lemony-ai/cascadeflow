@@ -304,6 +304,8 @@ addopts = [
     "--cov-report=html",
     "--asyncio-mode=auto",
     "--ignore=tests/_archive_development_tests",
+    "-m",
+    "not integration",
 ]
 markers = [
     "integration: marks tests that require external services or API keys (deselect with '-m \"not integration\"')",
