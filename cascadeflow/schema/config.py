@@ -111,12 +111,14 @@ class ModelConfig(BaseModel):
         allowed = [
             "openai",
             "anthropic",
+            "deepseek",
             "groq",
             "ollama",
             "huggingface",
             "together",
             "vllm",
             "replicate",
+            "openrouter",
             "custom",
         ]
         if v not in allowed:
