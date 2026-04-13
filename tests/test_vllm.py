@@ -42,7 +42,7 @@ class TestVLLMProvider:
 
     def test_init_from_env(self):
         """Test initialization from environment variable."""
-        with patch.dict(os.environ, {"VLLM_BASE_URL": "http://env:8000/v1"}):
+        with patch.dict(os.environ, {"VLLM_BASE_URL": "http://env:8000/v1"}, clear=True):
             provider = VLLMProvider()
             assert provider.base_url == "http://env:8000/v1"
 
