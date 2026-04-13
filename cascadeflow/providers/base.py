@@ -542,12 +542,17 @@ class BaseProvider(ABC):
         Check if provider supports tool calling.
 
         Override to indicate if provider supports tool calling.
-        Default: False (safe default, providers opt-in)
+        Default: auto-detect based on provider implementation.
 
         Returns:
             True if provider supports tool calling, False otherwise
         """
-        return False
+        # Historically, parts of the library detected tool support via
+        # `hasattr(provider, "complete_with_tools")` and invoked it directly.
+        # To keep that behavior consistent (while routing tool calls through
+        # BaseProvider.complete() to benefit from retry/circuit-breaker), we
+        # default to auto-detecting support when `complete_with_tools` exists.
+        return callable(getattr(self, "complete_with_tools", None))
 
     # ========================================================================
     # RETRY LOGIC METHODS
@@ -821,7 +826,7 @@ class BaseProvider(ABC):
         prompt: Optional[str] = None,
         model: str = "",
         tools: Optional[list[Any]] = None,
-        tool_choice: str = "auto",
+        tool_choice: Any = "auto",
         max_tokens: int = 4096,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
@@ -892,9 +897,37 @@ class BaseProvider(ABC):
             ...         metadata=metadata
             ...     )
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} does not support tool calling. "
-            f"Override _complete_with_tools_impl() to add support."
+        complete_with_tools = getattr(self, "complete_with_tools", None)
+        if not callable(complete_with_tools):
+            raise NotImplementedError(
+                f"{self.__class__.__name__} does not support tool calling. "
+                "Implement complete_with_tools(...) or override _complete_with_tools_impl()."
+            )
+
+        normalized_messages: list[dict[str, Any]]
+        if messages:
+            normalized_messages = list(messages)
+        elif prompt is not None:
+            normalized_messages = [{"role": "user", "content": prompt}]
+        else:
+            raise ValueError("Tool calling requires either `messages` or `prompt`.")
+
+        if system_prompt:
+            has_system = any(
+                isinstance(item, dict) and item.get("role") == "system"
+                for item in normalized_messages
+            )
+            if not has_system:
+                normalized_messages.insert(0, {"role": "system", "content": system_prompt})
+
+        return await complete_with_tools(
+            messages=normalized_messages,
+            tools=tools,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            tool_choice=tool_choice,
+            **kwargs,
         )
 
     def _get_litellm_prefix(self) -> Optional[str]:
@@ -1007,7 +1040,7 @@ class BaseProvider(ABC):
         system_prompt: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
         tools: Optional[list[Any]] = None,
-        tool_choice: str = "auto",
+        tool_choice: Any = "auto",
         **kwargs,
     ) -> ModelResponse:
         """

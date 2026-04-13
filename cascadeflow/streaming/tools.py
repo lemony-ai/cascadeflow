@@ -502,9 +502,17 @@ class ToolStreamManager:
             logger.info(f"Streaming from draft model: {draft_model.name}")
 
             # Check if provider supports tool calling
-            if hasattr(draft_provider, "complete_with_tools"):
+            def _provider_supports_tools(p: Any) -> bool:
+                supports_attr = getattr(p, "supports_tools", None)
+                if isinstance(supports_attr, bool):
+                    return supports_attr
+                if callable(supports_attr):
+                    return bool(supports_attr())
+                return callable(getattr(p, "complete_with_tools", None))
+
+            if _provider_supports_tools(draft_provider):
                 # Use tool-specific method
-                if hasattr(draft_provider, "stream_with_tools"):
+                if hasattr(type(draft_provider), "stream_with_tools"):
                     # Streaming with tools
                     logger.info("Using stream_with_tools for progressive tool streaming")
 
@@ -539,9 +547,18 @@ class ToolStreamManager:
                     logger.info("Using complete_with_tools (non-streaming)")
 
                     # 🔧 FIX: Pass messages instead of model/prompt
-                    response = await draft_provider.complete_with_tools(
+                    from cascadeflow.providers.base import BaseProvider
+
+                    _draft_tool_complete = (
+                        draft_provider.complete
+                        if isinstance(draft_provider, BaseProvider)
+                        else draft_provider.complete_with_tools
+                    )
+
+                    response = await _draft_tool_complete(
                         messages=tool_messages,  # ✅ FIXED
                         tools=tools,  # ← Explicit
+                        model=draft_model.name,
                         max_tokens=max_tokens,
                         temperature=temperature,
                         tool_choice=tool_choice,  # ← Explicit
@@ -831,9 +848,18 @@ class ToolStreamManager:
                     )
                     draft_input_tokens += self._estimate_messages_tokens(current_messages)
 
-                    response = await draft_provider.complete_with_tools(
+                    from cascadeflow.providers.base import BaseProvider
+
+                    _draft_turn_complete = (
+                        draft_provider.complete
+                        if isinstance(draft_provider, BaseProvider)
+                        else draft_provider.complete_with_tools
+                    )
+
+                    response = await _draft_turn_complete(
                         messages=current_messages,
                         tools=tools,
+                        model=draft_model.name,
                         max_tokens=max_tokens,
                         temperature=temperature,
                         tool_choice=tool_choice,
@@ -986,8 +1012,8 @@ class ToolStreamManager:
 
                 verifier_input_tokens += self._estimate_messages_tokens(tool_messages)
 
-                if hasattr(verifier_provider, "complete_with_tools"):
-                    if hasattr(verifier_provider, "stream_with_tools"):
+                if _provider_supports_tools(verifier_provider):
+                    if hasattr(type(verifier_provider), "stream_with_tools"):
                         # Streaming verifier
                         logger.info("Verifier: Using stream_with_tools")
 
@@ -1017,9 +1043,18 @@ class ToolStreamManager:
                         logger.info("Verifier: Using complete_with_tools (non-streaming)")
 
                         # 🔧 FIX: Pass messages instead of model/prompt
-                        response = await verifier_provider.complete_with_tools(
+                        from cascadeflow.providers.base import BaseProvider
+
+                        _verifier_tool_complete = (
+                            verifier_provider.complete
+                            if isinstance(verifier_provider, BaseProvider)
+                            else verifier_provider.complete_with_tools
+                        )
+
+                        response = await _verifier_tool_complete(
                             messages=tool_messages,  # ✅ FIXED
                             tools=tools,  # ← Explicit
+                            model=verifier_model.name,
                             max_tokens=max_tokens,
                             temperature=temperature,
                             tool_choice=tool_choice,  # ← Explicit
@@ -1106,9 +1141,18 @@ class ToolStreamManager:
                         )
                         verifier_input_tokens += self._estimate_messages_tokens(current_messages)
 
-                        response = await verifier_provider.complete_with_tools(
+                        from cascadeflow.providers.base import BaseProvider
+
+                        _verifier_turn_complete = (
+                            verifier_provider.complete
+                            if isinstance(verifier_provider, BaseProvider)
+                            else verifier_provider.complete_with_tools
+                        )
+
+                        response = await _verifier_turn_complete(
                             messages=current_messages,
                             tools=tools,
+                            model=verifier_model.name,
                             max_tokens=max_tokens,
                             temperature=temperature,
                             tool_choice=tool_choice,

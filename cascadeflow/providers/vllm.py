@@ -5,6 +5,7 @@ import os
 import time
 from collections.abc import AsyncIterator
 from typing import Any, Optional
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
@@ -183,7 +184,14 @@ class VLLMProvider(BaseProvider):
         """
         super().__init__(api_key=api_key, retry_config=retry_config, http_config=http_config)
 
-        self.base_url = base_url or os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+        raw_base_url = base_url or os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+        raw_base_url = raw_base_url.rstrip("/")
+        parsed = urlparse(raw_base_url)
+        if parsed.path in ("", "/"):
+            parsed = parsed._replace(path="/v1")
+            self.base_url = urlunparse(parsed).rstrip("/")
+        else:
+            self.base_url = raw_base_url
         self.timeout = timeout
 
         headers = {"Content-Type": "application/json"}

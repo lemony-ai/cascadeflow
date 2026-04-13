@@ -735,6 +735,19 @@ class CascadeAgent:
         # Fallback to provider-type lookup (backwards compatibility)
         return self.providers[model.provider]
 
+    def _provider_supports_tools(self, provider: Any) -> bool:
+        supports_attr = getattr(provider, "supports_tools", None)
+        if isinstance(supports_attr, bool):
+            return supports_attr
+        if callable(supports_attr):
+            return bool(supports_attr())
+        return callable(getattr(provider, "complete_with_tools", None))
+
+    def _get_tool_complete_callable(self, provider: Any):
+        from cascadeflow.providers.base import BaseProvider
+
+        return provider.complete if isinstance(provider, BaseProvider) else provider.complete_with_tools
+
     def _normalize_messages(
         self, query: str, messages: Optional[list[dict[str, Any]]]
     ) -> tuple[str, Optional[list[dict[str, Any]]]]:
@@ -2144,11 +2157,12 @@ class CascadeAgent:
 
         direct_start = time.time()
         transcript: list[dict[str, Any]] = []
-        if tools and hasattr(provider, "complete_with_tools"):
+        if tools and self._provider_supports_tools(provider):
             tool_messages = list(messages or [{"role": "user", "content": query}])
+            tool_complete = self._get_tool_complete_callable(provider)
             response = None
             for step in range(max_steps):
-                response = await provider.complete_with_tools(
+                response = await tool_complete(
                     messages=tool_messages,
                     tools=tools,
                     tool_choice=tool_choice,
@@ -2332,9 +2346,10 @@ class CascadeAgent:
                 visual.clear()
                 raise
         else:
-            if tools and hasattr(provider, "complete_with_tools"):
+            if tools and self._provider_supports_tools(provider):
                 tool_messages = messages or [{"role": "user", "content": query}]
-                response = await provider.complete_with_tools(
+                tool_complete = self._get_tool_complete_callable(provider)
+                response = await tool_complete(
                     messages=tool_messages,
                     tools=tools,
                     tool_choice=tool_choice,

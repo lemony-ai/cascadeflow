@@ -1327,7 +1327,7 @@ class WholeResponseCascade:
                 # TOOL PATH: Use complete_with_tools() with messages format
                 tool_messages = messages or [{"role": "user", "content": query}]
 
-                result = await provider.complete_with_tools(
+                result = await provider.complete(
                     messages=tool_messages,
                     tools=tools,
                     tool_choice=tool_choice,
@@ -1374,7 +1374,7 @@ class WholeResponseCascade:
                 # TOOL PATH: Use complete_with_tools() with messages format
                 tool_messages = messages or [{"role": "user", "content": query}]
 
-                result = await provider.complete_with_tools(
+                result = await provider.complete(
                     messages=tool_messages,
                     tools=tools,
                     tool_choice=tool_choice,

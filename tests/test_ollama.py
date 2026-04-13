@@ -56,7 +56,7 @@ class TestOllamaProvider:
 
     def test_init_from_env(self):
         """Test initialization from OLLAMA_HOST env var."""
-        with patch.dict("os.environ", {"OLLAMA_HOST": "http://remote:11434"}):
+        with patch.dict("os.environ", {"OLLAMA_HOST": "http://remote:11434"}, clear=True):
             provider = OllamaProvider()
             assert provider.base_url == "http://remote:11434"
 
