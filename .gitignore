@@ -49,8 +49,11 @@ CLAUDE.md
 AGENTS.md
 CODEX.md
 
-# AI assistant skill definitions
-skills/
+# AI assistant skill definitions (personal/local only)
+skills/*
+# Exception: distributable skills published with the project
+!skills/cascadeflow/
+!skills/cascadeflow/**
 
 # ============================================================================
 # INTERNAL PLANNING (local only, not for GitHub)
