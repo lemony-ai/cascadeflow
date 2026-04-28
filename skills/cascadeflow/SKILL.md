@@ -445,31 +445,43 @@ gh issue list --repo lemony-ai/cascadeflow --search "<keywords>"
 # 1. Fork + clone (creates origin = your fork, upstream = lemony-ai)
 gh repo fork lemony-ai/cascadeflow --clone --remote
 cd cascadeflow
+
+# 2. Install dev deps + hooks. THIS IS NOT OPTIONAL.
+#    Python: the repo's pyproject pytest config injects --cov / --asyncio-mode=auto,
+#    so bare `pytest` fails on a fresh `pip install -e .` until you pull the dev extra.
+pip install -e ".[dev]"                   # pulls pytest, pytest-cov, pytest-asyncio, pre-commit, ruff, black, mypy
 pre-commit install                        # repo enforces hooks
 
-# 2. Branch off main — never push fixes to main
+# 3. Branch off main — never push fixes to main
 git checkout main && git pull upstream main
 git checkout -b fix/<short-slug>          # e.g. fix/harness-max-energy-none
 
-# 3. Patch + add a regression test next to existing tests for that area
+# 4. Patch + add a regression test next to existing tests for that area
 
-# 4. Run the right test suite
+# 5. Run the right test suite
 pytest                                    # Python core / Python integrations
 pnpm --filter @cascadeflow/core test      # TS core
 pnpm --filter @cascadeflow/langchain test # TS LangChain integration
 # (substitute the package for whichever folder you touched)
+# Faster iteration on a single TS package: `pnpm install --filter @cascadeflow/<pkg>... --frozen-lockfile`
 
-# 5. Conventional-commit message — required by the repo
-git commit -am "fix(<area>): <one-line summary>"
+# 6. Stage everything (including the new test file) and commit. DO NOT use
+#    `git commit -am` — `-a` skips untracked files, so your regression test
+#    silently won't be in the commit and the PR will fail review.
+git status                                # confirm new test file is listed under "Untracked"
+git add <touched-files> <new-test-file>
+git commit -m "fix(<area>): <one-line summary>"
 # areas: harness, langchain, crewai, pydantic-ai, openai-agents,
 #        google-adk, n8n, vercel-ai, core, docs, etc.
 
-# 6. Push to your fork and open the PR upstream
+# 7. Push to your fork and open the PR upstream
 git push -u origin fix/<short-slug>
 gh pr create --repo lemony-ai/cascadeflow --base main \
   --title "fix(<area>): <one-line summary>" \
   --body "Fixes #<issue>. <repro + what changed + test added>"
 ```
+
+> **Step 0 (`gh release list`/`gh issue list`) requires `gh auth login` against your GitHub account.** If unauthed, substitute a quick web search of `github.com/lemony-ai/cascadeflow/issues` and `git log upstream/main -- <path>` to check for prior fixes.
 
 ### Unblock the demo while the PR is in review
 
@@ -485,7 +497,9 @@ After the PR merges and a release ships, swap back to the published package.
 - Don't push fixes directly to `main` (your fork or upstream).
 - Don't `--force-push` to a shared/upstream branch.
 - Don't bypass `pre-commit` with `--no-verify` — fix the lint/format issue instead.
-- Don't open a PR without a regression test for non-trivial fixes.
+- Don't `git commit -am` when you've added a new test file — `-a` skips untracked files. Use `git add` then `git commit -m`.
+- Don't run bare `pytest` after `pip install -e .` — the repo's pyproject injects `--cov` and `--asyncio-mode=auto`. Install `".[dev]"` first.
+- Don't open a PR without a regression test for non-trivial fixes (single-line comment/typo fixes are fine without one).
 - Don't commit API keys, `.env` files, or local config.
 
 ## Where to look next
