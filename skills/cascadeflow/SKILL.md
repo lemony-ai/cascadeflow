@@ -16,6 +16,23 @@ Two complementary pieces:
 
 Python (`pip install cascadeflow`) and TypeScript (`@cascadeflow/core`). Docs: https://docs.cascadeflow.ai
 
+## Why "in the loop" matters (the core pitch)
+
+cascadeflow is **not a proxy or a gateway**. It runs inside the agent's process and sees every model call, tool call, and sub-agent handoff as it happens — so it can act on running state (cost so far, tool calls used, compliance flag) at *each step*, not just per HTTP request.
+
+| Dimension | External proxy | cascadeflow harness |
+|---|---|---|
+| Scope | HTTP request boundary | Inside the agent loop |
+| What it can see | One request at a time | Full run state (cost-so-far, step #, tool-calls used, budget remaining) |
+| Optimization axes | Cost only | Cost · latency · quality · budget · compliance · energy — simultaneously |
+| Latency overhead | 10–50 ms network RTT per call | <5 ms in-process per call |
+| 10-step agent loop | +400–600 ms avoidable | negligible |
+| Enforcement | Observe only | `allow` · `switch_model` · `deny_tool` · `stop` |
+| Auditability | Request logs | Per-step decision trace (one entry per LLM/tool/handoff decision) |
+| Business logic | None | Live KPI weights + targets injected at runtime |
+
+This is what unlocks: stop-after-step-7 budget enforcement, deny-this-tool-mid-loop, switch-models-on-this-call, and a full audit trail of *why* every step did what it did. None of that is possible from outside the loop.
+
 ## When to use this skill
 
 - User is building an AI agent and wants cost/latency/quality control *inside* the loop
@@ -94,6 +111,30 @@ This is what makes cascadeflow different from a proxy or a model router. The har
 
 Every LLM call, tool call, and sub-agent handoff is a decision point. The harness reads the current run state (cost so far, budget remaining, compliance flag, KPI weights) and chooses one of the four actions.
 
+**Stop reasons (verbatim strings on the trace + on `HarnessStopError.reason`):**
+
+`budget_exceeded` · `max_tool_calls_reached` · `compliance_no_approved_model` · `latency_limit_exceeded` · `energy_limit_exceeded`
+
+### Handling stops gracefully (don't crash the demo)
+
+In `enforce` mode the harness raises a typed exception when it stops a run. Catch them so the agent can summarize and exit cleanly:
+
+```python
+from cascadeflow.schema.exceptions import BudgetExceededError, HarnessStopError
+
+try:
+    result = await agent.run(query)
+except BudgetExceededError as e:
+    print(f"Stopped: budget exceeded. Remaining: ${e.remaining:.4f}")
+except HarnessStopError as e:
+    print(f"Stopped: {e.reason}")  # e.g. "max_tool_calls_reached"
+finally:
+    print(session.summary())   # cost/steps/tool_calls captured up to the stop
+    session.save("run.jsonl")  # full trace still exportable
+```
+
+`max_latency_ms` is **cumulative across the run** (not per step) — `latency_used_ms` accumulates and triggers `latency_limit_exceeded` when it crosses the cap.
+
 ### Scoped runs with budget + trace (the demo-worthy pattern)
 
 ```python
@@ -104,17 +145,53 @@ cascadeflow.init(mode="enforce")   # or "observe" while you tune
 with cascadeflow.run(
     budget=0.50,                    # hard USD cap
     max_tool_calls=10,
-    max_latency_ms=15000,
+    max_latency_ms=15000,           # cumulative across the run
     max_energy=None,
     kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1},
     compliance="gdpr",              # blocks non-compliant models
 ) as session:
     result = await agent.run("Analyze this dataset")
-    print(session.summary())        # cost, tokens, steps, tool_calls, last_action, budget_remaining
+    print(session.summary())        # see shape below
     for entry in session.trace():   # per-step decision audit
         print(entry)
     session.save("run.jsonl")       # exportable trace — great for demos / submissions
 ```
+
+### Shapes you'll actually print
+
+`session.summary()` → dict:
+
+```python
+{
+  "run_id": "ab12cd34ef56", "mode": "enforce", "step_count": 7, "tool_calls": 3,
+  "cost": 0.0421, "savings": 0.0118, "latency_used_ms": 4820.4, "energy_used": 0.0,
+  "budget_max": 0.50, "budget_remaining": 0.4579,
+  "last_action": "allow", "model_used": "gpt-4o-mini", "duration_ms": 5103.2,
+}
+```
+
+`session.trace()` → list of dicts, one per decision:
+
+```python
+{
+  "action": "switch_model",          # allow | switch_model | deny_tool | stop
+  "reason": "budget_pressure",       # human-readable; on stop it's the reason code
+  "model": "gpt-4o-mini",
+  "run_id": "ab12cd34ef56",
+  "mode": "enforce",
+  "step": 4,
+  "timestamp_ms": 1730000123456.0,
+  "tool_calls_total": 2,
+  "cost_total": 0.0312,
+  "latency_used_ms": 2400.1,
+  "energy_used": 0.0,
+  "budget_state": {"max": 0.50, "remaining": 0.4688},
+  "applied": true,                   # false for observe-mode "would have"
+  "decision_mode": "pre_call",       # optional
+}
+```
+
+`session.save("run.jsonl")` writes one session-header line + one trace line per decision. `HarnessRunContext.load("run.jsonl")` reads it back as `{"session": ..., "traces": [...]}`.
 
 ### Policy metadata on agent functions
 
@@ -158,8 +235,66 @@ cascadeflow's harness is built for multi-step agents, not just single calls.
 - **Tool calling** — universal tool format across providers; drafter can be pinned for simple tool calls while verifier handles complex reasoning.
 - **Multi-turn loops** — automatic tool call → result → re-prompt with full history preservation (`tool_calls`, `tool_call_id` preserved across turns).
 - **Per-tool-call gating** — block or re-route tools based on risk/complexity (TS: `tool-risk.ts`, `ToolRouter`).
-- **Agent-as-a-tool / multi-agent** — delegate sub-tasks to other agents; each sub-call runs through the same harness.
-- **Hooks & callbacks** — telemetry, cost events, streaming events.
+- **Agent-as-a-tool / multi-agent** — delegate sub-tasks to other agents; each sub-call runs through the same harness (sub-call decisions show up on the parent's trace).
+- **Hooks & callbacks** — register a `CallbackManager` to stream cost/decision events to a dashboard.
+- **Self-improving** — because the harness sees every step, every tool result, and every quality score over time, it accumulates the data needed to tune routing strategies and escalation thresholds. Long-lived agents get smarter the more they run.
+
+### Wiring tools to the agent (Python)
+
+```python
+from cascadeflow import CascadeAgent, ModelConfig
+from cascadeflow.tools import ToolConfig, ToolExecutor
+
+def get_weather(city: str) -> str:
+    return f"{city}: 18°C, cloudy"   # mock
+
+tool_configs = [
+    ToolConfig(
+        name="get_weather",
+        description="Get current weather for a city.",
+        parameters={
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
+        function=get_weather,
+    ),
+]
+
+executor = ToolExecutor(tool_configs)
+agent = CascadeAgent(
+    models=[
+        ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+        ModelConfig(name="gpt-4o",      provider="openai", cost=0.00625),
+    ],
+    tool_executor=executor,           # executor goes on the agent
+)
+
+# Schemas (no function ref) go on the call:
+schemas = [{"name": t.name, "description": t.description, "parameters": t.parameters}
+           for t in tool_configs]
+result = await agent.run("What's the weather in Paris?", tools=schemas)
+```
+
+### Streaming decision events to a dashboard
+
+```python
+import cascadeflow
+from cascadeflow.telemetry.callbacks import CallbackManager, CallbackEvent
+
+manager = CallbackManager()
+
+def on_decision(data):
+    # data.event, data.query, data.data — push to your dashboard / Slack / OTel
+    print(data.event.value, data.data)
+
+manager.register(CallbackEvent.CASCADE_DECISION, on_decision)
+manager.register(CallbackEvent.MODEL_CALL_COMPLETE, on_decision)
+
+cascadeflow.init(mode="enforce", callback_manager=manager)
+```
+
+Available events: `QUERY_START`, `COMPLEXITY_DETECTED`, `MODEL_CALL_START`, `MODEL_CALL_COMPLETE`, `MODEL_CALL_ERROR`, `CASCADE_DECISION`, `CACHE_HIT`/`MISS`, `QUERY_COMPLETE`, `QUERY_ERROR`. For LangChain, prefer `get_cascade_callback()` (covered below).
 
 **Starter examples in the repo** (all exist — verified):
 
