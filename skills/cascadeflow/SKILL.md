@@ -1,6 +1,6 @@
 ---
 name: cascadeflow
-description: Use when building, extending, or debugging AI agents with cascadeflow (agent runtime intelligence layer) — installing `cascadeflow` (Python) or `@cascadeflow/core`/`@cascadeflow/langchain` (TypeScript); using `CascadeAgent`, `ModelConfig`, harness APIs (`cascadeflow.init`, `cascadeflow.run`, `@cascadeflow.agent`, `simulate`), `withCascade`/`CascadeFlow`; picking drafter+verifier pairs; per-step budget/compliance/KPI enforcement; quality validation; complexity pre-routing; tool execution and multi-turn agent loops; presets; decision traces; or wiring cascadeflow into LangChain, OpenAI Agents, CrewAI, PydanticAI, Google ADK, n8n, or Vercel AI SDK. Also when a user mentions "cascade", "drafter/verifier", "runtime intelligence", "in-process harness", "cost-optimized agent", "agent loop with cost control", is in the lemony-ai/cascadeflow repo, or found a bug in cascadeflow/integrations needing an upstream fix/PR.
+description: Use when building, extending, or debugging AI agents with cascadeflow (agent runtime intelligence layer) — installing `cascadeflow` (Python) or `@cascadeflow/core`/`@cascadeflow/langchain` (TypeScript); using `CascadeAgent`, `ModelConfig`, harness APIs (`cascadeflow.init`, `cascadeflow.run`, `@agent` from `cascadeflow.harness`, `simulate`), `withCascade`/`CascadeFlow`; picking drafter+verifier pairs; per-step budget/compliance/KPI enforcement; quality validation; complexity pre-routing; tool execution and multi-turn agent loops; presets; decision traces; or wiring cascadeflow into LangChain, OpenAI Agents, CrewAI, PydanticAI, Google ADK, n8n, or Vercel AI SDK. Also when a user mentions "cascade", "drafter/verifier", "runtime intelligence", "in-process harness", "cost-optimized agent", "agent loop with cost control", is in the lemony-ai/cascadeflow repo, or found a bug in cascadeflow/integrations needing an upstream fix/PR.
 ---
 
 # cascadeflow
@@ -37,7 +37,7 @@ This is what unlocks: stop-after-step-7 budget enforcement, deny-this-tool-mid-l
 
 - User is building an AI agent and wants cost/latency/quality control *inside* the loop
 - Code imports `cascadeflow`, `@cascadeflow/core`, `@cascadeflow/langchain`, `@cascadeflow/vercel-ai`, or `@cascadeflow/n8n-nodes-cascadeflow`
-- Mentions budgets, compliance (GDPR/HIPAA/PCI), KPI weights, tool-call routing, decision traces, drafter/verifier
+- Mentions budgets, compliance (GDPR/HIPAA/PCI), KPI weights, tool-call routing, decision traces, drafter/verifier — *together with* a cascadeflow signal (import, repo path, or explicit cascadeflow mention). Don't fire on unrelated compliance/budget conversations in user code.
 - Working inside `lemony-ai/cascadeflow` (examples, integrations, gateway server)
 - A bug is discovered in cascadeflow itself or any of its integrations and needs to be fixed upstream
 
@@ -49,7 +49,7 @@ This is what unlocks: stop-after-step-7 budget enforcement, deny-this-tool-mid-l
 | Existing app, no code changes at all, want gateway | `python -m cascadeflow.server` | Drop-in OpenAI/Anthropic-compatible proxy; point client at `http://127.0.0.1:<port>/v1` |
 | New agent, want the default "just works" cascade | `auto_agent()` or `get_cost_optimized_agent()` | Presets — fastest path; no model picking required |
 | New agent, custom drafter+verifier | `CascadeAgent(models=[drafter, verifier])` | Both languages |
-| Agent function with budget + policy metadata | `@cascadeflow.agent(budget=..., compliance=..., kpi_weights=...)` | Attaches metadata; combine with `cascadeflow.run()` for enforcement |
+| Agent function with budget + policy metadata | `from cascadeflow.harness import agent` then `@agent(budget=..., compliance=..., kpi_weights=...)` | Attaches metadata; combine with `cascadeflow.run()` for enforcement. Note: import the decorator from `cascadeflow.harness` — `cascadeflow.agent` resolves to the module, not the decorator. |
 | Scoped run with budget and full trace | `with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:` | Primary harness pattern |
 | Inside LangChain / OpenAI Agents / CrewAI / PydanticAI / Google ADK / Vercel AI / n8n | Use the integration package | Don't reinvent — the integrations preserve tool calling, streaming, callbacks |
 
@@ -118,20 +118,21 @@ Every LLM call, tool call, and sub-agent handoff is a decision point. The harnes
 
 ### Handling stops gracefully (don't crash the demo)
 
-In `enforce` mode the harness raises a typed exception when it stops a run. Catch them so the agent can summarize and exit cleanly:
+In `enforce` mode the harness raises a typed exception when it stops a run. Catch them inside a `with cascadeflow.run(...) as session:` block so the agent can summarize and exit cleanly:
 
 ```python
 from cascadeflow.schema.exceptions import BudgetExceededError, HarnessStopError
 
-try:
-    result = await agent.run(query)
-except BudgetExceededError as e:
-    print(f"Stopped: budget exceeded. Remaining: ${e.remaining:.4f}")
-except HarnessStopError as e:
-    print(f"Stopped: {e.reason}")  # e.g. "max_tool_calls_reached"
-finally:
-    print(session.summary())   # cost/steps/tool_calls captured up to the stop
-    session.save("run.jsonl")  # full trace still exportable
+with cascadeflow.run(budget=0.10, max_tool_calls=5) as session:
+    try:
+        result = await agent.run(query)
+    except BudgetExceededError as e:
+        print(f"Stopped: budget exceeded. Remaining: ${e.remaining:.4f}")
+    except HarnessStopError as e:
+        print(f"Stopped: {e.reason}")  # e.g. "max_tool_calls_reached"
+    finally:
+        print(session.summary())   # cost/steps/tool_calls captured up to the stop
+        session.save("run.jsonl")  # full trace still exportable
 ```
 
 `max_latency_ms` is **cumulative across the run** (not per step) — `latency_used_ms` accumulates and triggers `latency_limit_exceeded` when it crosses the cap.
@@ -197,7 +198,9 @@ with cascadeflow.run(
 ### Policy metadata on agent functions
 
 ```python
-@cascadeflow.agent(
+from cascadeflow.harness import agent   # NOT `cascadeflow.agent` — that resolves to the module
+
+@agent(
     budget=0.20,
     kpi_weights={"quality": 0.6, "cost": 0.3, "latency": 0.1},
     compliance="gdpr",
@@ -205,7 +208,7 @@ with cascadeflow.run(
 async def my_agent(query: str): ...
 ```
 
-`@cascadeflow.agent` **attaches metadata** — it doesn't change the function's runtime by itself. Combine with `cascadeflow.init(mode="enforce")` and/or `cascadeflow.run(...)` to enforce. Works on sync or async functions.
+The `@agent` decorator **attaches metadata** — it doesn't change the function's runtime by itself. Combine with `cascadeflow.init(mode="enforce")` and/or `cascadeflow.run(...)` to enforce. Works on sync or async functions. (`cascadeflow.harness_agent` is the same decorator re-exported at the top level if you prefer not to import from `cascadeflow.harness`.)
 
 ### Zero-code config (env + file)
 
@@ -224,10 +227,20 @@ Precedence: explicit kwargs > env > config file > defaults. `HarnessInitReport.c
 
 ### Simulate before running (for tuning and pitch slides)
 
+`simulate(queries, models, quality_threshold=0.7, domain_detection=True)` replays a list of queries through the deterministic complexity + domain routing pipeline — projecting which model would handle each query and the resulting cost/escalation rate — **without making any provider calls**.
+
 ```python
 from cascadeflow.harness import simulate
-report = simulate(...)   # model a run against historical traces without calling providers
+
+report = simulate(
+    queries=["What's 2+2?", "Write a poem about Paris", "Refactor this Python loop"],
+    models=[drafter_config, verifier_config],
+    quality_threshold=0.7,
+)
+print(report.projected_cost, report.escalation_rate, report.model_distribution)
 ```
+
+`queries` accepts a list of strings or a path to a JSONL file with `{"query": ...}` lines (so a previously-saved `session.save("run.jsonl")` can also be replayed by extracting the queries from it). Use this to tune `quality_threshold` against representative traffic before turning on `enforce` mode.
 
 ## Agent loops — tools, multi-turn, multi-agent
 
@@ -381,7 +394,8 @@ When adding cascadeflow to a project already using one of these, prefer the inte
 
 ## Common pitfalls
 
-- **`@cascadeflow.agent` alone does nothing at runtime.** It attaches metadata. Pair with `cascadeflow.init(mode="enforce")` and/or `cascadeflow.run(...)` to actually enforce budgets/compliance.
+- **The `@agent` decorator alone does nothing at runtime.** It attaches metadata. Pair with `cascadeflow.init(mode="enforce")` and/or `cascadeflow.run(...)` to actually enforce budgets/compliance.
+- **Don't write `@cascadeflow.agent(...)` — it raises `TypeError: 'module' object is not callable`.** `cascadeflow.agent` is the module file, not the decorator. Use `from cascadeflow.harness import agent` and `@agent(...)`, or `@cascadeflow.harness_agent(...)`.
 - **`observe` mode does not stop on overrun.** Switch to `enforce` (or wrap in `cascadeflow.run(budget=...)`) to actually cut off.
 - **Drafter too weak → escalation rate ~100%.** Log `result.model_used` on a sample; if the drafter is never "accepted", lower `quality_threshold` or upgrade the drafter.
 - **Pairing two models of similar price.** No meaningful savings. Pick drafter and verifier from different tiers.
@@ -437,7 +451,8 @@ If the bug is in **your own hackathon app**, this skill has no opinion — follo
 ### Upstream-fix workflow
 
 ```bash
-# 0. Pin & verify it's not already fixed in latest
+# 0. Prerequisite: `gh auth login` (every gh command below needs it).
+#    Pin & verify it's not already fixed in latest:
 python -c "import cascadeflow; print(cascadeflow.__version__)"
 gh release list --repo lemony-ai/cascadeflow --limit 5
 gh issue list --repo lemony-ai/cascadeflow --search "<keywords>"
@@ -446,11 +461,13 @@ gh issue list --repo lemony-ai/cascadeflow --search "<keywords>"
 gh repo fork lemony-ai/cascadeflow --clone --remote
 cd cascadeflow
 
-# 2. Install dev deps + hooks. THIS IS NOT OPTIONAL.
-#    Python: the repo's pyproject pytest config injects --cov / --asyncio-mode=auto,
+# 2. Install dev deps. THIS IS NOT OPTIONAL.
+#    The repo's pyproject pytest config injects --cov / --asyncio-mode=auto,
 #    so bare `pytest` fails on a fresh `pip install -e .` until you pull the dev extra.
-pip install -e ".[dev]"                   # pulls pytest, pytest-cov, pytest-asyncio, pre-commit, ruff, black, mypy
-pre-commit install                        # repo enforces hooks
+pip install -e ".[dev]"                   # pulls pytest, pytest-cov, pytest-asyncio, ruff, black, mypy
+# If the repo has a `.pre-commit-config.yaml` at the root, also run:
+#   pre-commit install
+# CONTRIBUTING.md mentions this; check whether the config file exists first.
 
 # 3. Branch off main — never push fixes to main
 git checkout main && git pull upstream main
@@ -463,7 +480,7 @@ pytest                                    # Python core / Python integrations
 pnpm --filter @cascadeflow/core test      # TS core
 pnpm --filter @cascadeflow/langchain test # TS LangChain integration
 # (substitute the package for whichever folder you touched)
-# Faster iteration on a single TS package: `pnpm install --filter @cascadeflow/<pkg>... --frozen-lockfile`
+# For watch mode during iteration: `pnpm --filter @cascadeflow/<pkg> test:watch` (if defined)
 
 # 6. Stage everything (including the new test file) and commit. DO NOT use
 #    `git commit -am` — `-a` skips untracked files, so your regression test
@@ -481,7 +498,7 @@ gh pr create --repo lemony-ai/cascadeflow --base main \
   --body "Fixes #<issue>. <repro + what changed + test added>"
 ```
 
-> **Step 0 (`gh release list`/`gh issue list`) requires `gh auth login` against your GitHub account.** If unauthed, substitute a quick web search of `github.com/lemony-ai/cascadeflow/issues` and `git log upstream/main -- <path>` to check for prior fixes.
+> **Every `gh ...` command above requires `gh auth login`.** If unauthed, run that first, or substitute a web search of `github.com/lemony-ai/cascadeflow/issues` and `git log upstream/main -- <path>` for the prior-fix check.
 
 ### Unblock the demo while the PR is in review
 
@@ -496,7 +513,7 @@ After the PR merges and a release ships, swap back to the published package.
 
 - Don't push fixes directly to `main` (your fork or upstream).
 - Don't `--force-push` to a shared/upstream branch.
-- Don't bypass `pre-commit` with `--no-verify` — fix the lint/format issue instead.
+- Don't bypass `pre-commit` with `--no-verify` if a `.pre-commit-config.yaml` exists — fix the lint/format issue instead.
 - Don't `git commit -am` when you've added a new test file — `-a` skips untracked files. Use `git add` then `git commit -m`.
 - Don't run bare `pytest` after `pip install -e .` — the repo's pyproject injects `--cov` and `--asyncio-mode=auto`. Install `".[dev]"` first.
 - Don't open a PR without a regression test for non-trivial fixes (single-line comment/typo fixes are fine without one).
@@ -519,5 +536,6 @@ After the PR merges and a release ships, swap back to the published package.
 - Hand-rolling budget tracking on top of OpenAI/Anthropic calls → use `cascadeflow.init(mode="enforce")` + `cascadeflow.run(budget=...)`.
 - Computing cost savings manually by subtracting hardcoded prices → use `result.total_cost` / `result.cost_saved` / `result.cost_saved_percentage`, or the LangChain callback.
 - Drafter and verifier from the same tier (e.g. `gpt-4o` + `gpt-4o`) → no meaningful savings.
-- Treating `@cascadeflow.agent` as enforcement — it's metadata only.
+- Treating the `@agent` decorator as enforcement — it's metadata only.
+- Writing `@cascadeflow.agent(...)` — that's the module, not the decorator. See the `@agent` import note above.
 - Demoing `observe` mode and claiming "budget enforced" — observe doesn't stop calls. Use `enforce` or `run(budget=...)`.
