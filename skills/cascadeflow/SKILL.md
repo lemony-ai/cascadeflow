@@ -395,7 +395,7 @@ When adding cascadeflow to a project already using one of these, prefer the inte
 ```python
 print(f"Model used: {result.model_used}")
 print(f"Cost: ${result.total_cost:.6f}")
-print(f"Saved:    ${result.cost_saved:.6f}  ({result.cost_saved_percentage():.1f}%)")
+print(f"Saved:    ${result.cost_saved:.6f}  ({result.cost_saved_percentage:.1f}%)")
 print(f"Draft/verifier breakdown: ${result.draft_cost:.6f} / ${result.verifier_cost:.6f}")
 ```
 
@@ -517,7 +517,7 @@ After the PR merges and a release ships, swap back to the published package.
 
 - Writing your own retry/escalation loop around two model calls → use `CascadeAgent` or a preset.
 - Hand-rolling budget tracking on top of OpenAI/Anthropic calls → use `cascadeflow.init(mode="enforce")` + `cascadeflow.run(budget=...)`.
-- Computing cost savings manually by subtracting hardcoded prices → use `result.total_cost` / `result.cost_saved` / `result.savings_percentage`, or the LangChain callback.
+- Computing cost savings manually by subtracting hardcoded prices → use `result.total_cost` / `result.cost_saved` / `result.cost_saved_percentage`, or the LangChain callback.
 - Drafter and verifier from the same tier (e.g. `gpt-4o` + `gpt-4o`) → no meaningful savings.
 - Treating `@cascadeflow.agent` as enforcement — it's metadata only.
 - Demoing `observe` mode and claiming "budget enforced" — observe doesn't stop calls. Use `enforce` or `run(budget=...)`.
