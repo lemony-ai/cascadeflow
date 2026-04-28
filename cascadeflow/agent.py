@@ -3229,3 +3229,28 @@ class CascadeAgent:
 
 
 __all__ = ["CascadeAgent", "CascadeResult"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Make `cascadeflow.agent` callable as the harness decorator.
+#
+# `cascadeflow.agent` is the module file (this file). Many internal imports rely
+# on that — `from cascadeflow.agent import CascadeAgent`, `cascadeflow.agent.PROVIDER_REGISTRY`,
+# etc. But README/docs/llms.txt also use `@cascadeflow.agent(budget=..., ...)` as a
+# decorator, which historically raised `TypeError: 'module' object is not callable`.
+#
+# Subclass the module's type and add `__call__` so `cascadeflow.agent(...)` returns
+# the harness `agent` decorator. Module-attribute access is unaffected.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class _CallableAgentModule(type(sys.modules[__name__])):
+    """Module subclass that delegates calls to `cascadeflow.harness.agent`."""
+
+    def __call__(self, *args, **kwargs):
+        from cascadeflow.harness import agent as _harness_agent_decorator
+
+        return _harness_agent_decorator(*args, **kwargs)
+
+
+sys.modules[__name__].__class__ = _CallableAgentModule
