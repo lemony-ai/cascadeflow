@@ -1,6 +1,6 @@
 ---
 name: cascadeflow
-description: Use when building, extending, or debugging AI agents with cascadeflow (the agent runtime intelligence layer) — installing `cascadeflow` (Python) or `@cascadeflow/core`/`@cascadeflow/langchain` (TypeScript); using `CascadeAgent`/`ModelConfig`; harness APIs `cascadeflow.init`, `cascadeflow.run`, `@cascadeflow.agent`, `simulate`; `withCascade`/`CascadeFlow`; picking drafter+verifier pairs; per-step budget/compliance/KPI enforcement; quality validation; pre-routing by complexity; tool execution and multi-turn agent loops; presets (`auto_agent`, `get_cost_optimized_agent`); user profiles and tiers; decision traces; or wiring cascadeflow into LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, n8n, or Vercel AI SDK. Also use when a user mentions "cascade", "drafter/verifier", "runtime intelligence", "in-process harness", "cost-optimized agent", "agent loop with cost control", or is working inside the lemony-ai/cascadeflow repo.
+description: Use when building, extending, or debugging AI agents with cascadeflow (agent runtime intelligence layer) — installing `cascadeflow` (Python) or `@cascadeflow/core`/`@cascadeflow/langchain` (TypeScript); using `CascadeAgent`, `ModelConfig`, harness APIs (`cascadeflow.init`, `cascadeflow.run`, `@cascadeflow.agent`, `simulate`), `withCascade`/`CascadeFlow`; picking drafter+verifier pairs; per-step budget/compliance/KPI enforcement; quality validation; complexity pre-routing; tool execution and multi-turn agent loops; presets; decision traces; or wiring cascadeflow into LangChain, OpenAI Agents, CrewAI, PydanticAI, Google ADK, n8n, or Vercel AI SDK. Also when a user mentions "cascade", "drafter/verifier", "runtime intelligence", "in-process harness", "cost-optimized agent", "agent loop with cost control", is in the lemony-ai/cascadeflow repo, or found a bug in cascadeflow/integrations needing an upstream fix/PR.
 ---
 
 # cascadeflow
@@ -39,6 +39,7 @@ This is what unlocks: stop-after-step-7 budget enforcement, deny-this-tool-mid-l
 - Code imports `cascadeflow`, `@cascadeflow/core`, `@cascadeflow/langchain`, `@cascadeflow/vercel-ai`, or `@cascadeflow/n8n-nodes-cascadeflow`
 - Mentions budgets, compliance (GDPR/HIPAA/PCI), KPI weights, tool-call routing, decision traces, drafter/verifier
 - Working inside `lemony-ai/cascadeflow` (examples, integrations, gateway server)
+- A bug is discovered in cascadeflow itself or any of its integrations and needs to be fixed upstream
 
 ## Pick the right entry point (30-second decision)
 
@@ -408,6 +409,84 @@ with get_cascade_callback() as cb:
 ```
 
 TS: `result.savingsPercentage` directly — use it in the UI.
+
+## Found a bug? Contribute the fix back
+
+If you discover a bug **inside cascadeflow itself** (the `cascadeflow` Python package, `@cascadeflow/core`, or any integration package), the skill expects you to fix it upstream — fork, patch, push, open a PR — not paper over it locally. Everything ships from one monorepo: `lemony-ai/cascadeflow`.
+
+If the bug is in **your own hackathon app**, this skill has no opinion — follow your project's normal workflow. The flow below is for upstream fixes only.
+
+### Where the code lives (so the agent doesn't guess)
+
+| Where the bug is | Path in the monorepo |
+|---|---|
+| Python core | `cascadeflow/` (e.g. `cascadeflow/harness/instrument.py`, `cascadeflow/agent.py`) |
+| TypeScript core | `packages/core/src/` |
+| LangChain (TS) | `packages/langchain-cascadeflow/src/` |
+| LangChain (Py) | `cascadeflow/integrations/langchain/` |
+| OpenAI Agents (Py) | `cascadeflow/integrations/openai_agents.py` |
+| CrewAI (Py) | `cascadeflow/integrations/crewai.py` |
+| PydanticAI (Py) | `cascadeflow/integrations/pydantic_ai/` |
+| Google ADK (Py) | `cascadeflow/integrations/google_adk.py` |
+| LiteLLM (Py) | `cascadeflow/integrations/litellm.py` |
+| OTel (Py) | `cascadeflow/integrations/otel.py` |
+| n8n | `packages/integrations/n8n/` |
+| Vercel AI SDK | `packages/integrations/vercel-ai/` |
+| ML (semantic quality) | `packages/ml/` |
+
+### Upstream-fix workflow
+
+```bash
+# 0. Pin & verify it's not already fixed in latest
+python -c "import cascadeflow; print(cascadeflow.__version__)"
+gh release list --repo lemony-ai/cascadeflow --limit 5
+gh issue list --repo lemony-ai/cascadeflow --search "<keywords>"
+
+# 1. Fork + clone (creates origin = your fork, upstream = lemony-ai)
+gh repo fork lemony-ai/cascadeflow --clone --remote
+cd cascadeflow
+pre-commit install                        # repo enforces hooks
+
+# 2. Branch off main — never push fixes to main
+git checkout main && git pull upstream main
+git checkout -b fix/<short-slug>          # e.g. fix/harness-max-energy-none
+
+# 3. Patch + add a regression test next to existing tests for that area
+
+# 4. Run the right test suite
+pytest                                    # Python core / Python integrations
+pnpm --filter @cascadeflow/core test      # TS core
+pnpm --filter @cascadeflow/langchain test # TS LangChain integration
+# (substitute the package for whichever folder you touched)
+
+# 5. Conventional-commit message — required by the repo
+git commit -am "fix(<area>): <one-line summary>"
+# areas: harness, langchain, crewai, pydantic-ai, openai-agents,
+#        google-adk, n8n, vercel-ai, core, docs, etc.
+
+# 6. Push to your fork and open the PR upstream
+git push -u origin fix/<short-slug>
+gh pr create --repo lemony-ai/cascadeflow --base main \
+  --title "fix(<area>): <one-line summary>" \
+  --body "Fixes #<issue>. <repro + what changed + test added>"
+```
+
+### Unblock the demo while the PR is in review
+
+Don't wait for the merge — install your patched fork into the hackathon app:
+
+- **Python:** `pip install -e /path/to/your/cascadeflow-fork`
+- **TypeScript:** `pnpm pack` inside the patched package, then `npm install /path/to/cascadeflow-<pkg>-x.y.z.tgz` in the hackathon app. (`npm link` works but is flaky with pnpm workspaces.)
+
+After the PR merges and a release ships, swap back to the published package.
+
+### Don't
+
+- Don't push fixes directly to `main` (your fork or upstream).
+- Don't `--force-push` to a shared/upstream branch.
+- Don't bypass `pre-commit` with `--no-verify` — fix the lint/format issue instead.
+- Don't open a PR without a regression test for non-trivial fixes.
+- Don't commit API keys, `.env` files, or local config.
 
 ## Where to look next
 
