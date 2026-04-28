@@ -3243,10 +3243,8 @@ __all__ = ["CascadeAgent", "CascadeResult"]
 # the harness `agent` decorator. Module-attribute access is unaffected.
 # ─────────────────────────────────────────────────────────────────────────────
 
-import sys as _sys
 
-
-class _CallableAgentModule(type(_sys.modules[__name__])):
+class _CallableAgentModule(type(sys.modules[__name__])):
     """Module subclass that delegates calls to `cascadeflow.harness.agent`."""
 
     def __call__(self, *args, **kwargs):
@@ -3255,4 +3253,4 @@ class _CallableAgentModule(type(_sys.modules[__name__])):
         return _harness_agent_decorator(*args, **kwargs)
 
 
-_sys.modules[__name__].__class__ = _CallableAgentModule
+sys.modules[__name__].__class__ = _CallableAgentModule
