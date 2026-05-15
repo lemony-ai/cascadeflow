@@ -29,7 +29,7 @@
 
 <br>
 
-**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](https://docs.cascadeflow.ai/api-reference/python/overview) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](https://docs.cascadeflow.ai/api-reference/typescript/overview) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](https://docs.cascadeflow.ai/integrations/langchain) • [<img src=".github/assets/CF_openai_color.svg" width="22" height="22" alt="OpenAI" style="vertical-align: middle;"/> OpenAI Agents](https://docs.cascadeflow.ai/integrations/openai-agents) • [<img src=".github/assets/CF_crewai_color.svg" width="22" height="22" alt="CrewAI" style="vertical-align: middle;"/> CrewAI](https://docs.cascadeflow.ai/integrations/crewai) • [<img src=".github/assets/CF_pydantic_color.svg" width="22" height="22" alt="PydanticAI" style="vertical-align: middle;"/> PydanticAI](https://docs.cascadeflow.ai/integrations/pydantic-ai) • [<img src=".github/assets/CF_google_adk_color.svg" width="22" height="22" alt="Google ADK" style="vertical-align: middle;"/> Google ADK](https://docs.cascadeflow.ai/integrations/google-adk) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](https://docs.cascadeflow.ai/integrations/n8n) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](https://docs.cascadeflow.ai/integrations/vercel-ai) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://docs.cascadeflow.ai/integrations/openclaw) • [📖&nbsp;Docs](https://docs.cascadeflow.ai) • [💡&nbsp;Examples](#examples)**
+**[<img src=".github/assets/CF_python_color.svg" width="22" height="22" alt="Python" style="vertical-align: middle;"/> Python](https://docs.cascadeflow.ai/api-reference/python/overview) • [<img src=".github/assets/CF_ts_color.svg" width="22" height="22" alt="TypeScript" style="vertical-align: middle;"/> TypeScript](https://docs.cascadeflow.ai/api-reference/typescript/overview) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src=".github/assets/LC-logo-dark.png" height="22" alt="LangChain" style="vertical-align: middle;"></picture> LangChain](https://docs.cascadeflow.ai/integrations/langchain) • [<img src=".github/assets/CF_openai_color.svg" width="22" height="22" alt="OpenAI" style="vertical-align: middle;"/> OpenAI Agents](https://docs.cascadeflow.ai/integrations/openai-agents) • [<img src=".github/assets/CF_crewai_color.svg" width="22" height="22" alt="CrewAI" style="vertical-align: middle;"/> CrewAI](https://docs.cascadeflow.ai/integrations/crewai) • [<img src=".github/assets/CF_pydantic_color.svg" width="22" height="22" alt="PydanticAI" style="vertical-align: middle;"/> PydanticAI](https://docs.cascadeflow.ai/integrations/pydantic-ai) • [<img src=".github/assets/CF_google_adk_color.svg" width="22" height="22" alt="Google ADK" style="vertical-align: middle;"/> Google ADK](https://docs.cascadeflow.ai/integrations/google-adk) • [<img src=".github/assets/CF_n8n_color.svg" width="22" height="22" alt="n8n" style="vertical-align: middle;"/> n8n](https://docs.cascadeflow.ai/integrations/n8n) • [<picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/CF_vercel_bright.svg"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/CF_vercel_dark.svg"><img src=".github/assets/CF_vercel_dark.svg" width="22" height="22" alt="Vercel AI" style="vertical-align: middle;"></picture> Vercel AI](https://docs.cascadeflow.ai/integrations/vercel-ai) • [<img src=".github/assets/CF_openclaw_color.svg" width="22" height="22" alt="OpenClaw" style="vertical-align: middle;"/> OpenClaw](https://docs.cascadeflow.ai/integrations/openclaw) • [Hermes Agent](https://docs.cascadeflow.ai/integrations/hermes-agent) • [📖&nbsp;Docs](https://docs.cascadeflow.ai) • [💡&nbsp;Examples](#examples)**
 
 </div>
 
@@ -37,7 +37,9 @@
 
 **The in-process intelligence layer for AI agents.** Optimize cost, latency, quality, budget, compliance, and energy — inside the execution loop, not at the HTTP boundary.
 
-cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. It accumulates insight from every model call, tool result, and quality score — the agent gets smarter the more it runs. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, n8n, and Vercel AI SDK.
+cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. It accumulates insight from every model call, tool result, and quality score — the agent gets smarter the more it runs. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, n8n, Vercel AI SDK, and Hermes Agent.
+
+**New: Hermes Agent delegation routing.** CascadeFlow now provides a Hermes Agent integration for per-skill model routing, task-complexity routing, topic-aware subagent routing, observe-mode rollout, and auditable decisions without taking over provider credentials, base URLs, fallback chains, or API modes. It is built as an optional integration surface, like n8n or Vercel AI SDK, so Hermes can keep its core runtime behavior while CascadeFlow supplies routing intelligence.
 
 ```bash
 pip install cascadeflow
@@ -74,7 +76,7 @@ cascadeflow is a **library** and **agent harness** — an intelligent AI model c
 - **Auditability & Transparency.** Every runtime decision is traceable and attributable. Supports audit requirements, faster tuning cycles, and trust in regulated or high-stakes workflows.
 - **Measurable Value.** Prove impact with reproducible metrics on realistic agent workflows — better economics and latency while preserving quality thresholds.
 - **Latency Advantage.** Proxy-based optimization adds 40-60ms per call. In a 10-step agent loop, that is 400-600ms of avoidable overhead. cascadeflow runs in-process with sub-5ms overhead — critical for real-time UX, task throughput, and enterprise SLAs.
-- **Framework & Provider Neutral.** Works with LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, Vercel AI SDK, n8n, and custom frameworks. Unified API across OpenAI, Anthropic, Groq, Ollama, vLLM, Together, and more.
+- **Framework & Provider Neutral.** Works with LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, Vercel AI SDK, n8n, Hermes Agent, and custom frameworks. Unified API across OpenAI, Anthropic, Groq, Ollama, vLLM, Together, and more.
 - **Self-Improving Agent Intelligence.** Because cascadeflow runs inside the agent loop, it accumulates deep insight into every model call, tool result, quality score, and routing decision over time. This enables cascadeflow to learn which models perform best for which tasks, adapt routing strategies, and continuously improve cost-quality tradeoffs — without manual tuning. The agent gets smarter the more it runs.
 - **Edge & Local-Hosted AI.** Handle most queries with local models (vLLM, Ollama), automatically escalate complex queries to cloud providers only when needed.
 
@@ -197,7 +199,7 @@ from cascadeflow import CascadeAgent, ModelConfig
 
 # Define your cascade - try cheap model first, escalate if needed
 agent = CascadeAgent(models=[
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),  # Draft model (~$0.375/1M tokens)
+    ModelConfig(name="nous/hermes-flash", provider="openai", cost=0.000375),  # Draft model (~$0.375/1M tokens)
     ModelConfig(name="gpt-5", provider="openai", cost=0.00562),         # Verifier model (~$5.62/1M tokens)
 ])
 
@@ -270,7 +272,7 @@ import { CascadeAgent, ModelConfig } from '@cascadeflow/core';
 // Same API as Python!
 const agent = new CascadeAgent({
   models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'nous/hermes-flash', provider: 'openai', cost: 0.000375 },
     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
   ],
 });
@@ -299,7 +301,7 @@ import { CascadeAgent, SemanticQualityChecker } from '@cascadeflow/core';
 
 const agent = new CascadeAgent({
   models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
+    { name: 'nous/hermes-flash', provider: 'openai', cost: 0.000375 },
     { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
   ],
   quality: {
@@ -370,7 +372,7 @@ Cost: $0.000007, Latency: 234ms
 
 ```python
 agent = CascadeAgent(models=[
-    ModelConfig(name="gpt-4o-mini", provider="openai", cost=0.000375),
+    ModelConfig(name="nous/hermes-flash", provider="openai", cost=0.000375),
     ModelConfig(name="gpt-4o", provider="openai", cost=0.00625),
 ])
 
@@ -441,6 +443,64 @@ Use cascadeflow in n8n workflows for no-code AI automation with automatic cost o
 
 ---
 
+<details open>
+<summary><b>Hermes Agent Integration</b></summary>
+
+Use CascadeFlow as an optional Hermes Agent delegation router for subagents. Hermes keeps provider credentials, base URLs, fallback chains, and API modes; CascadeFlow returns a structured routing decision before Hermes spawns a child agent.
+
+This works as a released CascadeFlow module even before a native Hermes PR is accepted. Users can call the router from a local wrapper, local Hermes fork, or small hook script and keep Hermes' current provider configuration as the final source of truth.
+
+```python
+from cascadeflow.integrations.hermes import (
+    HermesDelegationRequest,
+    HermesDelegationRouter,
+)
+
+router = HermesDelegationRouter.from_dict({
+    "enabled": True,
+    "mode": "observe",
+    "routes": {
+        "code": {
+            "provider": "nous",
+            "model": "nous/hermes-4.1",
+            "reasoning_effort": "high",
+        },
+        "simple": {
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "reasoning_effort": "low",
+        },
+    },
+})
+
+decision = router.route_delegation(HermesDelegationRequest(
+    goal="Debug the failing unit test and propose a patch",
+    toolsets=("terminal", "git"),
+    loaded_skills=("python", "debugging"),
+))
+print(decision.to_dict())
+```
+
+**What Hermes gets:**
+
+- **Per-skill model routing:** coding, research, legal/finance, and lightweight utility skills can receive different model and reasoning profiles instead of inheriting one global default.
+- **Task-complexity routing:** simple delegated tasks can use cheaper/faster models, while hard debugging, architecture, research, or code-generation tasks route to stronger models.
+- **Topic-aware subagent routing:** subagents can route differently for code, research, data, creative, ops, medical, legal, finance, and other domains.
+- **Better subagent economics:** Hermes avoids paying flagship-model prices for simple worker tasks.
+- **Better quality for hard tasks:** difficult subagent work no longer has to inherit a weak or cheap default model.
+- **Dry-run/observe mode:** Hermes users can see what CascadeFlow would route without changing runtime behavior.
+- **Auditability:** routing decisions include reason, confidence, domain, complexity, and selected model.
+- **Safer rollout:** missing CascadeFlow, disabled config, low confidence, high-stakes gaps, or bad routing inputs fall back to Hermes' current behavior.
+- **No credential rewrite:** Hermes still owns provider credentials, base URLs, fallback chains, and API modes.
+
+**Learn more:** [Hermes Agent Integration Guide](https://docs.cascadeflow.ai/integrations/hermes-agent)
+
+**Standalone example:** [examples/integrations/hermes_delegation_router.py](./examples/integrations/hermes_delegation_router.py)
+
+</details>
+
+---
+
 <details>
 <summary><b><picture><source media="(prefers-color-scheme: dark)" srcset="./.github/assets/LC-logo-bright.png"><source media="(prefers-color-scheme: light)" srcset="./.github/assets/LC-logo-dark.png"><img src="./.github/assets/LC-logo-dark.png" width="42" alt="LangChain" style="vertical-align: middle;"></picture> LangChain Integration</b></summary>
 
@@ -471,7 +531,7 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { withCascade } from '@cascadeflow/langchain';
 
 const cascade = withCascade({
-  drafter: new ChatOpenAI({ model: 'gpt-4o-mini' }),      // $0.15/$0.60 per 1M tokens
+  drafter: new ChatOpenAI({ model: 'nous/hermes-flash' }),      // $0.15/$0.60 per 1M tokens
   verifier: new ChatAnthropic({ model: 'claude-sonnet-4-5' }),  // $3/$15 per 1M tokens
   qualityThreshold: 0.8, // 80% queries use drafter
 });
@@ -497,7 +557,7 @@ from langchain_anthropic import ChatAnthropic
 from cascadeflow.integrations.langchain import CascadeFlow
 
 cascade = CascadeFlow(
-    drafter=ChatOpenAI(model="gpt-4o-mini"),      # $0.15/$0.60 per 1M tokens
+    drafter=ChatOpenAI(model="nous/hermes-flash"),      # $0.15/$0.60 per 1M tokens
     verifier=ChatAnthropic(model="claude-sonnet-4-5"),  # $3/$15 per 1M tokens
     quality_threshold=0.8,  # 80% queries use drafter
 )
@@ -560,7 +620,7 @@ import {
 // Your existing LangChain models (configured with YOUR API keys)
 const myModels = [
   new ChatOpenAI({ model: 'gpt-3.5-turbo' }),
-  new ChatOpenAI({ model: 'gpt-4o-mini' }),
+  new ChatOpenAI({ model: 'nous/hermes-flash' }),
   new ChatOpenAI({ model: 'gpt-4o' }),
   new ChatAnthropic({ model: 'claude-3-haiku' }),
   // ... any LangChain chat models
@@ -650,7 +710,7 @@ console.log(`Warnings: ${validation.warnings}`);
 </details>
 
 <details>
-<summary><b>Framework Integrations</b> - Harness with LangChain, OpenAI Agents, CrewAI, PydanticAI, Google ADK</summary>
+<summary><b>Framework Integrations</b> - Harness with LangChain, OpenAI Agents, CrewAI, PydanticAI, Google ADK, Hermes Agent</summary>
 
 | Example | Description | Link |
 |---------|-------------|------|
@@ -759,6 +819,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | **CrewAI Integration** | Use cascadeflow with CrewAI | [Read](https://docs.cascadeflow.ai/integrations/crewai) |
 | **PydanticAI Integration** | Cascade Model for PydanticAI agents | [Read](https://docs.cascadeflow.ai/integrations/pydantic-ai) |
 | **Google ADK** | Use cascadeflow with Google ADK | [Read](https://docs.cascadeflow.ai/integrations/google-adk) |
+| **Hermes Agent** | Per-skill, complexity, and topic-aware subagent routing | [Read](https://docs.cascadeflow.ai/integrations/hermes-agent) |
 | **n8n Integration** | Use cascadeflow in n8n workflows | [Read](https://docs.cascadeflow.ai/integrations/n8n) |
 | **Vercel AI SDK** | Middleware for Vercel AI SDK | [Read](https://docs.cascadeflow.ai/integrations/vercel-ai) |
 
@@ -786,6 +847,7 @@ console.log(`Warnings: ${validation.warnings}`);
 | 📊 **Cost Tracking**  | Built-in analytics + OpenTelemetry export (vendor-neutral)                                                                             |
 | 🚀 **3-Line Integration** | Zero architecture changes needed                                                                                                       |
 | 🔁 **Agent Loops** | Multi-turn tool execution with automatic tool call, result, re-prompt cycles |
+| 🧭 **Hermes Agent Routing** | Per-skill, task-complexity, and topic-aware subagent routing with observe-mode rollout |
 | 📋 **Message & Tool Call Lists** | Full conversation history with tool_calls and tool_call_id preservation across turns |
 | 🪝 **Hooks & Callbacks** | Telemetry callbacks, cost events, and streaming hooks for observability |
 | 🏭 **Production Ready**  | Streaming, batch processing, tool handling, reasoning model support, caching, error recovery, anomaly detection |

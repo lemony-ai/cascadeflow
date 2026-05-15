@@ -87,7 +87,8 @@
               "integrations/pydantic-ai",
               "integrations/vercel-ai",
               "integrations/n8n",
-              "integrations/openclaw"
+              "integrations/openclaw",
+              "integrations/hermes-agent"
             ]
           },
           {

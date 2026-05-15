@@ -1,0 +1,237 @@
+---
+title: Hermes Agent
+description: Optional CascadeFlow delegation router for Hermes Agent with per-skill, task-complexity, and topic-aware subagent routing.
+---
+
+CascadeFlow can be used as a native Hermes Agent delegation router. Hermes keeps ownership of provider credentials, base URLs, fallback chains, and API modes. CascadeFlow returns a structured decision before Hermes creates a delegated subagent.
+
+The integration is intentionally optional: start in `observe`, log what CascadeFlow would do, then switch to `route` once the routing policy is trusted.
+
+You do not need to wait for a Hermes upstream PR to test the value. The router is a standalone CascadeFlow module that can run from a local wrapper, local Hermes fork, or hook script. Native Hermes support only makes the UX cleaner.
+
+## What It Solves
+
+Hermes Agent users often need finer control than one inherited model default for every delegated subagent. This integration targets three routing gaps:
+
+- **Per-skill model routing:** a coding skill, research skill, legal/finance skill, or lightweight utility skill can receive a different model and reasoning profile instead of inheriting one global default.
+- **Task-complexity routing:** simple delegated tasks can use cheaper/faster models, while hard debugging, architecture, research, or code-generation tasks can route to stronger models.
+- **Topic-aware subagent routing:** subagents can route differently for code, research, data, creative, ops, medical, legal, finance, and other domains.
+
+## Why Use It
+
+- **Better subagent economics:** avoid paying flagship-model prices for simple worker tasks.
+- **Better quality for hard tasks:** avoid sending difficult subagent work to weak or cheap default models.
+- **Dry-run/observe mode:** see what CascadeFlow would route without changing runtime behavior.
+- **Auditability:** routing decisions carry `reason`, `confidence`, `domain`, `complexity`, and selected model fields.
+- **Safer rollout:** missing CascadeFlow, disabled config, low confidence, high-stakes gaps, bad config, or router errors fall back to Hermes' current behavior.
+- **No credential rewrite:** Hermes still owns provider credentials, base URLs, fallback chains, and API modes.
+
+## Install
+
+```bash
+pip install cascadeflow
+```
+
+No extra Hermes-specific package is required.
+
+## Use Without A Hermes PR
+
+If Hermes has not accepted native support yet, users can still release and use this integration from CascadeFlow:
+
+1. Install `cascadeflow` in the same Python environment as the local Hermes wrapper or fork.
+2. Call `HermesDelegationRouter.route_delegation()` before spawning a delegated subagent.
+3. Log decisions in `observe` mode first.
+4. In `route` mode, apply only fields Hermes validates against its own provider configuration.
+
+The released module still provides the core advantages:
+
+- per-skill routing through parsed skill metadata
+- task-complexity routing for simple versus hard delegated work
+- topic-aware routing for code, research, data, creative, ops, medical, legal, and finance
+- cheaper/faster models for simple worker tasks
+- stronger models for hard debugging, architecture, research, and code-generation tasks
+- dry-run decisions, audit fields, and safe fallbacks
+- no rewrite of Hermes credentials, base URLs, fallback chains, or API modes
+
+Standalone example:
+
+```bash
+PYTHONPATH=. python examples/integrations/hermes_delegation_router.py
+```
+
+## Basic Router
+
+```python
+from cascadeflow.integrations.hermes import (
+    HermesDelegationRequest,
+    HermesDelegationRouter,
+)
+
+router = HermesDelegationRouter.from_dict({
+    "enabled": True,
+    "mode": "observe",
+    "min_confidence": 0.6,
+    "routes": {
+        "simple": {
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "reasoning_effort": "low",
+        },
+        "code": {
+            "provider": "nous",
+            "model": "nous/hermes-4.1",
+            "reasoning_effort": "high",
+        },
+        "research": {
+            "provider": "nous",
+            "model": "nous/hermes-research",
+            "reasoning_effort": "medium",
+        },
+    },
+})
+
+decision = router.route_delegation(HermesDelegationRequest(
+    goal="Debug the failing pytest regression and propose a patch",
+    context="The parent agent is working on a Python API client.",
+    toolsets=("terminal", "git"),
+    loaded_skills=("python", "debugging"),
+    parent_provider="openai",
+    parent_model="gpt-4.1-mini",
+))
+
+print(decision.to_dict())
+```
+
+Example observe-mode output:
+
+```json
+{
+  "action": "inherit",
+  "provider": "nous",
+  "model": "nous/hermes-4.1",
+  "reasoning_effort": "high",
+  "domain": "debugging",
+  "topic": "debugging",
+  "complexity": "hard",
+  "confidence": 0.91,
+  "reason": "keyword_and_toolset_match",
+  "source": "classifier",
+  "metadata": {
+    "mode": "observe",
+    "would_route": true,
+    "applied": false,
+    "loaded_skills": ["python", "debugging"]
+  }
+}
+```
+
+In `observe`, Hermes should log the recommendation and keep existing behavior. In `route`, Hermes may apply `provider`, `model`, and `reasoning_effort` after validating them against its own configuration.
+
+## Route Mode
+
+```python
+router = HermesDelegationRouter.from_dict({
+    "enabled": True,
+    "mode": "route",
+    "min_confidence": 0.75,
+    "routes": {
+        "simple": {"provider": "openai", "model": "gpt-4.1-mini", "reasoning_effort": "low"},
+        "hard": {"provider": "anthropic", "model": "claude-opus-4.1", "reasoning_effort": "high"},
+        "code": {"provider": "nous", "model": "nous/hermes-4.1", "reasoning_effort": "high"},
+        "research": {"provider": "nous", "model": "nous/hermes-research", "reasoning_effort": "medium"},
+        "general": {"provider": "openai", "model": "gpt-4.1-mini", "reasoning_effort": "medium"},
+    },
+})
+```
+
+Route keys may be domain names such as `code`, `research`, `data`, `creative`, `ops`, `legal`, `medical`, and `finance`, or complexity names such as `simple` and `hard`.
+
+## Per-Skill Metadata
+
+Hermes can let skill frontmatter or parsed skill metadata override the classifier. A skill-specific profile is the strongest signal and is useful for specialist skills that should always receive the same model class.
+
+```yaml
+---
+name: contract-review
+description: Review legal agreements and identify risky clauses.
+cascadeflow:
+  provider: anthropic
+  model: claude-opus-4.1
+  reasoning_effort: high
+  domain: legal
+  topic: contract-review
+  confidence: 0.99
+---
+```
+
+Pass the parsed metadata into the request:
+
+```python
+decision = router.route_delegation(HermesDelegationRequest(
+    goal="Review this indemnity clause.",
+    loaded_skills=("contract-review",),
+    skill_metadata={
+        "cascadeflow": {
+            "provider": "anthropic",
+            "model": "claude-opus-4.1",
+            "reasoning_effort": "high",
+            "domain": "legal",
+            "topic": "contract-review",
+            "confidence": 0.99,
+        }
+    },
+))
+```
+
+## Fallback Behavior
+
+The router is designed to be safe to call from Hermes' delegation path:
+
+- `enabled: false` returns `action: "inherit"`
+- `mode: "observe"` returns recommendations without applying them
+- confidence below `min_confidence` returns `action: "inherit"`
+- high-stakes domains such as medical, legal, and finance inherit unless explicitly configured
+- invalid reasoning effort values are ignored
+- classifier errors return `action: "inherit"` with `reason: "router_error"`
+
+## Decision Contract
+
+Hermes should treat the result as a recommendation:
+
+```python
+if decision.action == "route":
+    # Validate provider/model against Hermes config before applying.
+    child_provider = decision.provider or parent_provider
+    child_model = decision.model or parent_model
+else:
+    child_provider = parent_provider
+    child_model = parent_model
+```
+
+Recommended fields:
+
+| Field | Meaning |
+|---|---|
+| `action` | `route` or `inherit` |
+| `provider` | Optional provider recommendation |
+| `model` | Optional model recommendation |
+| `reasoning_effort` | Optional reasoning profile such as `low`, `medium`, or `high` |
+| `domain` | Detected or configured domain |
+| `topic` | More specific topic when available |
+| `complexity` | Detected task complexity |
+| `confidence` | Routing confidence from `0.0` to `1.0` |
+| `reason` | Human-readable routing reason |
+| `source` | `skill_metadata`, `classifier`, `config`, or `fallback` |
+| `metadata` | Audit fields such as mode, would-route flag, and loaded skills |
+
+## PR Shape For Hermes
+
+The intended upstream PR should stay narrow:
+
+1. Add an optional dependency path for `cascadeflow`.
+2. Add a Hermes config block for `cascadeflow_model_routing`.
+3. Call `HermesDelegationRouter.route_delegation()` before spawning delegated subagents.
+4. Start with `mode: "observe"` so users can inspect routing decisions.
+5. Apply route decisions only after Hermes validates provider and model against its own configured providers.
+
+This keeps CascadeFlow as an integration layer, not a replacement for Hermes' provider system.

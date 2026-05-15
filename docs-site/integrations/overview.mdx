@@ -3,7 +3,7 @@ title: Integrations Overview
 description: Matrix of all cascadeflow framework integrations with supported features, languages, and integration patterns.
 ---
 
-cascadeflow integrates with seven agent frameworks, but the product direction stays the same in every case: runtime intelligence inside the agent loop, not another proxy layer outside it.
+cascadeflow integrates with major agent frameworks and automation runtimes, but the product direction stays the same in every case: runtime intelligence inside the agent loop, not another proxy layer outside it.
 
 All integrations are opt-in. Install the extra, enable the framework extension point, start in `observe`, then move to enforcement once you understand the live runtime behavior.
 
@@ -18,6 +18,7 @@ All integrations are opt-in. Install the extra, enable the framework extension p
 | [PydanticAI](/integrations/pydantic-ai) | Python | `cascadeflow[pydantic-ai]` | Cascade Model | Yes | Yes | Yes |
 | [n8n](/integrations/n8n) | TypeScript | `@cascadeflow/n8n-nodes-cascadeflow` | Community node | Yes | Yes | Yes |
 | [Vercel AI SDK](/integrations/vercel-ai) | TypeScript | `@cascadeflow/vercel-ai` | Middleware | Yes | No | Yes |
+| [Hermes Agent](/integrations/hermes-agent) | Python | `cascadeflow` | Delegation router | No | No | Yes |
 
 ## Integration Patterns
 
@@ -35,6 +36,7 @@ from cascadeflow.integrations.openai_agents import CascadeFlowModelProvider
 from cascadeflow.integrations.crewai import enable as enable_crewai
 from cascadeflow.integrations.google_adk import enable as enable_adk
 from cascadeflow.integrations.pydantic_ai import create_cascade_model
+from cascadeflow.integrations.hermes import HermesDelegationRouter
 ```
 
 ### TypeScript
@@ -54,6 +56,7 @@ npm install @cascadeflow/n8n-nodes-cascadeflow
 - **PydanticAI**: Use if you're building with PydanticAI agents. The cascade `Model` performs drafter→verifier routing with quality gating and tool risk.
 - **n8n**: Use if you're building no-code workflows. The community node adds cascade routing to any n8n flow.
 - **Vercel AI SDK**: Use if you're building TypeScript server-side agents. The middleware wraps AI SDK streams.
+- **Hermes Agent**: Use if you need per-skill, complexity-aware, or topic-aware routing for delegated subagents while Hermes keeps provider credentials and fallback behavior.
 
 ## What Stays Consistent Across Frameworks
 

@@ -1,6 +1,6 @@
 ---
 title: Choose Your Integration
-description: Pick the right cascadeflow integration for your framework — LangChain, OpenAI Agents, CrewAI, Google ADK, n8n, or Vercel AI.
+description: Pick the right cascadeflow integration for your framework — LangChain, OpenAI Agents, CrewAI, Google ADK, n8n, Vercel AI, or Hermes Agent.
 ---
 
 # Choose Your Integration
@@ -17,6 +17,7 @@ cascadeflow integrates with every major agent framework. Pick the one that match
 | **Google ADK** | `pip install cascadeflow[google-adk]` | BasePlugin | [Google ADK →](/integrations/google-adk) |
 | **Vercel AI SDK** | `npm install @cascadeflow/vercel-ai` | Middleware | [Vercel AI →](/integrations/vercel-ai) |
 | **n8n** | `npm install @cascadeflow/n8n-nodes-cascadeflow` | Community node | [n8n →](/integrations/n8n) |
+| **Hermes Agent** | `pip install cascadeflow` | Delegation router | [Hermes Agent →](/integrations/hermes-agent) |
 | **Direct SDK calls** | `pip install cascadeflow` | `init()` + `run()` | [Observe →](/get-started/observe) |
 | **TypeScript (no framework)** | `npm install @cascadeflow/core` | CascadeAgent | [Core →](/api-reference/typescript/core) |
 
@@ -43,6 +44,10 @@ hooks = CascadeFlowHooks()
 # Google ADK — plugin
 from cascadeflow.integrations.google_adk import CascadeFlowPlugin
 plugin = CascadeFlowPlugin()
+
+# Hermes Agent — delegation router
+from cascadeflow.integrations.hermes import HermesDelegationRouter
+router = HermesDelegationRouter.from_dict({"enabled": True, "mode": "observe"})
 ```
 
 ### TypeScript
@@ -72,6 +77,9 @@ import { withCascade } from '@cascadeflow/langchain';
   </Card>
   <Card title="No-code / Low-code" icon="wand-magic-sparkles" href="/integrations/n8n">
     n8n community nodes for visual workflow automation.
+  </Card>
+  <Card title="Hermes subagents" icon="route" href="/integrations/hermes-agent">
+    Per-skill, complexity-aware, and topic-aware routing for delegated agents.
   </Card>
 </CardGroup>
 

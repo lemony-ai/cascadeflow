@@ -11,6 +11,7 @@ Provides optional integrations with:
     - CrewAI: Harness integration for CrewAI workflows
     - Google ADK: Plugin for Google Agent Development Kit
     - PydanticAI: Full cascade Model for PydanticAI agents
+    - Hermes Agent: Delegation router for per-skill subagent routing
 
 All integrations are optional and raise ``ImportError`` with an install
 hint when the required dependency is missing.
@@ -302,6 +303,37 @@ except ImportError:
     pydantic_ai_create_cascade_model = _pydantic_ai_missing
     is_pydantic_ai_available = _pydantic_ai_missing
 
+# ═══════════════════════════════════════════════════
+# Hermes Agent
+# ═══════════════════════════════════════════════════
+
+try:
+    from .hermes import (
+        HermesDelegationDecision,
+        HermesDelegationRequest,
+        HermesDelegationRouter,
+        HermesRouteProfile,
+        HermesRoutingConfig,
+        HermesTaskClassification,
+        HermesTaskClassifier,
+        extract_cascadeflow_skill_metadata,
+        profile_from_skill_metadata,
+    )
+
+    HERMES_AVAILABLE = True
+except ImportError:
+    HERMES_AVAILABLE = False
+    _hermes_missing = _MissingIntegration("Hermes Agent", "pip install cascadeflow")
+    HermesDelegationDecision = _hermes_missing
+    HermesDelegationRequest = _hermes_missing
+    HermesDelegationRouter = _hermes_missing
+    HermesRouteProfile = _hermes_missing
+    HermesRoutingConfig = _hermes_missing
+    HermesTaskClassification = _hermes_missing
+    HermesTaskClassifier = _hermes_missing
+    extract_cascadeflow_skill_metadata = _hermes_missing
+    profile_from_skill_metadata = _hermes_missing
+
 
 # ═══════════════════════════════════════════════════
 # Exports & Capabilities
@@ -435,6 +467,22 @@ if PYDANTIC_AI_AVAILABLE:
         ]
     )
 
+if HERMES_AVAILABLE:
+    __all__.extend(
+        [
+            "HERMES_AVAILABLE",
+            "HermesDelegationDecision",
+            "HermesDelegationRequest",
+            "HermesDelegationRouter",
+            "HermesRouteProfile",
+            "HermesRoutingConfig",
+            "HermesTaskClassification",
+            "HermesTaskClassifier",
+            "extract_cascadeflow_skill_metadata",
+            "profile_from_skill_metadata",
+        ]
+    )
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
@@ -446,6 +494,7 @@ INTEGRATION_CAPABILITIES = {
     "crewai": CREWAI_AVAILABLE,
     "google_adk": GOOGLE_ADK_AVAILABLE,
     "pydantic_ai": PYDANTIC_AI_AVAILABLE,
+    "hermes": HERMES_AVAILABLE,
 }
 
 
@@ -473,4 +522,5 @@ def get_integration_info():
         "crewai_available": CREWAI_AVAILABLE,
         "google_adk_available": GOOGLE_ADK_AVAILABLE,
         "pydantic_ai_available": PYDANTIC_AI_AVAILABLE,
+        "hermes_available": HERMES_AVAILABLE,
     }

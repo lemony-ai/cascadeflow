@@ -17,10 +17,10 @@ Key APIs:
     session.summary()             -- structured metrics
     session.trace()               -- full decision audit trail
 
-Integrations: LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI SDK
+Integrations: LangChain, OpenAI Agents SDK, CrewAI, Google ADK, n8n, Vercel AI SDK, Hermes Agent
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __author__ = "Lemony Inc."
 __license__ = "MIT"
 
