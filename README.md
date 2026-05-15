@@ -40,9 +40,9 @@
 cascadeflow works where external proxies can't: per-step model decisions based on agent state, per-tool-call budget gating, runtime stop/continue/escalate actions, and business KPI injection during agent loops. It accumulates insight from every model call, tool result, and quality score — the agent gets smarter the more it runs. Sub-5ms overhead. Works with LangChain, OpenAI Agents SDK, CrewAI, PydanticAI, Google ADK, n8n, Vercel AI SDK, and Hermes Agent.
 
 > **Update**
-> ### Hermes Agent delegation routing
+> ### Hermes Agent delegation cascading
 >
-> CascadeFlow now provides a Hermes Agent integration for per-skill model routing, task-complexity routing, topic-aware subagent routing, observe-mode rollout, and auditable decisions without taking over provider credentials, base URLs, fallback chains, or API modes.
+> CascadeFlow now provides a Hermes Agent integration for per-skill model cascading, task-complexity cascading, topic-aware subagent cascading, observe-mode rollout, and auditable decisions without taking over provider credentials, base URLs, fallback chains, or API modes.
 
 ```bash
 pip install cascadeflow
