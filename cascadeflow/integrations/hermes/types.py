@@ -30,11 +30,7 @@ def _clean_tuple(values: Any) -> tuple[str, ...]:
     if isinstance(values, str):
         values = (values,)
     try:
-        return tuple(
-            item
-            for item in (_clean_text(v, max_length=120) for v in values)
-            if item
-        )
+        return tuple(item for item in (_clean_text(v, max_length=120) for v in values) if item)
     except TypeError:
         return ()
 
@@ -78,8 +74,6 @@ class HermesDelegationRequest:
         parts = [self.goal]
         if self.context:
             parts.append(self.context)
-        if self.loaded_skills:
-            parts.append(" ".join(self.loaded_skills))
         return "\n".join(part for part in parts if part)
 
 

@@ -47,4 +47,3 @@ def test_extracts_nested_hermes_cascadeflow_metadata():
 def test_missing_skill_metadata_returns_no_profile():
     assert extract_cascadeflow_skill_metadata({"name": "plain-skill"}) == {}
     assert profile_from_skill_metadata({"name": "plain-skill"}) is None
-

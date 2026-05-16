@@ -151,4 +151,3 @@ class HermesTaskClassifier:
         else:
             complexity_value = str(complexity)
         return complexity_value, max(0.0, min(1.0, float(confidence or 0.0)))
-

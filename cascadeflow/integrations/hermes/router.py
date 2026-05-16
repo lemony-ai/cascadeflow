@@ -66,9 +66,10 @@ class HermesDelegationRouter:
             )
 
         classification = self.classifier.classify(request)
-        route_key = self._select_route_key(classification.domain, classification.complexity)
-        profile = self.config.routes.get(route_key) if route_key else None
-        if profile is None and classification.domain in HIGH_STAKES_DOMAINS:
+        if (
+            classification.domain in HIGH_STAKES_DOMAINS
+            and classification.domain not in self.config.routes
+        ):
             return HermesDelegationDecision(
                 action="inherit",
                 domain=classification.domain,
@@ -77,8 +78,14 @@ class HermesDelegationRouter:
                 confidence=classification.confidence,
                 reason="high_stakes_domain_unconfigured",
                 source="classifier",
-                metadata={"route_key": route_key},
+                metadata={
+                    "route_key": classification.domain,
+                    "loaded_skills": list(request.loaded_skills),
+                },
             )
+
+        route_key = self._select_route_key(classification.domain, classification.complexity)
+        profile = self.config.routes.get(route_key) if route_key else None
         if profile is None:
             return HermesDelegationDecision(
                 action="inherit",
@@ -88,7 +95,10 @@ class HermesDelegationRouter:
                 confidence=classification.confidence,
                 reason="no_matching_route",
                 source="classifier",
-                metadata={"route_key": route_key},
+                metadata={
+                    "route_key": route_key,
+                    "loaded_skills": list(request.loaded_skills),
+                },
             )
 
         return self._decision_from_profile(
@@ -139,9 +149,7 @@ class HermesDelegationRouter:
 
         provider = profile.provider if self.config.route_provider_model else None
         model = profile.model if self.config.route_provider_model else None
-        reasoning_effort = (
-            profile.reasoning_effort if self.config.route_reasoning_effort else None
-        )
+        reasoning_effort = profile.reasoning_effort if self.config.route_reasoning_effort else None
         return HermesDelegationDecision(
             action=action,
             provider=provider,

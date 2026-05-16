@@ -234,6 +234,64 @@ def test_high_stakes_domain_without_matching_route_inherits():
     assert decision.domain == "medical"
 
 
+def test_high_stakes_domain_does_not_fall_back_to_complexity_route():
+    router = _router(
+        {
+            "enabled": True,
+            "mode": "route",
+            "routes": {
+                "simple": {
+                    "provider": "openai",
+                    "model": "gpt-4.1-mini",
+                    "reasoning_effort": "low",
+                },
+                "general": {
+                    "provider": "openai",
+                    "model": "gpt-4.1-mini",
+                    "reasoning_effort": "medium",
+                },
+            },
+        },
+        domain="legal",
+        complexity="simple",
+        confidence=0.86,
+    )
+
+    decision = router.route_delegation(_request(goal="Review this contract clause"))
+
+    assert decision.action == "inherit"
+    assert decision.reason == "high_stakes_domain_unconfigured"
+    assert decision.domain == "legal"
+    assert decision.model is None
+
+
+def test_parent_loaded_skills_do_not_override_task_domain():
+    router = HermesDelegationRouter.from_dict(
+        {
+            "enabled": True,
+            "mode": "route",
+            "routes": {
+                "code": {
+                    "provider": "nous",
+                    "model": "nous/hermes-4.1",
+                    "reasoning_effort": "high",
+                }
+            },
+        }
+    )
+    request = HermesDelegationRequest(
+        goal="Review this indemnity clause for legal risk",
+        loaded_skills=("python", "debugging"),
+    )
+
+    decision = router.route_delegation(request)
+
+    assert decision.action == "inherit"
+    assert decision.reason == "high_stakes_domain_unconfigured"
+    assert decision.domain == "legal"
+    assert decision.metadata["loaded_skills"] == ["python", "debugging"]
+
+
 def test_confidence_below_threshold_inherits_but_keeps_audit_recommendation():
     router = _router(
         {
