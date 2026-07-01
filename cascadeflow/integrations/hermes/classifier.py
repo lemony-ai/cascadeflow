@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -122,10 +123,17 @@ class HermesTaskClassifier:
             reason=domain_reason,
         )
 
+    @staticmethod
+    def _keyword_in_text(keyword: str, lowered: str) -> bool:
+        # Match on word boundaries so short keywords (e.g. "ci", "api", "law")
+        # don't match inside unrelated words like "financial" ("ci") or "always"
+        # ("law"). Handles multi-word keywords ("stack trace") correctly too.
+        return re.search(rf"\b{re.escape(keyword)}\b", lowered) is not None
+
     def _detect_domain(self, lowered: str, toolsets: tuple[str, ...]) -> tuple[str, float, str]:
         scores: dict[str, int] = {}
         for domain, keywords in DOMAIN_KEYWORDS.items():
-            hits = sum(1 for keyword in keywords if keyword in lowered)
+            hits = sum(1 for keyword in keywords if self._keyword_in_text(keyword, lowered))
             if hits:
                 scores[domain] = hits
 
