@@ -48,6 +48,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
+from ..context import PreparedKnowledge, provider_cache_kwargs
 from ..quality import AdaptiveThreshold, ComparativeValidator, QualityConfig, QualityValidator
 from ..schema.config import ModelConfig
 from ..utils.messages import get_last_user_message, messages_to_prompt, normalize_messages
@@ -636,6 +637,8 @@ class WholeResponseCascade:
         4. Accept or escalate to verifier
         5. Calculate costs using CostCalculator (with input tokens!)
         """
+        prepared_knowledge = kwargs.pop("_cascadeflow_prepared_knowledge", None)
+
         # Timing breakdown
         timing = {
             "draft_latency_ms": 0.0,
@@ -683,6 +686,7 @@ class WholeResponseCascade:
             tools=tools,
             tool_choice=tool_choice,
             messages=messages,
+            prepared_knowledge=prepared_knowledge,
         )
         timing["draft_latency_ms"] = (time.time() - draft_start) * 1000
 
@@ -704,6 +708,7 @@ class WholeResponseCascade:
                 tools=tools,
                 tool_choice=tool_choice,
                 messages=messages,
+                prepared_knowledge=prepared_knowledge,
             )
             timing["verifier_latency_ms"] = (time.time() - verifier_start) * 1000
             timing["total_latency_ms"] = (time.time() - overall_start) * 1000
@@ -767,6 +772,7 @@ class WholeResponseCascade:
                     tools=tools,
                     tool_choice=tool_choice,
                     messages=messages,
+                    prepared_knowledge=prepared_knowledge,
                 )
             )
         else:
@@ -881,6 +887,7 @@ class WholeResponseCascade:
                     tools=tools,
                     tool_choice=tool_choice,
                     messages=messages,
+                    prepared_knowledge=prepared_knowledge,
                 )
             else:
                 verifier_result = await verifier_task
@@ -1020,6 +1027,8 @@ class WholeResponseCascade:
         FIXED: Now uses CostCalculator for accurate cost tracking.
         FIXED: Now passes query to CostCalculator for input token counting!
         """
+        prepared_knowledge = kwargs.pop("_cascadeflow_prepared_knowledge", None)
+
         # Timing breakdown
         timing = {
             "draft_latency_ms": 0.0,
@@ -1035,7 +1044,12 @@ class WholeResponseCascade:
         # === PHASE 1: Generate Draft ===
         draft_start = time.time()
         draft_result = await self._call_drafter(
-            query, max_tokens, temperature, tools=None, messages=messages
+            query,
+            max_tokens,
+            temperature,
+            tools=None,
+            messages=messages,
+            prepared_knowledge=prepared_knowledge,
         )
         timing["draft_latency_ms"] = (time.time() - draft_start) * 1000
 
@@ -1049,7 +1063,12 @@ class WholeResponseCascade:
 
             verifier_start = time.time()
             verifier_result = await self._call_verifier(
-                query, max_tokens, temperature, tools=None, messages=messages
+                query,
+                max_tokens,
+                temperature,
+                tools=None,
+                messages=messages,
+                prepared_knowledge=prepared_knowledge,
             )
             timing["verifier_latency_ms"] = (time.time() - verifier_start) * 1000
             timing["total_latency_ms"] = (time.time() - overall_start) * 1000
@@ -1102,7 +1121,14 @@ class WholeResponseCascade:
                     f"Draft confidence {raw_draft_confidence:.2f} < 0.75, starting verifier"
                 )
             verifier_task = asyncio.create_task(
-                self._call_verifier(query, max_tokens, temperature, tools=None, messages=messages)
+                self._call_verifier(
+                    query,
+                    max_tokens,
+                    temperature,
+                    tools=None,
+                    messages=messages,
+                    prepared_knowledge=prepared_knowledge,
+                )
             )
         else:
             verifier_task = None
@@ -1247,7 +1273,12 @@ class WholeResponseCascade:
             verifier_start = time.time()
             if verifier_task is None:
                 verifier_result = await self._call_verifier(
-                    query, max_tokens, temperature, tools=None, messages=messages
+                    query,
+                    max_tokens,
+                    temperature,
+                    tools=None,
+                    messages=messages,
+                    prepared_knowledge=prepared_knowledge,
                 )
             else:
                 verifier_result = await verifier_task
@@ -1314,6 +1345,7 @@ class WholeResponseCascade:
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        prepared_knowledge: Optional[PreparedKnowledge] = None,
     ) -> Optional[dict[str, Any]]:
         """
         Call drafter model with optional tool support.
@@ -1321,6 +1353,7 @@ class WholeResponseCascade:
         """
         try:
             provider = self._get_provider(self.drafter)
+            cache_kwargs = provider_cache_kwargs(self.drafter.provider, prepared_knowledge)
 
             # === CRITICAL FIX: Route to correct method based on tools ===
             if tools:
@@ -1334,6 +1367,7 @@ class WholeResponseCascade:
                     model=self.drafter.name,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    **cache_kwargs,
                 )
             else:
                 # TEXT PATH: Use complete() with prompt format
@@ -1345,6 +1379,7 @@ class WholeResponseCascade:
                     temperature=temperature,
                     logprobs=True,
                     top_logprobs=5,
+                    **cache_kwargs,
                 )
 
             return _convert_to_dict(result)
@@ -1361,6 +1396,7 @@ class WholeResponseCascade:
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        prepared_knowledge: Optional[PreparedKnowledge] = None,
     ) -> dict[str, Any]:
         """
         Call verifier model with optional tool support.
@@ -1368,6 +1404,7 @@ class WholeResponseCascade:
         """
         try:
             provider = self._get_provider(self.verifier)
+            cache_kwargs = provider_cache_kwargs(self.verifier.provider, prepared_knowledge)
 
             # === CRITICAL FIX: Route to correct method based on tools ===
             if tools:
@@ -1381,6 +1418,7 @@ class WholeResponseCascade:
                     model=self.verifier.name,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    **cache_kwargs,
                 )
             else:
                 # TEXT PATH: Use complete() with prompt format
@@ -1392,6 +1430,7 @@ class WholeResponseCascade:
                     temperature=temperature,
                     logprobs=True,
                     top_logprobs=5,
+                    **cache_kwargs,
                 )
 
             return _convert_to_dict(result)

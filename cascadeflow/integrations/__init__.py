@@ -19,6 +19,7 @@ hint when the required dependency is missing.
 
 from __future__ import annotations
 
+import importlib.util
 from typing import TYPE_CHECKING
 
 
@@ -334,6 +335,14 @@ except ImportError:
     extract_cascadeflow_skill_metadata = _hermes_missing
     profile_from_skill_metadata = _hermes_missing
 
+# ═══════════════════════════════════════════════════
+# Model Context Protocol
+# ═══════════════════════════════════════════════════
+
+from .mcp import KnowledgeResolver, create_mcp_server
+
+MCP_AVAILABLE = importlib.util.find_spec("mcp") is not None
+
 
 # ═══════════════════════════════════════════════════
 # Exports & Capabilities
@@ -483,6 +492,9 @@ if HERMES_AVAILABLE:
         ]
     )
 
+if MCP_AVAILABLE:
+    __all__.extend(["MCP_AVAILABLE", "KnowledgeResolver", "create_mcp_server"])
+
 # Integration capabilities
 INTEGRATION_CAPABILITIES = {
     "litellm": LITELLM_AVAILABLE,
@@ -495,6 +507,7 @@ INTEGRATION_CAPABILITIES = {
     "google_adk": GOOGLE_ADK_AVAILABLE,
     "pydantic_ai": PYDANTIC_AI_AVAILABLE,
     "hermes": HERMES_AVAILABLE,
+    "mcp": MCP_AVAILABLE,
 }
 
 
@@ -523,4 +536,5 @@ def get_integration_info():
         "google_adk_available": GOOGLE_ADK_AVAILABLE,
         "pydantic_ai_available": PYDANTIC_AI_AVAILABLE,
         "hermes_available": HERMES_AVAILABLE,
+        "mcp_available": MCP_AVAILABLE,
     }

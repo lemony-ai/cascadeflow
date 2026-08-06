@@ -25,6 +25,7 @@ Agent runtime intelligence layer — optimize cost, latency, quality, budget, co
 - [Agentic Patterns (TypeScript)](guides/agentic-typescript.md) - Tool loops, multi-agent orchestration, and message best practices
 - [Harness Telemetry & Privacy](guides/harness_telemetry_privacy.md) - Decision traces, callbacks, and privacy-safe observability
 - [Cost Tracking](guides/cost_tracking.md) - Track and analyze API costs across queries
+- [Versioned Knowledge Context](guides/knowledge_context.md) - Safe, cache-aware knowledge handoff across model switches
 - [Proxy Routing](guides/proxy.md) - Route requests through provider-aware proxy plans
 
 ## 🏭 Production & Advanced
@@ -46,6 +47,7 @@ Agent runtime intelligence layer — optimize cost, latency, quality, budget, co
 - [Google ADK Integration](guides/google_adk_integration.md) - Plugin-based harness integration for ADK runners (opt-in)
 - [n8n Integration](guides/n8n_integration.md) - Use cascadeflow in n8n workflows
 - [Paygentic Integration](guides/paygentic_integration.md) - Usage metering and billing lifecycle helpers (opt-in)
+- [MCP Integration](guides/mcp_integration.md) - Use cascadeflow routing from ChatGPT and Claude clients
 
 ## 📚 Examples
 

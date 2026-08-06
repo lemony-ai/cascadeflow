@@ -99,6 +99,8 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     # Agent & result
     "CascadeAgent": (".agent", "CascadeAgent"),
     "CascadeResult": (".schema.result", "CascadeResult"),
+    "KnowledgeCache": (".context", "KnowledgeCache"),
+    "KnowledgeSnapshot": (".context", "KnowledgeSnapshot"),
     "agent": (".agent", None),
     # Providers
     "BaseProvider": (".providers", "BaseProvider"),

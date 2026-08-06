@@ -11,6 +11,14 @@ import httpx
 from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
+
+def _cache_usage(usage: dict[str, Any]) -> dict[str, int]:
+    return {
+        "cached_input_tokens": int(usage.get("cache_read_input_tokens") or 0),
+        "cache_write_input_tokens": int(usage.get("cache_creation_input_tokens") or 0),
+    }
+
+
 # ==============================================================================
 # REASONING MODEL SUPPORT
 # ==============================================================================
@@ -620,7 +628,7 @@ class AnthropicProvider(BaseProvider):
         """
         start_time = time.time()
 
-        self._strip_internal_kwargs(dict(kwargs))
+        kwargs = self._strip_internal_kwargs(dict(kwargs))
 
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic(tools) if tools else None
@@ -793,6 +801,7 @@ class AnthropicProvider(BaseProvider):
                 "id": data.get("id"),
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
+                **_cache_usage(usage),
                 "has_tool_calls": bool(tool_calls),
                 # NEW: Add confidence analysis details
                 "query": user_query,
@@ -1019,6 +1028,7 @@ class AnthropicProvider(BaseProvider):
                 "id": data.get("id"),
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
+                **_cache_usage(usage),
                 # NEW: Add confidence analysis details for test validation
                 "query": prompt,
                 "confidence_method": confidence_method,

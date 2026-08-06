@@ -71,6 +71,14 @@ export {
 export type { CascadeResult } from './result';
 export { resultToObject } from './result';
 
+// Provider-neutral knowledge handoff
+export { KnowledgeCache, providerKnowledgeCacheOptions } from './knowledge-cache';
+export type {
+  KnowledgeSnapshot,
+  PreparedKnowledge,
+  KnowledgeCacheTtl,
+} from './knowledge-cache';
+
 // Batch Processing (v0.2.1+)
 export {
   BatchStrategy,

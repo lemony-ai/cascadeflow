@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Optional
 
+from ..context import provider_cache_kwargs
 from ..utils.messages import messages_to_prompt, normalize_messages
 from .utils import (
     JSONParseState,
@@ -432,6 +433,7 @@ class ToolStreamManager:
             raise ValueError("tools parameter is required for tool streaming")
 
         try:
+            prepared_knowledge = kwargs.pop("_cascadeflow_prepared_knowledge", None)
             normalized_messages = normalize_messages(messages) if messages else None
             query_text = messages_to_prompt(normalized_messages) if normalized_messages else query
 
@@ -492,6 +494,10 @@ class ToolStreamManager:
 
             draft_provider = self.cascade.providers[self.cascade.drafter.provider]
             draft_model = self.cascade.drafter
+            draft_provider_kwargs = {
+                **provider_kwargs,
+                **provider_cache_kwargs(draft_model.provider, prepared_knowledge),
+            }
 
             draft_chunks = []
             draft_content = ""
@@ -523,7 +529,7 @@ class ToolStreamManager:
                         max_tokens=max_tokens,
                         temperature=temperature,
                         tool_choice=tool_choice,  # ← Explicit
-                        **provider_kwargs,  # ← Does NOT contain tools/tool_choice
+                        **draft_provider_kwargs,  # ← Does NOT contain tools/tool_choice
                     ):
                         # Process chunk for tool calls
                         async for event in self._process_tool_chunk(
@@ -562,7 +568,7 @@ class ToolStreamManager:
                         max_tokens=max_tokens,
                         temperature=temperature,
                         tool_choice=tool_choice,  # ← Explicit
-                        **provider_kwargs,  # ← Does NOT contain tools/tool_choice
+                        **draft_provider_kwargs,  # ← Does NOT contain tools/tool_choice
                     )
 
                     # Extract tool calls from response
@@ -863,7 +869,7 @@ class ToolStreamManager:
                         max_tokens=max_tokens,
                         temperature=temperature,
                         tool_choice=tool_choice,
-                        **provider_kwargs,
+                        **draft_provider_kwargs,
                     )
 
                     next_tool_calls = (
@@ -1006,6 +1012,10 @@ class ToolStreamManager:
                 verifier_start_time = time.time()
                 verifier_provider = self.cascade.providers[self.cascade.verifier.provider]
                 verifier_model = self.cascade.verifier
+                verifier_provider_kwargs = {
+                    **provider_kwargs,
+                    **provider_cache_kwargs(verifier_model.provider, prepared_knowledge),
+                }
 
                 verifier_tool_calls = []
                 verifier_content = ""
@@ -1024,7 +1034,7 @@ class ToolStreamManager:
                             max_tokens=max_tokens,
                             temperature=temperature,
                             tool_choice=tool_choice,  # ← Explicit
-                            **provider_kwargs,  # ← Clean kwargs
+                            **verifier_provider_kwargs,  # ← Clean kwargs
                         ):
                             # Process chunk
                             async for event in self._process_tool_chunk(chunk, tools, None, ""):
@@ -1058,7 +1068,7 @@ class ToolStreamManager:
                             max_tokens=max_tokens,
                             temperature=temperature,
                             tool_choice=tool_choice,  # ← Explicit
-                            **provider_kwargs,  # ← Clean kwargs
+                            **verifier_provider_kwargs,  # ← Clean kwargs
                         )
 
                         if hasattr(response, "tool_calls") and response.tool_calls:
@@ -1156,7 +1166,7 @@ class ToolStreamManager:
                             max_tokens=max_tokens,
                             temperature=temperature,
                             tool_choice=tool_choice,
-                            **provider_kwargs,
+                            **verifier_provider_kwargs,
                         )
 
                         next_tool_calls = (

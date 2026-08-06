@@ -68,6 +68,7 @@ if TYPE_CHECKING:
     from .profiles import UserProfile
     from .rules.decision import RuleDecision
 
+from .context import KnowledgeCache, KnowledgeSnapshot, PreparedKnowledge, provider_cache_kwargs
 from .core.cascade import WholeResponseCascade
 
 # Phase 2C: Interface module imports
@@ -211,6 +212,7 @@ class CascadeAgent:
         # 🆕 v2.9: Tool Execution
         # ========================================================================
         tool_executor: Optional[Any] = None,  # ToolExecutor instance or async callable
+        knowledge_cache: Optional[KnowledgeCache] = None,
     ):
         """
         Initialize cascade agent with dual streaming managers and cost calculator.
@@ -270,6 +272,9 @@ class CascadeAgent:
 
         # 🆕 v2.9: Tool execution support
         self._tool_executor = tool_executor
+        # Knowledge selection is request-scoped. The cache only reuses the stable
+        # compiled prefix; it never keeps an implicit "currently active" snapshot.
+        self.knowledge_cache = knowledge_cache or KnowledgeCache()
 
         # Setup logging
         if verbose:
@@ -757,6 +762,15 @@ class CascadeAgent:
     ) -> tuple[str, Optional[list[dict[str, Any]]]]:
         if messages:
             normalized = normalize_messages(messages)
+            # ``system_prompt`` and knowledge both create a system message even
+            # when callers use the simple string API. Preserve that string as
+            # the current user turn instead of accidentally sending only context.
+            if query.strip() and not (
+                normalized
+                and normalized[-1].get("role") == "user"
+                and normalized[-1].get("content", "").strip() == query.strip()
+            ):
+                normalized.append({"role": "user", "content": query})
             query_text = messages_to_prompt(normalized)
             return query_text, normalized
         return query, None
@@ -773,6 +787,34 @@ class CascadeAgent:
             base[0] = {"role": "system", "content": system_prompt}
             return base
         return [{"role": "system", "content": system_prompt}, *base]
+
+    def _apply_knowledge(
+        self,
+        messages: Optional[list[dict[str, Any]]],
+        knowledge: Optional["str | KnowledgeSnapshot"],
+        provider_kwargs: dict[str, Any],
+    ) -> tuple[Optional[list[dict[str, Any]]], Optional[PreparedKnowledge], bool]:
+        """Prepend an immutable knowledge snapshot without carrying prior state.
+
+        The rendered prefix is identical for every model in a cascade. Provider
+        cache intent remains internal until the concrete provider is selected.
+        """
+        if knowledge is None:
+            return messages, None, False
+
+        prepared, local_hit = self.knowledge_cache.prepare(knowledge)
+        base = list(messages or [])
+        if base and base[0].get("role") == "system":
+            existing = str(base[0].get("content") or "").strip()
+            content = prepared.system_prefix
+            if existing:
+                content = f"{content}\n\n{existing}"
+            base[0] = {**base[0], "content": content}
+        else:
+            base.insert(0, {"role": "system", "content": prepared.system_prefix})
+
+        provider_kwargs["_cascadeflow_prepared_knowledge"] = prepared
+        return base, prepared, local_hit
 
     async def _execute_tool_calls_parallel(
         self, tool_calls: list[dict[str, Any]]
@@ -863,6 +905,7 @@ class CascadeAgent:
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        knowledge: Optional["str | KnowledgeSnapshot"] = None,
         max_steps: int = 5,
         user_tier: Optional[str] = None,  # 🔄 OPTIONAL: v0.1.x backwards compatibility
         workflow: Optional[str] = None,
@@ -888,6 +931,7 @@ class CascadeAgent:
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
             messages: Optional multi-turn messages (role/content)
+            knowledge: Immutable request-scoped knowledge snapshot (or string)
             user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
             workflow: OPTIONAL - Workflow profile name (legacy)
             kpi_flags: OPTIONAL - KPI routing flags (risk/compliance, etc.)
@@ -910,6 +954,9 @@ class CascadeAgent:
         timing_breakdown = {}
         system_prompt = kwargs.pop("system_prompt", None)
         messages = self._apply_system_prompt(messages, system_prompt)
+        messages, prepared_knowledge, knowledge_local_hit = self._apply_knowledge(
+            messages, knowledge, kwargs
+        )
         query_text, normalized_messages = self._normalize_messages(query, messages)
         tools = normalize_tools(tools)
 
@@ -1286,6 +1333,11 @@ class CascadeAgent:
             channel=channel,
         )
 
+        if prepared_knowledge is not None:
+            cascade_result.metadata["knowledge"] = prepared_knowledge.metadata(
+                local_cache_hit=knowledge_local_hit
+            )
+
         # Record metrics with corrected cost values from CostCalculator
         self.telemetry.record(
             result=cascade_result,
@@ -1314,6 +1366,7 @@ class CascadeAgent:
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        knowledge: Optional["str | KnowledgeSnapshot"] = None,
         user_tier: Optional[str] = None,
         workflow: Optional[str] = None,
         kpi_flags: Optional[dict[str, Any]] = None,
@@ -1340,6 +1393,7 @@ class CascadeAgent:
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
             messages: Optional multi-turn messages (role/content)
+            knowledge: Immutable request-scoped knowledge snapshot (or string)
             user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
             workflow: OPTIONAL - Workflow profile name (legacy)
             kpi_flags: OPTIONAL - KPI routing flags (risk/compliance, etc.)
@@ -1356,6 +1410,9 @@ class CascadeAgent:
         timing_breakdown = {}
         system_prompt = kwargs.pop("system_prompt", None)
         messages = self._apply_system_prompt(messages, system_prompt)
+        messages, prepared_knowledge, knowledge_local_hit = self._apply_knowledge(
+            messages, knowledge, kwargs
+        )
         query_text, normalized_messages = self._normalize_messages(query, messages)
         tools = normalize_tools(tools)
 
@@ -1575,6 +1632,11 @@ class CascadeAgent:
             channel=channel,
         )
 
+        if prepared_knowledge is not None:
+            cascade_result.metadata["knowledge"] = prepared_knowledge.metadata(
+                local_cache_hit=knowledge_local_hit
+            )
+
         # Record metrics with corrected cost values from CostCalculator
         self.telemetry.record(
             result=cascade_result,
@@ -1602,6 +1664,7 @@ class CascadeAgent:
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         messages: Optional[list[dict[str, Any]]] = None,
+        knowledge: Optional["str | KnowledgeSnapshot"] = None,
         user_tier: Optional[str] = None,
         workflow: Optional[str] = None,
         kpi_flags: Optional[dict[str, Any]] = None,
@@ -1625,6 +1688,7 @@ class CascadeAgent:
             tools: List of tools in universal format
             tool_choice: Control tool calling behavior
             messages: Optional multi-turn messages (role/content)
+            knowledge: Immutable request-scoped knowledge snapshot (or string)
             user_tier: OPTIONAL - User tier for tier-based routing (v0.1.x compat)
             workflow: OPTIONAL - Workflow profile name (legacy)
             kpi_flags: OPTIONAL - KPI routing flags (risk/compliance, etc.)
@@ -1640,6 +1704,9 @@ class CascadeAgent:
         # Detect complexity
         system_prompt = kwargs.pop("system_prompt", None)
         messages = self._apply_system_prompt(messages, system_prompt)
+        messages, _prepared_knowledge, _knowledge_local_hit = self._apply_knowledge(
+            messages, knowledge, kwargs
+        )
         query_text, normalized_messages = self._normalize_messages(query, messages)
         tools = normalize_tools(tools)
         complexity_metadata = {}
@@ -2149,6 +2216,8 @@ class CascadeAgent:
         """Execute direct routing with detailed timing and tool support."""
         best_model = available_models[-1] if available_models else self.models[-1]
         provider = self._get_provider(best_model)
+        prepared_knowledge = kwargs.pop("_cascadeflow_prepared_knowledge", None)
+        kwargs.update(provider_cache_kwargs(best_model.provider, prepared_knowledge))
         reason = (
             "Forced direct routing"
             if force_direct
@@ -2288,6 +2357,8 @@ class CascadeAgent:
         """Stream directly from best model with timing tracking and tool support."""
         best_model = available_models[-1] if available_models else self.models[-1]
         provider = self._get_provider(best_model)
+        prepared_knowledge = kwargs.pop("_cascadeflow_prepared_knowledge", None)
+        kwargs.update(provider_cache_kwargs(best_model.provider, prepared_knowledge))
         reason = (
             "Forced direct routing"
             if force_direct

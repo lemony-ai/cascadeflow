@@ -136,6 +136,7 @@ export interface UsageDetails {
   input_tokens?: number;
   output_tokens?: number;
   cached_input_tokens?: number;
+  cache_write_input_tokens?: number;
   reasoning_tokens?: number; // For OpenAI o1/o3 models
   completion_tokens_details?: {
     reasoning_tokens?: number;

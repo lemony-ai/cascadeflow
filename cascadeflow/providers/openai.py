@@ -11,6 +11,14 @@ import httpx
 from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
+
+def _cached_input_tokens(usage: dict[str, Any]) -> int:
+    details = usage.get("input_tokens_details") or usage.get("prompt_tokens_details") or {}
+    if not isinstance(details, dict):
+        return 0
+    return int(details.get("cached_tokens") or 0)
+
+
 # ==============================================================================
 # REASONING MODEL SUPPORT
 # ==============================================================================
@@ -819,6 +827,7 @@ class OpenAIProvider(BaseProvider):
                     "finish_reason": finish_reason,
                     "prompt_tokens": int(prompt_tokens),
                     "completion_tokens": int(completion_tokens),
+                    "cached_input_tokens": _cached_input_tokens(usage),
                     "has_tool_calls": bool(tool_calls),
                     "confidence_method": confidence_method,
                     "tool_choice_reasoning": (
@@ -961,6 +970,7 @@ class OpenAIProvider(BaseProvider):
                 "finish_reason": choice["finish_reason"],
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
+                "cached_input_tokens": _cached_input_tokens(data.get("usage") or {}),
                 "has_tool_calls": bool(tool_calls),
                 "confidence_method": confidence_method,  # ← NEW!
                 "tool_choice_reasoning": (
@@ -1111,6 +1121,13 @@ class OpenAIProvider(BaseProvider):
                     responses_payload["instructions"] = instructions
                 if model_info.supports_temperature:
                     responses_payload["temperature"] = temperature
+                for cache_field in (
+                    "prompt_cache_key",
+                    "prompt_cache_retention",
+                    "prompt_cache_options",
+                ):
+                    if cache_field in payload:
+                        responses_payload[cache_field] = payload[cache_field]
 
                 response = await self.client.post(
                     f"{self.base_url}/responses", json=responses_payload
@@ -1182,6 +1199,7 @@ class OpenAIProvider(BaseProvider):
                     "finish_reason": finish_reason,
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
+                    "cached_input_tokens": _cached_input_tokens(usage),
                     "query": prompt,
                     "confidence_method": confidence_method,
                     "confidence_components": confidence_components,
@@ -1311,6 +1329,7 @@ class OpenAIProvider(BaseProvider):
                 "finish_reason": choice["finish_reason"],
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
+                "cached_input_tokens": _cached_input_tokens(data.get("usage") or {}),
                 # NEW: Add confidence analysis details for test validation
                 "query": prompt,
                 "confidence_method": confidence_method,

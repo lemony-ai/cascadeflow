@@ -1,3 +1,5 @@
+import type { KnowledgeSnapshot } from './knowledge-cache';
+
 /**
  * Streaming types and interfaces for cascadeflow
  *
@@ -150,6 +152,9 @@ export interface StreamOptions {
 
   /** System prompt */
   systemPrompt?: string;
+
+  /** Immutable request-scoped knowledge used by every routed model. */
+  knowledge?: string | KnowledgeSnapshot;
 
   /** Tools available */
   tools?: any[];

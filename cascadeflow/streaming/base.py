@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
+from ..context import provider_cache_kwargs
 from ..utils.messages import messages_to_prompt
 
 logger = logging.getLogger(__name__)
@@ -375,6 +376,7 @@ class StreamManager:
             StreamEvent objects with type, content, and data
         """
         try:
+            prepared_knowledge = kwargs.pop("_cascadeflow_prepared_knowledge", None)
             query_text = messages_to_prompt(messages) if messages else query
             query = query_text
             logger.info(f"Starting streaming execution for query: {query_text[:50]}...")
@@ -395,6 +397,14 @@ class StreamManager:
                     "messages",
                 }
             }
+            draft_provider_kwargs = {
+                **provider_kwargs,
+                **provider_cache_kwargs(self.cascade.drafter.provider, prepared_knowledge),
+            }
+            verifier_provider_kwargs = {
+                **provider_kwargs,
+                **provider_cache_kwargs(self.cascade.verifier.provider, prepared_knowledge),
+            }
 
             # Add tools and tool_choice if provided
             if tools is not None:
@@ -405,7 +415,7 @@ class StreamManager:
             # ================================================================
             # FIX #5: Add logprobs ONLY if no tools present (OpenAI limitation)
             # ================================================================
-            logprobs_kwargs = provider_kwargs.copy()
+            logprobs_kwargs = draft_provider_kwargs.copy()
 
             provider_type = self.cascade.drafter.provider
             has_tools = tools is not None or "tools" in provider_kwargs
@@ -440,7 +450,7 @@ class StreamManager:
                 verifier_chunks = []
                 verifier_content = ""
 
-                verifier_logprobs_kwargs = provider_kwargs.copy()
+                verifier_logprobs_kwargs = verifier_provider_kwargs.copy()
                 has_tools = tools is not None or "tools" in provider_kwargs
 
                 if self.cascade.verifier.provider in ["openai"] and not has_tools:
@@ -471,7 +481,7 @@ class StreamManager:
                         prompt=query,
                         max_tokens=max_tokens,
                         temperature=temperature,
-                        **provider_kwargs,
+                        **verifier_provider_kwargs,
                     )
                     verifier_content = response.content
                     yield StreamEvent(
@@ -605,7 +615,7 @@ class StreamManager:
                     prompt=query,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    **provider_kwargs,
+                    **draft_provider_kwargs,
                 )
                 draft_content = response.content
                 draft_latency_ms = (time.time() - draft_start_time) * 1000
@@ -784,7 +794,7 @@ class StreamManager:
                 verifier_chunks = []
                 verifier_content = ""
 
-                verifier_logprobs_kwargs = provider_kwargs.copy()
+                verifier_logprobs_kwargs = verifier_provider_kwargs.copy()
                 has_tools = tools is not None or "tools" in provider_kwargs
 
                 if self.cascade.verifier.provider in ["openai"] and not has_tools:
@@ -826,7 +836,7 @@ class StreamManager:
                         prompt=query,
                         max_tokens=max_tokens,
                         temperature=temperature,
-                        **provider_kwargs,
+                        **verifier_provider_kwargs,
                     )
                     verifier_content = response.content
                     verifier_latency_ms = (time.time() - verifier_start_time) * 1000

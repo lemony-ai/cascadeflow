@@ -544,6 +544,7 @@ export class OpenAIProvider extends BaseProvider {
             prompt_tokens: completion.usage.prompt_tokens,
             completion_tokens: completion.usage.completion_tokens,
             total_tokens: completion.usage.total_tokens,
+            cached_input_tokens: completion.usage.prompt_tokens_details?.cached_tokens,
             reasoning_tokens: completion.usage.completion_tokens_details?.reasoning_tokens,
             completion_tokens_details: completion.usage.completion_tokens_details,
           }
@@ -645,6 +646,7 @@ export class OpenAIProvider extends BaseProvider {
               prompt_tokens: completion.usage.prompt_tokens,
               completion_tokens: completion.usage.completion_tokens,
               total_tokens: completion.usage.total_tokens,
+              cached_input_tokens: completion.usage.prompt_tokens_details?.cached_tokens,
             }
           : undefined,
         finish_reason: choice.finish_reason,
