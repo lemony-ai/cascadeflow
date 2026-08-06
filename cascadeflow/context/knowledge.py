@@ -190,7 +190,13 @@ def provider_cache_kwargs(provider: str, prepared: Optional[PreparedKnowledge]) 
 
     provider = provider.lower()
     if provider == "openai":
-        return {"prompt_cache_key": prepared.prompt_cache_key}
+        return {
+            "prompt_cache_key": prepared.prompt_cache_key,
+            # Consumed by OpenAIProvider and never forwarded as an API field.
+            # GPT-5.6+ needs the exact end of the stable prefix so it can place
+            # an explicit breakpoint before the changing query suffix.
+            "_cascadeflow_knowledge_cache_prefix": prepared.system_prefix,
+        }
     if provider == "anthropic":
         cache_control: dict[str, str] = {"type": "ephemeral"}
         if prepared.cache_ttl == "1h":

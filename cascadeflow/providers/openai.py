@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import time
 from collections.abc import AsyncIterator
 from typing import Any, Optional
@@ -17,6 +18,41 @@ def _cached_input_tokens(usage: dict[str, Any]) -> int:
     if not isinstance(details, dict):
         return 0
     return int(details.get("cached_tokens") or 0)
+
+
+def _cache_write_input_tokens(usage: dict[str, Any]) -> int:
+    """Return billable prompt-cache writes across current OpenAI response shapes."""
+    details = usage.get("input_tokens_details") or usage.get("prompt_tokens_details") or {}
+    detail_value = details.get("cache_write_tokens") if isinstance(details, dict) else 0
+    return int(usage.get("cache_write_tokens") or detail_value or 0)
+
+
+def _uses_explicit_prompt_cache_breakpoints(model: str) -> bool:
+    """GPT-5.6+ rejects the older implicit-prefix cost assumptions."""
+    match = re.match(r"^gpt-(\d+)(?:\.(\d+))?", (model or "").lower())
+    if not match:
+        return False
+    major = int(match.group(1))
+    minor = int(match.group(2) or 0)
+    return (major, minor) >= (5, 6)
+
+
+def _cache_content_blocks(text: str, stable_prefix: str, *, block_type: str) -> Optional[list]:
+    """Split text immediately after knowledge and mark that stable prefix."""
+    start = text.find(stable_prefix)
+    if start < 0:
+        return None
+    split_at = start + len(stable_prefix)
+    blocks: list[dict[str, Any]] = [
+        {
+            "type": block_type,
+            "text": text[:split_at],
+            "prompt_cache_breakpoint": {"mode": "explicit"},
+        }
+    ]
+    if text[split_at:]:
+        blocks.append({"type": block_type, "text": text[split_at:]})
+    return blocks
 
 
 # ==============================================================================
@@ -556,6 +592,54 @@ class OpenAIProvider(BaseProvider):
         instructions = "\n".join(instructions_parts).strip() if instructions_parts else ""
         return input_messages, instructions or None
 
+    def _apply_responses_cache_breakpoint(
+        self,
+        input_messages: list[dict[str, Any]],
+        instructions: Optional[str],
+        stable_prefix: Optional[str],
+    ) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """Mark the stable knowledge prefix for GPT-5.6+ Responses requests."""
+        if not stable_prefix:
+            return input_messages, instructions
+
+        if instructions:
+            blocks = _cache_content_blocks(instructions, stable_prefix, block_type="input_text")
+            if blocks:
+                return [
+                    {"role": "developer", "content": blocks},
+                    *input_messages,
+                ], None
+
+        for index, message in enumerate(input_messages):
+            content = message.get("content")
+            if not isinstance(content, str):
+                continue
+            blocks = _cache_content_blocks(content, stable_prefix, block_type="input_text")
+            if blocks:
+                updated = list(input_messages)
+                updated[index] = {**message, "content": blocks}
+                return updated, instructions
+        return input_messages, instructions
+
+    def _apply_chat_cache_breakpoint(
+        self,
+        messages: list[dict[str, Any]],
+        stable_prefix: Optional[str],
+    ) -> list[dict[str, Any]]:
+        """Mark the stable knowledge prefix for GPT-5.6+ Chat Completions."""
+        if not stable_prefix:
+            return messages
+        for index, message in enumerate(messages):
+            content = message.get("content")
+            if not isinstance(content, str):
+                continue
+            blocks = _cache_content_blocks(content, stable_prefix, block_type="text")
+            if blocks:
+                updated = list(messages)
+                updated[index] = {**message, "content": blocks}
+                return updated
+        return messages
+
     def _parse_responses_output(
         self, data: dict[str, Any]
     ) -> tuple[str, Optional[list[dict[str, Any]]], str]:
@@ -743,6 +827,12 @@ class OpenAIProvider(BaseProvider):
         extra = dict(kwargs)
         extra.pop("max_tokens", None)
         extra.pop("max_completion_tokens", None)
+        stable_cache_prefix = extra.pop("_cascadeflow_knowledge_cache_prefix", None)
+        explicit_cache = bool(stable_cache_prefix) and _uses_explicit_prompt_cache_breakpoints(
+            model
+        )
+        if explicit_cache:
+            extra["prompt_cache_options"] = {"mode": "explicit"}
         extra_tool_choice = extra.pop("tool_choice", None)
         if tool_choice is None:
             tool_choice = extra_tool_choice
@@ -750,6 +840,10 @@ class OpenAIProvider(BaseProvider):
         # Prefer Responses API for GPT-5 (and optionally via env override).
         if self._should_use_responses_api(model):
             input_messages, instructions = self._convert_messages_to_responses_input(messages)
+            if explicit_cache:
+                input_messages, instructions = self._apply_responses_cache_breakpoint(
+                    input_messages, instructions, stable_cache_prefix
+                )
 
             max_out = self._effective_responses_max_output_tokens(model, max_tokens)
             payload: dict[str, Any] = {
@@ -828,6 +922,7 @@ class OpenAIProvider(BaseProvider):
                     "prompt_tokens": int(prompt_tokens),
                     "completion_tokens": int(completion_tokens),
                     "cached_input_tokens": _cached_input_tokens(usage),
+                    "cache_write_input_tokens": _cache_write_input_tokens(usage),
                     "has_tool_calls": bool(tool_calls),
                     "confidence_method": confidence_method,
                     "tool_choice_reasoning": (
@@ -876,12 +971,8 @@ class OpenAIProvider(BaseProvider):
         # Build request payload with reasoning-model compatibility
         model_info = get_reasoning_model_info(model)
         is_gpt5 = model.lower().startswith("gpt-5")
-        extra = dict(kwargs)
-        extra.pop("max_tokens", None)
-        extra.pop("max_completion_tokens", None)
-        extra_tool_choice = extra.pop("tool_choice", None)
-        if tool_choice is None:
-            tool_choice = extra_tool_choice
+        if explicit_cache:
+            messages = self._apply_chat_cache_breakpoint(messages, stable_cache_prefix)
 
         payload = {
             "model": model,
@@ -971,6 +1062,7 @@ class OpenAIProvider(BaseProvider):
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "cached_input_tokens": _cached_input_tokens(data.get("usage") or {}),
+                "cache_write_input_tokens": _cache_write_input_tokens(data.get("usage") or {}),
                 "has_tool_calls": bool(tool_calls),
                 "confidence_method": confidence_method,  # ← NEW!
                 "tool_choice_reasoning": (
@@ -1062,6 +1154,14 @@ class OpenAIProvider(BaseProvider):
         # Extract logprobs parameters
         logprobs_enabled = kwargs.pop("logprobs", False)
         top_logprobs = kwargs.pop("top_logprobs", 5)  # Default to 5
+        stable_cache_prefix = kwargs.pop("_cascadeflow_knowledge_cache_prefix", None)
+        explicit_cache = bool(stable_cache_prefix) and _uses_explicit_prompt_cache_breakpoints(
+            model
+        )
+        if explicit_cache:
+            # Disable the implicit latest-message write. Otherwise each changing
+            # query can create a new billable GPT-5.6 cache entry.
+            kwargs["prompt_cache_options"] = {"mode": "explicit"}
 
         # Get reasoning model info for auto-configuration
         model_info = get_reasoning_model_info(model)
@@ -1075,6 +1175,9 @@ class OpenAIProvider(BaseProvider):
                 # Prepend system prompt to first user message
                 prompt = f"{system_prompt}\n\n{prompt}"
         messages.append({"role": "user", "content": prompt})
+        uses_responses_api = self._should_use_responses_api(model)
+        if explicit_cache and not uses_responses_api:
+            messages = self._apply_chat_cache_breakpoint(messages, stable_cache_prefix)
 
         # Check if this is GPT-5 model for correct token parameter
         is_gpt5 = model.lower().startswith("gpt-5")
@@ -1109,8 +1212,12 @@ class OpenAIProvider(BaseProvider):
                 payload["top_logprobs"] = min(top_logprobs, 20)  # OpenAI max is 20
 
         try:
-            if self._should_use_responses_api(model):
+            if uses_responses_api:
                 input_messages, instructions = self._convert_messages_to_responses_input(messages)
+                if explicit_cache:
+                    input_messages, instructions = self._apply_responses_cache_breakpoint(
+                        input_messages, instructions, stable_cache_prefix
+                    )
                 max_out = self._effective_responses_max_output_tokens(model, max_tokens)
                 responses_payload: dict[str, Any] = {
                     "model": model,
@@ -1200,6 +1307,7 @@ class OpenAIProvider(BaseProvider):
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "cached_input_tokens": _cached_input_tokens(usage),
+                    "cache_write_input_tokens": _cache_write_input_tokens(usage),
                     "query": prompt,
                     "confidence_method": confidence_method,
                     "confidence_components": confidence_components,
@@ -1330,6 +1438,7 @@ class OpenAIProvider(BaseProvider):
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "cached_input_tokens": _cached_input_tokens(data.get("usage") or {}),
+                "cache_write_input_tokens": _cache_write_input_tokens(data.get("usage") or {}),
                 # NEW: Add confidence analysis details for test validation
                 "query": prompt,
                 "confidence_method": confidence_method,
@@ -1435,6 +1544,13 @@ class OpenAIProvider(BaseProvider):
             ...     print(chunk, end='', flush=True)
             Python is a high-level programming language...
         """
+        stable_cache_prefix = kwargs.pop("_cascadeflow_knowledge_cache_prefix", None)
+        explicit_cache = bool(stable_cache_prefix) and _uses_explicit_prompt_cache_breakpoints(
+            model
+        )
+        if explicit_cache:
+            kwargs["prompt_cache_options"] = {"mode": "explicit"}
+
         # Build messages
         messages = []
         if system_prompt:
@@ -1451,6 +1567,10 @@ class OpenAIProvider(BaseProvider):
 
         if self._should_use_responses_api(model):
             input_messages, instructions = self._convert_messages_to_responses_input(messages)
+            if explicit_cache:
+                input_messages, instructions = self._apply_responses_cache_breakpoint(
+                    input_messages, instructions, stable_cache_prefix
+                )
             payload: dict[str, Any] = {
                 "model": model,
                 "input": input_messages,
@@ -1530,6 +1650,8 @@ class OpenAIProvider(BaseProvider):
                 )
 
         # Default: Chat Completions streaming.
+        if explicit_cache:
+            messages = self._apply_chat_cache_breakpoint(messages, stable_cache_prefix)
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,

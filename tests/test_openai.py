@@ -93,6 +93,86 @@ class TestOpenAIProvider:
             assert messages[1]["role"] == "user"
 
     @pytest.mark.asyncio
+    async def test_gpt56_marks_only_stable_knowledge_for_explicit_cache(self, openai_provider):
+        """GPT-5.6 must not create billable cache writes for each changing query."""
+        stable = '<cascadeflow_knowledge version="docs:v1">\nKNOWN\n</cascadeflow_knowledge>'
+        response_data = {
+            "status": "completed",
+            "model": "gpt-5.6-terra",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "ok"}],
+                }
+            ],
+            "usage": {
+                "input_tokens": 1100,
+                "output_tokens": 1,
+                "total_tokens": 1101,
+                "input_tokens_details": {
+                    "cached_tokens": 1024,
+                    "cache_write_tokens": 0,
+                },
+            },
+        }
+        with patch.object(openai_provider.client, "post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.json.return_value = response_data
+            mock_response.raise_for_status = MagicMock()
+            mock_post.return_value = mock_response
+
+            result = await openai_provider._complete_impl(
+                prompt=f"System: {stable}\nUser: changing question",
+                model="gpt-5.6-terra",
+                prompt_cache_key="knowledge-key",
+                _cascadeflow_knowledge_cache_prefix=stable,
+            )
+
+        payload = mock_post.call_args.kwargs["json"]
+        blocks = payload["input"][0]["content"]
+        assert payload["prompt_cache_options"] == {"mode": "explicit"}
+        assert blocks[0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
+        assert blocks[0]["text"].endswith(stable)
+        assert blocks[1]["text"] == "\nUser: changing question"
+        assert "_cascadeflow_knowledge_cache_prefix" not in str(payload)
+        assert result.metadata["cached_input_tokens"] == 1024
+        assert result.metadata["cache_write_input_tokens"] == 0
+
+    @pytest.mark.asyncio
+    async def test_pre_gpt56_keeps_automatic_cache_shape(self, openai_provider):
+        """Older OpenAI models reject GPT-5.6-only breakpoint fields."""
+        stable = '<cascadeflow_knowledge version="docs:v1">\nKNOWN\n</cascadeflow_knowledge>'
+        response_data = {
+            "status": "completed",
+            "model": "gpt-5.5",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "ok"}],
+                }
+            ],
+            "usage": {"input_tokens": 1100, "output_tokens": 1, "total_tokens": 1101},
+        }
+        with patch.object(openai_provider.client, "post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.json.return_value = response_data
+            mock_response.raise_for_status = MagicMock()
+            mock_post.return_value = mock_response
+
+            await openai_provider._complete_impl(
+                prompt=f"System: {stable}\nUser: changing question",
+                model="gpt-5.5",
+                prompt_cache_key="knowledge-key",
+                _cascadeflow_knowledge_cache_prefix=stable,
+            )
+
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["prompt_cache_key"] == "knowledge-key"
+        assert "prompt_cache_options" not in payload
+        assert isinstance(payload["input"][0]["content"], str)
+        assert "_cascadeflow_knowledge_cache_prefix" not in str(payload)
+
+    @pytest.mark.asyncio
     async def test_complete_http_error(self, openai_provider):
         """Test handling of HTTP errors."""
         with patch.object(openai_provider.client, "post") as mock_post:

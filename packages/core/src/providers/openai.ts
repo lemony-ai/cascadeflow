@@ -27,6 +27,52 @@ try {
 type ChatCompletionMessageParam = any; // Simplified for MVP
 type ChatCompletionTool = any; // Simplified for MVP
 
+const KNOWLEDGE_CACHE_PREFIX_FIELD = '_cascadeflow_knowledge_cache_prefix';
+
+function usesExplicitPromptCacheBreakpoints(model: string): boolean {
+  const match = /^gpt-(\d+)(?:\.(\d+))?/i.exec(model);
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2] ?? 0);
+  return major > 5 || (major === 5 && minor >= 6);
+}
+
+function prepareOpenAICacheExtra(
+  model: string,
+  extra: Record<string, any> | undefined,
+  messages: ChatCompletionMessageParam[]
+): Record<string, any> {
+  const providerExtra = { ...(extra ?? {}) };
+  const stablePrefix = providerExtra[KNOWLEDGE_CACHE_PREFIX_FIELD];
+  delete providerExtra[KNOWLEDGE_CACHE_PREFIX_FIELD];
+
+  if (typeof stablePrefix !== 'string' || !usesExplicitPromptCacheBreakpoints(model)) {
+    return providerExtra;
+  }
+
+  for (const message of messages) {
+    if (typeof message.content !== 'string') continue;
+    const start = message.content.indexOf(stablePrefix);
+    if (start < 0) continue;
+    const splitAt = start + stablePrefix.length;
+    message.content = [
+      {
+        type: 'text',
+        text: message.content.slice(0, splitAt),
+        prompt_cache_breakpoint: { mode: 'explicit' },
+      },
+      ...(message.content.slice(splitAt)
+        ? [{ type: 'text', text: message.content.slice(splitAt) }]
+        : []),
+    ];
+    // Avoid a billable implicit write for the changing latest user message.
+    providerExtra.prompt_cache_options = { mode: 'explicit' };
+    break;
+  }
+
+  return providerExtra;
+}
+
 /**
  * OpenAI pricing per 1K tokens (as of January 2025)
  * Source: https://openai.com/api/pricing/
@@ -219,6 +265,7 @@ export class OpenAIProvider extends BaseProvider {
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
       const modelName = request.model || this.config.name;
+      const providerExtra = prepareOpenAICacheExtra(modelName, request.extra, chatMessages);
       // GPT-5 series doesn't support logprobs yet (as of January 2025)
       const supportsLogprobs = !modelName.startsWith('gpt-5');
       const isGpt5 = modelName.startsWith('gpt-5');
@@ -229,7 +276,7 @@ export class OpenAIProvider extends BaseProvider {
         messages: chatMessages,
         tools,
         stream: true,
-        ...request.extra,
+        ...providerExtra,
       };
 
       // GPT-5 only supports temperature=1 (default), doesn't allow custom values
@@ -321,6 +368,7 @@ export class OpenAIProvider extends BaseProvider {
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
       const modelName = request.model || this.config.name;
+      const providerExtra = prepareOpenAICacheExtra(modelName, request.extra, chatMessages);
       // GPT-5 series doesn't support logprobs yet (as of January 2025)
       const supportsLogprobs = !modelName.startsWith('gpt-5');
       const isGpt5 = modelName.startsWith('gpt-5');
@@ -331,7 +379,7 @@ export class OpenAIProvider extends BaseProvider {
         messages: chatMessages,
         tools,
         stream: true,
-        ...request.extra,
+        ...providerExtra,
       };
 
       // GPT-5 only supports temperature=1 (default), doesn't allow custom values
@@ -473,6 +521,7 @@ export class OpenAIProvider extends BaseProvider {
         messages,
         modelInfo.supportsSystemMessages ? request.systemPrompt : undefined
       );
+      const providerExtra = prepareOpenAICacheExtra(modelName, request.extra, chatMessages);
 
       // If system prompt provided but not supported, prepend to first user message
       if (!modelInfo.supportsSystemMessages && request.systemPrompt) {
@@ -498,7 +547,7 @@ export class OpenAIProvider extends BaseProvider {
         model: modelName,
         messages: chatMessages,
         tools,
-        ...request.extra,
+        ...providerExtra,
       };
 
       // GPT-5 only supports temperature=1 (default), doesn't allow custom values
@@ -545,6 +594,7 @@ export class OpenAIProvider extends BaseProvider {
             completion_tokens: completion.usage.completion_tokens,
             total_tokens: completion.usage.total_tokens,
             cached_input_tokens: completion.usage.prompt_tokens_details?.cached_tokens,
+            cache_write_input_tokens: completion.usage.cache_write_tokens,
             reasoning_tokens: completion.usage.completion_tokens_details?.reasoning_tokens,
             completion_tokens_details: completion.usage.completion_tokens_details,
           }
@@ -581,6 +631,7 @@ export class OpenAIProvider extends BaseProvider {
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
       const modelName = request.model || this.config.name;
+      const providerExtra = prepareOpenAICacheExtra(modelName, request.extra, chatMessages);
       // GPT-5 series doesn't support logprobs yet (as of January 2025)
       const supportsLogprobs = !modelName.startsWith('gpt-5');
       const isGpt5 = modelName.startsWith('gpt-5');
@@ -590,7 +641,7 @@ export class OpenAIProvider extends BaseProvider {
         model: modelName,
         messages: chatMessages,
         tools,
-        ...request.extra,
+        ...providerExtra,
       };
 
       // GPT-5 only supports temperature=1 (default), doesn't allow custom values
@@ -647,6 +698,7 @@ export class OpenAIProvider extends BaseProvider {
               completion_tokens: completion.usage.completion_tokens,
               total_tokens: completion.usage.total_tokens,
               cached_input_tokens: completion.usage.prompt_tokens_details?.cached_tokens,
+              cache_write_input_tokens: completion.usage.cache_write_tokens,
             }
           : undefined,
         finish_reason: choice.finish_reason,

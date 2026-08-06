@@ -125,7 +125,14 @@ export function providerKnowledgeCacheOptions(
   prepared?: PreparedKnowledge
 ): Record<string, unknown> {
   if (!prepared?.enableProviderCache) return {};
-  if (provider === 'openai') return { prompt_cache_key: prepared.promptCacheKey };
+  if (provider === 'openai') {
+    return {
+      prompt_cache_key: prepared.promptCacheKey,
+      // Consumed by OpenAIProvider; it must never be forwarded as an API field.
+      // GPT-5.6+ uses it to end the cache before the changing query suffix.
+      _cascadeflow_knowledge_cache_prefix: prepared.systemPrefix,
+    };
+  }
   if (provider === 'anthropic') {
     return {
       cache_control: {

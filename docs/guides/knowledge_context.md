@@ -60,10 +60,20 @@ To reduce billed work without risking stale state:
 5. Measure `cached_input_tokens` and, for Anthropic, `cache_write_input_tokens` in
    provider metadata before claiming savings.
 
-OpenAI receives a content-bound `prompt_cache_key`. Anthropic receives top-level
-`cache_control` with a five-minute or one-hour TTL. Other providers—including local
-Ollama and vLLM endpoints—receive the same knowledge prefix without unsupported
-cache arguments. Provider caching is therefore an optimization, never a dependency.
+OpenAI receives a content-bound `prompt_cache_key`. For GPT-5.6 and later model
+families, cascadeflow also places an explicit breakpoint immediately after the
+stable knowledge prefix and disables the implicit latest-message breakpoint. This
+prevents each changing query from creating a separate billable cache write.
+Anthropic receives top-level `cache_control` with a five-minute or one-hour TTL.
+Other providers—including local Ollama and vLLM endpoints—receive the same
+knowledge prefix without unsupported cache arguments. Provider caching is therefore
+an optimization, never a dependency.
+
+Provider caches have minimum prefix sizes and charge for the initial write on some
+models. A short or one-off snapshot may not save money. Disable provider caching
+with `enable_provider_cache=False` (Python) or `enableProviderCache: false`
+(TypeScript) when a snapshot is not expected to be reused. The local immutable
+snapshot and switch-safety behavior remain enabled.
 
 See the official [OpenAI prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching)
 and [Anthropic prompt caching guide](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)

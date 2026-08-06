@@ -44,7 +44,8 @@ def test_provider_cache_hints_are_capability_specific() -> None:
     )
 
     assert provider_cache_kwargs("openai", prepared) == {
-        "prompt_cache_key": prepared.prompt_cache_key
+        "prompt_cache_key": prepared.prompt_cache_key,
+        "_cascadeflow_knowledge_cache_prefix": prepared.system_prefix,
     }
     assert provider_cache_kwargs("anthropic", prepared) == {
         "cache_control": {"type": "ephemeral", "ttl": "1h"}

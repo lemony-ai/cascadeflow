@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { CascadeAgent } from '../agent';
 import type { ModelConfig } from '../config';
@@ -7,6 +7,7 @@ import {
   providerKnowledgeCacheOptions,
 } from '../knowledge-cache';
 import { providerRegistry, type Provider, type ProviderRequest } from '../providers/base';
+import { OpenAIProvider } from '../providers/openai';
 import type { ProviderResponse } from '../types';
 
 const capturedRequests: ProviderRequest[] = [];
@@ -80,6 +81,7 @@ describe('KnowledgeCache', () => {
 
     expect(providerKnowledgeCacheOptions('openai', prepared)).toEqual({
       prompt_cache_key: prepared.promptCacheKey,
+      _cascadeflow_knowledge_cache_prefix: prepared.systemPrefix,
     });
     expect(providerKnowledgeCacheOptions('anthropic', prepared)).toEqual({
       cache_control: { type: 'ephemeral', ttl: '1h' },
@@ -108,5 +110,48 @@ describe('KnowledgeCache', () => {
     expect(capturedRequests[1].systemPrompt).toContain('Beta facts');
     expect(capturedRequests[1].systemPrompt).not.toContain('Alpha facts');
     expect(capturedRequests[1].systemPrompt).toContain('Answer briefly.');
+  });
+
+  it('places a GPT-5.6 breakpoint after stable knowledge without leaking internal fields', async () => {
+    const snapshot = new KnowledgeCache().prepare({
+      key: 'manual',
+      version: 'v1',
+      content: 'Stable manual content',
+    }).prepared;
+    const create = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+      model: 'gpt-5.6-terra',
+      usage: {
+        prompt_tokens: 1100,
+        completion_tokens: 1,
+        total_tokens: 1101,
+        prompt_tokens_details: { cached_tokens: 1024 },
+        cache_write_tokens: 0,
+      },
+    });
+    const provider = new OpenAIProvider({
+      name: 'gpt-5.6-terra',
+      provider: 'openai',
+      cost: 0,
+      apiKey: 'test',
+    });
+    (provider as any).useSDK = true;
+    (provider as any).client = { chat: { completions: { create } } };
+
+    const extra = providerKnowledgeCacheOptions('openai', snapshot);
+    const result = await provider.generate({
+      model: 'gpt-5.6-terra',
+      messages: [{ role: 'user', content: 'Changing question' }],
+      systemPrompt: snapshot.systemPrefix,
+      extra,
+    });
+
+    const payload = create.mock.calls[0][0];
+    expect(payload.prompt_cache_options).toEqual({ mode: 'explicit' });
+    expect(payload.messages[0].content[0].prompt_cache_breakpoint).toEqual({ mode: 'explicit' });
+    expect(payload.messages[0].content[0].text).toBe(snapshot.systemPrefix);
+    expect(JSON.stringify(payload)).not.toContain('_cascadeflow_knowledge_cache_prefix');
+    expect(result.usage?.cached_input_tokens).toBe(1024);
+    expect(result.usage?.cache_write_input_tokens).toBe(0);
   });
 });
