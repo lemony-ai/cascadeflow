@@ -48,6 +48,7 @@ def create_mcp_server(
     knowledge_resolver: Optional[KnowledgeResolver] = None,
     name: str = "cascadeflow",
     max_context_chars: int = 12_000,
+    include_ui: bool = False,
 ) -> Any:
     """Create a tool-first MCP server backed by a configured ``CascadeAgent``.
 
@@ -71,6 +72,31 @@ def create_mcp_server(
         json_response=True,
     )
 
+    tool_meta = None
+    if include_ui:
+        from .mcp_app import ROUTING_APP_HTML, ROUTING_APP_MIME_TYPE, ROUTING_APP_URI
+
+        tool_meta = {
+            "ui": {"resourceUri": ROUTING_APP_URI},
+            "openai/outputTemplate": ROUTING_APP_URI,
+        }
+
+        @server.resource(
+            ROUTING_APP_URI,
+            name="cascadeflow-route",
+            title="cascadeflow route",
+            description="Compact routing, cost, latency, and knowledge-version trace.",
+            mime_type=ROUTING_APP_MIME_TYPE,
+            meta={
+                "ui": {
+                    "prefersBorder": True,
+                    "csp": {"connectDomains": [], "resourceDomains": []},
+                }
+            },
+        )
+        def cascadeflow_route_app() -> str:
+            return ROUTING_APP_HTML
+
     @server.tool(
         title="Run cascadeflow",
         annotations={
@@ -78,6 +104,7 @@ def create_mcp_server(
             "destructiveHint": False,
             "openWorldHint": True,
         },
+        meta=tool_meta,
     )
     async def cascadeflow_run(
         query: str,

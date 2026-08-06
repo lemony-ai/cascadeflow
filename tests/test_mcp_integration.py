@@ -15,10 +15,22 @@ class FakeFastMCP:
         self.name = name
         self.kwargs = kwargs
         self.tools: dict[str, Any] = {}
+        self.tool_metadata: dict[str, dict[str, Any]] = {}
+        self.resources: dict[str, Any] = {}
+        self.resource_metadata: dict[str, dict[str, Any]] = {}
 
     def tool(self, **kwargs: Any):
         def decorate(function):
             self.tools[function.__name__] = function
+            self.tool_metadata[function.__name__] = kwargs
+            return function
+
+        return decorate
+
+    def resource(self, uri: str, **kwargs: Any):
+        def decorate(function):
+            self.resources[uri] = function
+            self.resource_metadata[uri] = kwargs
             return function
 
         return decorate
@@ -83,21 +95,54 @@ async def test_mcp_tool_requires_resolver_and_bounds_conversation_handoff() -> N
         await tool("query", conversation_context="too long")
 
 
+def test_mcp_app_is_opt_in_and_uses_portable_ui_metadata() -> None:
+    from cascadeflow.integrations.mcp_app import ROUTING_APP_MIME_TYPE, ROUTING_APP_URI
+
+    with patch("cascadeflow.integrations.mcp._load_fastmcp", return_value=FakeFastMCP):
+        tool_only = create_mcp_server(FakeAgent())
+        with_ui = create_mcp_server(FakeAgent(), include_ui=True)
+
+    assert tool_only.resources == {}
+    assert tool_only.tool_metadata["cascadeflow_run"]["meta"] is None
+    assert with_ui.tool_metadata["cascadeflow_run"]["meta"] == {
+        "ui": {"resourceUri": ROUTING_APP_URI},
+        "openai/outputTemplate": ROUTING_APP_URI,
+    }
+    assert with_ui.resource_metadata[ROUTING_APP_URI]["mime_type"] == ROUTING_APP_MIME_TYPE
+    html = with_ui.resources[ROUTING_APP_URI]()
+    assert "ui/initialize" in html
+    assert "ui/notifications/tool-result" in html
+    assert "http://" not in html
+    assert "https://" not in html
+
+
 @pytest.mark.asyncio
 async def test_mcp_sdk_discovers_and_calls_cascadeflow_tool() -> None:
     pytest.importorskip("mcp")
 
-    server = create_mcp_server(FakeAgent())
-    tools = await server.list_tools()
+    from cascadeflow.integrations.mcp_app import ROUTING_APP_MIME_TYPE, ROUTING_APP_URI
+    from mcp.shared.memory import create_connected_server_and_client_session
 
-    tool = next(item for item in tools if item.name == "cascadeflow_run")
-    assert tool.title == "Run cascadeflow"
-    assert tool.outputSchema["type"] == "object"
-    assert tool.annotations.readOnlyHint is True
-    assert tool.annotations.destructiveHint is False
-    assert tool.annotations.openWorldHint is True
+    server = create_mcp_server(FakeAgent(), include_ui=True)
+    async with create_connected_server_and_client_session(server) as client:
+        tools = (await client.list_tools()).tools
+        tool = next(item for item in tools if item.name == "cascadeflow_run")
+        assert tool.title == "Run cascadeflow"
+        assert tool.outputSchema["type"] == "object"
+        assert tool.annotations.readOnlyHint is True
+        assert tool.annotations.destructiveHint is False
+        assert tool.annotations.openWorldHint is True
+        assert tool.meta["ui"]["resourceUri"] == ROUTING_APP_URI
 
-    content, structured = await server.call_tool("cascadeflow_run", {"query": "current question"})
-    assert content[0].type == "text"
-    assert structured["content"] == "answer"
-    assert structured["model_used"] == "draft"
+        resources = (await client.list_resources()).resources
+        resource = next(item for item in resources if str(item.uri) == ROUTING_APP_URI)
+        assert resource.mimeType == ROUTING_APP_MIME_TYPE
+        contents = (await client.read_resource(ROUTING_APP_URI)).contents
+        assert contents[0].mimeType == ROUTING_APP_MIME_TYPE
+        assert contents[0].meta["ui"]["csp"]["connectDomains"] == []
+        assert "ui/notifications/initialized" in contents[0].text
+
+        result = await client.call_tool("cascadeflow_run", {"query": "current question"})
+        assert result.content[0].type == "text"
+        assert result.structuredContent["content"] == "answer"
+        assert result.structuredContent["model_used"] == "draft"
