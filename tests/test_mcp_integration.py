@@ -16,7 +16,7 @@ class FakeFastMCP:
         self.kwargs = kwargs
         self.tools: dict[str, Any] = {}
 
-    def tool(self):
+    def tool(self, **kwargs: Any):
         def decorate(function):
             self.tools[function.__name__] = function
             return function
@@ -81,3 +81,23 @@ async def test_mcp_tool_requires_resolver_and_bounds_conversation_handoff() -> N
         await tool("query", knowledge_key="docs")
     with pytest.raises(ValueError, match="concise relevant handoff"):
         await tool("query", conversation_context="too long")
+
+
+@pytest.mark.asyncio
+async def test_mcp_sdk_discovers_and_calls_cascadeflow_tool() -> None:
+    pytest.importorskip("mcp")
+
+    server = create_mcp_server(FakeAgent())
+    tools = await server.list_tools()
+
+    tool = next(item for item in tools if item.name == "cascadeflow_run")
+    assert tool.title == "Run cascadeflow"
+    assert tool.outputSchema["type"] == "object"
+    assert tool.annotations.readOnlyHint is True
+    assert tool.annotations.destructiveHint is False
+    assert tool.annotations.openWorldHint is True
+
+    content, structured = await server.call_tool("cascadeflow_run", {"query": "current question"})
+    assert content[0].type == "text"
+    assert structured["content"] == "answer"
+    assert structured["model_used"] == "draft"

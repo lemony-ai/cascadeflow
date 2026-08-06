@@ -59,9 +59,26 @@ def create_mcp_server(
         raise ValueError("max_context_chars must be positive")
 
     FastMCP = _load_fastmcp()
-    server = FastMCP(name, stateless_http=True, json_response=True)
+    server = FastMCP(
+        name,
+        instructions=(
+            "Use cascadeflow_run when the user wants a cost-aware answer from "
+            "cascadeflow. Select server-side knowledge with knowledge_key and send "
+            "conversation_context only as a concise factual handoff when prior turns "
+            "are required."
+        ),
+        stateless_http=True,
+        json_response=True,
+    )
 
-    @server.tool()
+    @server.tool(
+        title="Run cascadeflow",
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "openWorldHint": True,
+        },
+    )
     async def cascadeflow_run(
         query: str,
         knowledge_key: Optional[str] = None,

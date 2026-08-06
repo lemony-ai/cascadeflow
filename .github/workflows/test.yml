@@ -71,6 +71,10 @@ jobs:
             python-version: '3.11'
             extras: ".[dev,google-adk]"
             tests: "tests/test_google_adk_integration.py"
+          - integration: mcp
+            python-version: '3.11'
+            extras: ".[dev,mcp]"
+            tests: "tests/test_mcp_integration.py"
 
     steps:
       - name: Checkout code
