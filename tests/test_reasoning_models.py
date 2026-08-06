@@ -329,10 +329,10 @@ class TestAnthropicModelCost:
     def test_claude_3_5_haiku_cost(self):
         """Test claude-3-5-haiku cost calculation."""
         provider = AnthropicProvider(api_key="test")
-        # Blended rate: $3.00 per 1M tokens
-        # 2M tokens total = $6.00
+        # Blended rate: $2.40 per 1M tokens ($0.80 input / $4 output)
+        # 2M tokens total = $4.80
         cost = provider.estimate_cost(tokens=2000000, model="claude-3-5-haiku-20241022")
-        assert abs(cost - 6.0) < 0.001
+        assert abs(cost - 4.8) < 0.001
 
     def test_prefix_matching_versioned_models(self):
         """Test prefix matching for versioned Claude 3.5 models."""
@@ -375,7 +375,7 @@ class TestAnthropicPricingMatrix:
             ("claude-sonnet-4", 9.0),
             # Claude 3.5 Series
             ("claude-3-5-sonnet", 9.0),
-            ("claude-3-5-haiku", 3.0),
+            ("claude-3-5-haiku", 2.4),
             # Claude 3 Series
             ("claude-3-opus", 45.0),
             ("claude-3-sonnet", 9.0),
