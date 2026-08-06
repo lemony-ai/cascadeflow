@@ -11,6 +11,7 @@ class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
     cached_input_tokens: int = 0
+    cache_write_input_tokens: int = 0
 
     @property
     def total_tokens(self) -> int:
@@ -38,10 +39,15 @@ class Usage:
         if cached_input_tokens is None:
             cached_input_tokens = usage.get("cache_read_input_tokens", 0)
 
+        cache_write_input_tokens = usage.get("cache_write_input_tokens")
+        if cache_write_input_tokens is None:
+            cache_write_input_tokens = usage.get("cache_creation_input_tokens", 0)
+
         return cls(
             input_tokens=int(input_tokens or 0),
             output_tokens=int(output_tokens or 0),
             cached_input_tokens=int(cached_input_tokens or 0),
+            cache_write_input_tokens=int(cache_write_input_tokens or 0),
         )
 
     def to_dict(self) -> dict[str, int]:
@@ -49,5 +55,6 @@ class Usage:
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "cached_input_tokens": self.cached_input_tokens,
+            "cache_write_input_tokens": self.cache_write_input_tokens,
             "total_tokens": self.total_tokens,
         }

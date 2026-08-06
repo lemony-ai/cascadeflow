@@ -2,7 +2,7 @@
  * Base provider interface and utilities
  */
 
-import type { Message, Tool, ProviderResponse, HttpConfig } from '../types';
+import type { Message, Tool, ProviderResponse, HttpConfig, UsageDetails } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
 
@@ -182,6 +182,9 @@ export interface Provider {
    */
   calculateCost(promptTokens: number, completionTokens: number, model: string): number;
 
+  /** Calculate actual cost from provider-reported cache token categories when available. */
+  calculateCostFromUsage?(usage: UsageDetails, model: string): number;
+
   /**
    * Check if provider is available (API key set, etc.)
    */
@@ -200,6 +203,10 @@ export abstract class BaseProvider implements Provider {
 
   abstract generate(request: ProviderRequest): Promise<ProviderResponse>;
   abstract calculateCost(promptTokens: number, completionTokens: number, model: string): number;
+
+  calculateCostFromUsage(usage: UsageDetails, model: string): number {
+    return this.calculateCost(usage.prompt_tokens, usage.completion_tokens, model);
+  }
 
   isAvailable(): boolean {
     return !!this.config.apiKey || !!process.env[`${this.name.toUpperCase()}_API_KEY`];

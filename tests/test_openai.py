@@ -137,6 +137,26 @@ class TestOpenAIProvider:
         assert "_cascadeflow_knowledge_cache_prefix" not in str(payload)
         assert result.metadata["cached_input_tokens"] == 1024
         assert result.metadata["cache_write_input_tokens"] == 0
+        # 76 uncached + 1024 cached at 10%, plus one output token.
+        assert result.cost == pytest.approx(0.0003688)
+
+    def test_gpt56_cache_write_cost_uses_provider_token_category(self, openai_provider):
+        cost = openai_provider._calculate_response_cost(
+            model="gpt-5.6-terra",
+            prompt_tokens=1100,
+            completion_tokens=1,
+            usage={
+                "input_tokens": 1100,
+                "output_tokens": 1,
+                "input_tokens_details": {
+                    "cached_tokens": 0,
+                    "cache_write_tokens": 1024,
+                },
+            },
+        )
+
+        # 76 uncached + 1024 writes at 1.25x, plus one output token.
+        assert cost == pytest.approx(0.002724)
 
     @pytest.mark.asyncio
     async def test_pre_gpt56_keeps_automatic_cache_shape(self, openai_provider):

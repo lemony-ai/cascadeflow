@@ -12,6 +12,38 @@ import httpx
 from ..exceptions import ModelError, ProviderError
 from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
+# Standard API pricing in USD per 1K tokens. GPT-5.6 rates are from the
+# 2026-08 OpenAI pricebook; older entries preserve CascadeFlow's existing rates.
+_OPENAI_PRICING: dict[str, dict[str, float]] = {
+    "gpt-5.6-sol": {"input": 0.005, "output": 0.030},
+    "gpt-5.6-terra": {"input": 0.002, "output": 0.012},
+    "gpt-5.6-luna": {"input": 0.0002, "output": 0.0012},
+    "gpt-5.6": {"input": 0.005, "output": 0.030},
+    "gpt-5-chat-latest": {"input": 0.00125, "output": 0.010},
+    "gpt-5-mini": {"input": 0.00025, "output": 0.002},
+    "gpt-5-nano": {"input": 0.00005, "output": 0.0004},
+    "gpt-5": {"input": 0.00125, "output": 0.010},
+    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+    "gpt-4o": {"input": 0.0025, "output": 0.010},
+    "o1-2024-12-17": {"input": 0.015, "output": 0.060},
+    "o1-preview": {"input": 0.015, "output": 0.060},
+    "o1-mini": {"input": 0.003, "output": 0.012},
+    "o1": {"input": 0.015, "output": 0.060},
+    "o3-mini": {"input": 0.001, "output": 0.005},
+    "gpt-4-turbo": {"input": 0.010, "output": 0.030},
+    "gpt-4": {"input": 0.030, "output": 0.060},
+    "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
+}
+
+
+def _openai_model_pricing(model: str) -> dict[str, float]:
+    """Return the longest-prefix price match for a versioned model name."""
+    model_lower = model.lower().rsplit("/", 1)[-1]
+    matches = [prefix for prefix in _OPENAI_PRICING if model_lower.startswith(prefix)]
+    if not matches:
+        return {"input": 0.030, "output": 0.060}
+    return _OPENAI_PRICING[max(matches, key=len)]
+
 
 def _cached_input_tokens(usage: dict[str, Any]) -> int:
     details = usage.get("input_tokens_details") or usage.get("prompt_tokens_details") or {}
@@ -29,7 +61,8 @@ def _cache_write_input_tokens(usage: dict[str, Any]) -> int:
 
 def _uses_explicit_prompt_cache_breakpoints(model: str) -> bool:
     """GPT-5.6+ rejects the older implicit-prefix cost assumptions."""
-    match = re.match(r"^gpt-(\d+)(?:\.(\d+))?", (model or "").lower())
+    model_name = (model or "").lower().rsplit("/", 1)[-1]
+    match = re.match(r"^gpt-(\d+)(?:\.(\d+))?", model_name)
     if not match:
         return False
     major = int(match.group(1))
@@ -53,6 +86,25 @@ def _cache_content_blocks(text: str, stable_prefix: str, *, block_type: str) -> 
     if text[split_at:]:
         blocks.append({"type": block_type, "text": text[split_at:]})
     return blocks
+
+
+def _openai_usage_cost(
+    *, model: str, prompt_tokens: int, completion_tokens: int, usage: dict[str, Any]
+) -> float:
+    """Calculate cache-aware OpenAI cost from provider-reported token categories."""
+    pricing = _openai_model_pricing(model)
+    cached_tokens = min(_cached_input_tokens(usage), max(prompt_tokens, 0))
+    write_tokens = min(_cache_write_input_tokens(usage), max(prompt_tokens - cached_tokens, 0))
+    uncached_tokens = max(prompt_tokens - cached_tokens - write_tokens, 0)
+    write_multiplier = 1.25 if _uses_explicit_prompt_cache_breakpoints(model) else 1.0
+
+    input_cost = (
+        (uncached_tokens + (cached_tokens * 0.1) + (write_tokens * write_multiplier))
+        * pricing["input"]
+        / 1000
+    )
+    output_cost = max(completion_tokens, 0) * pricing["output"] / 1000
+    return input_cost + output_cost
 
 
 # ==============================================================================
@@ -621,6 +673,29 @@ class OpenAIProvider(BaseProvider):
                 return updated, instructions
         return input_messages, instructions
 
+    def _calculate_response_cost(
+        self,
+        *,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        usage: dict[str, Any],
+    ) -> float:
+        """Use cache categories when present, preserving LiteLLM otherwise."""
+        if _cached_input_tokens(usage) or _cache_write_input_tokens(usage):
+            return _openai_usage_cost(
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                usage=usage,
+            )
+        return self.calculate_accurate_cost(
+            model=model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+        )
+
     def _apply_chat_cache_breakpoint(
         self,
         messages: list[dict[str, Any]],
@@ -895,11 +970,11 @@ class OpenAIProvider(BaseProvider):
 
                 latency_ms = (time.time() - start_time) * 1000
 
-                cost = self.calculate_accurate_cost(
+                cost = self._calculate_response_cost(
                     model=model,
                     prompt_tokens=int(prompt_tokens),
                     completion_tokens=int(completion_tokens),
-                    total_tokens=int(tokens_used),
+                    usage=usage,
                 )
 
                 if tool_calls:
@@ -1021,11 +1096,11 @@ class OpenAIProvider(BaseProvider):
             latency_ms = (time.time() - start_time) * 1000
 
             # Calculate cost (automatically uses LiteLLM if available)
-            cost = self.calculate_accurate_cost(
+            cost = self._calculate_response_cost(
                 model=model,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
-                total_tokens=tokens_used,
+                usage=data.get("usage") or {},
             )
 
             # Parse tool calls if present
@@ -1269,11 +1344,11 @@ class OpenAIProvider(BaseProvider):
 
                 latency_ms = (time.time() - start_time) * 1000
 
-                cost = self.estimate_cost(
-                    tokens_used,
-                    model,
+                cost = self._calculate_response_cost(
+                    model=model,
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
+                    usage=usage,
                 )
 
                 metadata_for_confidence = {
@@ -1350,8 +1425,11 @@ class OpenAIProvider(BaseProvider):
             latency_ms = (time.time() - start_time) * 1000
 
             # Calculate accurate cost using input/output split
-            cost = self.estimate_cost(
-                tokens_used, model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+            cost = self._calculate_response_cost(
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                usage=data.get("usage") or {},
             )
 
             # ============================================================
@@ -1747,43 +1825,7 @@ class OpenAIProvider(BaseProvider):
         Returns:
             Estimated cost in USD
         """
-        # OpenAI pricing per 1K tokens (as of January 2025)
-        # Source: https://openai.com/api/pricing/
-        pricing = {
-            # GPT-5 series (current flagship - released August 2025)
-            # 50% cheaper input than GPT-4o, superior performance on coding, reasoning, math
-            "gpt-5": {"input": 0.00125, "output": 0.010},
-            "gpt-5-mini": {"input": 0.00025, "output": 0.002},
-            "gpt-5-nano": {"input": 0.00005, "output": 0.0004},
-            "gpt-5-chat-latest": {"input": 0.00125, "output": 0.010},
-            # GPT-4o series (previous flagship)
-            "gpt-4o": {"input": 0.0025, "output": 0.010},
-            "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
-            # O1 series (reasoning models)
-            "o1-preview": {"input": 0.015, "output": 0.060},
-            "o1-mini": {"input": 0.003, "output": 0.012},
-            "o1": {"input": 0.015, "output": 0.060},
-            "o1-2024-12-17": {"input": 0.015, "output": 0.060},
-            # O3 series (reasoning models)
-            "o3-mini": {"input": 0.001, "output": 0.005},
-            # GPT-4 series (previous generation)
-            "gpt-4-turbo": {"input": 0.010, "output": 0.030},
-            "gpt-4": {"input": 0.030, "output": 0.060},
-            # GPT-3.5 series (deprecated - use gpt-4o-mini instead)
-            "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
-        }
-
-        # Find model pricing
-        model_pricing = None
-        model_lower = model.lower()
-        for prefix, rates in pricing.items():
-            if model_lower.startswith(prefix):
-                model_pricing = rates
-                break
-
-        # Default to GPT-4 pricing if unknown
-        if not model_pricing:
-            model_pricing = {"input": 0.030, "output": 0.060}
+        model_pricing = _openai_model_pricing(model)
 
         # Calculate accurate cost if we have the split
         if prompt_tokens is not None and completion_tokens is not None:

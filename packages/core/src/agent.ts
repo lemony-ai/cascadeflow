@@ -2,7 +2,7 @@
  * cascadeflow Agent - MVP Implementation
  */
 
-import { providerRegistry, getAvailableProviders } from './providers/base';
+import { providerRegistry, getAvailableProviders, type Provider } from './providers/base';
 import { OpenAIProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
 import { GroqProvider } from './providers/groq';
@@ -14,7 +14,7 @@ import { OpenRouterProvider } from './providers/openrouter';
 import { VercelAISDKProvider, VERCEL_AI_PROVIDER_NAMES } from './providers/vercel-ai';
 import type { AgentConfig, ModelConfig } from './config';
 import type { CascadeResult } from './result';
-import type { Message, Tool, UserProfile, TierLevel } from './types';
+import type { Message, Tool, UserProfile, TierLevel, ProviderResponse } from './types';
 import { ToolCall as ParsedToolCall, ToolExecutor } from './tools';
 import {
   type StreamEvent,
@@ -188,6 +188,18 @@ export class CascadeAgent {
     const cacheOptions = providerKnowledgeCacheOptions(provider, prepared);
     if (!extra && Object.keys(cacheOptions).length === 0) return undefined;
     return { ...(extra ?? {}), ...cacheOptions };
+  }
+
+  private responseCost(provider: Provider, response: ProviderResponse): number {
+    if (!response.usage) return 0;
+    if (provider.calculateCostFromUsage) {
+      return provider.calculateCostFromUsage(response.usage, response.model);
+    }
+    return provider.calculateCost(
+      response.usage.prompt_tokens,
+      response.usage.completion_tokens,
+      response.model
+    );
   }
 
   /**
@@ -948,11 +960,7 @@ export class CascadeAgent {
             finalToolCalls = response.tool_calls;
 
             if (response.usage) {
-              totalLoopCost += provider.calculateCost(
-                response.usage.prompt_tokens,
-                response.usage.completion_tokens,
-                response.model
-              );
+              totalLoopCost += this.responseCost(provider, response);
             }
 
             const assistantMsg: Message = { role: 'assistant', content: response.content || '' };
@@ -1026,11 +1034,7 @@ export class CascadeAgent {
 
         // Calculate cost
         if (response.usage) {
-          totalCost = provider.calculateCost(
-            response.usage.prompt_tokens,
-            response.usage.completion_tokens,
-            response.model
-          );
+          totalCost = this.responseCost(provider, response);
         }
 
         const latencyMs = Date.now() - startTime;
@@ -1088,11 +1092,7 @@ export class CascadeAgent {
 
       // Calculate draft cost
       if (draftResponse.usage) {
-        draftCost = draftProvider.calculateCost(
-          draftResponse.usage.prompt_tokens,
-          draftResponse.usage.completion_tokens,
-          draftResponse.model
-        );
+        draftCost = this.responseCost(draftProvider, draftResponse);
       }
 
       // Quality validation using logprobs and heuristics
@@ -1178,11 +1178,7 @@ export class CascadeAgent {
 
         // Calculate verifier cost
         if (verifierResponse.usage) {
-          verifierCost = verifierProvider.calculateCost(
-            verifierResponse.usage.prompt_tokens,
-            verifierResponse.usage.completion_tokens,
-            verifierResponse.model
-          );
+          verifierCost = this.responseCost(verifierProvider, verifierResponse);
         }
       } else {
         draftAccepted = true;

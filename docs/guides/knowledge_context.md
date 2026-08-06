@@ -57,8 +57,9 @@ To reduce billed work without risking stale state:
    version when it changes.
 4. Send conversation history only when the query depends on it. Prefer a concise,
    application-owned handoff over blindly replaying a full transcript.
-5. Measure `cached_input_tokens` and, for Anthropic, `cache_write_input_tokens` in
-   provider metadata before claiming savings.
+5. Measure `cached_input_tokens` and `cache_write_input_tokens` in provider metadata
+   before claiming savings. CascadeFlow uses those reported categories in OpenAI
+   and Anthropic result-cost calculations instead of assuming every request hit.
 
 OpenAI receives a content-bound `prompt_cache_key`. For GPT-5.6 and later model
 families, cascadeflow also places an explicit breakpoint immediately after the
@@ -74,6 +75,10 @@ models. A short or one-off snapshot may not save money. Disable provider caching
 with `enable_provider_cache=False` (Python) or `enableProviderCache: false`
 (TypeScript) when a snapshot is not expected to be reused. The local immutable
 snapshot and switch-safety behavior remain enabled.
+
+Cache-aware dollar estimates use standard API rates. Provider service tiers,
+regional processing, cloud resellers, negotiated pricing, and future price changes
+can differ, so provider invoices remain authoritative.
 
 See the official [OpenAI prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching)
 and [Anthropic prompt caching guide](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)

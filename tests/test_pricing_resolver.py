@@ -35,8 +35,10 @@ def test_usage_from_payload_maps_legacy_fields():
             "prompt_tokens": 12,
             "completion_tokens": 8,
             "cache_read_input_tokens": 3,
+            "cache_creation_input_tokens": 5,
         }
     )
     assert usage.input_tokens == 12
     assert usage.output_tokens == 8
     assert usage.cached_input_tokens == 3
+    assert usage.cache_write_input_tokens == 5

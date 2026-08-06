@@ -166,6 +166,11 @@ describe('Reasoning Model Support', () => {
 
   describe('Model-specific Pricing', () => {
     const testCases = [
+      // GPT-5.6 series
+      { model: 'gpt-5.6', input: 0.005, output: 0.030 },
+      { model: 'gpt-5.6-terra', input: 0.002, output: 0.012 },
+      { model: 'gpt-5.6-luna', input: 0.0002, output: 0.0012 },
+
       // GPT-5 series
       { model: 'gpt-5', input: 0.00125, output: 0.010 },
       { model: 'gpt-5-mini', input: 0.00025, output: 0.002 },
@@ -200,6 +205,31 @@ describe('Reasoning Model Support', () => {
         const expectedCost = (1000 / 1000) * input + (1000 / 1000) * output;
         expect(cost).toBeCloseTo(expectedCost, 6);
       });
+    });
+
+    it('prices GPT-5.6 cache reads and writes from reported categories', () => {
+      const provider = new OpenAIProvider({ ...mockConfig, name: 'gpt-5.6-terra' });
+      const hitCost = provider.calculateCostFromUsage(
+        {
+          prompt_tokens: 1100,
+          completion_tokens: 1,
+          total_tokens: 1101,
+          cached_input_tokens: 1024,
+        },
+        'gpt-5.6-terra'
+      );
+      const writeCost = provider.calculateCostFromUsage(
+        {
+          prompt_tokens: 1100,
+          completion_tokens: 1,
+          total_tokens: 1101,
+          cache_write_input_tokens: 1024,
+        },
+        'openai/gpt-5.6-terra'
+      );
+
+      expect(hitCost).toBeCloseTo(0.0003688, 8);
+      expect(writeCost).toBeCloseTo(0.002724, 8);
     });
   });
 
@@ -439,7 +469,14 @@ describe('Anthropic Claude 4.5 Extended Thinking', () => {
 
   describe('Anthropic Pricing Matrix', () => {
     const testCases = [
+      // Claude 5 Series
+      { model: 'claude-fable-5', expectedBlended: 30.0 },
+      { model: 'claude-opus-5', expectedBlended: 15.0 },
+      { model: 'claude-sonnet-5', expectedBlended: 6.0 },
+
       // Claude 4 Series
+      { model: 'claude-opus-4-8', expectedBlended: 15.0 },
+      { model: 'claude-sonnet-4-6', expectedBlended: 9.0 },
       { model: 'claude-opus-4.1', expectedBlended: 45.0 },
       { model: 'claude-opus-4', expectedBlended: 45.0 },
       { model: 'claude-sonnet-4.5', expectedBlended: 9.0 },
@@ -447,7 +484,7 @@ describe('Anthropic Claude 4.5 Extended Thinking', () => {
 
       // Claude 3.5 Series
       { model: 'claude-3-5-sonnet', expectedBlended: 9.0 },
-      { model: 'claude-3-5-haiku', expectedBlended: 3.0 },
+      { model: 'claude-3-5-haiku', expectedBlended: 2.4 },
 
       // Claude 3 Series
       { model: 'claude-3-opus', expectedBlended: 45.0 },
@@ -464,6 +501,23 @@ describe('Anthropic Claude 4.5 Extended Thinking', () => {
         const expectedCost = 2.0 * expectedBlended;
         expect(cost).toBeCloseTo(expectedCost, 6);
       });
+    });
+
+    it('prices cache reads and one-hour writes separately', () => {
+      const provider = new AnthropicProvider({ ...mockConfig, name: 'claude-sonnet-4-5' });
+      const cost = provider.calculateCostFromUsage(
+        {
+          prompt_tokens: 100,
+          completion_tokens: 10,
+          total_tokens: 110,
+          cached_input_tokens: 1000,
+          cache_write_input_tokens: 1000,
+          cache_write_1h_input_tokens: 1000,
+        },
+        'claude-sonnet-4-5'
+      );
+
+      expect(cost).toBeCloseTo(0.00675, 8);
     });
   });
 

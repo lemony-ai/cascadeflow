@@ -110,6 +110,7 @@ export interface Usage {
   input_tokens: number;
   output_tokens: number;
   cached_input_tokens: number;
+  cache_write_input_tokens: number;
   total_tokens: number;
 }
 
@@ -118,10 +119,13 @@ export function toCanonicalUsage(usage?: Partial<UsageDetails> | Partial<Usage>)
   const outputTokens = (usage as any)?.output_tokens ?? (usage as any)?.completion_tokens ?? 0;
   const cachedInputTokens =
     (usage as any)?.cached_input_tokens ?? (usage as any)?.cache_read_input_tokens ?? 0;
+  const cacheWriteInputTokens =
+    (usage as any)?.cache_write_input_tokens ?? (usage as any)?.cache_creation_input_tokens ?? 0;
   return {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cached_input_tokens: cachedInputTokens,
+    cache_write_input_tokens: cacheWriteInputTokens,
     total_tokens: inputTokens + outputTokens,
   };
 }
@@ -137,6 +141,8 @@ export interface UsageDetails {
   output_tokens?: number;
   cached_input_tokens?: number;
   cache_write_input_tokens?: number;
+  cache_write_5m_input_tokens?: number;
+  cache_write_1h_input_tokens?: number;
   reasoning_tokens?: number; // For OpenAI o1/o3 models
   completion_tokens_details?: {
     reasoning_tokens?: number;

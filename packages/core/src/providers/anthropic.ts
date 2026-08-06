@@ -10,7 +10,7 @@
  */
 
 import { BaseProvider, type ProviderRequest, getHttpAgentOptions } from './base';
-import type { ProviderResponse, Tool, Message, ReasoningModelInfo } from '../types';
+import type { ProviderResponse, Tool, Message, ReasoningModelInfo, UsageDetails } from '../types';
 import type { ModelConfig } from '../config';
 import type { StreamChunk } from '../streaming';
 
@@ -26,28 +26,44 @@ try {
 }
 
 /**
- * Anthropic pricing per 1M tokens (October 2025)
- * Source: https://docs.claude.com/en/docs/about-claude/pricing
+ * Anthropic pricing per 1M tokens (August 2026)
+ * Source: https://platform.claude.com/docs/en/about-claude/pricing
  *
- * Format: Blended rate (50% input, 50% output)
+ * Format: Input/output USD per million tokens.
  */
-const ANTHROPIC_PRICING: Record<string, number> = {
+const ANTHROPIC_PRICING: Record<string, { input: number; output: number }> = {
+  // Claude 5 Series
+  'claude-fable-5': { input: 10.0, output: 50.0 },
+  'claude-mythos-5': { input: 10.0, output: 50.0 },
+  'claude-opus-5': { input: 5.0, output: 25.0 },
+  // Introductory price through 2026-08-31; invoices remain authoritative.
+  'claude-sonnet-5': { input: 2.0, output: 10.0 },
+
   // Claude 4 Series
-  'claude-opus-4.1': 45.0, // $15 in + $75 out = $45 blended
-  'claude-opus-4': 45.0, // $15 in + $75 out = $45 blended
-  'claude-sonnet-4.5': 9.0, // $3 in + $15 out = $9 blended
-  'claude-sonnet-4': 9.0, // $3 in + $15 out = $9 blended
+  'claude-opus-4-8': { input: 5.0, output: 25.0 },
+  'claude-opus-4-7': { input: 5.0, output: 25.0 },
+  'claude-opus-4-6': { input: 5.0, output: 25.0 },
+  'claude-opus-4-5': { input: 5.0, output: 25.0 },
+  'claude-opus-4.1': { input: 15.0, output: 75.0 },
+  'claude-opus-4': { input: 15.0, output: 75.0 },
+  'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
+  'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
+  'claude-sonnet-4.5': { input: 3.0, output: 15.0 },
+  'claude-sonnet-4': { input: 3.0, output: 15.0 },
+  'claude-haiku-4-5': { input: 1.0, output: 5.0 },
+  'claude-haiku-4.5': { input: 1.0, output: 5.0 },
 
   // Claude 3.5 Series
-  'claude-3-5-sonnet': 9.0, // $3 in + $15 out = $9 blended
-  'claude-sonnet-3-5': 9.0, // Alternative naming
-  'claude-3-5-haiku': 3.0, // $1 in + $5 out = $3 blended
-  'claude-haiku-3-5': 3.0, // Alternative naming
+  'claude-3-7-sonnet': { input: 3.0, output: 15.0 },
+  'claude-3-5-sonnet': { input: 3.0, output: 15.0 },
+  'claude-sonnet-3-5': { input: 3.0, output: 15.0 },
+  'claude-3-5-haiku': { input: 0.8, output: 4.0 },
+  'claude-haiku-3-5': { input: 0.8, output: 4.0 },
 
   // Claude 3 Series
-  'claude-3-opus': 45.0, // $15 in + $75 out = $45 blended
-  'claude-3-sonnet': 9.0, // $3 in + $15 out = $9 blended
-  'claude-3-haiku': 0.75, // $0.25 in + $1.25 out = $0.75 blended
+  'claude-3-opus': { input: 15.0, output: 75.0 },
+  'claude-3-sonnet': { input: 3.0, output: 15.0 },
+  'claude-3-haiku': { input: 0.25, output: 1.25 },
 };
 
 /**
@@ -355,6 +371,10 @@ export class AnthropicProvider extends BaseProvider {
           total_tokens: completion.usage.input_tokens + completion.usage.output_tokens,
           cached_input_tokens: completion.usage.cache_read_input_tokens,
           cache_write_input_tokens: completion.usage.cache_creation_input_tokens,
+          cache_write_5m_input_tokens:
+            (completion.usage as any).cache_creation?.ephemeral_5m_input_tokens,
+          cache_write_1h_input_tokens:
+            (completion.usage as any).cache_creation?.ephemeral_1h_input_tokens,
         },
         finish_reason: completion.stop_reason || undefined,
         tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -442,6 +462,10 @@ export class AnthropicProvider extends BaseProvider {
           total_tokens: completion.usage.input_tokens + completion.usage.output_tokens,
           cached_input_tokens: completion.usage.cache_read_input_tokens,
           cache_write_input_tokens: completion.usage.cache_creation_input_tokens,
+          cache_write_5m_input_tokens:
+            completion.usage.cache_creation?.ephemeral_5m_input_tokens,
+          cache_write_1h_input_tokens:
+            completion.usage.cache_creation?.ephemeral_1h_input_tokens,
         },
         finish_reason: completion.stop_reason || undefined,
         tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -453,18 +477,50 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   calculateCost(promptTokens: number, completionTokens: number, model: string): number {
-    const totalTokens = promptTokens + completionTokens;
-    const modelLower = model.toLowerCase();
+    const pricing = this.getModelPricing(model);
+    return (promptTokens * pricing.input + completionTokens * pricing.output) / 1_000_000;
+  }
 
-    // Find matching rate (try prefix match)
-    for (const [modelPrefix, rate] of Object.entries(ANTHROPIC_PRICING)) {
-      if (modelLower.includes(modelPrefix)) {
-        return (totalTokens / 1_000_000) * rate;
-      }
+  calculateCostFromUsage(usage: UsageDetails, model: string): number {
+    const pricing = this.getModelPricing(model);
+    const promptTokens = Math.max(usage.prompt_tokens ?? usage.input_tokens ?? 0, 0);
+    const completionTokens = Math.max(
+      usage.completion_tokens ?? usage.output_tokens ?? 0,
+      0
+    );
+    const readTokens = Math.max(usage.cached_input_tokens ?? 0, 0);
+    const writeTokens = Math.max(usage.cache_write_input_tokens ?? 0, 0);
+    const write5m = Math.min(Math.max(usage.cache_write_5m_input_tokens ?? 0, 0), writeTokens);
+    const write1h = Math.min(
+      Math.max(usage.cache_write_1h_input_tokens ?? 0, 0),
+      Math.max(writeTokens - write5m, 0)
+    );
+
+    if (readTokens === 0 && writeTokens === 0) {
+      return this.calculateCost(promptTokens, completionTokens, model);
     }
 
-    // Default to Sonnet pricing if unknown
-    return (totalTokens / 1_000_000) * 9.0;
+    const unclassifiedWrites = Math.max(writeTokens - write5m - write1h, 0);
+    const billedInputTokens =
+      promptTokens +
+      readTokens * 0.1 +
+      write5m * 1.25 +
+      write1h * 2.0 +
+      unclassifiedWrites * 1.25;
+    return (billedInputTokens * pricing.input + completionTokens * pricing.output) / 1_000_000;
+  }
+
+  private getModelPricing(model: string): { input: number; output: number } {
+    const modelLower = model.toLowerCase().split('/').pop() ?? model.toLowerCase();
+    let longestMatch = '';
+    let pricing: { input: number; output: number } | undefined;
+    for (const [prefix, value] of Object.entries(ANTHROPIC_PRICING)) {
+      if (modelLower.startsWith(prefix) && prefix.length > longestMatch.length) {
+        longestMatch = prefix;
+        pricing = value;
+      }
+    }
+    return pricing ?? { input: 3.0, output: 15.0 };
   }
 
   /**

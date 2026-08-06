@@ -139,6 +139,24 @@ class TestAnthropicProvider:
         # Uses blended pricing
         assert 0.0005 < cost < 0.0010  # Approximately $0.00075/1K tokens
 
+    def test_cache_cost_distinguishes_reads_and_one_hour_writes(self, anthropic_provider):
+        cost = anthropic_provider._calculate_response_cost(
+            model="claude-sonnet-4-5-20250929",
+            prompt_tokens=100,
+            completion_tokens=10,
+            usage={
+                "input_tokens": 100,
+                "output_tokens": 10,
+                "cache_read_input_tokens": 1000,
+                "cache_creation_input_tokens": 1000,
+                "cache_creation": {"ephemeral_1h_input_tokens": 1000},
+            },
+        )
+
+        # Input: (100 uncached + 1000 reads at 0.1x + 1000 writes at 2x) * $3/M.
+        # Output: 10 * $15/M.
+        assert cost == pytest.approx(0.00675)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
