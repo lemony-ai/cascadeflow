@@ -116,6 +116,24 @@ def test_mcp_app_is_opt_in_and_uses_portable_ui_metadata() -> None:
     assert "https://" not in html
 
 
+def test_mcp_server_validates_and_forwards_http_settings() -> None:
+    with patch("cascadeflow.integrations.mcp._load_fastmcp", return_value=FakeFastMCP):
+        server = create_mcp_server(
+            FakeAgent(), host="0.0.0.0", port=9000, streamable_http_path="/cascade"
+        )
+
+    assert server.kwargs["host"] == "0.0.0.0"
+    assert server.kwargs["port"] == 9000
+    assert server.kwargs["streamable_http_path"] == "/cascade"
+
+    with pytest.raises(ValueError, match="host must be non-empty"):
+        create_mcp_server(FakeAgent(), host=" ")
+    with pytest.raises(ValueError, match="port must be between"):
+        create_mcp_server(FakeAgent(), port=0)
+    with pytest.raises(ValueError, match="must start with"):
+        create_mcp_server(FakeAgent(), streamable_http_path="mcp")
+
+
 @pytest.mark.asyncio
 async def test_mcp_sdk_discovers_and_calls_cascadeflow_tool() -> None:
     pytest.importorskip("mcp")

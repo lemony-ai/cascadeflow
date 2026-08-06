@@ -63,6 +63,7 @@ dependencies = [
 
 [project.scripts]
 cascadeflow-gateway = "cascadeflow.server:main"
+cascadeflow-mcp = "cascadeflow.mcp_server:main"
 
 [project.optional-dependencies]
 # Individual providers (API-based - require API keys)

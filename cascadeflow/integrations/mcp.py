@@ -49,6 +49,9 @@ def create_mcp_server(
     name: str = "cascadeflow",
     max_context_chars: int = 12_000,
     include_ui: bool = False,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    streamable_http_path: str = "/mcp",
 ) -> Any:
     """Create a tool-first MCP server backed by a configured ``CascadeAgent``.
 
@@ -58,6 +61,12 @@ def create_mcp_server(
     """
     if max_context_chars <= 0:
         raise ValueError("max_context_chars must be positive")
+    if not host.strip():
+        raise ValueError("host must be non-empty")
+    if not 1 <= port <= 65_535:
+        raise ValueError("port must be between 1 and 65535")
+    if not streamable_http_path.startswith("/"):
+        raise ValueError("streamable_http_path must start with '/'")
 
     FastMCP = _load_fastmcp()
     server = FastMCP(
@@ -70,6 +79,9 @@ def create_mcp_server(
         ),
         stateless_http=True,
         json_response=True,
+        host=host,
+        port=port,
+        streamable_http_path=streamable_http_path,
     )
 
     tool_meta = None

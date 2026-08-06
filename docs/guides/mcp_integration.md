@@ -65,6 +65,55 @@ The `cascadeflow_run` tool accepts:
 The tool returns the answer plus a compact model, routing, cost, latency, and
 knowledge-version trace. It never returns the private knowledge content.
 
+## Runnable launcher
+
+Install the MCP and provider extras, then point the launcher at the same cascadeflow
+configuration used by your application:
+
+```bash
+pip install "cascadeflow[mcp,providers]"
+
+# Claude Desktop and other local MCP clients
+cascadeflow-mcp --config /absolute/path/cascadeflow.yaml
+
+# Local Streamable HTTP endpoint at http://127.0.0.1:8000/mcp
+cascadeflow-mcp \
+  --config /absolute/path/cascadeflow.yaml \
+  --transport streamable-http
+```
+
+The launcher enables the MCP Apps panel by default; pass `--no-ui` for a tool-only
+server. When no config is supplied it auto-detects provider keys and uses the
+`balanced` preset. For private knowledge, expose your application resolver as a
+Python callable and load it without sending knowledge through the client:
+
+```bash
+cascadeflow-mcp \
+  --config /absolute/path/cascadeflow.yaml \
+  --knowledge-resolver my_app.knowledge:resolve
+```
+
+The callable receives `(knowledge_key, knowledge_version)` and returns a string or
+`KnowledgeSnapshot`. It may be synchronous or asynchronous.
+
+Claude Desktop can launch the stdio transport directly:
+
+```json
+{
+  "mcpServers": {
+    "cascadeflow": {
+      "command": "cascadeflow-mcp",
+      "args": ["--config", "/absolute/path/cascadeflow.yaml"]
+    }
+  }
+}
+```
+
+For ChatGPT, run Streamable HTTP locally through the supported secure development
+tunnel, or deploy it behind a stable HTTPS endpoint. The launcher does not add TLS,
+OAuth, tenant authorization, or rate limiting; those belong at the production
+gateway. It prints a warning when HTTP binds to a non-local address.
+
 ## Host choices
 
 - **ChatGPT:** deploy a public HTTPS Streamable HTTP endpoint (normally `/mcp`) and
