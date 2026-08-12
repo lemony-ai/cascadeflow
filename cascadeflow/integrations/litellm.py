@@ -41,6 +41,8 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from cascadeflow.pricing.matching import longest_prefix_match
+
 logger = logging.getLogger(__name__)
 
 # Try to import LiteLLM (optional dependency)
@@ -295,11 +297,12 @@ class LiteLLMCostProvider:
             "claude-haiku-4.5": {"input": 1.0, "output": 5.0},
             "claude-3-5-haiku": {"input": 1.0, "output": 5.0},
         }
-        for model_prefix, rates in override_pricing.items():
-            if model.startswith(model_prefix):
-                input_cost = (input_tokens / 1_000_000) * rates["input"]
-                output_cost = (output_tokens / 1_000_000) * rates["output"]
-                return input_cost + output_cost
+        override_prefix = longest_prefix_match(model, override_pricing)
+        if override_prefix is not None:
+            rates = override_pricing[override_prefix]
+            input_cost = (input_tokens / 1_000_000) * rates["input"]
+            output_cost = (output_tokens / 1_000_000) * rates["output"]
+            return input_cost + output_cost
 
         if not LITELLM_AVAILABLE:
             if self.fallback_enabled:
@@ -468,13 +471,14 @@ class LiteLLMCostProvider:
             "default": {"input": 1.0, "output": 2.0},
         }
 
-        # Get pricing by exact match first, then prefix match, then default
+        # Get pricing by exact match first, then longest-prefix match, then default.
+        # Longest wins so "gpt-4o-mini-*" resolves to gpt-4o-mini, not gpt-4.
         pricing = rough_pricing.get(model)
         if pricing is None:
-            for model_prefix, prefix_pricing in rough_pricing.items():
-                if model_prefix != "default" and model.startswith(model_prefix):
-                    pricing = prefix_pricing
-                    break
+            families = [key for key in rough_pricing if key != "default"]
+            model_prefix = longest_prefix_match(model, families)
+            if model_prefix is not None:
+                pricing = rough_pricing[model_prefix]
         if pricing is None:
             pricing = rough_pricing["default"]
 

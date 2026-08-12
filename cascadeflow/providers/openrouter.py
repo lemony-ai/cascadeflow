@@ -49,6 +49,7 @@ from typing import Any, Optional
 
 import httpx
 
+from ..pricing.matching import longest_prefix_match
 from ..schema.exceptions import ProviderError
 from .base import BaseProvider, HttpConfig, ModelResponse, RetryConfig
 
@@ -489,12 +490,12 @@ class OpenRouterProvider(BaseProvider):
         # Try exact match first
         pricing = OPENROUTER_PRICING.get(model_lower)
 
-        # Try prefix matching for versioned models
+        # Try longest-prefix matching for versioned models, so that
+        # "openai/gpt-4o-mini-2024-07-18" resolves to gpt-4o-mini, not gpt-4o.
         if not pricing:
-            for key, value in OPENROUTER_PRICING.items():
-                if model_lower.startswith(key):
-                    pricing = value
-                    break
+            key = longest_prefix_match(model_lower, OPENROUTER_PRICING)
+            if key is not None:
+                pricing = OPENROUTER_PRICING[key]
 
         # Fallback to reasonable default (gpt-4o-mini equivalent)
         if not pricing:
