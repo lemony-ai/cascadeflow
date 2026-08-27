@@ -1,6 +1,6 @@
 ---
 title: Streaming
-description: TypeScript streaming API — StreamEvent, StreamEventType, and async iterators for real-time cascade output.
+description: TypeScript streaming API with StreamEvent, StreamEventType, and async iterators for real-time cascade output.
 ---
 
 # Streaming
@@ -12,7 +12,12 @@ description: TypeScript streaming API — StreamEvent, StreamEventType, and asyn
 ```typescript
 import { CascadeAgent, StreamEventType } from '@cascadeflow/core';
 
-const agent = new CascadeAgent({ models: [...] });
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.0025 },
+  ],
+});
 
 for await (const event of agent.streamEvents('Explain TypeScript')) {
   switch (event.type) {
@@ -26,7 +31,8 @@ for await (const event of agent.streamEvents('Explain TypeScript')) {
       console.log(`Draft ${event.data.accepted ? 'accepted' : 'rejected'}`);
       break;
     case StreamEventType.COMPLETE:
-      console.log(`\nModel: ${event.data.model}, Cost: $${event.data.cost}`);
+      console.log(`\nModel: ${event.data.result?.modelUsed}`);
+      console.log(`Cost: $${event.data.result?.totalCost ?? 0}`);
       break;
   }
 }
@@ -64,14 +70,17 @@ interface StreamEvent {
 | Field | Type | Description |
 |---|---|---|
 | `model` | `string` | Current model name |
-| `phase` | `string` | Current phase (`"draft"` or `"verify"`) |
+| `phase` | `string` | Current phase (`draft`, `verifier`, or `direct`) |
 | `strategy` | `string` | Routing strategy used |
 | `accepted` | `boolean` | Whether draft was accepted (on `DRAFT_DECISION`) |
-| `cost` | `number` | Running cost (on `COMPLETE`) |
+| `result` | `CascadeResult` | Final result on `COMPLETE` |
+| `reason` | `string` | Routing or validation reason |
+| `score` | `number` | Quality score when available |
+| `from_model` / `to_model` | `string` | Model transition on `SWITCH` |
 
 ## StreamEventsOptions
 
-Same as `RunOptions` — all parameters from `agent.run()` are accepted.
+Streaming options include the shared generation, knowledge, tool, routing, and provider options from `agent.run()`.
 
 ```typescript
 for await (const event of agent.streamEvents('Query', {

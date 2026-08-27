@@ -11,17 +11,29 @@ Enforce mode moves from observation to action. Budget caps, tool call limits, an
 
 <Step title="Switch to enforce">
 
+<CodeGroup>
+
 ```python
 import cascadeflow
 
 cascadeflow.init(mode="enforce")  # Changed from "observe" to "enforce"
 ```
 
+```typescript TypeScript
+import { init } from '@cascadeflow/core';
+
+init({ mode: 'enforce' }); // Changed from 'observe' to 'enforce'
+```
+
+</CodeGroup>
+
 </Step>
 
 <Step title="Add a budget cap">
 
 Wrap any block of agent work with `cascadeflow.run()` and set a budget:
+
+<CodeGroup>
 
 ```python
 cascadeflow.init(mode="enforce")
@@ -30,12 +42,29 @@ with cascadeflow.run(budget=0.50) as session:
     result = await agent.run("Research and summarize this topic")
 
     summary = session.summary()
-    print(f"Cost: ${summary['cost_total']:.4f}")
+    print(f"Cost: ${summary['cost']:.4f}")
     print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
-    print(f"Steps completed: {summary['steps']}")
+    print(f"Steps completed: {summary['step_count']}")
 ```
 
-If the agent exceeds $0.50, cascadeflow issues a `stop` action. The agent halts cleanly — no runaway spend.
+```typescript TypeScript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+
+await run({ budget: 0.50 }, async (session) => {
+  await agent.run('Research and summarize this topic');
+
+  const summary = session.summary();
+  console.log(`Cost: $${summary.cost.toFixed(4)}`);
+  console.log(`Budget remaining: $${summary.budgetRemaining?.toFixed(4)}`);
+  console.log(`Steps completed: ${summary.stepCount}`);
+});
+```
+
+</CodeGroup>
+
+If the agent exceeds $0.50, cascadeflow issues a `stop` action. The agent halts cleanly and prevents runaway spend.
 
 </Step>
 
@@ -45,6 +74,13 @@ If the agent exceeds $0.50, cascadeflow issues a `stop` action. The agent halts 
 with cascadeflow.run(budget=1.00, max_tool_calls=5) as session:
     result = await agent.run("Search and analyze this dataset")
     # Stops when either budget OR tool call limit is hit first
+```
+
+```typescript TypeScript
+await run({ budget: 1.00, maxToolCalls: 5 }, async () => {
+  await agent.run('Search and analyze this dataset');
+  // Stops when either the budget or tool-call limit is hit first.
+});
 ```
 
 </Step>
@@ -57,6 +93,13 @@ Restrict which models can process sensitive data:
 with cascadeflow.run(budget=1.00, compliance="gdpr") as session:
     result = await agent.run("Process EU customer feedback")
     # Only GDPR-approved models are allowed — non-compliant models are switched
+```
+
+```typescript TypeScript
+await run({ budget: 1.00, compliance: 'regulated' }, async () => {
+  await agent.run('Process EU customer feedback');
+  // Only models in the TypeScript regulated profile are allowed.
+});
 ```
 
 </Step>
@@ -98,28 +141,8 @@ with cascadeflow.run(budget=1.00, max_tool_calls=10, compliance="gdpr") as sessi
     ...
 ```
 
-## TypeScript
-
-```typescript
-import { CascadeAgent } from '@cascadeflow/core';
-
-const agent = new CascadeAgent({
-  models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
-    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
-  ],
-  quality: {
-    threshold: 0.8,
-    useSemanticValidation: true,
-  },
-});
-
-const result = await agent.run('Explain quantum computing');
-console.log(`Model: ${result.modelUsed}, Saved: ${result.savingsPercentage}%`);
-```
-
 <Tip>
-**Run this example:** [examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py) | [examples/user_budget_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/user_budget_tracking.py)
+The TypeScript `run()` API takes a callback so the scoped context follows asynchronous work through `AsyncLocalStorage` in Node.js.
 </Tip>
 
 ## Next Step

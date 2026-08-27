@@ -5,7 +5,7 @@ description: GDPR, HIPAA, PCI, and strict model allowlists for compliance-aware 
 
 The harness enforces model allowlists based on compliance requirements. When a compliance mode is set, only models in the corresponding allowlist are permitted.
 
-## Compliance Modes
+## Python Compliance Modes
 
 | Mode | Allowed Models | Use Case |
 |---|---|---|
@@ -14,9 +14,22 @@ The harness enforces model allowlists based on compliance requirements. When a c
 | `pci` | gpt-4o-mini, gpt-3.5-turbo | Payment card data |
 | `strict` | gpt-4o | Maximum restriction |
 
+## TypeScript Compliance Modes
+
+| Mode | Allowed Models | Tool Policy |
+|---|---|---|
+| `regulated` | gpt-4o, Claude Sonnet 4.5 | Allowed |
+| `strict` | gpt-4o, gpt-4o-mini, Claude Sonnet 4.5, Claude Haiku 4.5 | Denied |
+
+<Warning>
+Compliance profile names currently differ between the Python and TypeScript harnesses. TypeScript does not currently implement the `gdpr`, `hipaa`, or `pci` profiles. An unknown TypeScript profile does not apply an allowlist.
+</Warning>
+
 ## Usage
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 
 cascadeflow.init(mode="enforce")
@@ -26,13 +39,37 @@ with cascadeflow.run(compliance="gdpr") as session:
     result = await agent.run("Process this EU customer data")
 ```
 
+```typescript TypeScript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+
+await run({ compliance: 'regulated' }, async () => {
+  await agent.run('Process this regulated customer data');
+});
+```
+
+</CodeGroup>
+
 Or as agent metadata:
 
-```python
+<CodeGroup>
+
+```python Python
 @cascadeflow.agent(compliance="hipaa")
 async def medical_agent(query: str):
     return await llm.complete(query)
 ```
+
+```typescript TypeScript
+import { harnessAgent } from '@cascadeflow/core';
+
+const regulatedAgent = harnessAgent({ compliance: 'regulated' })(
+  async (query: string) => llm.complete(query),
+);
+```
+
+</CodeGroup>
 
 ## Enforcement Behavior
 
@@ -45,22 +82,30 @@ When a model outside the allowlist is requested:
 
 Compliance and budget constraints are independent. Both are checked at every step:
 
-```python
+<CodeGroup>
+
+```python Python
 with cascadeflow.run(budget=0.50, compliance="gdpr") as session:
     # Must stay within budget AND use only GDPR-approved models
     result = await agent.run("Analyze EU customer feedback")
 ```
 
-## Custom Allowlists
+```typescript TypeScript
+await run({ budget: 0.50, compliance: 'regulated' }, async () => {
+  await agent.run('Analyze regulated customer feedback');
+});
+```
 
-The built-in allowlists cover common regulations. For custom requirements, set compliance at the integration level or use the `HarnessConfig` directly:
+</CodeGroup>
+
+## Custom Policies
+
+The harness APIs select built-in profiles by name. They do not currently accept custom model allowlists. For custom requirements, validate the selected model in your integration before sending the request.
 
 ```python
-config = HarnessConfig(
-    mode="enforce",
-    compliance="strict",  # Only gpt-4o
-)
-cascadeflow.init(config=config)
+approved_models = {"my-approved-deployment"}
+if selected_model not in approved_models:
+    raise PermissionError("Model is not approved")
 ```
 
 <Tip>

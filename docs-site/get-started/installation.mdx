@@ -76,6 +76,12 @@ npm install @cascadeflow/vercel-ai                 # Vercel AI SDK middleware
 npm install @cascadeflow/n8n-nodes-cascadeflow     # n8n community node
 ```
 
+### Optional semantic validation
+
+```bash
+npm install @cascadeflow/ml @huggingface/transformers
+```
+
 ## Provider Setup
 
 Set API keys as environment variables:
@@ -96,6 +102,10 @@ python -c "import cascadeflow; print(cascadeflow.__version__)"
 
 ```bash
 python -c "from cascadeflow import init, run, HarnessConfig, HarnessRunContext; print('OK')"
+```
+
+```bash
+node -e "const c = require('@cascadeflow/core'); console.log(typeof c.init, typeof c.run)"
 ```
 
 ## Next Step

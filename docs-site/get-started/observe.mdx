@@ -14,9 +14,11 @@ Observe mode tracks every LLM call without blocking or modifying any behavior. T
 
 <Steps>
 
-<Step title="Add one line">
+<Step title="Initialize observe mode">
 
 Add `cascadeflow.init(mode="observe")` before any LLM calls in your application:
+
+<CodeGroup>
 
 ```python
 import cascadeflow
@@ -34,6 +36,24 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+```typescript TypeScript
+import OpenAI from 'openai';
+import { init } from '@cascadeflow/core';
+
+init({ mode: 'observe' });
+
+// Your existing code remains unchanged.
+const client = new OpenAI();
+const response = await client.chat.completions.create({
+  model: 'gpt-4o',
+  messages: [{ role: 'user', content: 'What is cascadeflow?' }],
+});
+
+console.log(response.choices[0]?.message.content);
+```
+
+</CodeGroup>
+
 Every call is now tracked. Nothing is blocked or changed.
 
 </Step>
@@ -41,6 +61,8 @@ Every call is now tracked. Nothing is blocked or changed.
 <Step title="See what you spend">
 
 Wrap a block with `cascadeflow.run()` to get aggregate metrics:
+
+<CodeGroup>
 
 ```python
 import cascadeflow
@@ -59,11 +81,36 @@ with cascadeflow.run() as session:
     )
 
     summary = session.summary()
-    print(f"Total cost:    ${summary['cost_total']:.4f}")
-    print(f"LLM calls:     {summary['steps']}")
-    print(f"Total latency: {summary['latency_total_ms']:.0f}ms")
+    print(f"Total cost:    ${summary['cost']:.4f}")
+    print(f"LLM calls:     {summary['step_count']}")
+    print(f"Total latency: {summary['latency_used_ms']:.0f}ms")
     print(f"Energy used:   {summary['energy_used']:.1f} units")
 ```
+
+```typescript TypeScript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'observe' });
+
+await run(async (session) => {
+  await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: 'Summarize this document' }],
+  });
+  await client.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: 'Analyze the sentiment' }],
+  });
+
+  const summary = session.summary();
+  console.log(`Total cost:    $${summary.cost.toFixed(4)}`);
+  console.log(`LLM calls:     ${summary.stepCount}`);
+  console.log(`Total latency: ${summary.latencyUsedMs.toFixed(0)}ms`);
+  console.log(`Energy used:   ${summary.energyUsed.toFixed(1)} units`);
+});
+```
+
+</CodeGroup>
 
 </Step>
 
@@ -71,12 +118,24 @@ with cascadeflow.run() as session:
 
 Even in observe mode, cascadeflow records what it **would** have done:
 
+<CodeGroup>
+
 ```python
 for record in session.trace():
-    print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+    print(f"Step {record['step']}: {record['action']}: {record['reason']}")
     print(f"  Model: {record['model']}, Cost so far: ${record['cost_total']:.4f}")
     print(f"  Applied: {record['applied']}")  # Always False in observe mode
 ```
+
+```typescript TypeScript
+for (const record of session.trace()) {
+  console.log(`Step ${record.step}: ${record.action}: ${record.reason}`);
+  console.log(`  Model: ${record.model}, Cost so far: $${record.costTotal.toFixed(4)}`);
+  console.log(`  Applied: ${record.applied}`); // Always false in observe mode
+}
+```
+
+</CodeGroup>
 
 This lets you audit compliance violations, budget overruns, and routing decisions before turning on enforcement.
 
@@ -84,26 +143,8 @@ This lets you audit compliance violations, budget overruns, and routing decision
 
 </Steps>
 
-## TypeScript
-
-```typescript
-import { CascadeAgent } from '@cascadeflow/core';
-
-const agent = new CascadeAgent({
-  models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
-    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
-  ],
-});
-
-const result = await agent.run('What is TypeScript?');
-console.log(`Model: ${result.modelUsed}`);
-console.log(`Cost: $${result.totalCost}`);
-console.log(`Saved: ${result.savingsPercentage}%`);
-```
-
 <Tip>
-**Run this example:** [examples/basic_usage.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/basic_usage.py) | [examples/cost_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/cost_tracking.py)
+The TypeScript harness instruments the OpenAI and Anthropic SDKs. Use `CascadeAgent` separately when you want speculative model cascading.
 </Tip>
 
 ## What You Learn in Observe Mode

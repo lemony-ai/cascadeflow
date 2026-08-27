@@ -1,15 +1,21 @@
 ---
 title: "Quickstart: Agent Decorator"
-description: Attach budget, compliance, and KPI policies directly to agent functions with @cascadeflow.agent().
+description: Attach budget, compliance, and KPI policy metadata directly to agent functions.
 ---
 
-# Agent Decorator — Policy Per Agent
+# Agent Policy Metadata
 
-The `@cascadeflow.agent()` decorator attaches policy metadata directly to agent functions. Each agent gets its own budget, compliance rules, and KPI weights — enforced automatically at runtime.
+The Python `@cascadeflow.agent()` decorator and TypeScript `harnessAgent()` wrapper attach policy metadata directly to a function. They do not create a scoped run or enforce the metadata by themselves.
+
+<Warning>
+Use `run()` around agent execution when budget, compliance, or other controls must be enforced.
+</Warning>
 
 ## Basic Usage
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 
 cascadeflow.init(mode="enforce")
@@ -20,20 +26,45 @@ async def my_agent(query: str):
     return await llm.complete(query)
 ```
 
+```typescript TypeScript
+import { harnessAgent, init } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+
+const myAgent = harnessAgent({ budget: 0.20 })(
+  async (query: string) => llm.complete(query),
+);
+```
+
+</CodeGroup>
+
 ## Add Compliance
 
-```python
+<CodeGroup>
+
+```python Python
 @cascadeflow.agent(budget=0.50, compliance="gdpr")
 async def eu_agent(query: str):
     """Process EU data — only GDPR-approved models, $0.50 max."""
     return await llm.complete(query)
 ```
 
+```typescript TypeScript
+const regulatedAgent = harnessAgent({
+  budget: 0.50,
+  compliance: 'regulated',
+})(async (query: string) => llm.complete(query));
+```
+
+</CodeGroup>
+
 ## Add KPI Weights
 
 Encode business priorities into how the agent makes model decisions:
 
-```python
+<CodeGroup>
+
+```python Python
 @cascadeflow.agent(
     budget=1.00,
     kpi_weights={"quality": 0.8, "cost": 0.2},
@@ -44,9 +75,19 @@ async def premium_agent(query: str):
     return await llm.complete(query)
 ```
 
+```typescript TypeScript
+const premiumAgent = harnessAgent({
+  budget: 1.00,
+  kpiWeights: { quality: 0.8, cost: 0.2 },
+  kpiTargets: { quality: 0.9 },
+})(async (query: string) => llm.complete(query));
+```
+
+</CodeGroup>
+
 ## Different Agents, Different Policies
 
-The real power shows with multiple agents — each governed independently:
+Multiple functions can carry different policy metadata:
 
 ```python
 @cascadeflow.agent(
@@ -78,18 +119,26 @@ async def research_agent(query: str):
 
 ## Combine with run()
 
-The decorator works alongside `cascadeflow.run()` — the run's constraints apply in addition to the decorator's:
+Create a scoped run around the function invocation to enforce runtime controls:
 
 ```python
 @cascadeflow.agent(budget=0.50, compliance="gdpr")
 async def my_agent(query: str):
     return await llm.complete(query)
 
-# The run adds an outer budget cap on top of the agent's own cap
+# The run creates the active enforcement scope.
 with cascadeflow.run(budget=2.00) as session:
-    await my_agent("First query")   # Agent cap: $0.50, Run cap: $2.00
-    await my_agent("Second query")  # Agent cap: $0.50, Run cap: $2.00 minus first query
+    await my_agent("First query")
+    await my_agent("Second query")
     print(session.summary())
+```
+
+```typescript TypeScript
+await run({ budget: 2.00 }, async (session) => {
+  await myAgent('First query');
+  await myAgent('Second query');
+  console.log(session.summary());
+});
 ```
 
 ## All Decorator Parameters
@@ -102,8 +151,10 @@ with cascadeflow.run(budget=2.00) as session:
 | `kpi_targets` | `dict` | Target values per KPI dimension |
 | `max_tool_calls` | `int` | Max tool/function calls per invocation |
 
+TypeScript uses camelCase parameter names and exports the wrapper as `harnessAgent`.
+
 <Tip>
-**API reference:** [@cascadeflow.agent()](/api-reference/python/agent-decorator) | **Example:** [examples/agentic_multi_agent.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/agentic_multi_agent.py)
+**Python API:** [@cascadeflow.agent()](/api-reference/python/agent-decorator) | **TypeScript API:** [Harness](/api-reference/typescript/harness)
 </Tip>
 
 ## Next Step

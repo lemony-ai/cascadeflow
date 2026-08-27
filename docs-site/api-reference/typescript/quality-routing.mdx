@@ -1,0 +1,104 @@
+---
+title: Quality and Routing
+description: TypeScript quality validation, semantic checks, complexity detection, routers, rules, and domain configuration.
+---
+
+`CascadeAgent` combines quality validation with pre-routing, tool capability checks, tiers, domains, and custom rules.
+
+## Quality Validation
+
+```typescript
+import { QualityValidator } from '@cascadeflow/core';
+
+const validator = new QualityValidator({
+  minConfidence: 0.7,
+  minWordCount: 10,
+  useLogprobs: true,
+  fallbackToHeuristic: true,
+  strictMode: false,
+  useAlignmentScoring: true,
+  minAlignmentScore: 0.15,
+});
+```
+
+The package also exports `ProductionConfidenceEstimator`, `ResponseAnalyzer`, `QueryResponseAlignmentScorer`, and `ComplexityDetector` for direct use.
+
+## Semantic Validation
+
+Install the optional ML runtime:
+
+```bash
+npm install @cascadeflow/ml @huggingface/transformers
+```
+
+Enable it through agent quality configuration:
+
+```typescript
+const agent = new CascadeAgent({
+  models,
+  quality: {
+    useSemanticValidation: true,
+    semanticThreshold: 0.5,
+  },
+});
+```
+
+Or use the checker directly:
+
+```typescript
+import { SemanticQualityChecker } from '@cascadeflow/core';
+
+const checker = new SemanticQualityChecker();
+if (await checker.isAvailable()) {
+  const result = await checker.checkSimilarity(query, response);
+  console.log(result.similarity, result.passed);
+}
+```
+
+## Routers
+
+| Router | Purpose |
+|---|---|
+| `PreRouter` | Decide whether to cascade or route directly |
+| `ToolRouter` | Filter and rank tool-capable models |
+| `TierRouter` | Apply user-tier constraints |
+| `DomainRouter` | Detect a domain and select domain-specific routing |
+| `RouterChain` | Compose routing decisions |
+
+`CascadeAgent` creates and coordinates these routers from `AgentConfig` and `RunOptions`.
+
+## Domain Configuration
+
+```typescript
+import { CascadeAgent, Domain } from '@cascadeflow/core';
+
+const agent = new CascadeAgent({
+  models,
+  domainConfigs: {
+    [Domain.MATH]: {
+      drafter: 'gpt-4o-mini',
+      verifier: 'gpt-4o',
+      threshold: 0.85,
+    },
+  },
+  enableDomainDetection: true,
+});
+```
+
+The package exports built-in strategies and domain configurations through `BUILT_IN_STRATEGIES` and `BUILTIN_DOMAIN_CONFIGS`.
+
+## Rule Engine
+
+`RuleEngine` applies workflow, tenant, channel, user-tier, and KPI context before model execution.
+
+```typescript
+const result = await agent.run('Handle this request', {
+  userTier: 'premium',
+  workflow: 'support',
+  tenantId: 'tenant-123',
+  channel: 'web',
+  kpiFlags: { priority: 'high' },
+});
+```
+
+Provide `ruleEngineConfig` or a custom `ruleEngine` in `AgentConfig` when the built-in routing rules are not sufficient.

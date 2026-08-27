@@ -1,12 +1,12 @@
 ---
 title: TypeScript API
 sidebarTitle: Overview
-description: TypeScript API reference for cascadeflow — CascadeAgent, Vercel AI middleware, and LangChain integration.
+description: TypeScript API reference for the cascade, harness, tools, integrations, and runtime utilities.
 ---
 
 # TypeScript API Reference
 
-cascadeflow provides three TypeScript packages for different integration patterns.
+cascadeflow provides TypeScript packages for direct cascading, framework integration, semantic validation, and workflow automation.
 
 ## Quick Start
 
@@ -29,9 +29,11 @@ console.log(`Model: ${result.modelUsed}, Cost: $${result.totalCost}`);
 
 | Package | Purpose | Docs |
 |---|---|---|
-| `@cascadeflow/core` | CascadeAgent with speculative execution and cost tracking | [Reference](/api-reference/typescript/core) |
+| `@cascadeflow/core` | CascadeAgent, harness, tools, routing, quality, and telemetry | [Reference](/api-reference/typescript/core) |
 | `@cascadeflow/vercel-ai` | Vercel AI SDK middleware with streaming and tool loops | [Reference](/api-reference/typescript/vercel-ai) |
 | `@cascadeflow/langchain` | LangChain `withCascade()` wrapper and model discovery | [Reference](/api-reference/typescript/langchain) |
+| `@cascadeflow/ml` | Optional local semantic validation with Transformers.js | [Quality and routing](/api-reference/typescript/quality-routing) |
+| `@cascadeflow/n8n-nodes-cascadeflow` | n8n community nodes | [n8n integration](/integrations/n8n) |
 
 ## Install
 
@@ -44,15 +46,20 @@ npm install @cascadeflow/vercel-ai
 
 # LangChain integration
 npm install @cascadeflow/langchain @langchain/core @langchain/openai
+
+# Optional semantic validation
+npm install @cascadeflow/ml @huggingface/transformers
 ```
 
 ## Core Concepts
 
-**Speculative execution** — the cheaper model (drafter) runs first. If its response passes quality validation, cascadeflow returns it without calling the expensive model. If not, the verifier model runs as fallback.
+**Speculative execution**: The cheaper model runs first. If its response passes quality validation, cascadeflow returns it without calling the expensive model. Otherwise the verifier runs as fallback.
 
-**Quality validation** — configurable confidence threshold, minimum token count, and optional semantic validation determine whether a draft is accepted.
+**Quality validation**: Configurable confidence, alignment, response analysis, and optional semantic validation determine whether a draft is accepted.
 
-**Cost tracking** — every response includes `totalCost` and `savingsPercentage` so you can measure optimization impact.
+**Runtime harness**: Observe or enforce budgets, tool-call caps, latency, energy, KPI weights, and compliance around existing OpenAI and Anthropic SDK calls.
+
+**Cost tracking**: Every cascade response includes `totalCost`, with optional savings and cost breakdown fields.
 
 ## Integration Patterns
 
@@ -94,6 +101,28 @@ const cascade = withCascade({
 const chain = prompt.pipe(cascade).pipe(new StringOutputParser());
 ```
 
+### Harness
+
+Use the harness around an existing SDK-based agent:
+
+```typescript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'observe' });
+
+await run({ budget: 0.50 }, async (session) => {
+  await existingAgentWork();
+  console.log(session.summary());
+});
+```
+
 ## Runtime Support
 
-All packages work in Node.js, Browser, and Edge Functions (Vercel Edge, Cloudflare Workers).
+| Surface | Node.js | Browser | Edge runtime |
+|---|---|---|---|
+| `CascadeAgent` | Yes | Yes | Yes, with compatible providers |
+| Harness SDK instrumentation | Yes | No | No |
+| Vercel AI integration | Yes | Client hooks only | Yes |
+| LangChain integration | Yes | Depends on LangChain provider | Depends on provider |
+
+See [Feature Parity](/api-reference/typescript/feature-parity) for differences from Python.

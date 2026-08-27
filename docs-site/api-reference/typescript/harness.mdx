@@ -1,0 +1,136 @@
+---
+title: Harness
+description: TypeScript harness API for observe and enforce modes, scoped runs, policy controls, summaries, and decision traces.
+---
+
+The TypeScript harness instruments OpenAI and Anthropic SDK calls made inside a scoped run. It can record decisions in `observe` mode or apply them in `enforce` mode.
+
+## Initialize
+
+```typescript
+import { init } from '@cascadeflow/core';
+
+const report = init({
+  mode: 'observe',
+  verbose: false,
+});
+
+console.log(report.mode);
+console.log(report.instrumented);
+console.log(report.detectedButNotInstrumented);
+```
+
+Configuration precedence is explicit code, environment variables, `cascadeflow.json` or `cascadeflow.config.json`, and built-in defaults.
+
+## Scoped Run
+
+`run()` takes an optional policy object and a callback. The callback receives the active `HarnessRunContext`.
+
+```typescript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+
+const value = await run({
+  budget: 0.50,
+  maxToolCalls: 8,
+  maxLatencyMs: 5000,
+  maxEnergy: 100,
+  kpiWeights: { quality: 0.6, cost: 0.3, latency: 0.1 },
+  compliance: 'regulated',
+}, async (session) => {
+  const result = await existingAgentWork();
+  console.log(session.summary());
+  return result;
+});
+```
+
+Node.js uses `AsyncLocalStorage` to preserve nested and concurrent run context.
+
+## Run Options
+
+```typescript
+type HarnessRunOptions = {
+  budget?: number;
+  maxToolCalls?: number;
+  maxLatencyMs?: number;
+  maxEnergy?: number;
+  kpiTargets?: Record<string, number>;
+  kpiWeights?: Record<string, number>;
+  compliance?: string;
+};
+```
+
+`kpiWeights` affects built-in model selection. `kpiTargets` is retained as policy metadata but is not currently used by the built-in scoring decision.
+
+## Summary and Trace
+
+```typescript
+await run({ budget: 0.50 }, async (session) => {
+  await existingAgentWork();
+
+  const summary = session.summary();
+  console.log(summary.cost);
+  console.log(summary.stepCount);
+  console.log(summary.budgetRemaining);
+
+  for (const record of session.trace()) {
+    console.log(record.action, record.reason, record.applied);
+  }
+});
+```
+
+See [Decision Traces](/harness/decision-trace) for the complete field mapping.
+
+## Function Policy Metadata
+
+The root package exports the harness function wrapper as `harnessAgent` to avoid a naming conflict with `CascadeAgent`.
+
+```typescript
+import { harnessAgent } from '@cascadeflow/core';
+
+const analyzedAgent = harnessAgent({
+  budget: 0.20,
+  compliance: 'regulated',
+})(async (query: string) => existingAgent(query));
+```
+
+`harnessAgent()` attaches policy metadata. It does not create a scoped run automatically.
+
+## Errors and Reset
+
+```typescript
+import {
+  BudgetExceededError,
+  HarnessStopError,
+  resetHarness,
+  run,
+} from '@cascadeflow/core';
+
+try {
+  await run({ budget: 0 }, async () => existingAgentWork());
+} catch (error) {
+  if (error instanceof BudgetExceededError) {
+    console.error(error.remaining);
+  } else if (error instanceof HarnessStopError) {
+    console.error(error.reason);
+  }
+}
+
+resetHarness();
+```
+
+## Current Instrumentation Scope
+
+| Capability | TypeScript support |
+|---|---|
+| OpenAI SDK | Yes |
+| Anthropic SDK | Yes |
+| Observe and enforce | Yes |
+| Budget, tool-call, latency, and energy controls | Yes |
+| KPI weights | Yes |
+| Compliance profiles | `regulated`, `strict` |
+| Session JSONL save and load | No |
+| Harness callback manager | No |
+
+See [Feature Parity](/api-reference/typescript/feature-parity) before relying on Python examples in a TypeScript application.

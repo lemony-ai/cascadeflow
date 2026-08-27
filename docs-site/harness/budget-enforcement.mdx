@@ -21,23 +21,22 @@ with cascadeflow.run(budget=0.50) as session:
     result = await agent.run("Research and summarize this topic")
 
     summary = session.summary()
-    print(f"Total cost: ${summary['cost_total']:.4f}")
+    print(f"Total cost: ${summary['cost']:.4f}")
     print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
 ```
 
 ```typescript TypeScript
-import { CascadeAgent } from '@cascadeflow/core';
+import { init, run } from '@cascadeflow/core';
 
-const agent = new CascadeAgent({
-  models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
-    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
-  ],
-  quality: { threshold: 0.8 },
+init({ mode: 'enforce' });
+
+await run({ budget: 0.50 }, async (session) => {
+  await agent.run('Research and summarize this topic');
+
+  const summary = session.summary();
+  console.log(`Total cost: $${summary.cost.toFixed(4)}`);
+  console.log(`Budget remaining: $${summary.budgetRemaining?.toFixed(4)}`);
 });
-
-const result = await agent.run('Research and summarize this topic');
-console.log(`Cost: $${result.totalCost}, Saved: ${result.savingsPercentage}%`);
 ```
 
 </CodeGroup>
@@ -50,6 +49,8 @@ When cumulative cost exceeds the budget:
 
 Attach budget metadata to agent functions:
 
+<CodeGroup>
+
 ```python
 @cascadeflow.agent(budget=0.20)
 async def cheap_agent(query: str):
@@ -60,11 +61,31 @@ async def premium_agent(query: str):
     return await llm.complete(query)
 ```
 
+```typescript TypeScript
+import { harnessAgent } from '@cascadeflow/core';
+
+const cheapAgent = harnessAgent({ budget: 0.20 })(
+  async (query: string) => llm.complete(query),
+);
+
+const premiumAgent = harnessAgent({ budget: 2.00 })(
+  async (query: string) => llm.complete(query),
+);
+```
+
+</CodeGroup>
+
+<Note>
+The agent decorator and `harnessAgent()` attach policy metadata. Use `run()` to create and enforce a scoped run.
+</Note>
+
 ## Budget Pressure Routing
 
 When budget is partially consumed, the harness can route to cheaper models. This happens automatically when KPI weights include a cost dimension:
 
-```python
+<CodeGroup>
+
+```python Python
 cascadeflow.init(mode="enforce")
 
 with cascadeflow.run(
@@ -76,6 +97,21 @@ with cascadeflow.run(
     for query in queries:
         result = await agent.run(query)
 ```
+
+```typescript TypeScript
+init({ mode: 'enforce' });
+
+await run({
+  budget: 1.00,
+  kpiWeights: { quality: 0.5, cost: 0.5 },
+}, async () => {
+  for (const query of queries) {
+    await agent.run(query);
+  }
+});
+```
+
+</CodeGroup>
 
 ## Cost Calculation
 
@@ -91,11 +127,21 @@ The pricing table covers 18 models across OpenAI, Anthropic, and Google. Unknown
 
 Budget and tool call caps work together:
 
-```python
+<CodeGroup>
+
+```python Python
 with cascadeflow.run(budget=0.50, max_tool_calls=10) as session:
     # Stops when either limit is hit
     result = await agent.run("Analyze this data")
 ```
+
+```typescript TypeScript
+await run({ budget: 0.50, maxToolCalls: 10 }, async () => {
+  await agent.run('Analyze this data');
+});
+```
+
+</CodeGroup>
 
 The harness checks all constraints at every step. The first constraint that is violated triggers the corresponding action (`stop` for budget, `deny_tool` for tool calls).
 

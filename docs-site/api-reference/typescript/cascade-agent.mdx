@@ -1,0 +1,128 @@
+---
+title: CascadeAgent
+description: TypeScript CascadeAgent API for model cascading, routing, batch execution, tools, and streaming.
+---
+
+`CascadeAgent` runs the least expensive suitable model first and escalates when validation or routing requires it.
+
+## Constructor
+
+```typescript
+import { CascadeAgent, type AgentConfig } from '@cascadeflow/core';
+
+const config: AgentConfig = {
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015 },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.0025 },
+  ],
+  quality: {
+    threshold: 0.7,
+    requireMinimumTokens: 3,
+  },
+};
+
+const agent = new CascadeAgent(config);
+```
+
+Models are sorted by cost. A single model produces direct execution, while two or more models enable cascading.
+
+## run()
+
+```typescript
+const result = await agent.run('Explain speculative execution', {
+  maxTokens: 500,
+  temperature: 0.2,
+  systemPrompt: 'Answer for a software engineer.',
+});
+```
+
+The input can be a string or an array of universal `Message` objects.
+
+```typescript
+const result = await agent.run([
+  { role: 'system', content: 'Answer concisely.' },
+  { role: 'user', content: 'What is model cascading?' },
+]);
+```
+
+## RunOptions
+
+| Option | Type | Purpose |
+|---|---|---|
+| `maxTokens` | number | Maximum generated tokens |
+| `temperature` | number | Sampling temperature from 0 to 2 |
+| `systemPrompt` | string | Stable system instruction |
+| `knowledge` | string or `KnowledgeSnapshot` | Request-scoped provider-neutral knowledge |
+| `tools` | `Tool[]` | Available tool definitions |
+| `toolExecutor` | `ToolExecutor` | Tool implementation registry |
+| `maxSteps` | number | Maximum model calls in a tool loop |
+| `extra` | object | Provider-specific options |
+| `forceDirect` | boolean | Skip cascading |
+| `userTier` | string | Apply tier-based filtering |
+| `workflow` | string | Select a workflow profile |
+| `kpiFlags` | object | Add rule-engine KPI context |
+| `tenantId` | string | Apply tenant rules |
+| `channel` | string | Apply channel routing and failover |
+
+## Tools
+
+```typescript
+const result = await agent.run('What is the weather in Zurich?', {
+  tools: [weatherTool.toOpenAIFormat()],
+  toolExecutor: new ToolExecutor([weatherTool]),
+  maxSteps: 5,
+});
+```
+
+See [Tools](/api-reference/typescript/tools) for complete setup.
+
+## Batch Execution
+
+```typescript
+const batch = await agent.runBatch(
+  ['Summarize A', 'Summarize B'],
+  { maxParallel: 2, stopOnError: false },
+  { maxTokens: 200 },
+);
+
+console.log(batch.successCount, batch.failureCount);
+```
+
+## Streaming
+
+```typescript
+import { StreamEventType } from '@cascadeflow/core';
+
+for await (const event of agent.stream('Write a short explanation')) {
+  if (event.type === StreamEventType.CHUNK) {
+    process.stdout.write(event.content);
+  }
+}
+```
+
+See [Streaming](/api-reference/typescript/streaming).
+
+## Inspection
+
+```typescript
+console.log(agent.getModels());
+console.log(agent.getModelCount());
+console.log(agent.getRouterStats());
+
+agent.resetRouterStats();
+```
+
+## Methods
+
+| Method | Returns |
+|---|---|
+| `run(input, options?)` | `Promise<CascadeResult>` |
+| `runBatch(queries, batchConfig?, runOptions?)` | `Promise<BatchResult>` |
+| `runStream(input, options?)` | `AsyncIterable<StreamEvent>` |
+| `runStreaming(query, options?)` | `Promise<CascadeResult>` |
+| `streamEvents(input, options?)` | `AsyncIterable<StreamEvent>` |
+| `stream(input, options?)` | `AsyncIterable<StreamEvent>` |
+| `getModels()` | `ModelConfig[]` |
+| `getModelCount()` | number |
+| `getRouterStats()` | router statistics object |
+| `resetRouterStats()` | void |

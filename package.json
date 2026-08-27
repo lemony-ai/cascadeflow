@@ -18,6 +18,7 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "clean": "turbo run clean",
+    "docs:check-typescript": "pnpm --filter @cascadeflow/core exec node ../../scripts/check-docs-typescript.mjs",
     "verify:npm:pack": "node scripts/verify-npm-packages.mjs"
   },
   "devDependencies": {

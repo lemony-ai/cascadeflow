@@ -16,7 +16,9 @@ The harness scores each model decision against configurable KPI weights. This le
 
 ## Configuration
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 
 cascadeflow.init(mode="enforce")
@@ -28,9 +30,23 @@ with cascadeflow.run(
     result = await agent.run("Analyze this legal document")
 ```
 
+```typescript TypeScript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+
+await run({
+  kpiWeights: { quality: 0.6, cost: 0.3, latency: 0.1 },
+}, async () => {
+  await agent.run('Analyze this legal document');
+});
+```
+
+</CodeGroup>
+
 ### Weights
 
-Weights are relative — they don't need to sum to 1.0 (they are normalized internally). They control the relative importance of each dimension in the composite score.
+Weights are relative. They do not need to sum to 1.0 because they are normalized internally. They control the relative importance of each dimension in the composite score.
 
 ```python
 # Quality-first (premium workload)
@@ -45,7 +61,7 @@ kpi_weights = {"quality": 0.4, "cost": 0.3, "latency": 0.2, "energy": 0.1}
 
 ### Targets
 
-Targets set minimum acceptable values. If a model's score for a dimension falls below the target, it is penalized in the composite score.
+Targets are retained in the run context as policy metadata. Current built-in routing decisions use KPI weights, not KPI targets.
 
 ```python
 kpi_targets = {
@@ -84,7 +100,9 @@ Built-in quality priors for common models (OpenAI):
 
 Different agents can have different priorities:
 
-```python
+<CodeGroup>
+
+```python Python
 @cascadeflow.agent(
     budget=0.50,
     kpi_weights={"quality": 0.8, "cost": 0.2}
@@ -99,6 +117,26 @@ async def quality_agent(query: str):
 async def budget_agent(query: str):
     return await llm.complete(query)
 ```
+
+```typescript TypeScript
+import { harnessAgent } from '@cascadeflow/core';
+
+const qualityAgent = harnessAgent({
+  budget: 0.50,
+  kpiWeights: { quality: 0.8, cost: 0.2 },
+})(async (query: string) => llm.complete(query));
+
+const budgetAgent = harnessAgent({
+  budget: 0.10,
+  kpiWeights: { cost: 0.8, quality: 0.2 },
+})(async (query: string) => llm.complete(query));
+```
+
+</CodeGroup>
+
+<Note>
+Agent policy metadata does not create a run automatically. Use `run()` around the agent execution when enforcement is required.
+</Note>
 
 <Tip>
 **Example walkthrough:** [KPI-Weighted Routing](/examples/kpi-weighted-routing) | **GitHub:** [examples/cost_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/cost_tracking.py) | [examples/semantic_quality_domain_detection.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/semantic_quality_domain_detection.py)

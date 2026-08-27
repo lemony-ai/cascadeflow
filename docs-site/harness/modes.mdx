@@ -11,9 +11,19 @@ cascadeflow operates in one of three modes, set at initialization.
 
 No tracking, no enforcement. The harness is completely disabled. This is the default.
 
-```python
+<CodeGroup>
+
+```python Python
 cascadeflow.init(mode="off")
 ```
+
+```typescript TypeScript
+import { init } from '@cascadeflow/core';
+
+init({ mode: 'off' });
+```
+
+</CodeGroup>
 
 ### `observe`
 
@@ -26,15 +36,9 @@ cascadeflow.init(mode="observe")
 ```
 
 ```typescript TypeScript
-import { CascadeAgent } from '@cascadeflow/core';
+import { init } from '@cascadeflow/core';
 
-// TypeScript uses CascadeAgent with quality config for observe-like behavior
-const agent = new CascadeAgent({
-  models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
-    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
-  ],
-});
+init({ mode: 'observe' });
 ```
 
 </CodeGroup>
@@ -48,9 +52,19 @@ Use `observe` for:
 
 Track all metrics and enforce constraints. When a hard cap is hit (budget, tool calls, latency, energy) or a compliance violation is detected, the harness takes action: `stop`, `deny_tool`, or `switch_model`.
 
-```python
+<CodeGroup>
+
+```python Python
 cascadeflow.init(mode="enforce")
 ```
+
+```typescript TypeScript
+import { init } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+```
+
+</CodeGroup>
 
 Use `enforce` when:
 - You have validated metrics in `observe` mode
@@ -75,6 +89,13 @@ import os
 # Environment-driven mode selection
 mode = os.getenv("CASCADEFLOW_MODE", "observe")
 cascadeflow.init(mode=mode)
+```
+
+```typescript TypeScript
+import { init } from '@cascadeflow/core';
+
+const mode = process.env.CASCADEFLOW_MODE ?? 'observe';
+init({ mode: mode as 'off' | 'observe' | 'enforce' });
 ```
 
 ## Mode Behavior Matrix

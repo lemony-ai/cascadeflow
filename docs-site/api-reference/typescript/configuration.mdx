@@ -1,11 +1,35 @@
 ---
 title: Configuration
-description: TypeScript configuration types — AgentConfig, QualityConfig, CascadeConfig, RunOptions, and presets.
+description: TypeScript configuration types for models, agents, quality validation, cascade behavior, runs, and presets.
 ---
 
 # Configuration
 
 Full reference for `@cascadeflow/core` configuration types.
+
+## ModelConfig
+
+```typescript
+interface ModelConfig {
+  name: string;
+  provider: Provider;
+  cost: number;                         // Configured cost per 1,000 tokens
+  keywords?: string[];
+  domains?: string[];
+  maxTokens?: number;
+  systemPrompt?: string;
+  temperature?: number;
+  apiKey?: string;
+  baseUrl?: string;
+  extra?: Record<string, any>;
+  speedMs?: number;
+  qualityScore?: number;
+  supportsTools?: boolean;
+  toolQuality?: number;
+  qualityThreshold?: number;
+  httpConfig?: HttpConfig;
+}
+```
 
 ## AgentConfig
 
@@ -13,7 +37,7 @@ Passed to `new CascadeAgent(config)`.
 
 ```typescript
 interface AgentConfig {
-  models: ModelConfig[];                    // Required — sorted by cost
+  models: ModelConfig[];                    // Required, sorted by cost
   quality?: QualityConfig;                  // Quality validation
   cascade?: CascadeConfig;                  // Cascade behavior
   toolExecutor?: ToolExecutor;              // Tool execution
@@ -23,9 +47,11 @@ interface AgentConfig {
   tiers?: Record<string, TierRouterConfig>; // User tier definitions
   workflows?: Record<string, WorkflowProfile>; // Workflow profiles
   tenantRules?: Record<string, Record<string, unknown>>; // Per-tenant overrides
-  channelModels?: Record<string, string[]>; // Channel → allowed models
+  channelModels?: Record<string, string[]>; // Channel to allowed models
   channelFailover?: Record<string, string>; // Channel failover map
+  channelStrategies?: Record<string, string>; // Channel routing strategy map
   ruleEngineConfig?: RuleEngineConfig;      // Rule engine config
+  ruleEngine?: RuleEngine;                  // Custom rule engine
 }
 ```
 
@@ -41,11 +67,11 @@ interface QualityConfig {
     hard?: number;
     expert?: number;
   };
-  requireMinimumTokens?: number;       // Min response length (default: 10)
+  requireMinimumTokens?: number;       // Min response length (default: 3)
   requireValidation?: boolean;         // Enable validation (default: true)
   useSemanticValidation?: boolean;     // ML-based validation
   semanticThreshold?: number;          // Semantic similarity threshold
-  enableAdaptive?: boolean;            // Adaptive thresholds (default: false)
+  enableAdaptive?: boolean;            // Adaptive thresholds (default: true)
 }
 ```
 
@@ -56,10 +82,11 @@ interface CascadeConfig {
   quality?: QualityConfig;             // Quality settings
   maxBudget?: number;                  // Max budget per query (USD)
   trackCosts?: boolean;                // Cost tracking (default: true)
-  maxRetries?: number;                 // Max retries per model (default: 0)
-  timeout?: number;                    // Timeout in seconds (default: 60)
-  routingStrategy?: 'cost' | 'quality' | 'speed'; // Routing strategy
-  useSpeculative?: boolean;            // Speculative execution (default: false)
+  maxRetries?: number;                 // Max retries per model (default: 2)
+  timeout?: number;                    // Timeout in seconds (default: 30)
+  routingStrategy?: 'adaptive' | 'cost_first' | 'quality_first'
+    | 'speed_first' | 'semantic';       // Routing strategy
+  useSpeculative?: boolean;            // Speculative execution (default: true)
   verbose?: boolean;                   // Verbose logging
   trackMetrics?: boolean;              // Performance metrics (default: true)
 }
@@ -74,6 +101,7 @@ interface RunOptions {
   maxTokens?: number;                  // Max tokens to generate
   temperature?: number;                // Temperature (0-2)
   systemPrompt?: string;               // System prompt
+  knowledge?: string | KnowledgeSnapshot; // Request-scoped knowledge
   tools?: Tool[];                      // Available tools
   toolExecutor?: ToolExecutor;         // Tool executor
   maxSteps?: number;                   // Max tool loop steps
@@ -107,7 +135,7 @@ const agent = new CascadeAgent(PRESET_BEST_OVERALL);
 
 | Preset | Description |
 |---|---|
-| `PRESET_BEST_OVERALL` | Claude Haiku + GPT-5 |
+| `PRESET_BEST_OVERALL` | Claude Haiku 4.5 + GPT-4o mini |
 | `PRESET_ULTRA_FAST` | Fastest cascade pair |
 | `PRESET_ULTRA_CHEAP` | Cheapest cascade pair |
 | `PRESET_OPENAI_ONLY` | OpenAI models only |

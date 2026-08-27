@@ -1,0 +1,69 @@
+---
+title: CascadeResult
+description: TypeScript CascadeResult fields for output, routing, quality, tools, cost, and latency diagnostics.
+---
+
+`CascadeResult` contains the final content and diagnostics from cascade execution.
+
+## Required Fields
+
+```typescript
+interface CascadeResult {
+  content: string;
+  modelUsed: string;
+  totalCost: number;
+  latencyMs: number;
+  complexity: string;
+  cascaded: boolean;
+  draftAccepted: boolean;
+  routingStrategy: string;
+  reason: string;
+  hasToolCalls: boolean;
+}
+```
+
+## Quality Diagnostics
+
+| Field | Type | Description |
+|---|---|---|
+| `qualityScore` | number | Validator score from 0 to 1 |
+| `qualityThreshold` | number | Threshold applied to the draft |
+| `qualityCheckPassed` | boolean | Whether the draft passed |
+| `rejectionReason` | string | Why the draft was rejected |
+| `draftResponse` | string | Full draft content when retained |
+| `verifierResponse` | string | Full verifier content when retained |
+
+## Cost and Latency
+
+| Field | Type | Description |
+|---|---|---|
+| `draftCost` | number | Draft generation cost |
+| `verifierCost` | number | Verifier generation cost |
+| `costSaved` | number | Estimated savings against direct verifier use |
+| `savingsPercentage` | number | Estimated savings percentage |
+| `draftLatencyMs` | number | Draft latency |
+| `verifierLatencyMs` | number | Verifier latency |
+| `cascadeOverheadMs` | number | Latency spent on a rejected draft |
+| `speedup` | number | Estimated speedup factor |
+
+These diagnostic fields are optional because direct routes and provider limitations may not produce every measurement.
+
+## Tool Calls
+
+```typescript
+if (result.hasToolCalls) {
+  for (const call of result.toolCalls ?? []) {
+    console.log(call.name, call.arguments);
+  }
+}
+```
+
+## Convert to a Plain Object
+
+```typescript
+import { resultToObject } from '@cascadeflow/core';
+
+const payload = resultToObject(result);
+```
+
+`resultToObject()` uses snake_case keys for cross-language serialization.

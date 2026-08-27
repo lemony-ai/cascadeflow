@@ -197,7 +197,7 @@ with cascadeflow.run(budget=1.00, compliance="gdpr", max_tool_calls=10) as sessi
 import { init, run } from '@cascadeflow/core';
 
 // Initialize with enforcement mode
-init({ mode: 'enforce', budget: 1.0, compliance: 'gdpr' });
+init({ mode: 'enforce', budget: 1.0, compliance: 'regulated' });
 
 // Run with scoped session for governance
 const result = await run({ budget: 0.50 }, async (ctx) => {

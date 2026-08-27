@@ -140,10 +140,17 @@
             "pages": [
               "api-reference/typescript/overview",
               "api-reference/typescript/core",
+              "api-reference/typescript/harness",
+              "api-reference/typescript/cascade-agent",
+              "api-reference/typescript/configuration",
+              "api-reference/typescript/result",
+              "api-reference/typescript/providers",
+              "api-reference/typescript/tools",
+              "api-reference/typescript/quality-routing",
+              "api-reference/typescript/streaming",
               "api-reference/typescript/vercel-ai",
               "api-reference/typescript/langchain",
-              "api-reference/typescript/streaming",
-              "api-reference/typescript/configuration"
+              "api-reference/typescript/feature-parity"
             ]
           }
         ]

@@ -5,24 +5,26 @@ description: The runtime governance layer that tracks, scores, and enforces cons
 
 # Agent Harness
 
-The Harness is the core of cascadeflow's runtime intelligence. It wraps agent execution and makes a **decision at every step** — should this model call proceed, be switched, or be stopped?
+The Harness is the core of cascadeflow's runtime intelligence. It wraps agent execution and decides whether a model call should proceed, switch models, remove tools, or stop.
 
 ## What the Harness Does
 
 At every LLM call or tool execution inside an agent loop, the Harness:
 
-1. **Checks hard constraints** — budget remaining, compliance allowlist, tool call cap, latency limit, energy limit
-2. **Scores soft dimensions** — quality, cost, latency, energy weighted by KPI priorities
-3. **Decides an action** — `allow`, `switch_model`, `deny_tool`, or `stop`
-4. **Records a trace** — action, reason, model, step, cost, budget state
+1. **Checks hard constraints**: Budget remaining, compliance allowlist, tool-call cap, latency limit, and energy limit.
+2. **Scores soft dimensions**: Quality, cost, latency, and energy weighted by KPI priorities.
+3. **Decides an action**: `allow`, `switch_model`, `deny_tool`, or `stop`.
+4. **Records a trace**: Action, reason, model, step, cost, and budget state.
 
 In `observe` mode, decisions are recorded but not enforced. In `enforce` mode, they shape execution in real time.
 
-## HarnessConfig — The Full Control Surface
+## HarnessConfig
 
-All Harness behavior is configured through a single dataclass:
+Harness behavior is configured through one language-specific object.
 
-```python
+<CodeGroup>
+
+```python Python
 from cascadeflow import HarnessConfig
 
 config = HarnessConfig(
@@ -36,7 +38,7 @@ config = HarnessConfig(
     max_energy=100.0,                   # Max energy units
 
     # Soft scoring
-    kpi_weights={                       # Relative importance (must sum to ~1.0)
+    kpi_weights={                       # Relative importance
         "quality": 0.6,
         "cost": 0.3,
         "latency": 0.1,
@@ -48,23 +50,53 @@ config = HarnessConfig(
 )
 ```
 
+```typescript TypeScript
+import type { HarnessConfig } from '@cascadeflow/core';
+
+const config: HarnessConfig = {
+  mode: 'enforce',
+  verbose: false,
+  budget: 0.50,
+  maxToolCalls: 10,
+  maxLatencyMs: 5000,
+  maxEnergy: 100,
+  kpiWeights: { quality: 0.6, cost: 0.3, latency: 0.1 },
+  compliance: 'regulated',
+};
+```
+
+</CodeGroup>
+
 ## The Three-Tier API
 
-cascadeflow offers three levels of control — use the one that fits your needs:
+cascadeflow offers three levels of control. Use the one that fits your needs.
 
 ### Tier 1: Global Init (Zero-Change)
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 cascadeflow.init(mode="observe")
 # All LLM calls are tracked. Nothing changes.
 ```
 
+```typescript TypeScript
+import { init } from '@cascadeflow/core';
+
+init({ mode: 'observe' });
+// Instrumented OpenAI and Anthropic SDK calls are tracked.
+```
+
+</CodeGroup>
+
 Best for: first rollout, measuring baseline costs, auditing compliance.
 
 ### Tier 2: Scoped Run (Block-Level Control)
 
-```python
+<CodeGroup>
+
+```python Python
 cascadeflow.init(mode="enforce")
 
 with cascadeflow.run(budget=0.50, compliance="gdpr") as session:
@@ -72,11 +104,26 @@ with cascadeflow.run(budget=0.50, compliance="gdpr") as session:
     print(session.summary())
 ```
 
+```typescript TypeScript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+
+await run({ budget: 0.50, compliance: 'regulated' }, async (session) => {
+  await agent.run('Analyze regulated data');
+  console.log(session.summary());
+});
+```
+
+</CodeGroup>
+
 Best for: per-request budgets, scoped policy, session-level metrics.
 
 ### Tier 3: Agent Decorator (Per-Agent Policy)
 
-```python
+<CodeGroup>
+
+```python Python
 @cascadeflow.agent(
     budget=1.00,
     compliance="hipaa",
@@ -86,7 +133,19 @@ async def medical_agent(query: str):
     return await llm.complete(query)
 ```
 
-Best for: multi-agent systems where each agent has different constraints.
+```typescript TypeScript
+import { harnessAgent } from '@cascadeflow/core';
+
+const medicalAgent = harnessAgent({
+  budget: 1.00,
+  compliance: 'regulated',
+  kpiWeights: { quality: 0.8, cost: 0.2 },
+})(async (query: string) => llm.complete(query));
+```
+
+</CodeGroup>
+
+Best for: Attaching policy metadata in multi-agent systems. Use a scoped `run()` when the policy must be enforced.
 
 ## Decision Priority
 
@@ -95,8 +154,8 @@ When the Harness evaluates a step, it follows a strict priority order:
 | Priority | Check | Action if violated |
 |---|---|---|
 | 1 | Budget exhausted | `stop` |
-| 2 | Compliance allowlist | `switch_model` or `stop` |
-| 3 | Tool call cap | `deny_tool` |
+| 2 | Tool call cap | `deny_tool` |
+| 3 | Compliance allowlist | `switch_model`, `deny_tool`, or `stop` |
 | 4 | Latency limit | `switch_model` |
 | 5 | Energy limit | `switch_model` |
 | 6 | KPI scoring | `allow` or `switch_model` |
@@ -129,7 +188,7 @@ Hard constraints (budget, compliance) always take priority over soft scoring (KP
 Start with `observe` to validate your policies against real traffic. Switch to `enforce` when you are confident the rules are correct.
 
 <Tip>
-**Run this example:** [examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py) | **API reference:** [HarnessConfig](/api-reference/python/harness-config)
+**Python API:** [HarnessConfig](/api-reference/python/harness-config) | **TypeScript API:** [Harness](/api-reference/typescript/harness) | **Parity notes:** [Python and TypeScript Parity](/api-reference/typescript/feature-parity)
 </Tip>
 
 ## Next Step

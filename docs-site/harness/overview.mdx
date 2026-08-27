@@ -18,9 +18,11 @@ The cascadeflow harness is an in-process intelligence layer that wraps AI agent 
 
 ## HarnessConfig
 
-All harness behavior is configured through a single dataclass:
+All harness behavior is configured through one object.
 
-```python
+<CodeGroup>
+
+```python Python
 from cascadeflow import HarnessConfig
 
 config = HarnessConfig(
@@ -39,6 +41,27 @@ config = HarnessConfig(
     compliance="gdpr",                 # "gdpr" | "hipaa" | "pci" | "strict" | None
 )
 ```
+
+```typescript TypeScript
+import type { HarnessConfig } from '@cascadeflow/core';
+
+const config: HarnessConfig = {
+  mode: 'enforce',
+  verbose: false,
+  budget: 0.50,
+  maxToolCalls: 10,
+  maxLatencyMs: 5000,
+  maxEnergy: 100,
+  kpiWeights: {
+    quality: 0.6,
+    cost: 0.3,
+    latency: 0.1,
+  },
+  compliance: 'regulated',
+};
+```
+
+</CodeGroup>
 
 ## Activation
 
@@ -62,21 +85,18 @@ async def my_agent(query: str):
 ```
 
 ```typescript TypeScript
-import { CascadeAgent } from '@cascadeflow/core';
+import { harnessAgent, init, run } from '@cascadeflow/core';
 
-const agent = new CascadeAgent({
-  models: [
-    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.000375 },
-    { name: 'gpt-4o', provider: 'openai', cost: 0.00625 },
-  ],
-  quality: {
-    threshold: 0.8,
-    useSemanticValidation: true,
-  },
+init({ mode: 'observe' });
+
+await run({ budget: 0.50, maxToolCalls: 10 }, async (session) => {
+  await agent.run('Analyze this data');
+  console.log(session.summary());
 });
 
-const result = await agent.run('Analyze this data');
-console.log(`Model: ${result.modelUsed}, Cost: $${result.totalCost}`);
+const myAgent = harnessAgent({ budget: 0.20, compliance: 'regulated' })(
+  async (query: string) => agent.run(query),
+);
 ```
 
 </CodeGroup>
@@ -86,12 +106,12 @@ console.log(`Model: ${result.modelUsed}, Cost: $${result.totalCost}`);
 For each LLM call or tool execution:
 
 1. **Record** model, step number, cumulative cost, latency, energy
-2. **Check compliance** — is the model in the allowlist for the configured regulation?
-3. **Check hard caps** — budget, tool calls, latency, energy
-4. **Score KPI dimensions** — quality, cost, latency, energy weighted by `kpi_weights`
-5. **Decide action** — `allow`, `switch_model`, `deny_tool`, or `stop`
-6. **Enforce or log** — enforce in `enforce` mode, log only in `observe` mode
-7. **Append trace** — full decision record for auditability
+2. **Check compliance**: Is the model in the configured allowlist?
+3. **Check hard caps**: Budget, tool calls, latency, and energy.
+4. **Score KPI dimensions**: Quality, cost, latency, and energy weighted by `kpi_weights` or `kpiWeights`.
+5. **Decide action**: `allow`, `switch_model`, `deny_tool`, or `stop`.
+6. **Enforce or log**: Enforce in `enforce` mode, log only in `observe` mode.
+7. **Append trace**: Record the full decision for auditing.
 
 ## Supported Models
 
@@ -100,5 +120,5 @@ The harness includes a built-in pricing table for 18 models across OpenAI, Anthr
 See [Energy Tracking](/harness/energy-tracking) for the full pricing and energy coefficients table.
 
 <Tip>
-**Getting started:** [Agent Harness](/get-started/agent-harness) | [Agent Loop](/get-started/agent-loop) | **API reference:** [HarnessConfig](/api-reference/python/harness-config)
+**Getting started:** [Agent Harness](/get-started/agent-harness) | [Agent Loop](/get-started/agent-loop) | **Python API:** [HarnessConfig](/api-reference/python/harness-config) | **TypeScript API:** [Harness](/api-reference/typescript/harness)
 </Tip>

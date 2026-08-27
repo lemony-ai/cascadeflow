@@ -1,0 +1,85 @@
+---
+title: Tools
+description: Define, format, validate, and execute tools with the TypeScript core package.
+---
+
+## Define a Tool
+
+```typescript
+import { ToolConfig } from '@cascadeflow/core';
+
+const weatherTool = new ToolConfig({
+  name: 'get_weather',
+  description: 'Get the current weather for a city',
+  parameters: {
+    type: 'object',
+    properties: {
+      city: { type: 'string' },
+    },
+    required: ['city'],
+  },
+  function: async ({ city }: { city: string }) => ({ city, temperatureC: 18 }),
+});
+```
+
+`createTool()` provides an equivalent function-based constructor. The `tool()` helper can infer a schema from examples.
+
+## Execute Tools Automatically
+
+```typescript
+import { CascadeAgent, ToolExecutor } from '@cascadeflow/core';
+
+const executor = new ToolExecutor([weatherTool]);
+const agent = new CascadeAgent({
+  models,
+  toolExecutor: executor,
+});
+
+const result = await agent.run('What is the weather in Zurich?', {
+  tools: [weatherTool.toOpenAIFormat()],
+  maxSteps: 5,
+});
+```
+
+## Execute a Parsed Call
+
+```typescript
+import { ToolCall, ToolCallFormat } from '@cascadeflow/core';
+
+const call = new ToolCall({
+  id: 'call_1',
+  name: 'get_weather',
+  arguments: { city: 'Zurich' },
+  providerFormat: ToolCallFormat.OPENAI,
+});
+
+const toolResult = await executor.execute(call);
+console.log(toolResult.success, toolResult.result);
+```
+
+`executeParallel()` runs multiple independent tool calls concurrently.
+
+## Provider Formats
+
+```typescript
+import {
+  toAnthropicFormat,
+  toOllamaFormat,
+  toOpenAIFormat,
+  toProviderFormat,
+} from '@cascadeflow/core';
+```
+
+The format helpers convert the universal tool definition for provider APIs.
+
+## Validation and Tool Cascading
+
+The core package also exports:
+
+- `ToolValidator` for quality and completeness checks.
+- `ToolCallDetector` for detecting tool intent.
+- `ToolCascadeRouter` for model and risk-tier selection.
+- `ToolCascadeValidator` for validating generated tool calls.
+- `ToolCascade` for the combined tool cascade pipeline.
+
+See [Tools and Streaming](/developers/tools-and-streaming) for agent-loop patterns.

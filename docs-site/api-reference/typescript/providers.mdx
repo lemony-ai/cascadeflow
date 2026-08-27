@@ -1,0 +1,63 @@
+---
+title: Providers
+description: Built-in TypeScript providers, environment variables, custom endpoints, and provider registry APIs.
+---
+
+## Built-in Providers
+
+| Provider | `provider` value | Environment variable |
+|---|---|---|
+| OpenAI | `openai` | `OPENAI_API_KEY` |
+| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` |
+| Groq | `groq` | `GROQ_API_KEY` |
+| Together AI | `together` | `TOGETHER_API_KEY` |
+| Hugging Face | `huggingface` | `HUGGINGFACE_API_KEY` |
+| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` |
+| Ollama | `ollama` | Not required |
+| vLLM | `vllm` | Depends on deployment |
+
+Vercel AI adapters add Azure, Bedrock, Cohere, DeepSeek, Fireworks, Google, Mistral, Perplexity, Vertex, xAI, and other provider identifiers.
+
+## Model Configuration
+
+```typescript
+const model = {
+  name: 'gpt-4o-mini',
+  provider: 'openai' as const,
+  cost: 0.00015,
+  apiKey: process.env.OPENAI_API_KEY,
+  baseUrl: 'https://api.openai.com/v1',
+  maxTokens: 1000,
+  temperature: 0.2,
+};
+```
+
+`cost` is the configured cost per 1,000 tokens used for cascade ordering. Provider-reported usage and built-in pricing are used when the provider supports detailed cost calculation.
+
+## Local Endpoints
+
+```typescript
+const local = new CascadeAgent({
+  models: [
+    {
+      name: 'qwen2.5:7b',
+      provider: 'ollama',
+      cost: 0,
+      baseUrl: 'http://localhost:11434',
+    },
+  ],
+});
+```
+
+## Registry
+
+```typescript
+import { getAvailableProviders, providerRegistry } from '@cascadeflow/core';
+
+console.log(getAvailableProviders());
+console.log(providerRegistry.has('openai'));
+```
+
+The `Provider` interface contains `generate()`, optional `stream()`, `calculateCost()`, and `isAvailable()` methods. Register a custom provider class when the built-in providers do not cover your endpoint.
+
+See [Providers and Presets](/developers/providers-and-presets) for configuration patterns.

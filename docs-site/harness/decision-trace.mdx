@@ -9,19 +9,24 @@ Every harness decision produces a trace record. Traces provide a full audit trai
 
 Each trace record contains:
 
-| Field | Type | Description |
-|---|---|---|
-| `action` | string | `"allow"`, `"switch_model"`, `"deny_tool"`, or `"stop"` |
-| `reason` | string | Human-readable explanation of the decision |
-| `model` | string | Model name used for the call |
-| `step` | int | Step number in the run (1-indexed) |
-| `cost_total` | float | Cumulative cost in USD at this step |
-| `budget_state` | string | `"ok"`, `"warning"`, or `"exceeded"` |
-| `applied` | bool | `true` if the action was enforced, `false` in observe mode |
+| Python | TypeScript | Type | Description |
+|---|---|---|---|
+| `action` | `action` | string | `"allow"`, `"switch_model"`, `"deny_tool"`, or `"stop"` |
+| `reason` | `reason` | string | Machine-readable decision reason |
+| `model` | `model` | string | Model selected for the call |
+| `step` | `step` | integer | Step number in the run |
+| `cost_total` | `costTotal` | number | Cumulative cost in USD |
+| `latency_used_ms` | `latencyUsedMs` | number | Cumulative measured latency |
+| `energy_used` | `energyUsed` | number | Cumulative energy units |
+| `budget_state` | `budgetState` | object | Maximum and remaining budget |
+| `applied` | `applied` | boolean | Whether the decision changed execution |
+| `decision_mode` | `decisionMode` | string | Mode used to calculate the decision |
 
 ## Accessing Traces
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 
 cascadeflow.init(mode="observe")
@@ -31,23 +36,41 @@ with cascadeflow.run(budget=0.50) as session:
 
     # Full decision trace
     for record in session.trace():
-        print(f"Step {record['step']}: {record['action']} — {record['reason']}")
+        print(f"Step {record['step']}: {record['action']}: {record['reason']}")
         print(f"  Model: {record['model']}, Cost: ${record['cost_total']:.4f}")
-        print(f"  Budget: {record['budget_state']}, Applied: {record['applied']}")
+        print(f"  Remaining: {record['budget_state']['remaining']}, Applied: {record['applied']}")
 ```
+
+```typescript TypeScript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'observe' });
+
+await run({ budget: 0.50 }, async (session) => {
+  await agent.run('Research this topic');
+
+  for (const record of session.trace()) {
+    console.log(`Step ${record.step}: ${record.action}: ${record.reason}`);
+    console.log(`  Model: ${record.model}, Cost: $${record.costTotal.toFixed(4)}`);
+    console.log(`  Remaining: ${record.budgetState.remaining}, Applied: ${record.applied}`);
+  }
+});
+```
+
+</CodeGroup>
 
 Example output:
 
 ```
-Step 1: allow — budget ok, model compliant
+Step 1: allow: observe
   Model: gpt-4o-mini, Cost: $0.0003
-  Budget: ok, Applied: false
-Step 2: allow — budget ok, model compliant
+  Remaining: 0.4997, Applied: false
+Step 2: allow: observe
   Model: gpt-4o-mini, Cost: $0.0007
-  Budget: ok, Applied: false
-Step 3: switch_model — budget pressure, routing to cheaper model
+  Remaining: 0.4993, Applied: false
+Step 3: switch_model: budget_pressure
   Model: gpt-4o, Cost: $0.0032
-  Budget: warning, Applied: false
+  Remaining: 0.4968, Applied: false
 ```
 
 ## Observe vs Enforce
@@ -87,17 +110,33 @@ cb_manager = get_harness_callback_manager()
 
 In addition to per-step traces, `session.summary()` provides aggregate metrics:
 
-```python
+<CodeGroup>
+
+```python Python
 summary = session.summary()
 # {
-#     "cost_total": 0.0032,
-#     "steps": 3,
+#     "cost": 0.0032,
+#     "step_count": 3,
 #     "tool_calls": 1,
-#     "latency_total_ms": 1250.0,
+#     "latency_used_ms": 1250.0,
 #     "energy_used": 45.2,
 #     "budget_remaining": 0.4968,
 # }
 ```
+
+```typescript TypeScript
+const summary = session.summary();
+// {
+//   cost: 0.0032,
+//   stepCount: 3,
+//   toolCalls: 1,
+//   latencyUsedMs: 1250,
+//   energyUsed: 45.2,
+//   budgetRemaining: 0.4968,
+// }
+```
+
+</CodeGroup>
 
 <Tip>
 **Examples on GitHub:** [examples/production_patterns.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/production_patterns.py) | [examples/enforcement/basic_enforcement.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/enforcement/basic_enforcement.py)

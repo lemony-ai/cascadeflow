@@ -39,7 +39,14 @@ const chain = prompt.pipe(cascade).pipe(new StringOutputParser());
 interface CascadeOptions {
   drafter: BaseChatModel;        // Cheap, fast model
   verifier: BaseChatModel;       // Powerful fallback model
-  qualityThreshold?: number;     // 0-1, default 0.4
+  qualityThreshold?: number;     // 0-1, default 0.7
+  enableCostTracking?: boolean;
+  costTrackingProvider?: 'langsmith' | 'cascadeflow';
+  qualityValidator?: (response: unknown) => number | Promise<number>;
+  enablePreRouter?: boolean;
+  preRouter?: PreRouter;
+  cascadeComplexities?: QueryComplexity[];
+  domainPolicies?: Record<string, DomainPolicy>;
 }
 ```
 

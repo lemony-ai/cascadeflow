@@ -54,7 +54,7 @@ with cascadeflow.run(budget=1.00, max_tool_calls=5) as session:
 
     summary = session.summary()
     print(f"Tool calls used: {summary['tool_calls']}/5")
-    print(f"Budget used: ${summary['cost_total']:.4f}/$1.00")
+    print(f"Budget used: ${summary['cost']:.4f}/$1.00")
 ```
 
 When the tool call cap is reached, cascadeflow issues a `deny_tool` action — the agent continues with what it has instead of making more calls.
@@ -116,7 +116,7 @@ with cascadeflow.run(budget=2.00) as session:
         tools=tools,
     )
     # session.summary() includes costs from main_agent AND researcher
-    print(f"Total cost across all agents: ${session.summary()['cost_total']:.4f}")
+    print(f"Total cost across all agents: ${session.summary()['cost']:.4f}")
 ```
 
 ## Model Switching Mid-Loop
@@ -186,14 +186,66 @@ with cascadeflow.run(
     )
 
     summary = session.summary()
-    print(f"Cost: ${summary['cost_total']:.4f} / $1.00")
-    print(f"Steps: {summary['steps']}")
+    print(f"Cost: ${summary['cost']:.4f} / $1.00")
+    print(f"Steps: {summary['step_count']}")
     print(f"Tool calls: {summary['tool_calls']} / 8")
     print(f"Budget remaining: ${summary['budget_remaining']:.4f}")
 ```
 
+## Complete TypeScript Loop
+
+```typescript
+import {
+  CascadeAgent,
+  ToolConfig,
+  ToolExecutor,
+  init,
+  run,
+} from '@cascadeflow/core';
+
+const searchTool = new ToolConfig({
+  name: 'search',
+  description: 'Search a data source',
+  parameters: {
+    type: 'object',
+    properties: { query: { type: 'string' } },
+    required: ['query'],
+  },
+  function: async ({ query }: { query: string }) => `Results for ${query}`,
+});
+
+const executor = new ToolExecutor([searchTool]);
+const agent = new CascadeAgent({
+  models: [
+    { name: 'gpt-4o-mini', provider: 'openai', cost: 0.00015, supportsTools: true },
+    { name: 'gpt-4o', provider: 'openai', cost: 0.0025, supportsTools: true },
+  ],
+  toolExecutor: executor,
+});
+
+init({ mode: 'enforce' });
+
+await run({
+  budget: 1.00,
+  maxToolCalls: 8,
+  compliance: 'regulated',
+  kpiWeights: { quality: 0.6, cost: 0.3, latency: 0.1 },
+}, async (session) => {
+  await agent.run('Research market data', {
+    tools: [searchTool.toOpenAIFormat()],
+    maxSteps: 15,
+  });
+
+  const summary = session.summary();
+  console.log(`Cost: $${summary.cost.toFixed(4)} / $1.00`);
+  console.log(`Steps: ${summary.stepCount}`);
+  console.log(`Tool calls: ${summary.toolCalls} / 8`);
+  console.log(`Budget remaining: $${summary.budgetRemaining?.toFixed(4)}`);
+});
+```
+
 <Tip>
-**Run these examples:** [examples/agentic_multi_agent.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/agentic_multi_agent.py) | [examples/tool_execution.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/tool_execution.py) | [examples/multi_step_cascade.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/multi_step_cascade.py)
+**Python examples:** [examples/agentic_multi_agent.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/agentic_multi_agent.py) | **TypeScript guide:** [Agentic Patterns](https://github.com/lemony-ai/cascadeflow/blob/main/docs/guides/agentic-typescript.md)
 </Tip>
 
 ## Next Step

@@ -54,7 +54,7 @@ export const POST = handler;
 
 ## Multi-Turn Chat
 
-```typescript
+```tsx
 import { useChat } from 'ai/react';
 
 export default function Chat() {
@@ -82,8 +82,11 @@ Override cascade behavior per request (protected by shared secret):
 ```typescript
 const handler = createChatHandler(agent, {
   protocol: 'data',
-  allowOverrides: ['forceDirect', 'maxSteps'],
-  overrideSecret: process.env.OVERRIDE_SECRET,
+  requestOverrides: {
+    enabled: true,
+    allowedFields: ['forceDirect', 'maxSteps'],
+    secret: process.env.OVERRIDE_SECRET,
+  },
 });
 ```
 

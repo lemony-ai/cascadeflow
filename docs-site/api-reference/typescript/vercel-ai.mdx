@@ -37,15 +37,26 @@ const handler = createChatHandler(agent, {
 ## Options
 
 ```typescript
-interface ChatHandlerOptions {
-  protocol: 'data' | 'ui';             // AI SDK stream protocol
-  tools?: ToolDefinition[];             // Tool definitions
-  toolHandlers?: Record<string, Function>; // Server-side tool execution
-  toolExecutor?: Function;              // Universal tool executor
-  maxSteps?: number;                    // Multi-step tool loop limit
-  forceDirect?: boolean;                // Skip cascade, use verifier
-  allowOverrides?: string[];            // Request-level override keys
-  overrideSecret?: string;              // Shared secret for overrides
+interface VercelAIChatHandlerOptions {
+  protocol?: 'data' | 'text';
+  stream?: boolean;
+  systemPrompt?: string;
+  maxTokens?: number;
+  temperature?: number;
+  tools?: Tool[];
+  extra?: Record<string, any>;
+  toolExecutor?: ToolExecutor;
+  toolHandlers?: Record<string, (args: Record<string, any>) => unknown | Promise<unknown>>;
+  maxSteps?: number;
+  forceDirect?: boolean;
+  userTier?: string;
+  emitCascadeEvents?: boolean;
+  requestOverrides?: {
+    enabled?: boolean;
+    secret?: string;
+    headerName?: string;
+    allowedFields?: Array<'forceDirect' | 'maxSteps' | 'userTier'>;
+  };
 }
 ```
 

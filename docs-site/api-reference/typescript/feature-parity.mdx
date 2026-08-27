@@ -1,0 +1,67 @@
+---
+title: Python and TypeScript Parity
+sidebarTitle: Feature Parity
+description: Current capability matrix for the Python and TypeScript cascadeflow packages.
+---
+
+Python and TypeScript share the main cascade and harness concepts, but they do not have identical integration and operations surfaces.
+
+## Core Runtime
+
+| Capability | Python | TypeScript |
+|---|---|---|
+| CascadeAgent and speculative routing | Yes | Yes |
+| Observe and enforce harness modes | Yes | Yes |
+| OpenAI and Anthropic instrumentation | Yes | Yes |
+| Budget, tool-call, latency, and energy controls | Yes | Yes |
+| KPI-weighted model selection | Yes | Yes |
+| Streaming | Yes | Yes |
+| Automatic tool loops | Yes | Yes |
+| Batch processing | Yes | Yes |
+| Domain, tier, and rule routing | Yes | Yes |
+| Guardrails and rate limiting | Yes | Yes |
+| Semantic quality validation | Yes | Yes |
+| Provider-neutral knowledge cache | Yes | Yes |
+
+## Harness Differences
+
+| Capability | Python | TypeScript |
+|---|---|---|
+| Compliance profiles | `gdpr`, `hipaa`, `pci`, `strict` | `regulated`, `strict` |
+| Session JSONL save and load | Yes | No |
+| Harness callback manager | Yes | No |
+| Config files | YAML and JSON | JSON |
+| Parameter validation | Strict validation | Basic normalization |
+
+## Integrations
+
+| Integration | Python | TypeScript |
+|---|---|---|
+| LangChain and LangGraph | Yes | Yes |
+| OpenAI Agents SDK | Yes | No |
+| CrewAI | Yes | No |
+| Google ADK | Yes | No |
+| PydanticAI | Yes | No |
+| OpenClaw | Yes | No |
+| Hermes Agent | Yes | No |
+| MCP server and app bridge | Yes | No |
+| Vercel AI SDK | No | Yes |
+| n8n community node | No | Yes |
+| Browser and edge cascade runtime | Limited | Yes |
+
+## Operations
+
+| Capability | Python | TypeScript |
+|---|---|---|
+| Proxy and gateway server | Yes | No |
+| Simulation | Yes | No |
+| Dynamic configuration watcher | Yes | No |
+| Circuit breaker | Yes | No |
+| Anomaly and degradation detection | Yes | No |
+| Retry manager | Provider and resilience layers | Yes |
+| Response cache | Yes | Yes |
+| OpenTelemetry exporter | Yes | Yes |
+
+<Note>
+This matrix describes the current repository implementation. It intentionally does not imply that a similarly named feature has identical configuration or behavior in both languages.
+</Note>

@@ -13,7 +13,7 @@ energy_units = coefficient * (input_tokens + output_tokens * 1.5)
 
 Output tokens are weighted 1.5x because generation is more compute-intensive than prompt processing.
 
-## Energy Coefficients
+## Python Energy Coefficients
 
 | Model | Coefficient | Relative Cost |
 |---|---|---|
@@ -36,11 +36,31 @@ Output tokens are weighted 1.5x because generation is more compute-intensive tha
 | claude-opus-4.5 | 1.80 | Very high |
 | o1 | 2.00 | Highest |
 
+## TypeScript Energy Coefficients
+
+| Model | Coefficient |
+|---|---:|
+| gpt-5 | 1.15 |
+| gpt-5-mini | 0.72 |
+| gpt-5-nano | 0.45 |
+| gpt-4o | 1.00 |
+| gpt-4o-mini | 0.55 |
+| o1 | 1.25 |
+| o1-mini | 0.85 |
+| o3-mini | 0.75 |
+| Claude Opus 4.5 | 1.20 |
+| Claude Sonnet 4.5 | 0.95 |
+| Claude Haiku 4.5 | 0.70 |
+
+Unknown TypeScript models use a coefficient of `0.9`.
+
 ## Energy Caps
 
 Set a maximum energy budget for a run:
 
-```python
+<CodeGroup>
+
+```python Python
 import cascadeflow
 
 cascadeflow.init(mode="enforce")
@@ -52,6 +72,21 @@ with cascadeflow.run(max_energy=100.0) as session:
     print(f"Energy used: {summary['energy_used']:.1f} units")
 ```
 
+```typescript TypeScript
+import { init, run } from '@cascadeflow/core';
+
+init({ mode: 'enforce' });
+
+await run({ maxEnergy: 100 }, async (session) => {
+  await agent.run('Process this large dataset');
+
+  const summary = session.summary();
+  console.log(`Energy used: ${summary.energyUsed.toFixed(1)} units`);
+});
+```
+
+</CodeGroup>
+
 When energy exceeds the cap:
 - In `observe` mode: logged but not enforced
 - In `enforce` mode: execution stops with `action: "stop"`
@@ -60,7 +95,9 @@ When energy exceeds the cap:
 
 Include energy in KPI weights for carbon-aware routing:
 
-```python
+<CodeGroup>
+
+```python Python
 with cascadeflow.run(
     kpi_weights={"quality": 0.4, "cost": 0.3, "energy": 0.3}
 ) as session:
@@ -68,7 +105,17 @@ with cascadeflow.run(
     result = await agent.run("Summarize this article")
 ```
 
-## Pricing Table
+```typescript TypeScript
+await run({
+  kpiWeights: { quality: 0.4, cost: 0.3, energy: 0.3 },
+}, async () => {
+  await agent.run('Summarize this article');
+});
+```
+
+</CodeGroup>
+
+## Python Pricing Table
 
 Full pricing for all 18 supported models (USD per 1M tokens):
 
@@ -95,6 +142,8 @@ Full pricing for all 18 supported models (USD per 1M tokens):
 | gemini-2.0-flash | $0.10 | $0.40 |
 | gemini-1.5-flash | $0.075 | $0.30 |
 | gemini-1.5-pro | $1.25 | $5.00 |
+
+The TypeScript harness uses its own versioned pricing table for OpenAI and Anthropic models. See the package source when an exact coefficient is required for an audit.
 
 <Tip>
 **Example walkthrough:** [KPI-Weighted Routing (energy profile)](/examples/kpi-weighted-routing) | **GitHub:** [examples/cost_tracking.py](https://github.com/lemony-ai/cascadeflow/blob/main/examples/cost_tracking.py)
