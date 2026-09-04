@@ -184,6 +184,7 @@ python examples/multi_provider.py
 | pydantic | Core validation | ✅ Always | requirements.txt |
 | httpx | Core HTTP client | ✅ Always | requirements.txt |
 | openai | OpenAIProvider | ❌ Optional | `[openai]` or `[providers]` or `[all]` |
+| atlascloud | AtlasCloudProvider | ❌ Optional | core package + `ATLASCLOUD_API_KEY` |
 | anthropic | AnthropicProvider | ❌ Optional | `[anthropic]` or `[providers]` or `[all]` |
 | groq | GroqProvider | ❌ Optional | `[groq]` or `[providers]` or `[all]` |
 | huggingface-hub | HuggingFaceProvider | ❌ Optional | `[huggingface]` or `[all]` |

@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 _LAZY_PROVIDERS: dict[str, str] = {
     "AnthropicProvider": ".anthropic",
+    "AtlasCloudProvider": ".atlascloud",
     "DeepSeekProvider": ".deepseek",
     "GroqProvider": ".groq",
     "HuggingFaceProvider": ".huggingface",
@@ -57,6 +58,7 @@ def _build_provider_registry() -> dict:
     registry = {}
     _name_to_key = {
         "OpenAIProvider": "openai",
+        "AtlasCloudProvider": "atlascloud",
         "AnthropicProvider": "anthropic",
         "OllamaProvider": "ollama",
         "GroqProvider": "groq",
@@ -137,6 +139,7 @@ __all__ = [
     "ModelResponse",
     "PROVIDER_CAPABILITIES",
     "OpenAIProvider",
+    "AtlasCloudProvider",
     "AnthropicProvider",
     "OllamaProvider",
     "GroqProvider",
