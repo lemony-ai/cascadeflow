@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **n8n CascadeFlow Agent: tools were never offered to the models.** The agent collected the nodes connected to its Tools port only to execute tool calls, but invoked the drafter, verifier and domain models without passing the tool definitions, so no model could ever request a tool (models answered with "shall I run the tool?" instead). The executor now forwards the connected tools as the LangChain `tools` call option on every model call; caller-provided `tools` still win.
+- **n8n CascadeFlow Agent: connected memory crashed on n8n 2.x.** Persisting the turn used `chatHistory.addUserMessage` / `addAIChatMessage`, which no longer exist in `@langchain/core` 1.x ("addAIChatMessage is not a function"). The node now writes through `chatHistory.addMessage` with `HumanMessage` / `AIMessage`, which works on core 0.3 and 1.x.
+
 ## [1.0.0] - 2026-03-07
 
 ### Added
