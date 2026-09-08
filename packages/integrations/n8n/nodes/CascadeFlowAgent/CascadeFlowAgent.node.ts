@@ -56,9 +56,25 @@ export interface ToolLike {
 interface ChatMemoryLike {
   chatHistory: {
     getMessages(): Promise<BaseMessage[]>;
-    addUserMessage(message: string): Promise<void>;
-    addAIChatMessage(message: string): Promise<void>;
+    addMessage(message: BaseMessage): Promise<void>;
   };
+}
+
+/**
+ * Persist one user/assistant turn to a connected n8n memory node.
+ *
+ * Uses `chatHistory.addMessage`, which exists in @langchain/core 0.3 and 1.x.
+ * The older `addUserMessage`/`addAIChatMessage` helpers were removed in core 1.x
+ * (shipped by n8n 2.x) and crash the node with "addAIChatMessage is not a function".
+ */
+export async function persistTurnToMemory(
+  memory: ChatMemoryLike | null | undefined,
+  userText: string,
+  assistantText: string,
+): Promise<void> {
+  if (!memory) return;
+  await memory.chatHistory.addMessage(new HumanMessage(userText));
+  await memory.chatHistory.addMessage(new AIMessage(assistantText));
 }
 
 export class CascadeFlowAgentExecutor {
@@ -291,8 +307,23 @@ export class CascadeFlowAgentExecutor {
     };
   }
 
+  /**
+   * Merge the connected tools into the model call options.
+   *
+   * The models only know about tools that are passed on the call (LangChain
+   * `tools` call option, what `bindTools` does under the hood). Without this the
+   * agent collects tools for execution but no model can ever request one.
+   * Caller-provided `options.tools` win.
+   */
+  private withTools(options?: any): any {
+    if (this.toolMap.size === 0) return options;
+    if (options && options.tools !== undefined) return options;
+    return { ...(options ?? {}), tools: Array.from(this.toolMap.values()) };
+  }
+
   async invoke(input: any, options?: any): Promise<any> {
     const messages = this.normalizeMessages(input);
+    options = this.withTools(options);
     const trace: any[] = [];
     let currentMessages = [...messages];
     let finalMessage: BaseMessage | null = null;
@@ -1070,10 +1101,7 @@ export class CascadeFlowAgent implements INodeType {
       const result = await agentExecutor.invoke(messages);
 
       // Persist to memory
-      if (memory) {
-        await memory.chatHistory.addUserMessage(text);
-        await memory.chatHistory.addAIChatMessage(result.output);
-      }
+      await persistTurnToMemory(memory, text, result.output);
 
       // Extract cascadeflow metadata from response
       const responseMetadata = result.message?.response_metadata ?? {};
