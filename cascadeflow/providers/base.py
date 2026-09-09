@@ -1670,6 +1670,17 @@ PROVIDER_CAPABILITIES = {
         "max_top_logprobs": 0,
         "has_cost_tracking": True,
     },
+    "edenai": {
+        # Logprobs support varies per underlying model behind the gateway, so
+        # EdenAIProvider._check_logprobs_support() conservatively reports False.
+        "supports_logprobs": False,
+        "supports_streaming": True,
+        "supports_tools": True,
+        "max_top_logprobs": 0,
+        # Eden AI returns the actual per-request cost in the response body, so
+        # accounting is exact rather than estimated.
+        "has_cost_tracking": True,
+    },
 }
 
 
