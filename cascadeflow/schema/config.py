@@ -110,6 +110,7 @@ class ModelConfig(BaseModel):
         v = v.lower()
         allowed = [
             "openai",
+            "atlascloud",
             "anthropic",
             "deepseek",
             "groq",
