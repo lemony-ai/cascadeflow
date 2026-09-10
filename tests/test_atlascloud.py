@@ -101,6 +101,9 @@ def test_cost_is_explicitly_untracked():
     provider = AtlasCloudProvider(api_key="atlas-test-key")
 
     assert provider._use_litellm_pricing is False
-    assert provider.calculate_accurate_cost(
-        model="qwen/qwen3.5-flash", prompt_tokens=100, completion_tokens=50
-    ) == 0.0
+    assert (
+        provider.calculate_accurate_cost(
+            model="qwen/qwen3.5-flash", prompt_tokens=100, completion_tokens=50
+        )
+        == 0.0
+    )
