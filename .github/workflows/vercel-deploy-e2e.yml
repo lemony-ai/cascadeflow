@@ -9,6 +9,7 @@ jobs:
   deployed-api-chat:
     name: Deployed /api/chat E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Setup Node.js
@@ -138,44 +139,49 @@ jobs:
             TEAM_QS="?teamId=${VERCEL_TEAM_ID}"
           fi
 
-          CREATE_RESP=$(curl -sS -X POST "https://api.vercel.com/v10/projects${TEAM_QS}" \
+          echo "Creating Vercel project ${PROJECT_NAME}"
+          CREATE_RESP=$(curl -sS --max-time 60 -X POST "https://api.vercel.com/v10/projects${TEAM_QS}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
             --data "{\"name\":\"${PROJECT_NAME}\",\"framework\":\"nextjs\"}")
           PROJECT_ID=$(node -e "const r=JSON.parse(process.argv[1]); if(!r.id){console.error(JSON.stringify(r)); process.exit(1)}; process.stdout.write(r.id);" "$CREATE_RESP")
 
           cleanup() {
-            curl -sS -X DELETE "https://api.vercel.com/v9/projects/${PROJECT_ID}${TEAM_QS}" \
+            curl -sS --max-time 60 -X DELETE "https://api.vercel.com/v9/projects/${PROJECT_ID}${TEAM_QS}" \
               -H "Authorization: Bearer ${VERCEL_TOKEN}" >/dev/null || true
           }
           trap cleanup EXIT
 
           # Disable deployment protection on the sandbox project so direct /api/chat checks work.
-          curl -sS -X PATCH "https://api.vercel.com/v10/projects/${PROJECT_ID}${TEAM_QS}" \
+          curl -sS --max-time 60 -X PATCH "https://api.vercel.com/v10/projects/${PROJECT_ID}${TEAM_QS}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
             --data '{"ssoProtection":null}' >/dev/null
 
           ENV_PAYLOAD=$(node -e "const key=process.argv[1]; console.log(JSON.stringify([{type:'encrypted',key:'OPENAI_API_KEY',value:key,target:['preview','production']}]));" "$OPENAI_API_KEY")
-          curl -sS -X POST "https://api.vercel.com/v10/projects/${PROJECT_ID}/env${TEAM_QS}" \
+          curl -sS --max-time 60 -X POST "https://api.vercel.com/v10/projects/${PROJECT_ID}/env${TEAM_QS}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
             --data "$ENV_PAYLOAD" >/dev/null
 
-          pnpm install --silent
+          echo '::group::pnpm install'
+          timeout 600 pnpm install --reporter=append-only
+          echo '::endgroup::'
 
           SCOPE_ARGS=()
           if [[ -n "${VERCEL_SCOPE:-}" ]]; then
             SCOPE_ARGS=(--scope "${VERCEL_SCOPE}")
           fi
 
-          pnpm dlx vercel@latest link --yes --project "${PROJECT_NAME}" --token "${VERCEL_TOKEN}" "${SCOPE_ARGS[@]}" >/dev/null
-          DEPLOY_URL=$(pnpm dlx vercel@latest deploy --yes --token "${VERCEL_TOKEN}" "${SCOPE_ARGS[@]}" | tail -n 1 | tr -d '\r')
+          echo "Linking ${PROJECT_NAME}"
+          timeout 120 pnpm dlx vercel@latest link --yes --project "${PROJECT_NAME}" --token "${VERCEL_TOKEN}" "${SCOPE_ARGS[@]}" </dev/null
+          echo "Deploying"
+          DEPLOY_URL=$(timeout 600 pnpm dlx vercel@latest deploy --yes --token "${VERCEL_TOKEN}" "${SCOPE_ARGS[@]}" </dev/null | tail -n 1 | tr -d '\r')
           if [[ "$DEPLOY_URL" != http* ]]; then
             DEPLOY_URL="https://${DEPLOY_URL}"
           fi
 
-          RESP=$(curl -sS -X POST "${DEPLOY_URL}/api/chat" \
+          RESP=$(curl -sS --max-time 60 -X POST "${DEPLOY_URL}/api/chat" \
             -H "content-type: application/json" \
             --data '{"messages":[{"role":"user","content":"Reply with exactly: cascadeflow-ok"}]}')
 
