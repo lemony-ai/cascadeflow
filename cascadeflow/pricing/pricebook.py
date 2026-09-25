@@ -9,6 +9,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from cascadeflow.pricing.matching import longest_prefix_match
 from cascadeflow.schema.usage import Usage
 
 logger = logging.getLogger(__name__)
@@ -57,11 +58,10 @@ class PriceBook:
         price = self._prices.get(model)
         if price is not None:
             return price
-        # Prefix match for versioned model names (e.g. gpt-4o-2024-08-06)
-        for name, p in self._prices.items():
-            if model.startswith(name):
-                return p
-        return None
+        # Longest-prefix match for versioned model names (e.g. gpt-4o-2024-08-06).
+        # Longest wins so "gpt-4o-mini-*" resolves to gpt-4o-mini, not gpt-4o.
+        name = longest_prefix_match(model, self._prices)
+        return self._prices[name] if name is not None else None
 
     def update(self, model: str, input_per_1k: float, output_per_1k: float) -> None:
         """Add or update a model's pricing at runtime.

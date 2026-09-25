@@ -42,6 +42,8 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Any, Optional
 
+from cascadeflow.pricing.matching import longest_prefix_match
+
 logger = logging.getLogger(__name__)
 
 
@@ -895,13 +897,8 @@ class CostCalculator:
                 "gpt-4": {"input": 0.030, "output": 0.060},
                 "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
             }
-            rates = None
-            for prefix, rate in pricing.items():
-                if name.startswith(prefix):
-                    rates = rate
-                    break
-            if not rates:
-                rates = {"input": 0.030, "output": 0.060}
+            prefix = longest_prefix_match(name, pricing)
+            rates = pricing[prefix] if prefix is not None else {"input": 0.030, "output": 0.060}
             if input_tokens or output_tokens:
                 return (input_tokens / 1000) * rates["input"] + (output_tokens / 1000) * rates[
                     "output"
@@ -924,13 +921,8 @@ class CostCalculator:
                 "claude-3-sonnet": 15.0,
                 "claude-3-haiku": 0.25,
             }
-            blended = None
-            for prefix, rate in rates.items():
-                if name.startswith(prefix):
-                    blended = rate
-                    break
-            if blended is None:
-                blended = 15.0
+            prefix = longest_prefix_match(name, rates)
+            blended = rates[prefix] if prefix is not None else 15.0
             return (total_tokens / 1_000_000) * blended
 
         return None
