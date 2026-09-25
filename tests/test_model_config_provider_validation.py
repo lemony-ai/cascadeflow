@@ -11,6 +11,8 @@ from cascadeflow.providers.base import PROVIDER_CAPABILITIES
         "DeepSeek",
         "openrouter",
         "OpenRouter",
+        "requesty",
+        "Requesty",
     ],
 )
 def test_model_config_provider_allows_supported_providers(provider: str) -> None:
