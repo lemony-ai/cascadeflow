@@ -22,6 +22,7 @@ export { googleAdapter } from './providers/google';
 export { localAdapter } from './providers/local';
 export { liteLLMAdapter } from './providers/litellm';
 export { openRouterAdapter } from './providers/openrouter';
+export { requestyAdapter } from './providers/requesty';
 export { togetherAdapter } from './providers/together';
 export { groqAdapter } from './providers/groq';
 export { mistralAdapter } from './providers/mistral';

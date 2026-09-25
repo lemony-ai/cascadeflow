@@ -24,6 +24,7 @@ export type Provider =
   | 'openrouter'
   | 'perplexity'
   | 'replicate'
+  | 'requesty'
   | 'together'
   | 'vertex'
   | 'vllm'

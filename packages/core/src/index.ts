@@ -197,6 +197,7 @@ export { OllamaProvider } from './providers/ollama';
 export { HuggingFaceProvider, HuggingFaceEndpointType } from './providers/huggingface';
 export { VLLMProvider } from './providers/vllm';
 export { OpenRouterProvider } from './providers/openrouter';
+export { RequestyProvider } from './providers/requesty';
 export {
   VercelAISDKProvider,
   VERCEL_AI_PROVIDER_NAMES,
@@ -217,6 +218,7 @@ export {
   localAdapter,
   liteLLMAdapter,
   openRouterAdapter,
+  requestyAdapter,
   togetherAdapter,
   groqAdapter,
   mistralAdapter,
