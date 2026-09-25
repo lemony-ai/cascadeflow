@@ -1663,6 +1663,13 @@ PROVIDER_CAPABILITIES = {
         "max_top_logprobs": 20,
         "has_cost_tracking": True,
     },
+    "requesty": {
+        "supports_logprobs": True,
+        "supports_streaming": True,
+        "supports_tools": True,
+        "max_top_logprobs": 20,
+        "has_cost_tracking": True,
+    },
     "deepseek": {
         "supports_logprobs": False,
         "supports_streaming": True,

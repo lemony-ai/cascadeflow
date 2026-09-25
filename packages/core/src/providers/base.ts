@@ -322,6 +322,7 @@ export function getAvailableProviders(): string[] {
     openrouter: 'OPENROUTER_API_KEY',
     perplexity: 'PERPLEXITY_API_KEY',
     replicate: 'REPLICATE_API_TOKEN',
+    requesty: 'REQUESTY_API_KEY',
     mistral: 'MISTRAL_API_KEY',
     xai: 'XAI_API_KEY',
   };

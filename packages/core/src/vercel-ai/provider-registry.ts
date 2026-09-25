@@ -13,6 +13,7 @@ import { mistralAdapter } from './providers/mistral';
 import { openAIAdapter } from './providers/openai';
 import { openRouterAdapter } from './providers/openrouter';
 import { perplexityAdapter } from './providers/perplexity';
+import { requestyAdapter } from './providers/requesty';
 import { togetherAdapter } from './providers/together';
 import { vertexAdapter } from './providers/vertex';
 import { xaiAdapter } from './providers/xai';
@@ -50,6 +51,7 @@ export const vercelAIProviderRegistry = new VercelAIProviderRegistry();
   localAdapter,
   liteLLMAdapter,
   openRouterAdapter,
+  requestyAdapter,
   togetherAdapter,
   groqAdapter,
   mistralAdapter,

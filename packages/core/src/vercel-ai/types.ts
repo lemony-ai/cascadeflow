@@ -7,6 +7,7 @@ export type VercelAIProviderId =
   | 'local'
   | 'litellm'
   | 'openrouter'
+  | 'requesty'
   | 'together'
   | 'groq'
   | 'mistral'

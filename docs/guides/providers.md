@@ -41,7 +41,7 @@ cascadeflow integrates the **Vercel AI SDK** so you can use a wider set of provi
 - Groq, Together AI, Perplexity, xAI, Fireworks
 - AWS Bedrock, Google Vertex, Replicate, DeepSeek, Cerebras
 
-> Note: `openrouter` and `ollama` are supported natively by cascadeflow; they are not part of the Vercel AI SDK provider list used here.
+> Note: `openrouter`, `requesty` and `ollama` are supported natively by cascadeflow; they are not part of the Vercel AI SDK provider list used here.
 
 **Setup (TypeScript):**
 ```bash

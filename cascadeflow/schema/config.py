@@ -119,6 +119,7 @@ class ModelConfig(BaseModel):
             "vllm",
             "replicate",
             "openrouter",
+            "requesty",
             "custom",
         ]
         if v not in allowed:

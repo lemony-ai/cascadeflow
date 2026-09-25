@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Requesty provider.** `provider="requesty"` (Python) and `provider: 'requesty'` (TypeScript) route requests through the Requesty OpenAI-compatible gateway using `REQUESTY_API_KEY`. Model discovery lists Requesty managed policies first, then the full `vendor/model` catalog. Use `https://router.eu.requesty.ai/v1` as the base URL for the EU endpoint.
+
 ### Fixed
 
 - **n8n CascadeFlow Agent: tools were never offered to the models.** The agent collected the nodes connected to its Tools port only to execute tool calls, but invoked the drafter, verifier and domain models without passing the tool definitions, so no model could ever request a tool (models answered with "shall I run the tool?" instead). The executor now forwards the connected tools as the LangChain `tools` call option on every model call; caller-provided `tools` still win.

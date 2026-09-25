@@ -31,6 +31,7 @@ describe('Vercel AI SDK Provider', () => {
       expect.arrayContaining(['openai', 'anthropic', 'groq', 'google', 'azure', 'bedrock', 'vertex'])
     );
     expect(VERCEL_AI_PROVIDER_NAMES).not.toContain('openrouter');
+    expect(VERCEL_AI_PROVIDER_NAMES).not.toContain('requesty');
     expect(VERCEL_AI_PROVIDER_NAMES).not.toContain('ollama');
   });
 

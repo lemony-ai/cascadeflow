@@ -24,6 +24,7 @@ _LAZY_PROVIDERS: dict[str, str] = {
     "OllamaProvider": ".ollama",
     "OpenAIProvider": ".openai",
     "OpenRouterProvider": ".openrouter",
+    "RequestyProvider": ".requesty",
     "TogetherProvider": ".together",
     "VLLMProvider": ".vllm",
 }
@@ -64,6 +65,7 @@ def _build_provider_registry() -> dict:
         "HuggingFaceProvider": "huggingface",
         "TogetherProvider": "together",
         "OpenRouterProvider": "openrouter",
+        "RequestyProvider": "requesty",
         "DeepSeekProvider": "deepseek",
     }
     for cls_name, module_path in _LAZY_PROVIDERS.items():
@@ -144,6 +146,7 @@ __all__ = [
     "HuggingFaceProvider",
     "TogetherProvider",
     "OpenRouterProvider",
+    "RequestyProvider",
     "DeepSeekProvider",
     "PROVIDER_REGISTRY",
     "get_provider",
