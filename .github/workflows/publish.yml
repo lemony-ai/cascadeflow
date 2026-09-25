@@ -184,7 +184,7 @@ jobs:
       - name: Publish packages
         run: |
           set -euo pipefail
-          for tarball in $(ls npm-tarballs/*.tgz | sort); do
+          for tarball in $(ls ./npm-tarballs/*.tgz | sort); do
             MANIFEST=$(tar -xOzf "$tarball" package/package.json)
             PACKAGE_NAME=$(node -p "JSON.parse(process.argv[1]).name" "$MANIFEST")
             PACKAGE_VERSION=$(node -p "JSON.parse(process.argv[1]).version" "$MANIFEST")
