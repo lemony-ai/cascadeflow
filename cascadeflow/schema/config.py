@@ -112,6 +112,7 @@ class ModelConfig(BaseModel):
             "openai",
             "anthropic",
             "deepseek",
+            "edenai",
             "groq",
             "ollama",
             "huggingface",
