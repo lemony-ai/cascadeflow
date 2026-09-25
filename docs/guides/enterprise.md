@@ -153,6 +153,7 @@ const httpConfig: HttpConfig = {
 | Anthropic | Full | Full | SDK-based, all options supported |
 | Groq | Full | Full | SDK-based, all options supported |
 | OpenRouter | Full | Via env vars | Fetch-based, uses system proxy |
+| Requesty | Full | Via env vars | Fetch-based, uses system proxy |
 | Together | Full | Via env vars | Fetch-based, uses system proxy |
 | HuggingFace | Full | Via env vars | Fetch-based, uses system proxy |
 | Ollama | Local | Local | Local server, no proxy needed |
