@@ -88,41 +88,46 @@ jobs:
           cd packages/integrations/paygentic
           pnpm build
 
-      - name: Store @cascadeflow/core package
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-cascadeflow-core
-          path: packages/core/
+      # Pack inside the installed workspace so pnpm rewrites workspace: refs
+      # to real versions. Packing outside it ships "workspace:*" to npm.
+      - name: Pack npm tarballs
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/npm-tarballs"
+          # Order matters: dependencies are published before dependents.
+          PACKAGES=(
+            packages/ml
+            packages/core
+            packages/integrations/n8n
+            packages/langchain-cascadeflow
+            packages/integrations/vercel-ai
+            packages/integrations/paygentic
+          )
+          i=0
+          for dir in "${PACKAGES[@]}"; do
+            i=$((i + 1))
+            TARBALL=$(cd "$dir" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/npm-tarballs" | tail -n 1)
+            mv "$TARBALL" "$GITHUB_WORKSPACE/npm-tarballs/$(printf '%02d' "$i")-$(basename "$TARBALL")"
+          done
+          ls -1 npm-tarballs
 
-      - name: Store @cascadeflow/ml package
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-cascadeflow-ml
-          path: packages/ml/
+      - name: Verify tarballs have no workspace protocol refs
+        run: |
+          set -euo pipefail
+          status=0
+          for tarball in npm-tarballs/*.tgz; do
+            if tar -xOzf "$tarball" package/package.json | grep -n '"workspace:'; then
+              echo "::error::$tarball still contains workspace: protocol references"
+              status=1
+            fi
+          done
+          exit $status
 
-      - name: Store @cascadeflow/n8n-nodes-cascadeflow package
+      - name: Store npm tarballs
         uses: actions/upload-artifact@v4
         with:
-          name: npm-cascadeflow-n8n-nodes-cascadeflow
-          path: packages/integrations/n8n/
-
-      - name: Store @cascadeflow/langchain-cascadeflow package
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-cascadeflow-langchain-cascadeflow
-          path: packages/langchain-cascadeflow/
-
-      - name: Store @cascadeflow/vercel-ai package
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-cascadeflow-vercel-ai
-          path: packages/integrations/vercel-ai/
-
-      - name: Store @cascadeflow/paygentic package
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-cascadeflow-paygentic
-          path: packages/integrations/paygentic/
+          name: npm-tarballs
+          path: npm-tarballs/*.tgz
 
   publish-to-pypi:
     name: Publish to PyPI
@@ -159,46 +164,11 @@ jobs:
       id-token: write  # Required for npm provenance
 
     steps:
-      - name: Download @cascadeflow/core
+      - name: Download npm tarballs
         uses: actions/download-artifact@v4
         with:
-          name: npm-cascadeflow-core
-          path: packages/core/
-
-      - name: Download @cascadeflow/ml
-        uses: actions/download-artifact@v4
-        with:
-          name: npm-cascadeflow-ml
-          path: packages/ml/
-
-      - name: Download @cascadeflow/n8n-nodes-cascadeflow
-        uses: actions/download-artifact@v4
-        with:
-          name: npm-cascadeflow-n8n-nodes-cascadeflow
-          path: packages/integrations/n8n/
-
-      - name: Download @cascadeflow/langchain-cascadeflow
-        uses: actions/download-artifact@v4
-        with:
-          name: npm-cascadeflow-langchain-cascadeflow
-          path: packages/langchain-cascadeflow/
-
-      - name: Download @cascadeflow/vercel-ai
-        uses: actions/download-artifact@v4
-        with:
-          name: npm-cascadeflow-vercel-ai
-          path: packages/integrations/vercel-ai/
-
-      - name: Download @cascadeflow/paygentic
-        uses: actions/download-artifact@v4
-        with:
-          name: npm-cascadeflow-paygentic
-          path: packages/integrations/paygentic/
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
+          name: npm-tarballs
+          path: npm-tarballs/
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -210,94 +180,21 @@ jobs:
       - name: Update npm to latest
         run: npm install -g npm@latest
 
-      # pnpm pack resolves workspace: protocol refs, then npm publish uses OIDC
-      - name: Publish @cascadeflow/ml
+      # Tarballs are prefixed with their publish order (dependencies first).
+      - name: Publish packages
         run: |
           set -euo pipefail
-          cd packages/ml
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
-            exit 0
-          fi
-          TARBALL=$(pnpm pack --pack-destination .)
-          npm publish "$TARBALL" --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @cascadeflow/core
-        run: |
-          set -euo pipefail
-          cd packages/core
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
-            exit 0
-          fi
-          TARBALL=$(pnpm pack --pack-destination .)
-          npm publish "$TARBALL" --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @cascadeflow/n8n-nodes-cascadeflow
-        run: |
-          set -euo pipefail
-          cd packages/integrations/n8n
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
-            exit 0
-          fi
-          TARBALL=$(pnpm pack --pack-destination .)
-          npm publish "$TARBALL" --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @cascadeflow/langchain
-        run: |
-          set -euo pipefail
-          cd packages/langchain-cascadeflow
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
-            exit 0
-          fi
-          TARBALL=$(pnpm pack --pack-destination .)
-          npm publish "$TARBALL" --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @cascadeflow/vercel-ai
-        run: |
-          set -euo pipefail
-          cd packages/integrations/vercel-ai
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
-            exit 0
-          fi
-          TARBALL=$(pnpm pack --pack-destination .)
-          npm publish "$TARBALL" --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @cascadeflow/paygentic
-        run: |
-          set -euo pipefail
-          cd packages/integrations/paygentic
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
-            exit 0
-          fi
-          TARBALL=$(pnpm pack --pack-destination .)
-          npm publish "$TARBALL" --access public --provenance
+          for tarball in $(ls npm-tarballs/*.tgz | sort); do
+            MANIFEST=$(tar -xOzf "$tarball" package/package.json)
+            PACKAGE_NAME=$(node -p "JSON.parse(process.argv[1]).name" "$MANIFEST")
+            PACKAGE_VERSION=$(node -p "JSON.parse(process.argv[1]).version" "$MANIFEST")
+            if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+              echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm, skipping."
+              continue
+            fi
+            echo "Publishing ${PACKAGE_NAME}@${PACKAGE_VERSION}"
+            npm publish "$tarball" --access public --provenance
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
