@@ -947,6 +947,7 @@ class BaseProvider(ABC):
         # Map provider class names to LiteLLM prefixes
         provider_prefixes = {
             "OpenAIProvider": None,  # Native format
+            "AtlasCloudProvider": "openai",  # Atlas Cloud uses OpenAI-compatible format
             "AnthropicProvider": None,  # Native format
             "GroqProvider": "groq",
             "TogetherProvider": "together_ai",
@@ -1613,6 +1614,13 @@ PROVIDER_CAPABILITIES = {
         "supports_tools": True,
         "max_top_logprobs": 20,
         "has_cost_tracking": True,
+    },
+    "atlascloud": {
+        "supports_logprobs": False,
+        "supports_streaming": True,
+        "supports_tools": True,
+        "max_top_logprobs": 0,
+        "has_cost_tracking": False,
     },
     "groq": {
         "supports_logprobs": False,
