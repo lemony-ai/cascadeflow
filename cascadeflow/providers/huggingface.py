@@ -1342,6 +1342,77 @@ class HuggingFaceProvider(BaseProvider):
             # Return rough estimate (user should check provider-specific pricing)
             return (tokens / 1000) * 0.001  # ~$1 per million tokens (estimate)
 
+    def _is_cloud_provider(self) -> bool:
+        """HuggingFace Inference Endpoints benefit from warmup, others don't."""
+        # Serverless and Inference Providers are cloud-like
+        # Only Inference Endpoints (dedicated instances) benefit from warmup
+        return self.endpoint_type != HuggingFaceEndpointType.INFERENCE_ENDPOINT
+
+    async def _warmup_impl(
+        self,
+        models: Optional[list[str]],
+        warmup_prompt: str,
+        warmup_config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Warm up HuggingFace models.
+
+        Warmup only makes sense for Inference Endpoints (dedicated instances).
+        For Serverless and Inference Providers, warmup is a no-op.
+
+        Args:
+            models: List of models to warm up (not used for Inference Endpoints)
+            warmup_prompt: Test prompt
+            warmup_config: Additional config:
+                - max_tokens: Max tokens for warmup (default: 1)
+
+        Returns:
+            Dictionary with warmup results
+        """
+        max_tokens = warmup_config.get("max_tokens", 1)
+
+        # Only Inference Endpoints benefit from warmup
+        if self.endpoint_type != HuggingFaceEndpointType.INFERENCE_ENDPOINT:
+            return {
+                "models_warmed": [],
+                "success": True,
+                "errors": {},
+                "message": f"{self.endpoint_type.value}: Warmup not beneficial",
+            }
+
+        # For Inference Endpoints, send a test request
+        try:
+            payload = {
+                "inputs": warmup_prompt,
+                "parameters": {
+                    "max_new_tokens": max_tokens,
+                    "temperature": 0.0,
+                },
+            }
+
+            response = await self.client.post(
+                self.base_url,
+                json=payload,
+                timeout=60.0,  # Longer timeout for first load
+            )
+            response.raise_for_status()
+
+            logger.info("HuggingFace Inference Endpoint warmed up successfully")
+            return {
+                "models_warmed": ["inference_endpoint"],
+                "success": True,
+                "errors": {},
+            }
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning(f"HuggingFace: Warmup failed: {error_msg}")
+            return {
+                "models_warmed": [],
+                "success": False,
+                "errors": {"warmup": error_msg},
+            }
+
     async def __aenter__(self):
         """Async context manager entry."""
         return self

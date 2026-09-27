@@ -642,6 +642,117 @@ class VLLMProvider(BaseProvider):
         """
         return 0.0
 
+    def _is_cloud_provider(self) -> bool:
+        """vLLM is a local provider."""
+        return False
+
+    async def _warmup_impl(
+        self,
+        models: Optional[list[str]],
+        warmup_prompt: str,
+        warmup_config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Warm up vLLM models by loading them into memory.
+
+        For vLLM, warmup:
+        1. Checks which models are available
+        2. Sends a minimal inference request to prime the KV cache
+        3. Triggers model compilation (if using TorchScript/TensorRT)
+
+        This eliminates first-request latency and ensures optimal performance.
+
+        Args:
+            models: List of models to warm up
+            warmup_prompt: Test prompt (minimal tokens to minimize warmup time)
+            warmup_config: Additional config:
+                - max_tokens: Max tokens for warmup (default: 1 for minimal overhead)
+                - parallel: Warm up models in parallel (default: True)
+
+        Returns:
+            Dictionary with warmup results
+        """
+        max_tokens = warmup_config.get("max_tokens", 1)
+        parallel = warmup_config.get("parallel", True)
+
+        # If no models specified, try to get available models
+        if not models:
+            try:
+                available_models = await self.list_models()
+                if not available_models:
+                    return {
+                        "models_warmed": [],
+                        "success": False,
+                        "errors": {"general": "No models available in vLLM server"},
+                    }
+                # Warm up first model by default
+                models = [available_models[0]]
+            except Exception as e:
+                return {
+                    "models_warmed": [],
+                    "success": False,
+                    "errors": {"list_models": str(e)},
+                }
+
+        models_warmed = []
+        errors = {}
+
+        async def warmup_single_model(model: str) -> tuple[str, bool, Optional[str]]:
+            """Warm up a single model."""
+            try:
+                # Send minimal inference request (OpenAI-compatible format)
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": warmup_prompt}],
+                    "max_tokens": max_tokens,
+                    "temperature": 0.0,  # Deterministic for warmup
+                }
+
+                response = await self.client.post(
+                    f"{self.base_url}/chat/completions",
+                    json=payload,
+                    timeout=60.0,  # Longer timeout for first load
+                )
+                response.raise_for_status()
+
+                logger.info(f"vLLM: Model '{model}' warmed up and ready for inference")
+                return (model, True, None)
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    error_msg = f"Model not found: {model}"
+                else:
+                    error_msg = f"HTTP {e.response.status_code}: {str(e)}"
+                logger.warning(f"vLLM: Failed to warm up '{model}': {error_msg}")
+                return (model, False, error_msg)
+            except Exception as e:
+                error_msg = str(e)
+                logger.warning(f"vLLM: Failed to warm up '{model}': {error_msg}")
+                return (model, False, error_msg)
+
+        # Warm up models (parallel or sequential)
+        if parallel and len(models) > 1:
+            tasks = [warmup_single_model(model) for model in models]
+            results = await asyncio.gather(*tasks, return_exceptions=False)
+        else:
+            results = []
+            for model in models:
+                result = await warmup_single_model(model)
+                results.append(result)
+
+        # Process results
+        for model, success, error in results:
+            if success:
+                models_warmed.append(model)
+            else:
+                errors[model] = error
+
+        return {
+            "models_warmed": models_warmed,
+            "success": len(models_warmed) > 0,
+            "errors": errors,
+        }
+
     async def list_models(self) -> list:
         """
         List available models on vLLM server.

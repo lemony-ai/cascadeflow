@@ -1096,6 +1096,126 @@ class OllamaProvider(BaseProvider):
         """
         return 0.0  # Ollama is free!
 
+    def _is_cloud_provider(self) -> bool:
+        """Ollama is a local provider."""
+        return False
+
+    async def _warmup_impl(
+        self,
+        models: Optional[list[str]],
+        warmup_prompt: str,
+        warmup_config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Warm up Ollama models by loading them into memory.
+
+        For Ollama, warmup:
+        1. Checks which models are available
+        2. Sends a minimal inference request to each model (loads into memory)
+        3. Uses keep_alive to keep models resident in memory
+
+        This eliminates first-request latency which can be 2-10 seconds for cold models.
+
+        Args:
+            models: List of models to warm up (e.g., ['llama3.2:1b', 'mistral:7b'])
+            warmup_prompt: Test prompt (minimal tokens to minimize warmup time)
+            warmup_config: Additional config:
+                - max_tokens: Max tokens for warmup (default: 1 for minimal overhead)
+                - parallel: Warm up models in parallel (default: True)
+                - keep_alive: Keep-alive duration in seconds (default: 3600 = 1 hour)
+
+        Returns:
+            Dictionary with warmup results
+        """
+        max_tokens = warmup_config.get("max_tokens", 1)
+        parallel = warmup_config.get("parallel", True)
+        keep_alive_duration = warmup_config.get("keep_alive", 3600)  # 1 hour default
+
+        # If no models specified, try to get available models
+        if not models:
+            try:
+                available_models = await self.list_models()
+                if not available_models:
+                    return {
+                        "models_warmed": [],
+                        "success": False,
+                        "errors": {"general": "No models available in Ollama"},
+                    }
+                # Warm up first model by default
+                models = [available_models[0]]
+            except Exception as e:
+                return {
+                    "models_warmed": [],
+                    "success": False,
+                    "errors": {"list_models": str(e)},
+                }
+
+        models_warmed = []
+        errors = {}
+
+        async def warmup_single_model(model: str) -> tuple[str, bool, Optional[str]]:
+            """Warm up a single model."""
+            try:
+                # Send minimal inference request with keep_alive
+                payload = {
+                    "model": model,
+                    "prompt": warmup_prompt,
+                    "stream": False,
+                    "options": {
+                        "num_predict": max_tokens,  # Generate minimal tokens
+                    },
+                }
+
+                # Add keep_alive to keep model in memory
+                if keep_alive_duration:
+                    payload["keep_alive"] = f"{keep_alive_duration}s"
+
+                response = await self.client.post(
+                    f"{self.base_url}/api/generate",
+                    json=payload,
+                    timeout=30.0,  # Shorter timeout for warmup
+                )
+                response.raise_for_status()
+
+                logger.info(f"Ollama: Model '{model}' warmed up and loaded into memory")
+                return (model, True, None)
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    error_msg = f"Model not found: {model}. Run 'ollama pull {model}' first."
+                else:
+                    error_msg = f"HTTP {e.response.status_code}: {str(e)}"
+                logger.warning(f"Ollama: Failed to warm up '{model}': {error_msg}")
+                return (model, False, error_msg)
+            except Exception as e:
+                error_msg = str(e)
+                logger.warning(f"Ollama: Failed to warm up '{model}': {error_msg}")
+                return (model, False, error_msg)
+
+        # Warm up models (parallel or sequential)
+        if parallel and len(models) > 1:
+            tasks = [warmup_single_model(model) for model in models]
+            results = await asyncio.gather(*tasks, return_exceptions=False)
+        else:
+            results = []
+            for model in models:
+                result = await warmup_single_model(model)
+                results.append(result)
+
+        # Process results
+        for model, success, error in results:
+            if success:
+                models_warmed.append(model)
+            else:
+                errors[model] = error
+
+        return {
+            "models_warmed": models_warmed,
+            "success": len(models_warmed) > 0,
+            "errors": errors,
+            "keep_alive": f"{keep_alive_duration}s" if keep_alive_duration else None,
+        }
+
     async def list_models(self) -> list[str]:
         """
         List available models in Ollama.
