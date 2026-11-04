@@ -78,6 +78,17 @@ const ANTHROPIC_PRICING: Record<string, { input: number; output: number }> = {
  */
 export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
   const name = modelName.toLowerCase();
+  // https://platform.claude.com/docs/en/build-with-claude/thinking#sampling-parameters
+  const samplingModel = name.slice(name.lastIndexOf('/') + 1).replace(/[._]/g, '-');
+  const supportsTemperature = ![
+    'claude-opus-4-7',
+    'claude-opus-4-8',
+    'claude-opus-5',
+    'claude-sonnet-5',
+    'claude-haiku-5-5',
+    'claude-fable-5',
+    'claude-mythos-5',
+  ].some(prefix => samplingModel.startsWith(prefix));
 
   // Claude 4.5 models with extended thinking support
   // Includes: claude-sonnet-4.5, claude-haiku-4.5, claude-4.5-sonnet, etc.
@@ -90,6 +101,7 @@ export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
       supportsSystemMessages: true,
       supportsExtendedThinking: true,
       requiresThinkingBudget: true,
+      supportsTemperature,
     };
   }
 
@@ -102,6 +114,7 @@ export function getReasoningModelInfo(modelName: string): ReasoningModelInfo {
     supportsSystemMessages: true,
     supportsExtendedThinking: false,
     requiresThinkingBudget: false,
+    supportsTemperature,
   };
 }
 
@@ -137,6 +150,12 @@ export class AnthropicProvider extends BaseProvider {
     // Browser: Will use fetch in generate()
   }
 
+  private omitUnsupportedTemperature(payload: Record<string, unknown>): void {
+    if (getReasoningModelInfo(String(payload.model)).supportsTemperature === false) {
+      delete payload.temperature;
+    }
+  }
+
   async generate(request: ProviderRequest): Promise<ProviderResponse> {
     if (this.useSDK) {
       return this.generateWithSDK(request);
@@ -165,7 +184,7 @@ export class AnthropicProvider extends BaseProvider {
       const anthropicMessages = this.convertToAnthropicMessages(messages);
       const tools = request.tools ? this.convertTools(request.tools) : undefined;
 
-      const stream = await this.client.messages.stream({
+      const payload = {
         model: request.model || this.config.name,
         max_tokens: request.maxTokens || this.config.maxTokens || 1000,
         temperature: request.temperature ?? this.config.temperature ?? 0.7,
@@ -173,7 +192,9 @@ export class AnthropicProvider extends BaseProvider {
         system: request.systemPrompt,
         tools,
         ...request.extra,
-      });
+      };
+      this.omitUnsupportedTemperature(payload);
+      const stream = await this.client.messages.stream(payload);
 
       for await (const event of stream) {
         if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
@@ -224,6 +245,7 @@ export class AnthropicProvider extends BaseProvider {
       } else {
         body.temperature = 0.7;
       }
+      this.omitUnsupportedTemperature(body);
 
       if (tools) {
         body.tools = tools;
@@ -323,6 +345,7 @@ export class AnthropicProvider extends BaseProvider {
         tools,
         ...request.extra,
       };
+      this.omitUnsupportedTemperature(payload);
 
       // Add extended thinking configuration for Claude 4.5
       if (modelInfo.supportsExtendedThinking && request.extra?.thinking) {
@@ -414,6 +437,7 @@ export class AnthropicProvider extends BaseProvider {
       } else {
         body.temperature = 0.7;
       }
+      this.omitUnsupportedTemperature(body);
 
       if (tools) {
         body.tools = tools;

@@ -185,6 +185,7 @@ export interface ReasoningModelInfo {
   supportsSystemMessages: boolean;
   supportsReasoningEffort?: boolean; // OpenAI o1/o3
   supportsExtendedThinking?: boolean; // Anthropic Claude 4.5
+  supportsTemperature?: boolean;
   requiresMaxCompletionTokens?: boolean; // OpenAI specific
   requiresThinkingBudget?: boolean; // Anthropic specific
 }
