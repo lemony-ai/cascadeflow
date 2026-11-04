@@ -109,6 +109,7 @@ class ReasoningModelInfo:
         supports_extended_thinking: bool = False,
         requires_max_completion_tokens: bool = False,
         requires_thinking_budget: bool = False,
+        supports_temperature: bool = True,
     ):
         self.is_reasoning = is_reasoning
         self.provider = provider
@@ -119,6 +120,7 @@ class ReasoningModelInfo:
         self.supports_extended_thinking = supports_extended_thinking  # Anthropic Claude 3.7
         self.requires_max_completion_tokens = requires_max_completion_tokens  # OpenAI specific
         self.requires_thinking_budget = requires_thinking_budget  # Anthropic specific
+        self.supports_temperature = supports_temperature
 
 
 def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
@@ -147,6 +149,20 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         >>> print(info.supports_tools)  # True
     """
     model_lower = model_name.lower().replace("_", "-")
+    # These models reject non-default sampling parameters, even without thinking.
+    # https://platform.claude.com/docs/en/build-with-claude/thinking#sampling-parameters
+    sampling_model = model_lower.rsplit("/", 1)[-1].replace(".", "-")
+    supports_temperature = not sampling_model.startswith(
+        (
+            "claude-opus-4-7",
+            "claude-opus-4-8",
+            "claude-opus-5",
+            "claude-sonnet-5",
+            "claude-haiku-5-5",
+            "claude-fable-5",
+            "claude-mythos-5",
+        )
+    )
 
     # Detect Claude Sonnet 4.5 with extended thinking (released Sept 29, 2025)
     is_sonnet_45 = any(
@@ -171,6 +187,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
             supports_system_messages=True,
             supports_extended_thinking=True,
             requires_thinking_budget=True,  # Extended thinking requires token budget
+            supports_temperature=supports_temperature,
         )
 
     # All other Claude models have standard capabilities
@@ -182,6 +199,7 @@ def get_reasoning_model_info(model_name: str) -> ReasoningModelInfo:
         supports_system_messages=True,
         supports_extended_thinking=False,
         requires_thinking_budget=False,
+        supports_temperature=supports_temperature,
     )
 
 
@@ -734,6 +752,8 @@ class AnthropicProvider(BaseProvider):
             "messages": anthropic_messages,
             **kwargs,
         }
+        if not get_reasoning_model_info(model).supports_temperature:
+            payload.pop("temperature", None)
 
         # Add system prompt if extracted from messages
         if extracted_system:
@@ -1012,6 +1032,8 @@ class AnthropicProvider(BaseProvider):
             "messages": [{"role": "user", "content": prompt}],
             **kwargs,
         }
+        if not model_info.supports_temperature:
+            payload.pop("temperature", None)
 
         # Add system prompt if provided
         if system_prompt:
@@ -1249,6 +1271,8 @@ class AnthropicProvider(BaseProvider):
             "stream": True,  # Enable streaming
             **kwargs,
         }
+        if not get_reasoning_model_info(model).supports_temperature:
+            payload.pop("temperature", None)
 
         # Add system prompt if provided
         if system_prompt:
